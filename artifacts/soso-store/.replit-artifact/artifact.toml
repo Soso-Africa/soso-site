@@ -1,7 +1,7 @@
 kind = "web"
 previewPath = "/"
 title = "SOSO Africa Store"
-description = "A production-oriented, conversion-first bespoke menswear storefront for SOSO Africa. It offers responsive shopping, product sizing guidance, availability-first checkout states, structured SEO foundations, and a clean JusticeSure headless commerce boundary."
+description = "A production-oriented, conversion-first bespoke menswear storefront for SOSO Africa. It offers responsive shopping, sizing guidance, atelier-confirmed made-to-order flows, structured SEO foundations, and a clean JusticeSure headless commerce boundary."
 version = "1.0.0"
 id = "artifacts/soso-store"
 router = "path"

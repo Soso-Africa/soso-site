@@ -3,9 +3,9 @@ import type { CatalogProduct } from "@/data/products";
 
 export type CommerceMode = "catalog-preview" | "justicesure-headless";
 
-export type StockCheck = {
+export type ProductionCheck = {
   lineId: string;
-  available: boolean;
+  canMake: boolean;
   reason?: string;
 };
 
@@ -28,7 +28,7 @@ export interface CommerceGateway {
   readonly mode: CommerceMode;
   listProducts(): Promise<CatalogProduct[]>;
   getProduct(slug: string): Promise<CatalogProduct | undefined>;
-  validateCart(items: CartItem[]): Promise<StockCheck[]>;
+  confirmProduction(items: CartItem[]): Promise<ProductionCheck[]>;
   createOrder(request: CheckoutRequest): Promise<CheckoutResult>;
 }
 
@@ -42,14 +42,15 @@ export class CommerceConfigurationError extends Error {
 /**
  * JusticeSure's team has confirmed a headless API will be available, but its
  * authenticated contract has not been supplied. This intentionally has no
- * guessed URLs, request bodies, or fallback order behaviour.
+ * guessed URLs, request bodies, or fallback order behaviour. For SOSO, the
+ * customer-facing check is production confirmation, not finite stock.
  */
 export class JusticeSureHeadlessGateway implements CommerceGateway {
   readonly mode = "justicesure-headless" as const;
 
   private unavailable(): never {
     throw new CommerceConfigurationError(
-      "JusticeSure headless API details are required before live catalog, stock, or orders can be enabled.",
+      "JusticeSure headless API details are required before live catalog, production confirmation, or orders can be enabled.",
     );
   }
 
@@ -61,7 +62,7 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
     return this.unavailable();
   }
 
-  async validateCart(_items: CartItem[]): Promise<StockCheck[]> {
+  async confirmProduction(_items: CartItem[]): Promise<ProductionCheck[]> {
     return this.unavailable();
   }
 
@@ -86,11 +87,11 @@ export const commerceGateway: CommerceGateway =
         async getProduct() {
           return undefined;
         },
-        async validateCart(items) {
+        async confirmProduction(items) {
           return items.map((item) => ({
             lineId: `${item.slug}-${item.size}`,
-            available: false,
-            reason: "Availability is confirmed when live commerce is connected.",
+            canMake: false,
+            reason: "Production details are confirmed when live commerce is connected.",
           }));
         },
         async createOrder() {

@@ -29,7 +29,7 @@ export function Footer() {
       </div>
       <div className="max-w-7xl mx-auto mt-12 pt-6 flex flex-wrap justify-between gap-3 text-[11px] tracking-[0.1em]" style={{ borderTop: "1px solid rgba(184,145,47,0.15)", color: "#7a715c" }}>
         <span>© SOSO Africa. Abuja, Nigeria.</span>
-        <span>Prices are shown in Nigerian Naira (₦). Availability is confirmed before payment.</span>
+        <span>Prices are shown in Nigerian Naira (₦). Production details are confirmed before payment.</span>
       </div>
     </footer>
   );

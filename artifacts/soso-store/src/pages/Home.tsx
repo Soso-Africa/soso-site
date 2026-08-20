@@ -56,7 +56,7 @@ export default function Home() {
           <Reveal delay={480}>
             <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-[12px] tracking-[0.08em]" style={{ color: "hsl(var(--secondary))" }}>
               <span>Size guidance before you buy</span>
-              <span>Availability checked before payment</span>
+              <span>Atelier details confirmed before payment</span>
               <span>Stylist support for considered purchases</span>
             </div>
           </Reveal>
@@ -70,7 +70,7 @@ export default function Home() {
             ["Delivery guidance", "Options are confirmed for your location"],
             ["Sizing support", "Use the guide or speak with a stylist"],
             ["Made-to-measure", "Choose Custom for a fitting conversation"],
-            ["Thoughtful checkout", "Availability is checked before payment"],
+            ["Thoughtful checkout", "Making details are confirmed before payment"],
           ].map(([t, s], i) => (
             <div key={i} className="px-6 py-6 text-center" style={{ borderColor: "rgba(184,145,47,0.15)" }}>
               <p className="text-[13px] font-semibold tracking-wide" style={{ color: "hsl(var(--primary))" }}>{t}</p>
@@ -205,8 +205,8 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               ["Choose with confidence", "Explore a considered collection, then use product-specific sizing support before you add to bag."],
-              ["Confirm before payment", "Current availability is checked for the exact size you select, helping SOSO avoid disappointing orders."],
-              ["Speak to a person", "A stylist is available for product and fitting questions when a product page alone is not enough."],
+              ["Confirm before payment", "Your selected size, finish direction and production timing are confirmed before you commit."],
+              ["Speak to a person", "A stylist is available for product, fitting and bespoke direction when a product page alone is not enough."],
             ].map(([title, body], i) => (
               <Reveal key={title} delay={i * 130}>
                 <div className="h-full flex flex-col p-8" style={{ backgroundColor: "#FFFDF8", border: "1px solid rgba(184,145,47,0.3)" }}>
@@ -277,7 +277,7 @@ export default function Home() {
               </a>
             </div>
             <p className="mt-8 text-[12px]" style={{ color: "hsl(var(--secondary))" }}>
-               Current availability, delivery options and payment methods are confirmed before your order is accepted.
+               Production timing, delivery options and payment methods are confirmed before your order is accepted.
             </p>
           </Reveal>
         </div>

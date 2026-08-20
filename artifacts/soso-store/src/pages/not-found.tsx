@@ -8,7 +8,7 @@ export default function NotFound() {
       <div>
         <p className="text-[11px] uppercase tracking-[.3em] text-[hsl(var(--primary))]">404</p>
         <h1 className="soso-display text-4xl text-white mt-3">This piece is not in the collection.</h1>
-        <p className="mt-4 text-sm text-[hsl(var(--secondary))]">Return to the collection to discover the available SOSO pieces.</p>
+        <p className="mt-4 text-sm text-[hsl(var(--secondary))]">Return to the collection to discover the SOSO pieces ready for your direction.</p>
         <Link href="/shop" className="inline-block mt-7 text-sm uppercase tracking-[.16em] text-[hsl(var(--primary))] underline underline-offset-4">Shop the collection</Link>
       </div>
     </div>

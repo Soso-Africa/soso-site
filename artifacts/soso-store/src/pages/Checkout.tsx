@@ -6,7 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { commerceGateway, CommerceConfigurationError } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
 
-type CheckoutState = "ready" | "checking" | "unavailable";
+type CheckoutState = "ready" | "checking" | "needs-confirmation";
 
 export default function Checkout() {
   const { items, cartTotal } = useCart();
@@ -20,12 +20,12 @@ export default function Checkout() {
     const form = new FormData(event.currentTarget);
 
     try {
-      const checks = await commerceGateway.validateCart(items);
-      if (checks.some((check) => !check.available)) {
-        setState("unavailable");
+      const checks = await commerceGateway.confirmProduction(items);
+      if (checks.some((check) => !check.canMake)) {
+        setState("needs-confirmation");
         setMessage(
-          checks.find((check) => !check.available)?.reason ??
-            "We need to confirm availability before taking payment.",
+          checks.find((check) => !check.canMake)?.reason ??
+            "We need to confirm the making details before taking payment.",
         );
         return;
       }
@@ -39,7 +39,7 @@ export default function Checkout() {
         items,
       });
     } catch (error) {
-      setState("unavailable");
+      setState("needs-confirmation");
       setMessage(
         error instanceof CommerceConfigurationError
           ? error.message
@@ -52,7 +52,7 @@ export default function Checkout() {
     <div className="max-w-6xl mx-auto px-6 lg:px-12 py-12 md:py-18">
       <Seo
         title="Secure checkout | SOSO Africa"
-        description="Review your SOSO Africa bag and confirm product availability before payment."
+        description="Review your SOSO Africa bag and confirm the bespoke production details before payment."
         path="/checkout"
       />
       <Link href="/shop" className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[hsl(var(--primary))]">
@@ -63,7 +63,7 @@ export default function Checkout() {
           <p className="text-[11px] tracking-[0.3em] uppercase text-[hsl(var(--primary))]">Checkout</p>
           <h1 className="soso-display font-light text-4xl md:text-5xl text-white mt-3">Confirm your order</h1>
           <p className="mt-4 text-sm leading-relaxed text-[hsl(var(--secondary))] max-w-xl">
-            Before payment, SOSO confirms the selected size and current availability. This prevents a premium piece from being sold after it has already been allocated.
+            SOSO makes each order to the client’s chosen direction. Before payment, the atelier confirms the selected size, fabric or finish direction, and the production timing.
           </p>
 
           {items.length === 0 ? (
@@ -92,7 +92,7 @@ export default function Checkout() {
                 <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
               </label>
 
-              {state === "unavailable" && (
+              {state === "needs-confirmation" && (
                 <div role="alert" className="border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed">
                   {message}
                 </div>
@@ -100,9 +100,9 @@ export default function Checkout() {
 
               <button disabled={state === "checking"} className="w-full soso-btn-gold py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
                 <LockKeyhole size={16} className="inline mr-2" />
-                {state === "checking" ? "Confirming availability…" : "Confirm availability"}
+                {state === "checking" ? "Confirming making details…" : "Confirm making details"}
               </button>
-              <p className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--secondary))]"><LockKeyhole size={14} /> Payment is requested only after availability is confirmed.</p>
+              <p className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--secondary))]"><LockKeyhole size={14} /> Payment is requested only after the atelier confirms the making details.</p>
             </form>
           )}
         </section>

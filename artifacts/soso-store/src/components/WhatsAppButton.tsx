@@ -1,7 +1,14 @@
 import React from "react";
+import { useLocation } from "wouter";
 import { WhatsAppIcon } from "./Icons";
 
 export function WhatsAppButton() {
+  const [location] = useLocation();
+
+  if (location.startsWith("/product/") || location === "/checkout") {
+    return null;
+  }
+
   return (
     <a
       href="/#whatsapp"
