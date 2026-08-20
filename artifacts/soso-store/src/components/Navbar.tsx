@@ -24,7 +24,7 @@ export function Navbar() {
   return (
     <>
       <div className="text-center text-[11px] tracking-[0.22em] uppercase py-2 px-4" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}>
-        Fit guidance before you buy &nbsp;&middot;&nbsp; Atelier details confirmed before payment
+        Fit guidance if you need it &nbsp;&middot;&nbsp; Atelier details confirmed after payment
       </div>
 
       <header

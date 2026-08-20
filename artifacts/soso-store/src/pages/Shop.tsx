@@ -18,7 +18,7 @@ export default function Shop() {
     <div className="flex flex-col pt-10">
       <Seo
         title="Shop premium menswear | SOSO Africa"
-        description="Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts. Confirm fit and bespoke production details before payment."
+        description="Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts. Pay securely, with optional stylist help before you order."
         path="/shop"
       />
       <div className="max-w-7xl mx-auto w-full px-6 lg:px-12 flex-1">

@@ -56,7 +56,7 @@ export default function Home() {
           <Reveal delay={480}>
             <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-[12px] tracking-[0.08em]" style={{ color: "hsl(var(--secondary))" }}>
               <span>Size guidance before you buy</span>
-              <span>Atelier details confirmed before payment</span>
+              <span>Atelier details confirmed after payment</span>
               <span>Stylist support for considered purchases</span>
             </div>
           </Reveal>
@@ -70,7 +70,7 @@ export default function Home() {
             ["Delivery guidance", "Options are confirmed for your location"],
             ["Sizing support", "Use the guide or speak with a stylist"],
             ["Made-to-measure", "Choose Custom for a fitting conversation"],
-            ["Thoughtful checkout", "Making details are confirmed before payment"],
+            ["Thoughtful checkout", "Pay first, then the atelier confirms making details"],
           ].map(([t, s], i) => (
             <div key={i} className="px-6 py-6 text-center" style={{ borderColor: "rgba(184,145,47,0.15)" }}>
               <p className="text-[13px] font-semibold tracking-wide" style={{ color: "hsl(var(--primary))" }}>{t}</p>
@@ -172,8 +172,8 @@ export default function Home() {
           {[
             ["01", "Choose your piece", "Pick from the collection, or send us your inspiration on WhatsApp."],
             ["02", "Measure in 5 minutes", "Our fit specialist guides you on a WhatsApp video call — no tape drama."],
-             ["03", "Confirm the details", "Your stylist confirms the selected piece, size and delivery options before payment."],
-             ["04", "Place a considered order", "You receive clear next steps before your order is accepted."],
+             ["03", "Pay securely", "Complete payment for the piece you have chosen. Ask a stylist first only if you have a question."],
+             ["04", "Atelier follows up", "After payment, the atelier confirms the making details and production next steps."],
           ].map(([n, t, s], i) => (
             <Reveal key={n} delay={i * 110}>
               <div className="flex gap-6 py-5" style={{ borderBottom: "1px solid rgba(184,145,47,0.2)" }}>
@@ -205,7 +205,7 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               ["Choose with confidence", "Explore a considered collection, then use product-specific sizing support before you add to bag."],
-              ["Confirm before payment", "Your selected size, finish direction and production timing are confirmed before you commit."],
+               ["Pay first, atelier follows", "After payment, the atelier confirms your selected size, finish direction and production timing."],
               ["Speak to a person", "A stylist is available for product, fitting and bespoke direction when a product page alone is not enough."],
             ].map(([title, body], i) => (
               <Reveal key={title} delay={i * 130}>

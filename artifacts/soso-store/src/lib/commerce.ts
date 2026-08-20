@@ -3,12 +3,6 @@ import type { CatalogProduct } from "@/data/products";
 
 export type CommerceMode = "catalog-preview" | "justicesure-headless";
 
-export type ProductionCheck = {
-  lineId: string;
-  canMake: boolean;
-  reason?: string;
-};
-
 export type CheckoutRequest = {
   customer: {
     name: string;
@@ -28,8 +22,7 @@ export interface CommerceGateway {
   readonly mode: CommerceMode;
   listProducts(): Promise<CatalogProduct[]>;
   getProduct(slug: string): Promise<CatalogProduct | undefined>;
-  confirmProduction(items: CartItem[]): Promise<ProductionCheck[]>;
-  createOrder(request: CheckoutRequest): Promise<CheckoutResult>;
+  createCheckoutSession(request: CheckoutRequest): Promise<CheckoutResult>;
 }
 
 export class CommerceConfigurationError extends Error {
@@ -42,8 +35,8 @@ export class CommerceConfigurationError extends Error {
 /**
  * JusticeSure's team has confirmed a headless API will be available, but its
  * authenticated contract has not been supplied. This intentionally has no
- * guessed URLs, request bodies, or fallback order behaviour. For SOSO, the
- * customer-facing check is production confirmation, not finite stock.
+ * guessed URLs, request bodies, or fallback payment behaviour. SOSO takes
+ * payment first; the atelier confirms the making details after payment.
  */
 export class JusticeSureHeadlessGateway implements CommerceGateway {
   readonly mode = "justicesure-headless" as const;
@@ -62,11 +55,7 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
     return this.unavailable();
   }
 
-  async confirmProduction(_items: CartItem[]): Promise<ProductionCheck[]> {
-    return this.unavailable();
-  }
-
-  async createOrder(_request: CheckoutRequest): Promise<CheckoutResult> {
+  async createCheckoutSession(_request: CheckoutRequest): Promise<CheckoutResult> {
     return this.unavailable();
   }
 }
@@ -87,16 +76,9 @@ export const commerceGateway: CommerceGateway =
         async getProduct() {
           return undefined;
         },
-        async confirmProduction(items) {
-          return items.map((item) => ({
-            lineId: `${item.slug}-${item.size}`,
-            canMake: false,
-            reason: "Production details are confirmed when live commerce is connected.",
-          }));
-        },
-        async createOrder() {
+        async createCheckoutSession() {
           throw new CommerceConfigurationError(
-            "Online checkout is being connected. Please speak with a SOSO stylist to place your order.",
+            "Secure payment is being connected. If you have a question before paying, speak with a SOSO stylist.",
           );
         },
       };

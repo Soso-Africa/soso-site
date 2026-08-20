@@ -1,1 +1,2 @@
 - [Conversion review evidence](conversion-review-evidence.md) — distinguish absent content from content that exists but is buried or poorly connected to the purchase decision.
+- [Payment-first bespoke checkout](payment-first-bespoke-checkout.md) — shoppers pay first; atelier production confirmation follows, with stylist help kept optional.

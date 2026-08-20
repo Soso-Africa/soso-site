@@ -6,7 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { commerceGateway, CommerceConfigurationError } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
 
-type CheckoutState = "ready" | "checking" | "needs-confirmation";
+type CheckoutState = "ready" | "processing" | "payment-unavailable" | "paid";
 
 export default function Checkout() {
   const { items, cartTotal } = useCart();
@@ -15,36 +15,32 @@ export default function Checkout() {
 
   const startCheckout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setState("checking");
+      setState("processing");
     setMessage("");
     const form = new FormData(event.currentTarget);
 
     try {
-      const checks = await commerceGateway.confirmProduction(items);
-      if (checks.some((check) => !check.canMake)) {
-        setState("needs-confirmation");
-        setMessage(
-          checks.find((check) => !check.canMake)?.reason ??
-            "We need to confirm the making details before taking payment.",
-        );
-        return;
-      }
-      await commerceGateway.createOrder({
-        customer: {
-          name: String(form.get("name") || ""),
-          email: String(form.get("email") || ""),
-          phone: String(form.get("phone") || ""),
-          deliveryNote: String(form.get("deliveryNote") || ""),
-        },
-        items,
-      });
+        const result = await commerceGateway.createCheckoutSession({
+          customer: {
+            name: String(form.get("name") || ""),
+            email: String(form.get("email") || ""),
+            phone: String(form.get("phone") || ""),
+            deliveryNote: String(form.get("deliveryNote") || ""),
+          },
+          items,
+        });
+        if (result.checkoutUrl) {
+          window.location.assign(result.checkoutUrl);
+          return;
+        }
+        setState("paid");
     } catch (error) {
-      setState("needs-confirmation");
-      setMessage(
-        error instanceof CommerceConfigurationError
-          ? error.message
-          : "We could not confirm your order. Please try again or speak with a SOSO stylist.",
-      );
+        setState("payment-unavailable");
+        setMessage(
+          error instanceof CommerceConfigurationError
+            ? error.message
+            : "We could not open secure payment. Please try again or speak with a SOSO stylist.",
+        );
     }
   };
 
@@ -52,7 +48,7 @@ export default function Checkout() {
     <div className="max-w-6xl mx-auto px-6 lg:px-12 py-12 md:py-18">
       <Seo
         title="Secure checkout | SOSO Africa"
-        description="Review your SOSO Africa bag and confirm the bespoke production details before payment."
+        description="Complete secure payment for your SOSO Africa order. Atelier making details are confirmed after payment."
         path="/checkout"
       />
       <Link href="/shop" className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[hsl(var(--primary))]">
@@ -61,9 +57,9 @@ export default function Checkout() {
       <div className="grid lg:grid-cols-[1fr_0.8fr] gap-10 lg:gap-16 mt-10">
         <section>
           <p className="text-[11px] tracking-[0.3em] uppercase text-[hsl(var(--primary))]">Checkout</p>
-          <h1 className="soso-display font-light text-4xl md:text-5xl text-white mt-3">Confirm your order</h1>
+          <h1 className="soso-display font-light text-4xl md:text-5xl text-white mt-3">Complete your order</h1>
           <p className="mt-4 text-sm leading-relaxed text-[hsl(var(--secondary))] max-w-xl">
-            SOSO makes each order to the client’s chosen direction. Before payment, the atelier confirms the selected size, fabric or finish direction, and the production timing.
+            Pay securely for your selected piece. After payment, the atelier confirms the selected size, fabric or finish direction, and production timing. Have a question first? Speak with a stylist.
           </p>
 
           {items.length === 0 ? (
@@ -92,17 +88,22 @@ export default function Checkout() {
                 <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
               </label>
 
-              {state === "needs-confirmation" && (
+              {state === "payment-unavailable" && (
                 <div role="alert" className="border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed">
                   {message}
                 </div>
               )}
+              {state === "paid" && (
+                <div role="status" className="border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed">
+                  Payment received. The SOSO atelier will now confirm your making details and follow up with next steps.
+                </div>
+              )}
 
-              <button disabled={state === "checking"} className="w-full soso-btn-gold py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
+              <button disabled={state === "processing" || state === "paid"} className="w-full soso-btn-gold py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
                 <LockKeyhole size={16} className="inline mr-2" />
-                {state === "checking" ? "Confirming making details…" : "Confirm making details"}
+                {state === "processing" ? "Opening secure payment…" : `Pay now — ${naira(cartTotal)}`}
               </button>
-              <p className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--secondary))]"><LockKeyhole size={14} /> Payment is requested only after the atelier confirms the making details.</p>
+              <p className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--secondary))]"><LockKeyhole size={14} /> Secure payment first · atelier confirmation follows.</p>
             </form>
           )}
         </section>

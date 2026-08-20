@@ -114,7 +114,7 @@ export function CartDrawer() {
               <span className="text-xl font-medium">{naira(cartTotal)}</span>
             </div>
             <p className="text-[11px] opacity-60 mb-6 tracking-wide">
-              Shipping and taxes calculated at checkout.
+              Shipping and taxes calculated at checkout. Need help first? Ask a stylist.
             </p>
             <Link
               href="/checkout"
@@ -122,14 +122,16 @@ export function CartDrawer() {
               className="w-full soso-btn-gold py-4 text-[13px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2"
               style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}
             >
-              Confirm making details
+              Proceed to payment
             </Link>
-            <button 
+            <a
+              href="/#whatsapp"
+              onClick={closeDrawer}
               className="w-full mt-3 py-4 text-[13px] tracking-[0.2em] uppercase font-semibold flex items-center justify-center gap-2 soso-btn-ghost"
               style={{ border: "1px solid rgba(246,241,231,0.3)" }}
             >
-              <WhatsAppIcon size={16} /> Order with a stylist
-            </button>
+              <WhatsAppIcon size={16} /> Ask a stylist
+            </a>
           </div>
         )}
       </div>

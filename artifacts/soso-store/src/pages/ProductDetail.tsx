@@ -107,7 +107,7 @@ export default function ProductDetail() {
 
           <div className="flex items-center gap-4 mt-5">
             <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
-            <span className="text-sm opacity-80">Made to order · timing confirmed before payment</span>
+            <span className="text-sm opacity-80">Made to order · atelier confirms after payment</span>
           </div>
 
           <p className="mt-6 text-[15px] leading-relaxed opacity-85 max-w-md">
@@ -165,7 +165,7 @@ export default function ProductDetail() {
               <WhatsAppIcon size={16} /> Ask about this piece
             </a>
             <p className="text-center text-[12px] opacity-60 mt-2">
-              Speak to a stylist before you buy for bespoke direction, fit advice and production timing.
+              Have a question before you pay? Speak to a stylist for fit or bespoke guidance.
             </p>
           </div>
 
@@ -173,7 +173,7 @@ export default function ProductDetail() {
           <div className="grid grid-cols-3 gap-px mt-8" style={{ background: "#d8cfba" }}>
             {[
               ["Fit support", "Size guide and stylist help"],
-              ["Made to order", "Production timing confirmed before payment"],
+              ["Made to order", "Atelier confirms making details after payment"],
               ["Order support", "Questions answered by a SOSO stylist"],
             ].map(([a, b]) => (
               <div key={a} className="p-4 text-center" style={{ background: "#EFE8DA" }}>
@@ -218,13 +218,13 @@ export default function ProductDetail() {
           <Reveal delay={120}>
             <div className="mt-8 space-y-6 text-[15px] leading-relaxed opacity-85 max-w-md">
               <p>
-                <span className="font-semibold">Product details.</span> Fabric, sizing and finishing details are confirmed with SOSO before payment.
+                <span className="font-semibold">Product details.</span> The listed piece, price and size are ready to order. Ask a stylist if you need help before paying.
               </p>
               <p>
                 <span className="font-semibold">Fit.</span> Use the size guide as a starting point, then message a stylist if you would like a second opinion or a custom fit.
               </p>
               <p>
-                <span className="font-semibold">The making.</span> Your selected direction is confirmed with the atelier before payment, then made for your order.
+                <span className="font-semibold">The making.</span> After payment, the atelier confirms the making details and follows up before production begins.
               </p>
             </div>
           </Reveal>
@@ -243,10 +243,10 @@ export default function ProductDetail() {
           </Reveal>
           <div className="grid md:grid-cols-4 gap-px mt-12" style={{ background: "#2c2820" }}>
              {[
-               ["Made to order", "SOSO can make the piece you choose. A stylist confirms the requested direction and production timing before payment."],
+                ["Made to order", "SOSO can make the piece you choose. After payment, the atelier confirms the requested direction and production timing."],
                ["Sizing", "The size guide is available above, with direct stylist support if you prefer to confirm measurements before ordering."],
-               ["Delivery", "Delivery options and timing are confirmed for your location before you complete payment."],
-               ["Order support", "A SOSO stylist can answer product, fitting and order questions before you commit."],
+                ["Delivery", "Delivery options and timing are confirmed for your location after payment."],
+                ["Order support", "A SOSO stylist can answer product, fitting and order questions if you need help before paying."],
              ].map(([t, b], i) => (
               <Reveal key={t} delay={i * 100}>
                 <div className="p-8 h-full" style={{ background: "#181613" }}>
