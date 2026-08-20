@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: storefront
+    description: Public SOSO storefront services
+  - name: staff
+    description: Authenticated staff operations
 paths:
   /healthz:
     get:
@@ -24,6 +28,154 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /analytics/events:
+    post:
+      operationId: recordAnalyticsEvent
+      tags: [storefront]
+      summary: Record a consent-aware storefront event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyticsEventInput"
+      responses:
+        "202":
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Acknowledgement"
+  /consent:
+    post:
+      operationId: recordConsent
+      tags: [storefront]
+      summary: Save a visitor consent decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentInput"
+      responses:
+        "201":
+          description: Consent saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentRecord"
+  /enquiries:
+    post:
+      operationId: createEnquiry
+      tags: [storefront]
+      summary: Send a pre-purchase question to the atelier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnquiryInput"
+      responses:
+        "201":
+          description: Enquiry saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+  /journal:
+    get:
+      operationId: listJournalPosts
+      tags: [storefront]
+      summary: List published Journal articles
+      responses:
+        "200":
+          description: Published articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JournalPostSummary"
+  /journal/{slug}:
+    get:
+      operationId: getJournalPost
+      tags: [storefront]
+      summary: Get a published Journal article
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalPost"
+        "404":
+          description: Article not found
+  /staff/me:
+    get:
+      operationId: getStaffProfile
+      tags: [staff]
+      summary: Get the authenticated staff member's role
+      responses:
+        "200":
+          description: Current staff profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffProfile"
+        "401":
+          description: Authentication required
+        "403":
+          description: Staff access required
+  /staff/overview:
+    get:
+      operationId: getStaffOverview
+      tags: [staff]
+      summary: Get operational and funnel overview
+      responses:
+        "200":
+          description: Current overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffOverview"
+        "401":
+          description: Authentication required
+        "403":
+          description: Staff access required
+  /staff/orders:
+    get:
+      operationId: listStaffOrders
+      tags: [staff]
+      summary: List recent paid and production orders
+      responses:
+        "200":
+          description: Recent orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffOrder"
+  /staff/enquiries:
+    get:
+      operationId: listStaffEnquiries
+      tags: [staff]
+      summary: List customer enquiries
+      responses:
+        "200":
+          description: Recent enquiries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Enquiry"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +185,131 @@ components:
           type: string
       required:
         - status
+    Acknowledgement:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+    AnalyticsEventInput:
+      type: object
+      required: [anonymousId, eventName, path, consent]
+      properties:
+        anonymousId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        eventName:
+          type: string
+          enum: [page_view, product_view, size_guide_opened, add_to_bag, cart_opened, checkout_started, checkout_payment_unavailable]
+        path:
+          type: string
+          maxLength: 512
+        referrer:
+          type: string
+          maxLength: 1024
+        source:
+          type: string
+          maxLength: 128
+        deviceType:
+          type: string
+          enum: [mobile, tablet, desktop, unknown]
+        consent:
+          type: string
+          enum: [essential_only, analytics, marketing]
+        properties:
+          type: object
+          additionalProperties: true
+    ConsentInput:
+      type: object
+      required: [anonymousId, state, policyVersion]
+      properties:
+        anonymousId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        state:
+          type: string
+          enum: [essential_only, analytics, marketing]
+        policyVersion:
+          type: string
+          maxLength: 64
+        region:
+          type: string
+          maxLength: 32
+    ConsentRecord:
+      type: object
+      required: [id, anonymousId, state, policyVersion, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        anonymousId: { type: string }
+        state: { type: string }
+        policyVersion: { type: string }
+        createdAt: { type: string, format: date-time }
+    EnquiryInput:
+      type: object
+      required: [message]
+      properties:
+        name: { type: string, maxLength: 120 }
+        email: { type: string, maxLength: 320 }
+        phone: { type: string, maxLength: 40 }
+        productSlug: { type: string, maxLength: 160 }
+        message: { type: string, minLength: 8, maxLength: 2000 }
+    Enquiry:
+      type: object
+      required: [id, message, status, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        name: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        productSlug: { type: ["string", "null"] }
+        message: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+    JournalPostSummary:
+      type: object
+      required: [slug, title, excerpt, authorName, publishedAt]
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        excerpt: { type: string }
+        coverImageUrl: { type: ["string", "null"] }
+        authorName: { type: string }
+        publishedAt: { type: string, format: date-time }
+    JournalPost:
+      allOf:
+        - $ref: "#/components/schemas/JournalPostSummary"
+        - type: object
+          required: [body]
+          properties:
+            body: { type: string }
+    StaffProfile:
+      type: object
+      required: [id, email, role]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        email: { type: string, maxLength: 320 }
+        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+    StaffOrder:
+      type: object
+      required: [id, orderNumber, customerName, customerEmail, total, currency, status, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        orderNumber: { type: string }
+        customerName: { type: string }
+        customerEmail: { type: string, maxLength: 320 }
+        total: { type: string }
+        currency: { type: string }
+        status: { type: string }
+        createdAt: { type: string, format: date-time }
+    StaffOverview:
+      type: object
+      required: [ordersTotal, ordersInProduction, openEnquiries, storefrontEvents7d, paymentIsLive]
+      properties:
+        ordersTotal: { type: number, minimum: 0 }
+        ordersInProduction: { type: number, minimum: 0 }
+        openEnquiries: { type: number, minimum: 0 }
+        storefrontEvents7d: { type: number, minimum: 0 }
+        paymentIsLive: { type: boolean }
 

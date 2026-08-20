@@ -22,14 +22,21 @@ export function Footer() {
         </div>
         <div>
           <p className="text-[11px] tracking-[0.25em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>House</p>
-          {["Our Story", "Size help", "Delivery guidance", "Order support", "Contact / WhatsApp"].map((t) => (
-            <a key={t} href="/#whatsapp" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>{t}</a>
-          ))}
+          <Link href="/journal" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>The Journal</Link>
+          <Link href="/delivery" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Delivery guidance</Link>
+          <Link href="/returns" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Returns & cancellations</Link>
+          <a href="/#whatsapp" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Order support</a>
+          <a href="/#whatsapp" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Contact / WhatsApp</a>
         </div>
       </div>
       <div className="max-w-7xl mx-auto mt-12 pt-6 flex flex-wrap justify-between gap-3 text-[11px] tracking-[0.1em]" style={{ borderTop: "1px solid rgba(184,145,47,0.15)", color: "#7a715c" }}>
         <span>© SOSO Africa. Abuja, Nigeria.</span>
-        <span>Prices are shown in Nigerian Naira (₦). Atelier making details are confirmed after payment.</span>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <Link href="/privacy" className="soso-link">Privacy</Link>
+          <Link href="/cookies" className="soso-link">Cookie choices</Link>
+          <Link href="/terms" className="soso-link">Terms</Link>
+          <span>Prices are shown in Nigerian Naira (₦). Atelier making details are confirmed after payment.</span>
+        </div>
       </div>
     </footer>
   );
