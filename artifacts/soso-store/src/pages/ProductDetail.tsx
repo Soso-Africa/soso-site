@@ -2,48 +2,10 @@ import React, { useEffect, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
-import { Star, WhatsAppIcon } from "@/components/Icons";
+import { WhatsAppIcon } from "@/components/Icons";
 import { useCart } from "@/context/CartContext";
 import { naira } from "@/lib/utils";
-
-const SIZES = ["S", "M", "L", "XL", "XXL", "Custom"];
-
-const REVIEWS = [
-  {
-    name: "Emeka O.",
-    city: "Abuja",
-    rating: 5,
-    title: "Wore it to my brother's wedding",
-    body: "The fabric alone announces itself before you enter the room. Three people asked for my tailor — I told them SOSO isn't a tailor, it's a house. Fit was exact from the size guide.",
-    verified: true,
-  },
-  {
-    name: "Tunde A.",
-    city: "Lagos",
-    rating: 5,
-    title: "Delivered to Lekki in 2 days",
-    body: "I was skeptical about paying ₦250k online. Messaged them on WhatsApp, got a video of the actual piece before dispatch. That is how you sell premium in Nigeria.",
-    verified: true,
-  },
-  {
-    name: "Chidi N.",
-    city: "London, UK",
-    rating: 4,
-    title: "Diaspora order, zero stress",
-    body: "Shipped to London in 6 days with tracking. The black is deeper in person — photos undersell it. Only wish the cuff came in a second style.",
-    verified: true,
-  },
-];
-
-function Stars({ n }: { n: number }) {
-  return (
-    <span className="inline-flex gap-[2px]" aria-label={`${n} out of 5 stars`}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Star key={i} filled={i <= n} />
-      ))}
-    </span>
-  );
-}
+import { Seo } from "@/components/Seo";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
@@ -74,12 +36,7 @@ export default function ProductDetail() {
 
   if (!product) return null;
 
-  // Mock gallery
-  const gallery = [
-    { src: product.img, label: "Studio" },
-    { src: "/images/soso/kaftan-white.jpg", label: "Alternative" },
-    { src: "/images/soso/twopiece.jpg", label: "House cut" },
-  ];
+  const gallery = [{ src: product.img, label: product.name }];
 
   const needSize = size === null;
 
@@ -99,6 +56,12 @@ export default function ProductDetail() {
 
   return (
     <div style={{ background: "hsl(var(--foreground))", color: "hsl(var(--background))" }} className="flex flex-col">
+      <Seo
+        title={`${product.name} | SOSO Africa`}
+        description={`${product.description} View current price and speak to a SOSO stylist for fit assistance.`}
+        path={`/product/${product.slug}`}
+        product={product}
+      />
       {/* ————— HERO / BUY BLOCK ————— */}
       <main className="max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
         {/* Gallery */}
@@ -144,9 +107,7 @@ export default function ProductDetail() {
 
           <div className="flex items-center gap-4 mt-5">
             <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
-            <span className="flex items-center gap-2 text-sm opacity-80">
-              <Stars n={5} /> 4.9 · 38 reviews
-            </span>
+            <span className="text-sm opacity-80">Availability confirmed at checkout</span>
           </div>
 
           <p className="mt-6 text-[15px] leading-relaxed opacity-85 max-w-md">
@@ -162,7 +123,7 @@ export default function ProductDetail() {
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {SIZES.map((s) => (
+              {product.sizes.map((s) => (
                 <button
                   key={s}
                   onClick={() => setSize(s)}
@@ -197,23 +158,23 @@ export default function ProductDetail() {
               {needSize ? "Select a size to continue" : `Add to bag — ${naira(product.price)}`}
             </button>
             <a
-              href="#whatsapp"
+              href="/#whatsapp"
               className="w-full block text-center py-4 text-[13px] tracking-[0.2em] uppercase flex items-center justify-center gap-2 transition-colors duration-300 hover:bg-[#0f3d2e] hover:text-white"
               style={{ border: "1px solid #128C56", color: "#0f6b43" }}
             >
               <WhatsAppIcon size={16} /> Ask about this piece
             </a>
             <p className="text-center text-[12px] opacity-60 mt-2">
-              Speak to a stylist before you buy — photos, videos, fit advice. Replies in minutes, 9am–9pm WAT.
+              Speak to a stylist before you buy for current availability, fit advice and delivery guidance.
             </p>
           </div>
 
           {/* Trust strip */}
           <div className="grid grid-cols-3 gap-px mt-8" style={{ background: "#d8cfba" }}>
             {[
-              ["2–4 days", "Nationwide delivery, tracked"],
-              ["7-day", "Exchange & fit adjustment"],
-              ["Pay on WhatsApp", "Transfer, card or Paystack"],
+              ["Fit support", "Size guide and stylist help"],
+              ["Clear next steps", "Availability checked before payment"],
+              ["Order support", "Questions answered by a SOSO stylist"],
             ].map(([a, b]) => (
               <div key={a} className="p-4 text-center" style={{ background: "#EFE8DA" }}>
                 <p className="text-sm font-semibold">{a}</p>
@@ -242,47 +203,33 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* ————— STORY ————— */}
+      {/* ————— PRODUCT NOTES ————— */}
       <section className="max-w-[1280px] mx-auto px-6 md:px-12 py-20 grid md:grid-cols-2 gap-12 items-center">
         <Reveal>
           <div className="overflow-hidden imgzoom">
-            <img src="/images/soso/dashiki.jpg" alt="SOSO atelier craftsmanship" className="w-full aspect-[4/5] object-cover" />
+            <img src={product.img} alt={`${product.name} detail`} className="w-full aspect-[4/5] object-cover" loading="lazy" />
           </div>
         </Reveal>
         <div>
           <Reveal>
-            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>The craft</p>
-            <h2 className="soso-display text-4xl md:text-5xl font-light leading-tight">Forty-one hours of hands. One garment.</h2>
+            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>Before you order</p>
+            <h2 className="soso-display text-4xl md:text-5xl font-light leading-tight">A considered purchase starts with clear details.</h2>
           </Reveal>
           <Reveal delay={120}>
             <div className="mt-8 space-y-6 text-[15px] leading-relaxed opacity-85 max-w-md">
               <p>
-                <span className="font-semibold">The fabric.</span> Midnight-black cashmere-wool blend, milled in Biella, Italy.
-                It holds structure in Abuja heat and drapes without wrinkling through a full owambe.
+                <span className="font-semibold">Product details.</span> Fabric, available sizes and current finishing details are confirmed with SOSO before payment.
               </p>
               <p>
-                <span className="font-semibold">The construction.</span> Hand-set shoulders, a concealed six-button placket,
-                and French-seamed interiors — the inside is finished as carefully as the outside.
+                <span className="font-semibold">Fit.</span> Use the size guide as a starting point, then message a stylist if you would like a second opinion or a custom fit.
               </p>
               <p>
-                <span className="font-semibold">The cut.</span> Our signature "architect's line": sharp through the shoulder,
-                generous through the body. Commands a room seated or standing.
+                <span className="font-semibold">Availability.</span> The selected size is checked before payment, so your order does not depend on an out-of-date product page.
               </p>
             </div>
           </Reveal>
           <Reveal delay={220}>
-            <div className="flex gap-10 mt-10">
-              {[
-                ["41 hrs", "Hand-finishing"],
-                ["1 of 40", "Per production run"],
-                ["Biella", "Fabric origin"],
-              ].map(([a, b]) => (
-                <div key={a}>
-                  <p className="soso-display text-3xl" style={{ color: "hsl(var(--primary))" }}>{a}</p>
-                  <p className="text-[11px] tracking-[0.15em] uppercase opacity-60 mt-1">{b}</p>
-                </div>
-              ))}
-            </div>
+            <a href="/#whatsapp" className="inline-flex mt-8 text-sm text-[hsl(var(--primary))] underline underline-offset-4">Ask a stylist about this piece</a>
           </Reveal>
         </div>
       </section>
@@ -295,12 +242,12 @@ export default function ProductDetail() {
             <h2 className="soso-display text-4xl md:text-5xl font-light text-white">Buying premium online should feel safe. Here it is, in writing.</h2>
           </Reveal>
           <div className="grid md:grid-cols-4 gap-px mt-12" style={{ background: "#2c2820" }}>
-            {[
-              ["Delivery", "Free same-day in Abuja. Lagos & nationwide in 2–4 days via GIG, fully tracked. Worldwide via DHL in 5–8 days."],
-              ["Before dispatch", "We send you photos and a video of your exact piece on WhatsApp before it leaves the atelier."],
-              ["Fit guarantee", "If the fit isn't right, we adjust or exchange within 7 days. Abuja clients get a same-week atelier fitting."],
-              ["Payment", "Card, bank transfer or Paystack. Diaspora orders in USD or GBP. Receipt issued for every order."],
-            ].map(([t, b], i) => (
+             {[
+               ["Availability", "Your chosen size is checked before payment. If a piece is no longer available, a stylist will guide you to the next best option."],
+               ["Sizing", "The size guide is available above, with direct stylist support if you prefer to confirm measurements before ordering."],
+               ["Delivery", "Delivery options and timing are confirmed for your location before you complete payment."],
+               ["Order support", "A SOSO stylist can answer product, fitting and order questions before you commit."],
+             ].map(([t, b], i) => (
               <Reveal key={t} delay={i * 100}>
                 <div className="p-8 h-full" style={{ background: "#181613" }}>
                   <p className="soso-display text-xl mb-3" style={{ color: "hsl(var(--primary))" }}>{t}</p>
@@ -309,44 +256,6 @@ export default function ProductDetail() {
               </Reveal>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ————— REVIEWS ————— */}
-      <section className="max-w-[1280px] mx-auto px-6 md:px-12 py-20">
-        <Reveal>
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
-            <div>
-              <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>Worn to the moments that matter</p>
-              <h2 className="soso-display text-4xl md:text-5xl font-light">38 men. 4.9 stars.</h2>
-            </div>
-            <div className="flex items-center gap-3">
-              <Stars n={5} />
-              <span className="text-sm opacity-70">Verified purchases only</span>
-            </div>
-          </div>
-        </Reveal>
-        <div className="grid md:grid-cols-3 gap-6">
-          {REVIEWS.map((r, i) => (
-            <Reveal key={r.name} delay={i * 120}>
-              <div className="p-7 h-full lift" style={{ background: "#fff", border: "1px solid #e6ddc9", boxShadow: "0 1px 0 #e6ddc9" }}>
-                <Stars n={r.rating} />
-                <p className="soso-display text-xl mt-4">{r.title}</p>
-                <p className="text-sm leading-relaxed opacity-75 mt-3">{r.body}</p>
-                <div className="flex items-center gap-3 mt-6 pt-5" style={{ borderTop: "1px solid #efe8d8" }}>
-                  <div className="w-9 h-9 flex items-center justify-center text-xs font-semibold" style={{ background: "#121110", color: "hsl(var(--primary))" }}>
-                    {r.name[0]}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">
-                      {r.name} <span className="opacity-50 font-normal">· {r.city}</span>
-                    </p>
-                    <p className="text-[11px] tracking-wide uppercase" style={{ color: "hsl(var(--primary))" }}>Verified purchase</p>
-                  </div>
-                </div>
-              </div>
-            </Reveal>
-          ))}
         </div>
       </section>
 
@@ -426,7 +335,7 @@ export default function ProductDetail() {
               Not sure? Send your height and weight on WhatsApp — a stylist will size you in one message. Or choose <span className="font-semibold">Custom</span> for made-to-measure at no extra cost.
             </div>
             <a
-              href="#whatsapp"
+              href="/#whatsapp"
               className="w-full mt-5 py-3.5 text-[12px] tracking-[0.2em] uppercase flex items-center justify-center gap-2"
               style={{ background: "#128C56", color: "#fff" }}
               onClick={() => setGuideOpen(false)}

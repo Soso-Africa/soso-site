@@ -2,18 +2,17 @@ import React from "react";
 import { Link } from "wouter";
 import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
-import { Star, WhatsAppIcon } from "@/components/Icons";
+import { WhatsAppIcon } from "@/components/Icons";
 import { naira } from "@/lib/utils";
-
-const reviews = [
-  { name: "Chukwuemeka O.", city: "Abuja", text: "Wore the Sovereign Agbada to my traditional wedding. Three people asked for the tailor before the reception ended. Fit was flawless from measurements sent on WhatsApp.", item: "The Sovereign Agbada" },
-  { name: "Ibrahim D.", city: "Kaduna", text: "Delivered to my door in 4 days. The kaftan fits like it was sewn on me. This is the first time I've bought clothing online in Nigeria without regret.", item: "The Vault Kaftan" },
-  { name: "Tunde A.", city: "London, UK", text: "Shipped to London faster than some UK brands deliver locally. Quality is on the level of Savile Row pieces I own — at a fraction of the price.", item: "Ivory Ascension Kaftan" },
-];
+import { Seo } from "@/components/Seo";
 
 export default function Home() {
   return (
     <div className="flex flex-col">
+      <Seo
+        title="SOSO Africa | Premium Nigerian Menswear"
+        description="Discover SOSO Africa's premium kaftans, agbadas, dashikis and shirts. Explore the collection, sizing help and a considered purchase journey."
+      />
       {/* 1. HERO */}
       <section className="relative overflow-hidden" style={{ minHeight: "calc(100dvh - 104px)" }}>
         <div className="absolute inset-0">
@@ -36,8 +35,8 @@ export default function Home() {
           </Reveal>
           <Reveal delay={240}>
             <p className="mt-6 max-w-xl text-[15px] leading-relaxed" style={{ color: "hsl(var(--secondary))" }}>
-              Hand-finished kaftans and agbadas, cut to your exact measurements. Worn at Nigeria's
-              biggest weddings, boardrooms and pulpits. Delivered to your door — anywhere in the world.
+              Premium kaftans, agbadas and refined separates from SOSO Africa. Explore the collection,
+              use the size guide, or speak with a stylist before you place your order.
             </p>
           </Reveal>
           <Reveal delay={360}>
@@ -56,9 +55,9 @@ export default function Home() {
           </Reveal>
           <Reveal delay={480}>
             <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3 text-[12px] tracking-[0.08em]" style={{ color: "hsl(var(--secondary))" }}>
-              <span className="flex items-center gap-1.5"><Star /><Star /><Star /><Star /><Star /> <strong className="text-white">4.9</strong> from 700+ clients</span>
-              <span>Pay on delivery in Abuja</span>
-              <span>Free re-fit if it isn't perfect</span>
+              <span>Size guidance before you buy</span>
+              <span>Availability checked before payment</span>
+              <span>Stylist support for considered purchases</span>
             </div>
           </Reveal>
         </div>
@@ -68,10 +67,10 @@ export default function Home() {
       <section style={{ borderTop: `1px solid rgba(184,145,47,0.25)`, borderBottom: `1px solid rgba(184,145,47,0.25)` }}>
         <div className="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 divide-x" style={{ borderColor: "rgba(184,145,47,0.15)" }}>
           {[
-            ["Nationwide in 2–5 days", "Worldwide in 5–10 days, tracked"],
-            ["Made to your measure", "Guided sizing over WhatsApp video"],
-            ["Free re-fit guarantee", "We alter until it's perfect"],
-            ["Secure checkout", "Card, transfer, or pay on delivery"],
+            ["Delivery guidance", "Options are confirmed for your location"],
+            ["Sizing support", "Use the guide or speak with a stylist"],
+            ["Made-to-measure", "Choose Custom for a fitting conversation"],
+            ["Thoughtful checkout", "Availability is checked before payment"],
           ].map(([t, s], i) => (
             <div key={i} className="px-6 py-6 text-center" style={{ borderColor: "rgba(184,145,47,0.15)" }}>
               <p className="text-[13px] font-semibold tracking-wide" style={{ color: "hsl(var(--primary))" }}>{t}</p>
@@ -158,8 +157,8 @@ export default function Home() {
           <div className="relative">
             <img src="/images/soso/kaftan-white.jpg" alt="Ivory kaftan fitting" className="w-full object-cover object-top" style={{ aspectRatio: "4/5" }} />
             <div className="absolute -bottom-6 -right-4 lg:-right-8 px-6 py-5" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
-              <p className="soso-display text-[28px] leading-none">98%</p>
-              <p className="text-[11px] tracking-[0.15em] uppercase mt-1 font-semibold">Perfect fit, first delivery</p>
+              <p className="soso-display text-[28px] leading-none">Fit</p>
+              <p className="text-[11px] tracking-[0.15em] uppercase mt-1 font-semibold">Guidance before you order</p>
             </div>
           </div>
         </Reveal>
@@ -173,8 +172,8 @@ export default function Home() {
           {[
             ["01", "Choose your piece", "Pick from the collection, or send us your inspiration on WhatsApp."],
             ["02", "Measure in 5 minutes", "Our fit specialist guides you on a WhatsApp video call — no tape drama."],
-            ["03", "We cut, sew and finish", "Hand-finished in our Abuja atelier within 7–10 working days."],
-            ["04", "Delivered. Perfect. Or re-fit free.", "If any seam is off, we alter or remake at our cost. That is the SOSO promise."],
+             ["03", "Confirm the details", "Your stylist confirms the selected piece, size and delivery options before payment."],
+             ["04", "Place a considered order", "You receive clear next steps before your order is accepted."],
           ].map(([n, t, s], i) => (
             <Reveal key={n} delay={i * 110}>
               <div className="flex gap-6 py-5" style={{ borderBottom: "1px solid rgba(184,145,47,0.2)" }}>
@@ -194,24 +193,27 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 6. Social proof */}
+      {/* 6. Purchase confidence */}
       <section className="py-24" style={{ backgroundColor: "hsl(var(--foreground))", color: "hsl(var(--primary-foreground))" }}>
         <div className="max-w-7xl mx-auto px-6 lg:px-12">
           <Reveal>
             <div className="text-center mb-14">
-              <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>Word of mouth</p>
-              <h2 className="soso-display font-light" style={{ fontSize: "clamp(1.8rem,3.5vw,2.8rem)" }}>700+ men. One question:<br />"Who made that?"</h2>
+              <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>The SOSO way</p>
+              <h2 className="soso-display font-light" style={{ fontSize: "clamp(1.8rem,3.5vw,2.8rem)" }}>A premium purchase<br />should feel clear.</h2>
             </div>
           </Reveal>
           <div className="grid md:grid-cols-3 gap-6">
-            {reviews.map((r, i) => (
-              <Reveal key={r.name} delay={i * 130}>
+            {[
+              ["Choose with confidence", "Explore a considered collection, then use product-specific sizing support before you add to bag."],
+              ["Confirm before payment", "Current availability is checked for the exact size you select, helping SOSO avoid disappointing orders."],
+              ["Speak to a person", "A stylist is available for product and fitting questions when a product page alone is not enough."],
+            ].map(([title, body], i) => (
+              <Reveal key={title} delay={i * 130}>
                 <div className="h-full flex flex-col p-8" style={{ backgroundColor: "#FFFDF8", border: "1px solid rgba(184,145,47,0.3)" }}>
-                  <div className="flex gap-1 mb-4"><Star /><Star /><Star /><Star /><Star /></div>
-                  <p className="text-[14px] leading-relaxed flex-1" style={{ color: "#3a352c" }}>"{r.text}"</p>
+                  <p className="soso-display text-2xl leading-snug" style={{ color: "#3a352c" }}>{title}</p>
+                  <p className="text-[14px] leading-relaxed flex-1 mt-4" style={{ color: "#3a352c" }}>{body}</p>
                   <div className="mt-6 pt-5" style={{ borderTop: "1px solid rgba(184,145,47,0.25)" }}>
-                    <p className="font-semibold text-[14px]">{r.name} <span className="font-normal" style={{ color: "#8a8272" }}>— {r.city}</span></p>
-                    <p className="text-[12px] mt-0.5" style={{ color: "hsl(var(--primary))" }}>Purchased: {r.item}</p>
+                    <p className="text-[12px] mt-0.5 uppercase tracking-wider" style={{ color: "hsl(var(--primary))" }}>Designed for a considered order</p>
                   </div>
                 </div>
               </Reveal>
@@ -222,7 +224,7 @@ export default function Home() {
               <div className="soso-marquee flex whitespace-nowrap py-4 text-[12px] tracking-[0.25em] uppercase" style={{ color: "#8a8272" }}>
                 {[0, 1].map((k) => (
                   <span key={k} className="flex">
-                    {["As worn at Abuja society weddings", "Trusted by executives & clergy", "Shipped to 14 countries", "Featured in Nigerian style press"].map((t) => (
+                    {["Kaftans", "Agbadas", "Dashikis", "Refined tailoring", "Fit guidance", "Stylist support"].map((t) => (
                       <span key={t} className="mx-8 flex items-center gap-8">{t} <span style={{ color: "hsl(var(--primary))" }}>&#9670;</span></span>
                     ))}
                   </span>
@@ -264,7 +266,7 @@ export default function Home() {
               Your next event is coming.<br />Your outfit should already be sewing.
             </h2>
             <p className="mt-5 text-[14px]" style={{ color: "hsl(var(--secondary))" }}>
-              Bespoke pieces take 7–10 working days. Message us today and we'll hold your slot.
+               Tell us what you are dressing for and a SOSO stylist will guide the right next step.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4">
               <Link href="/shop" className="soso-btn-gold text-[13px] tracking-[0.15em] uppercase px-9 py-4 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
@@ -275,7 +277,7 @@ export default function Home() {
               </a>
             </div>
             <p className="mt-8 text-[12px]" style={{ color: "hsl(var(--secondary))" }}>
-              Replies within minutes, 9am–9pm WAT &middot; Pay by card, transfer, or on delivery in Abuja
+               Current availability, delivery options and payment methods are confirmed before your order is accepted.
             </p>
           </Reveal>
         </div>

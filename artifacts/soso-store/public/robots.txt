@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+# Add the production sitemap URL when SOSO's canonical domain is configured.

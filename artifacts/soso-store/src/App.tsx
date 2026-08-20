@@ -14,6 +14,7 @@ import { CartDrawer } from '@/components/CartDrawer';
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
 import ProductDetail from '@/pages/ProductDetail';
+import Checkout from '@/pages/Checkout';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/shop" component={Shop} />
         <Route path="/product/:slug" component={ProductDetail} />
+        <Route path="/checkout" component={Checkout} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

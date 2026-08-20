@@ -1,8 +1,25 @@
-export const products = [
-  { slug: "vault", name: "The Vault Kaftan", img: "/images/soso/vault-black.jpg", price: 285000, tag: "Signature", note: "Midnight black, hand-finished collar", category: "Kaftans", description: "Cut from midnight-black Italian cashmere-wool, finished by hand in our Abuja atelier. A concealed placket, structured shoulder and the SOSO signature cuff — designed to be the most serious garment in any room it enters.", sizes: ["S","M","L","XL","XXL","Custom"] },
-  { slug: "ivory-kaftan", name: "Ivory Ascension Kaftan", img: "/images/soso/kaftan-white.jpg", price: 240000, tag: "Best Seller", note: "Crisp ivory, ceremonial weight", category: "Kaftans", description: "Ivory ceremonial kaftan in a crisp, breathable weave. Engineered for long events — the fabric holds its drape through a full owambe without creasing.", sizes: ["S","M","L","XL","XXL","Custom"] },
-  { slug: "sovereign-agbada", name: "The Sovereign Agbada", img: "/images/soso/agbada.jpg", price: 480000, tag: "Grand Occasion", note: "Full three-piece with embroidery", category: "Agbadas", description: "A full three-piece grand occasion agbada with hand-embroidered front panel. The kind of entrance that stops a room mid-conversation.", sizes: ["S","M","L","XL","XXL","Custom"] },
-  { slug: "heritage-dashiki", name: "Heritage Dashiki", img: "/images/soso/dashiki.jpg", price: 165000, tag: "New", note: "Contemporary cut, heritage lines", category: "Dashikis", description: "Heritage dashiki in a contemporary relaxed cut. Honour the lineage without looking like you raided your father's wardrobe.", sizes: ["S","M","L","XL","XXL","Custom"] },
-  { slug: "boardroom-shirt", name: "The Boardroom Shirt", img: "/images/soso/shirts.jpg", price: 150000, tag: "Everyday Luxury", note: "Business-ready, breathable cotton", category: "Shirts", description: "Business-ready, breathable cotton shirt cut to command authority. The shirt that says you don't have to try.", sizes: ["S","M","L","XL","XXL","Custom"] },
-  { slug: "twin-set", name: "Twin Set — Two Piece", img: "/images/soso/twopiece.jpg", price: 220000, tag: "Weekend", note: "Matched set, relaxed authority", category: "Two-Piece", description: "Matched two-piece set in a relaxed authority silhouette. The outfit that works from Sunday brunch to a board meeting.", sizes: ["S","M","L","XL","XXL","Custom"] },
+export type CatalogProduct = {
+  slug: string;
+  name: string;
+  img: string;
+  price: number;
+  tag: string;
+  note: string;
+  category: string;
+  description: string;
+  sizes: string[];
+};
+
+/**
+ * Curated storefront preview data. This is deliberately isolated from the
+ * JusticeSure adapter: live price, stock, variants and product facts must
+ * replace it only after the headless API contract is supplied.
+ */
+export const products: CatalogProduct[] = [
+  { slug: "vault", name: "Vault", img: "/images/soso/vault-black.jpg", price: 250000, tag: "Signature", note: "A considered black kaftan", category: "Kaftans", description: "A signature SOSO kaftan with a clean, contemporary silhouette. Select a size for a ready-to-wear fit or choose Custom to begin a made-to-measure conversation.", sizes: ["S","M","L","XL","XXL","Custom"] },
+  { slug: "ivory-kaftan", name: "Ivory Ascension Kaftan", img: "/images/soso/kaftan-white.jpg", price: 240000, tag: "Collection", note: "Ivory for ceremonial occasions", category: "Kaftans", description: "An ivory kaftan designed for formal celebrations and important occasions. Speak with a SOSO stylist if you would like help choosing your fit.", sizes: ["S","M","L","XL","XXL","Custom"] },
+  { slug: "sovereign-agbada", name: "The Sovereign Agbada", img: "/images/soso/agbada.jpg", price: 480000, tag: "Occasion", note: "A three-piece agbada statement", category: "Agbadas", description: "A three-piece agbada for grand occasions. Product details, availability and order timing are confirmed before an order is accepted.", sizes: ["S","M","L","XL","XXL","Custom"] },
+  { slug: "heritage-dashiki", name: "Heritage Dashiki", img: "/images/soso/dashiki.jpg", price: 165000, tag: "Collection", note: "Contemporary cut, heritage lines", category: "Dashikis", description: "A contemporary dashiki that brings a refined silhouette to everyday and celebratory dressing.", sizes: ["S","M","L","XL","XXL","Custom"] },
+  { slug: "boardroom-shirt", name: "The Boardroom Shirt", img: "/images/soso/shirts.jpg", price: 150000, tag: "Collection", note: "A sharp shirt for business days", category: "Shirts", description: "A refined shirt designed for business and formal settings. A SOSO stylist can help with sizing before you place an order.", sizes: ["S","M","L","XL","XXL","Custom"] },
+  { slug: "twin-set", name: "Twin Set — Two Piece", img: "/images/soso/twopiece.jpg", price: 220000, tag: "Collection", note: "Coordinated, relaxed tailoring", category: "Two-Piece", description: "A coordinated two-piece set with an easy, polished presence. Select your usual size or choose Custom for made-to-measure support.", sizes: ["S","M","L","XL","XXL","Custom"] },
 ];

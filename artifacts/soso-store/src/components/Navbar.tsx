@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { WhatsAppIcon } from "@/components/Icons";
-import { naira } from "@/lib/utils";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -25,7 +24,7 @@ export function Navbar() {
   return (
     <>
       <div className="text-center text-[11px] tracking-[0.22em] uppercase py-2 px-4" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}>
-        Complimentary nationwide delivery on orders above {naira(250000)} &nbsp;&middot;&nbsp; Worldwide shipping in 5–10 days
+        Fit guidance before you buy &nbsp;&middot;&nbsp; Availability confirmed before payment
       </div>
 
       <header
@@ -61,7 +60,7 @@ export function Navbar() {
         
         <div className="flex items-center gap-3 md:gap-5">
           <a
-            href="#whatsapp"
+            href="/#whatsapp"
             className="hidden lg:flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link" 
             style={{ color: "hsl(var(--primary))" }}
           >
@@ -104,7 +103,7 @@ export function Navbar() {
             <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">Shirts</Link>
           </nav>
           <div className="mt-auto flex flex-col gap-4">
-            <a href="#whatsapp" className="w-full flex items-center justify-center gap-2 py-4 soso-btn-gold text-[12px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }} onClick={() => setMobileMenuOpen(false)}>
+            <a href="/#whatsapp" className="w-full flex items-center justify-center gap-2 py-4 soso-btn-gold text-[12px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }} onClick={() => setMobileMenuOpen(false)}>
               <WhatsAppIcon size={18} /> Chat with Specialist
             </a>
           </div>

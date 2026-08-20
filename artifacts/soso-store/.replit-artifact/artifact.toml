@@ -1,7 +1,7 @@
 kind = "web"
 previewPath = "/"
 title = "SOSO Africa Store"
-description = "A conversion-first bespoke menswear storefront for SOSO Africa, a premium fashion house in Abuja, Nigeria. Showcases kaftans, agbadas, dashikis, and shirts (₦150k–₦500k), with a homepage, product listing, product detail page, and WhatsApp buying path — built for a client pitch demo."
+description = "A production-oriented, conversion-first bespoke menswear storefront for SOSO Africa. It offers responsive shopping, product sizing guidance, availability-first checkout states, structured SEO foundations, and a clean JusticeSure headless commerce boundary."
 version = "1.0.0"
 id = "artifacts/soso-store"
 router = "path"

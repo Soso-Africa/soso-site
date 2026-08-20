@@ -116,17 +116,19 @@ export function CartDrawer() {
             <p className="text-[11px] opacity-60 mb-6 tracking-wide">
               Shipping and taxes calculated at checkout.
             </p>
-            <button 
+            <Link
+              href="/checkout"
+              onClick={closeDrawer}
               className="w-full soso-btn-gold py-4 text-[13px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2"
               style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}
             >
-              Proceed to Checkout
-            </button>
+              Confirm availability
+            </Link>
             <button 
               className="w-full mt-3 py-4 text-[13px] tracking-[0.2em] uppercase font-semibold flex items-center justify-center gap-2 soso-btn-ghost"
               style={{ border: "1px solid rgba(246,241,231,0.3)" }}
             >
-              <WhatsAppIcon size={16} /> Checkout on WhatsApp
+              <WhatsAppIcon size={16} /> Order with a stylist
             </button>
           </div>
         )}

@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
 import { naira } from "@/lib/utils";
+import { Seo } from "@/components/Seo";
 
 const FILTERS = ["All", "Kaftans", "Agbadas", "Dashikis", "Two-Piece", "Shirts"];
 
@@ -15,6 +16,11 @@ export default function Shop() {
 
   return (
     <div className="flex flex-col pt-10">
+      <Seo
+        title="Shop premium menswear | SOSO Africa"
+        description="Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts. Confirm availability and fit before payment."
+        path="/shop"
+      />
       <div className="max-w-7xl mx-auto w-full px-6 lg:px-12 flex-1">
         <Reveal>
           <div className="text-center mb-16">
