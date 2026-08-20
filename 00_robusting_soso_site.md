@@ -33,6 +33,137 @@ The storefront must not put an atelier-confirmation gate in front of payment for
 - Trust information must appear near the purchase decision and remain available in the footer.
 - “Made to order” must explain what happens next, not create uncertainty.
 
+### Experience guardrails: protect the fashion-house vision
+
+The roadmap is intentionally broad because it covers the invisible operating system behind SOSO. It must not turn the customer-facing site into a dashboard, policy catalogue, or crowded marketplace.
+
+Use these guardrails for every storefront change:
+
+- **One dominant action per view:** On product pages, payment is primary; stylist help is secondary.
+- **Above the fold stays quiet:** Show the garment, name, price, size, one made-to-order sentence, and the buy CTA. Do not put analytics, long policy copy, or a multi-step explainer in the hero.
+- **Trust is layered, not dumped:** Put three short confidence cues near the CTA; move full policies, detailed FAQs, and legal language into expandable sections and the footer.
+- **Progressive disclosure:** Show only what a shopper needs at the current decision. Size guidance, delivery detail, care, returns, and production information can open on demand.
+- **No operational UI on the storefront:** Admin analytics, retargeting controls, webhook states, and internal production workflows must never appear in the customer-facing design.
+- **No interruption before intent:** Avoid newsletter popups, chat overlays, cookie prompts that cover the product, or retargeting prompts before the shopper can see and understand the piece. Consent controls must remain legally valid but visually restrained.
+- **Mobile-first purchase speed:** A shopper should be able to go from product view to payment in a few deliberate taps, without scrolling through the entire page or completing an unnecessary questionnaire.
+- **Editorial restraint:** The blog should build authority and discovery, not compete with the collection. Link to relevant pieces naturally rather than filling every page with article cards.
+- **Performance is part of luxury:** Third-party analytics and pixels must never delay the product image, price, or payment CTA.
+- **Measure quietly:** Instrument behavior in the background; do not make the customer feel observed.
+
+#### Customer-facing content budget
+
+For the initial product purchase block, target:
+
+1. Product name and price
+2. One sentence explaining made-to-order and post-payment atelier follow-up
+3. Size/Custom selector
+4. Primary “Add to bag” action
+5. One compact trust row
+6. Optional “Ask a stylist” link
+
+Everything else should be available below the fold, in an accordion, in the footer, or after the shopper asks for it. This is a design constraint, not a reason to omit important information.
+
+---
+
+## 1.1 Highest-upside enhancements
+
+These additions can take SOSO beyond a polished storefront without adding noise to the primary purchase path. They should be prioritized by measured impact, not all shipped at once.
+
+### A. Atelier confidence layer
+
+After payment, give the customer a refined “Your piece is now with the atelier” experience:
+
+- A personal order reference
+- A simple three-to-five-stage progress timeline
+- The next action and who owns it
+- A secure way to submit measurements, finish preferences, or clarification
+- WhatsApp/email updates only with customer permission
+
+This converts post-payment uncertainty into a premium service moment.
+
+### B. Smart fit concierge
+
+Keep the product page simple, but let shoppers open a lightweight fit assistant:
+
+- Height, weight, chest, preferred fit, and occasion
+- Recommended size with a confidence explanation
+- Custom recommendation when measurements are outside standard guidance
+- Human stylist handoff when confidence is low
+- No forced account creation before purchase
+
+The assistant should improve confidence without turning sizing into a pre-payment approval process.
+
+### C. Purchase confidence strip
+
+Test a compact, consistent strip near the buy CTA:
+
+```text
+Secure payment  ·  Made for your order  ·  Atelier follows up next
+```
+
+This should replace paragraphs of reassurance and be tested against the current design.
+
+### D. Concierge recovery, not aggressive retargeting
+
+For shoppers who abandon:
+
+- Preserve their bag where appropriate
+- Offer a discreet return-to-bag link
+- Show the exact piece they viewed
+- Give an optional stylist question route
+- Exclude paid customers from acquisition reminders
+- Avoid repeated popups and high-frequency ads
+
+The best recovery experience should feel like service, not pursuit.
+
+### E. Editorial commerce
+
+Connect Journal articles to products with one or two relevant recommendations:
+
+- “The Abuja wedding guest edit”
+- “How a kaftan should drape”
+- “What to wear to an Owambe”
+- “A modern agbada, explained”
+
+Track assisted conversions, not just last-click sales, so useful editorial content is valued even when it does not contain the final CTA.
+
+### F. Premium service signals
+
+Only when SOSO can substantiate them, add:
+
+- Atelier location and story
+- Named stylist or atelier contact
+- Fabric and finishing provenance
+- Care instructions
+- Verified customer imagery
+- Press and collaborations
+- Private appointment request
+- Gift/order note support
+
+Authenticity is more valuable than a long list of generic trust badges.
+
+### G. Experimentation system
+
+Build a small, disciplined experiment loop:
+
+- One primary hypothesis per experiment
+- One primary conversion metric
+- Guardrails for payment failure, refunds, support load, and page speed
+- Mobile and desktop results separately
+- Minimum sample and stopping rules
+- Experiment log in the admin portal
+
+Start with high-value questions:
+
+- “Proceed to payment” versus “Checkout”
+- Trust strip placement
+- Size guide placement
+- One-sentence post-payment explanation
+- Stylist CTA wording
+- Product image order
+
+Do not run experiments that make the site feel noisy just to increase clicks.
+
 ---
 
 ## 2. JusticeSure and payment architecture
