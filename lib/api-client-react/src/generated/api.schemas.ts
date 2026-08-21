@@ -20,9 +20,14 @@ export const AnalyticsEventInputEventName = {
   page_view: 'page_view',
   product_view: 'product_view',
   size_guide_opened: 'size_guide_opened',
+  size_selected: 'size_selected',
+  stylist_inquiry_started: 'stylist_inquiry_started',
+  stylist_inquiry_completed: 'stylist_inquiry_completed',
   add_to_bag: 'add_to_bag',
   cart_opened: 'cart_opened',
   checkout_started: 'checkout_started',
+  checkout_form_completed: 'checkout_form_completed',
+  payment_clicked: 'payment_clicked',
   checkout_payment_unavailable: 'checkout_payment_unavailable',
 } as const;
 
@@ -52,7 +57,19 @@ export interface AnalyticsEventInput {
      * @minLength 8
      * @maxLength 128
      */
+  eventId: string;
+  /** @minimum 1 */
+  eventVersion: number;
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
   anonymousId: string;
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  sessionId: string;
   eventName: AnalyticsEventInputEventName;
   /** @maxLength 512 */
   path: string;
@@ -60,9 +77,14 @@ export interface AnalyticsEventInput {
   referrer?: string;
   /** @maxLength 128 */
   source?: string;
+  /** @maxLength 128 */
+  utmMedium?: string;
+  /** @maxLength 256 */
+  utmCampaign?: string;
   deviceType?: AnalyticsEventInputDeviceType;
   consent: AnalyticsEventInputConsent;
   properties?: AnalyticsEventInputProperties;
+  occurredAt: string;
 }
 
 export type ConsentInputState = typeof ConsentInputState[keyof typeof ConsentInputState];
@@ -307,9 +329,14 @@ export const StaffFunnelEventsItemEventName = {
   page_view: 'page_view',
   product_view: 'product_view',
   size_guide_opened: 'size_guide_opened',
+  size_selected: 'size_selected',
+  stylist_inquiry_started: 'stylist_inquiry_started',
+  stylist_inquiry_completed: 'stylist_inquiry_completed',
   add_to_bag: 'add_to_bag',
   cart_opened: 'cart_opened',
   checkout_started: 'checkout_started',
+  checkout_form_completed: 'checkout_form_completed',
+  payment_clicked: 'payment_clicked',
   checkout_payment_unavailable: 'checkout_payment_unavailable',
 } as const;
 

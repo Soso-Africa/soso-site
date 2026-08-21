@@ -1,12 +1,13 @@
 import React, { FormEvent, useEffect, useId, useState } from "react";
 import { Loader2, MessageCircle, X } from "lucide-react";
 import { useCreateEnquiry } from "@workspace/api-client-react";
+import { trackStorefrontEvent } from "./ConsentManager";
 
 type StylistEnquiryDialogProps = {
   isOpen: boolean;
   onClose: () => void;
-  productSlug: string;
-  productName: string;
+  productSlug?: string;
+  productName?: string;
 };
 
 export function StylistEnquiryDialog({
@@ -38,6 +39,10 @@ export function StylistEnquiryDialog({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (isOpen) trackStorefrontEvent("stylist_inquiry_started", { productSlug: productSlug || undefined });
+  }, [isOpen, productSlug]);
+
   if (!isOpen) return null;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -51,13 +56,14 @@ export function StylistEnquiryDialog({
           name: String(form.get("name") || "").trim() || undefined,
           email: String(form.get("email") || "").trim() || undefined,
           phone: String(form.get("phone") || "").trim() || undefined,
-          productSlug,
+          productSlug: productSlug || undefined,
           message: String(form.get("message") || "").trim(),
         },
       });
       setSent(true);
+      trackStorefrontEvent("stylist_inquiry_completed", { productSlug: productSlug || undefined });
     } catch {
-      setError("We could not send your question just now. Please try again or use WhatsApp.");
+      setError("We could not send your question just now. Please try again shortly.");
     }
   };
 
@@ -82,7 +88,7 @@ export function StylistEnquiryDialog({
               Ask a SOSO stylist
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-[#d8ceb9]">
-              Ask about <span className="text-[#f6f1e7]">{productName}</span>, sizing, or your occasion. This does not pause or replace secure checkout.
+              {productName ? <>Ask about <span className="text-[#f6f1e7]">{productName}</span>, sizing, or your occasion.</> : <>Ask about sizing, an occasion, or a piece you have in mind.</>} This does not pause or replace secure checkout.
             </p>
           </div>
           <button

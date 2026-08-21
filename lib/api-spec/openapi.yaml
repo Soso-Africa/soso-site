@@ -275,15 +275,26 @@ components:
           type: boolean
     AnalyticsEventInput:
       type: object
-      required: [anonymousId, eventName, path, consent]
+      required: [eventId, eventVersion, anonymousId, sessionId, eventName, path, consent, occurredAt]
       properties:
+        eventId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        eventVersion:
+          type: number
+          minimum: 1
         anonymousId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        sessionId:
           type: string
           minLength: 8
           maxLength: 128
         eventName:
           type: string
-          enum: [page_view, product_view, size_guide_opened, add_to_bag, cart_opened, checkout_started, checkout_payment_unavailable]
+          enum: [page_view, product_view, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_form_completed, payment_clicked, checkout_payment_unavailable]
         path:
           type: string
           maxLength: 512
@@ -293,6 +304,12 @@ components:
         source:
           type: string
           maxLength: 128
+        utmMedium:
+          type: string
+          maxLength: 128
+        utmCampaign:
+          type: string
+          maxLength: 256
         deviceType:
           type: string
           enum: [mobile, tablet, desktop, unknown]
@@ -302,6 +319,9 @@ components:
         properties:
           type: object
           additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
     ConsentInput:
       type: object
       required: [anonymousId, state, policyVersion]
@@ -444,6 +464,6 @@ components:
             properties:
               eventName:
                 type: string
-                enum: [page_view, product_view, size_guide_opened, add_to_bag, cart_opened, checkout_started, checkout_payment_unavailable]
+                enum: [page_view, product_view, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_form_completed, payment_clicked, checkout_payment_unavailable]
               count: { type: number, minimum: 0 }
 

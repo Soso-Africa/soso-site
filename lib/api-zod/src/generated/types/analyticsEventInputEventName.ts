@@ -13,8 +13,13 @@ export const AnalyticsEventInputEventName = {
   page_view: 'page_view',
   product_view: 'product_view',
   size_guide_opened: 'size_guide_opened',
+  size_selected: 'size_selected',
+  stylist_inquiry_started: 'stylist_inquiry_started',
+  stylist_inquiry_completed: 'stylist_inquiry_completed',
   add_to_bag: 'add_to_bag',
   cart_opened: 'cart_opened',
   checkout_started: 'checkout_started',
+  checkout_form_completed: 'checkout_form_completed',
+  payment_clicked: 'payment_clicked',
   checkout_payment_unavailable: 'checkout_payment_unavailable',
 } as const;

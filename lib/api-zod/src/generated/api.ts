@@ -20,8 +20,15 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Record a consent-aware storefront event
  */
+export const recordAnalyticsEventBodyEventIdMin = 8;
+export const recordAnalyticsEventBodyEventIdMax = 128;
+
+
 export const recordAnalyticsEventBodyAnonymousIdMin = 8;
 export const recordAnalyticsEventBodyAnonymousIdMax = 128;
+
+export const recordAnalyticsEventBodySessionIdMin = 8;
+export const recordAnalyticsEventBodySessionIdMax = 128;
 
 export const recordAnalyticsEventBodyPathMax = 512;
 
@@ -29,17 +36,27 @@ export const recordAnalyticsEventBodyReferrerMax = 1024;
 
 export const recordAnalyticsEventBodySourceMax = 128;
 
+export const recordAnalyticsEventBodyUtmMediumMax = 128;
+
+export const recordAnalyticsEventBodyUtmCampaignMax = 256;
+
 
 
 export const RecordAnalyticsEventBody = zod.object({
+  "eventId": zod.string().min(recordAnalyticsEventBodyEventIdMin).max(recordAnalyticsEventBodyEventIdMax),
+  "eventVersion": zod.number().min(1),
   "anonymousId": zod.string().min(recordAnalyticsEventBodyAnonymousIdMin).max(recordAnalyticsEventBodyAnonymousIdMax),
-  "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_payment_unavailable']),
+  "sessionId": zod.string().min(recordAnalyticsEventBodySessionIdMin).max(recordAnalyticsEventBodySessionIdMax),
+  "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable']),
   "path": zod.string().max(recordAnalyticsEventBodyPathMax),
   "referrer": zod.string().max(recordAnalyticsEventBodyReferrerMax).optional(),
   "source": zod.string().max(recordAnalyticsEventBodySourceMax).optional(),
+  "utmMedium": zod.string().max(recordAnalyticsEventBodyUtmMediumMax).optional(),
+  "utmCampaign": zod.string().max(recordAnalyticsEventBodyUtmCampaignMax).optional(),
   "deviceType": zod.enum(['mobile', 'tablet', 'desktop', 'unknown']).optional(),
   "consent": zod.enum(['essential_only', 'analytics', 'marketing']),
-  "properties": zod.record(zod.string(), zod.unknown()).optional()
+  "properties": zod.record(zod.string(), zod.unknown()).optional(),
+  "occurredAt": zod.coerce.date()
 })
 
 export const RecordAnalyticsEventResponse = zod.object({
@@ -219,7 +236,7 @@ export const getStaffFunnelResponseEventsItemCountMin = 0;
 export const GetStaffFunnelResponse = zod.object({
   "periodDays": zod.number().min(1),
   "events": zod.array(zod.object({
-  "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_payment_unavailable']),
+  "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable']),
   "count": zod.number().min(getStaffFunnelResponseEventsItemCountMin)
 }))
 })

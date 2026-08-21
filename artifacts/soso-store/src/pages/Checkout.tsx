@@ -6,13 +6,15 @@ import { useCart } from "@/context/CartContext";
 import { commerceGateway, CommerceConfigurationError } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
+import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 
-type CheckoutState = "ready" | "processing" | "payment-unavailable" | "paid";
+type CheckoutState = "ready" | "processing" | "payment-unavailable";
 
 export default function Checkout() {
   const { items, cartTotal } = useCart();
   const [state, setState] = useState<CheckoutState>("ready");
   const [message, setMessage] = useState("");
+  const [stylistOpen, setStylistOpen] = useState(false);
 
   const startCheckout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -20,6 +22,8 @@ export default function Checkout() {
     setMessage("");
     const form = new FormData(event.currentTarget);
     trackStorefrontEvent("checkout_started", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
+    trackStorefrontEvent("checkout_form_completed", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
+    trackStorefrontEvent("payment_clicked", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
 
     try {
         const result = await commerceGateway.createCheckoutSession({
@@ -35,13 +39,15 @@ export default function Checkout() {
           window.location.assign(result.checkoutUrl);
           return;
         }
-        setState("paid");
+        trackStorefrontEvent("checkout_payment_unavailable");
+        setState("payment-unavailable");
+        setMessage("Secure payment did not open, and no payment has been taken. Please try again shortly or ask a SOSO stylist for help.");
     } catch (error) {
         trackStorefrontEvent("checkout_payment_unavailable");
         setState("payment-unavailable");
         setMessage(
           error instanceof CommerceConfigurationError
-            ? error.message
+            ? `${error.message} No payment has been taken.`
             : "We could not open secure payment. Please try again or speak with a SOSO stylist.",
         );
     }
@@ -96,17 +102,17 @@ export default function Checkout() {
                   {message}
                 </div>
               )}
-              {state === "paid" && (
-                <div role="status" className="border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed">
-                  Payment received. The SOSO atelier will now confirm your making details and follow up with next steps.
-                </div>
-              )}
-
-              <button disabled={state === "processing" || state === "paid"} className="w-full soso-btn-gold py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
+              <button disabled={state === "processing"} className="w-full soso-btn-gold py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
                 <LockKeyhole size={16} className="inline mr-2" />
-                {state === "processing" ? "Opening secure payment…" : `Pay now — ${naira(cartTotal)}`}
+                {state === "processing" ? "Opening secure payment…" : `Continue to payment — ${naira(cartTotal)}`}
               </button>
               <p className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--secondary))]"><LockKeyhole size={14} /> Secure payment first · atelier confirmation follows.</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 pt-2 text-xs text-[hsl(var(--secondary))]">
+                <Link href="/privacy" className="underline underline-offset-4 hover:text-white">Privacy & cookies</Link>
+                <Link href="/terms" className="underline underline-offset-4 hover:text-white">Terms</Link>
+                <Link href="/delivery-returns" className="underline underline-offset-4 hover:text-white">Delivery, returns & refunds</Link>
+                <button type="button" onClick={() => setStylistOpen(true)} className="underline underline-offset-4 hover:text-white">Ask a stylist</button>
+              </div>
             </form>
           )}
         </section>
@@ -129,12 +135,13 @@ export default function Checkout() {
             <div className="flex justify-between border-t border-[rgba(246,241,231,.18)] mt-7 pt-5 text-lg">
               <span>Subtotal</span><strong>{naira(cartTotal)}</strong>
             </div>
-            <a href="/#whatsapp" className="mt-7 w-full flex items-center justify-center gap-2 border border-[#2db36f] py-3.5 text-xs uppercase tracking-[.16em] text-[#77dca6]">
+            <button type="button" onClick={() => setStylistOpen(true)} className="mt-7 w-full flex items-center justify-center gap-2 border border-[#b8912f]/60 py-3.5 text-xs uppercase tracking-[.16em] text-[#d4b45a]">
               <MessageCircle size={16} /> Order with a stylist
-            </a>
+            </button>
           </aside>
         )}
       </div>
+      <StylistEnquiryDialog isOpen={stylistOpen} onClose={() => setStylistOpen(false)} productName="your order" />
     </div>
   );
 }

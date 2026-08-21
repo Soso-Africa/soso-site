@@ -15,7 +15,19 @@ export interface AnalyticsEventInput {
      * @minLength 8
      * @maxLength 128
      */
+  eventId: string;
+  /** @minimum 1 */
+  eventVersion: number;
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
   anonymousId: string;
+  /**
+     * @minLength 8
+     * @maxLength 128
+     */
+  sessionId: string;
   eventName: AnalyticsEventInputEventName;
   /** @maxLength 512 */
   path: string;
@@ -23,7 +35,12 @@ export interface AnalyticsEventInput {
   referrer?: string;
   /** @maxLength 128 */
   source?: string;
+  /** @maxLength 128 */
+  utmMedium?: string;
+  /** @maxLength 256 */
+  utmCampaign?: string;
   deviceType?: AnalyticsEventInputDeviceType;
   consent: AnalyticsEventInputConsent;
   properties?: AnalyticsEventInputProperties;
+  occurredAt: Date;
 }

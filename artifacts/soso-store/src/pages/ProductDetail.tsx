@@ -133,7 +133,10 @@ export default function ProductDetail() {
               {product.sizes.map((s) => (
                 <button
                   key={s}
-                  onClick={() => setSize(s)}
+                  onClick={() => {
+                    setSize(s);
+                    trackStorefrontEvent("size_selected", { productSlug: product.slug, selectedSize: s });
+                  }}
                   className="px-5 py-2.5 text-sm tracking-wide transition-all duration-300"
                   style={
                     size === s
@@ -147,8 +150,8 @@ export default function ProductDetail() {
             </div>
             <p className="text-[12px] mt-2 opacity-60">
               {size === "Custom"
-                ? "Our atelier will contact you for measurements within 24 hours."
-                : "Between sizes? Size up — our cuts are built for a regal drape."}
+                ? "After payment, the atelier will follow up to discuss measurements and making details."
+                : "Between sizes? Use the size guide or ask a stylist before you add to bag."}
             </p>
           </div>
 
@@ -253,7 +256,7 @@ export default function ProductDetail() {
              {[
                 ["Made to order", "SOSO can make the piece you choose. After payment, the atelier confirms the requested direction and production timing."],
                ["Sizing", "The size guide is available above, with direct stylist support if you prefer to confirm measurements before ordering."],
-                ["Delivery", "Delivery options and timing are confirmed for your location after payment."],
+                ["Delivery & returns", "Delivery options and made-to-order returns guidance are confirmed in the purchase-support information."],
                 ["Order support", "A SOSO stylist can answer product, fitting and order questions if you need help before paying."],
              ].map(([t, b], i) => (
               <Reveal key={t} delay={i * 100}>
@@ -340,16 +343,19 @@ export default function ProductDetail() {
               </tbody>
             </table>
             <div className="mt-6 p-4 text-sm" style={{ background: "#EFE8DA" }}>
-              Not sure? Send your height and weight on WhatsApp — a stylist will size you in one message. Or choose <span className="font-semibold">Custom</span> for made-to-measure at no extra cost.
+               Not sure? Ask a stylist for fit guidance, or choose <span className="font-semibold">Custom</span> when you need made-to-measure direction.
             </div>
-            <a
-              href="/#whatsapp"
+            <button
+              type="button"
+              onClick={() => {
+                setGuideOpen(false);
+                setStylistOpen(true);
+              }}
               className="w-full mt-5 py-3.5 text-[12px] tracking-[0.2em] uppercase flex items-center justify-center gap-2"
               style={{ background: "#128C56", color: "#fff" }}
-              onClick={() => setGuideOpen(false)}
             >
-              <WhatsAppIcon size={16} /> Get sized on WhatsApp
-            </a>
+              <WhatsAppIcon size={16} /> Ask a stylist about fit
+            </button>
           </div>
         </div>
       )}

@@ -93,8 +93,13 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
     return;
   }
 
-  await db.insert(analyticsEventsTable).values(parsed.data);
-  res.status(202).json(RecordAnalyticsEventResponse.parse({ accepted: true }));
+  const [event] = await db
+    .insert(analyticsEventsTable)
+    .values(parsed.data)
+    .onConflictDoNothing({ target: analyticsEventsTable.eventId })
+    .returning({ id: analyticsEventsTable.id });
+
+  res.status(event ? 202 : 200).json(RecordAnalyticsEventResponse.parse({ accepted: Boolean(event) }));
 });
 
 router.post("/consent", async (req, res): Promise<void> => {

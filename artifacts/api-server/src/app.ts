@@ -4,6 +4,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { requireSameOriginForWrites } from "./middlewares/sameOriginWrite";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
@@ -43,6 +44,7 @@ app.use(
     ),
   })),
 );
+app.use(requireSameOriginForWrites);
 
 app.use("/api", router);
 

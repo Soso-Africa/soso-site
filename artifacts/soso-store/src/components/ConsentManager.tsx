@@ -6,13 +6,20 @@ export type StorefrontEventName =
   | "page_view"
   | "product_view"
   | "size_guide_opened"
+  | "size_selected"
+  | "stylist_inquiry_started"
+  | "stylist_inquiry_completed"
   | "add_to_bag"
   | "cart_opened"
   | "checkout_started"
+  | "checkout_form_completed"
+  | "payment_clicked"
   | "checkout_payment_unavailable";
 
 const CONSENT_KEY = "soso-consent-v1";
 const VISITOR_KEY = "soso-visitor-id";
+const SESSION_KEY = "soso-session-id";
+const EVENT_VERSION = 1;
 
 function apiUrl(path: string): string {
   const configuredBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
@@ -24,6 +31,14 @@ function visitorId(): string {
   if (saved) return saved;
   const id = crypto.randomUUID();
   localStorage.setItem(VISITOR_KEY, id);
+  return id;
+}
+
+function sessionId(): string {
+  const saved = sessionStorage.getItem(SESSION_KEY);
+  if (saved) return saved;
+  const id = crypto.randomUUID();
+  sessionStorage.setItem(SESSION_KEY, id);
   return id;
 }
 
@@ -39,17 +54,25 @@ function sendEvent(
   eventName: StorefrontEventName,
   properties?: Record<string, unknown>,
 ) {
+  const params = new URLSearchParams(window.location.search);
   void fetch(apiUrl("/analytics/events"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      eventId: crypto.randomUUID(),
+      eventVersion: EVENT_VERSION,
       anonymousId: visitorId(),
+      sessionId: sessionId(),
       eventName,
       path: window.location.pathname,
       referrer: document.referrer || undefined,
+      source: params.get("utm_source") || undefined,
+      utmMedium: params.get("utm_medium") || undefined,
+      utmCampaign: params.get("utm_campaign") || undefined,
       deviceType: window.innerWidth < 768 ? "mobile" : window.innerWidth < 1100 ? "tablet" : "desktop",
       consent,
       properties,
+      occurredAt: new Date().toISOString(),
     }),
   }).catch(() => {
     // Measurement must never interrupt browsing or checkout.

@@ -1,12 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link } from "wouter";
 import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
 import { WhatsAppIcon } from "@/components/Icons";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
+import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 
 export default function Home() {
+  const [stylistOpen, setStylistOpen] = useState(false);
+
   return (
     <div className="flex flex-col">
       <Seo
@@ -44,13 +47,14 @@ export default function Home() {
               <Link href="/shop" className="soso-btn-gold text-[13px] tracking-[0.15em] uppercase px-8 py-4 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
                 Shop the Collection
               </Link>
-              <a
-                href="#whatsapp"
+              <button
+                type="button"
+                onClick={() => setStylistOpen(true)}
                 className="soso-btn-ghost flex items-center gap-2.5 text-[13px] tracking-[0.15em] uppercase px-8 py-4 font-semibold"
                 style={{ border: `1px solid rgba(246,241,231,0.35)` }}
               >
-                <WhatsAppIcon size={17} /> Order on WhatsApp
-              </a>
+                <WhatsAppIcon size={17} /> Ask a stylist
+              </button>
             </div>
           </Reveal>
           <Reveal delay={480}>
@@ -164,14 +168,14 @@ export default function Home() {
         </Reveal>
         <div>
           <Reveal>
-            <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>Fit, guaranteed</p>
+            <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>Fit support</p>
             <h2 className="soso-display font-light mb-8 text-white" style={{ fontSize: "clamp(1.8rem,3.5vw,2.8rem)" }}>
               Buying bespoke online should not be a gamble.
             </h2>
           </Reveal>
           {[
-            ["01", "Choose your piece", "Pick from the collection, or send us your inspiration on WhatsApp."],
-            ["02", "Measure in 5 minutes", "Our fit specialist guides you on a WhatsApp video call — no tape drama."],
+            ["01", "Choose your piece", "Pick from the collection and review the size guidance for the piece you like."],
+            ["02", "Use fit support if needed", "A stylist can help you think through sizing, a custom request, or your occasion."],
              ["03", "Pay securely", "Complete payment for the piece you have chosen. Ask a stylist first only if you have a question."],
              ["04", "Atelier follows up", "After payment, the atelier confirms the making details and production next steps."],
           ].map(([n, t, s], i) => (
@@ -186,9 +190,9 @@ export default function Home() {
             </Reveal>
           ))}
           <Reveal delay={480}>
-            <a href="#whatsapp" className="soso-btn-gold inline-flex items-center gap-2.5 mt-8 text-[13px] tracking-[0.15em] uppercase px-8 py-4 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
+            <button type="button" onClick={() => setStylistOpen(true)} className="soso-btn-gold inline-flex items-center gap-2.5 mt-8 text-[13px] tracking-[0.15em] uppercase px-8 py-4 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
               <WhatsAppIcon size={17} /> Start Your Fitting
-            </a>
+            </button>
           </Reveal>
         </div>
       </section>
@@ -246,9 +250,9 @@ export default function Home() {
               The Architect of the Modern Man.
             </h2>
             <p className="mt-6 text-[15px] leading-relaxed" style={{ color: "hsl(var(--secondary))" }}>
-              From a single atelier in Abuja, SOSO builds garments the way architects build landmarks —
-              with proportion, restraint, and intent. Every stitch is placed by hand. Every silhouette is
-              engineered for presence. We don't make clothes for the crowd. We make them for the man the crowd turns to see.
+              SOSO approaches menswear with proportion, restraint, and intent. Each piece is considered for
+              presence, with sizing support available when you need it. Explore the collection and choose a
+              path that feels right for your occasion.
             </p>
             <Link href="/shop" className="soso-link inline-block mt-8 text-[12px] tracking-[0.25em] uppercase pb-1" style={{ color: "hsl(var(--primary))", borderBottom: `1px solid hsl(var(--primary))` }}>
               Discover the house
@@ -258,7 +262,7 @@ export default function Home() {
       </section>
 
       {/* 8. Final CTA */}
-      <section id="whatsapp" className="py-24" style={{ backgroundColor: "#161310", borderTop: `1px solid rgba(184,145,47,0.25)` }}>
+      <section id="stylist-support" className="py-24" style={{ backgroundColor: "#161310", borderTop: `1px solid rgba(184,145,47,0.25)` }}>
         <div className="max-w-4xl mx-auto px-6 text-center">
           <Reveal>
             <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>Ready when you are</p>
@@ -272,16 +276,17 @@ export default function Home() {
               <Link href="/shop" className="soso-btn-gold text-[13px] tracking-[0.15em] uppercase px-9 py-4 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
                 Shop the Collection
               </Link>
-              <a href="#whatsapp" className="soso-btn-ghost flex items-center gap-2.5 text-[13px] tracking-[0.15em] uppercase px-9 py-4 font-semibold text-white" style={{ border: `1px solid rgba(246,241,231,0.35)` }}>
-                <WhatsAppIcon size={17} /> Chat with a Fit Specialist
-              </a>
+              <button type="button" onClick={() => setStylistOpen(true)} className="soso-btn-ghost flex items-center gap-2.5 text-[13px] tracking-[0.15em] uppercase px-9 py-4 font-semibold text-white" style={{ border: `1px solid rgba(246,241,231,0.35)` }}>
+                <WhatsAppIcon size={17} /> Ask a stylist
+              </button>
             </div>
             <p className="mt-8 text-[12px]" style={{ color: "hsl(var(--secondary))" }}>
-               Production timing, delivery options and payment methods are confirmed before your order is accepted.
+                Payment comes first; the atelier follows up next to confirm making details and available delivery guidance.
             </p>
           </Reveal>
         </div>
       </section>
+      <StylistEnquiryDialog isOpen={stylistOpen} onClose={() => setStylistOpen(false)} />
     </div>
   );
 }

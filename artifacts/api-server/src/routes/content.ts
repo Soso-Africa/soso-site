@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { createHash } from "node:crypto";
 import {
   CreateEnquiryBody,
   CreateEnquiryResponse,
@@ -6,15 +7,50 @@ import {
   GetJournalPostResponse,
   ListJournalPostsResponse,
 } from "@workspace/api-zod";
-import { customerEnquiriesTable, db, journalPostsTable } from "@workspace/db";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { customerEnquiriesTable, db, journalPostsTable, rateLimitBucketsTable } from "@workspace/db";
+import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
+const ENQUIRY_RATE_WINDOW_MS = 60_000;
+const MAX_ENQUIRIES_PER_IP_WINDOW = 8;
+
+async function isEnquiryRateLimited(ipAddress: string): Promise<boolean> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ENQUIRY_RATE_WINDOW_MS);
+  const key = createHash("sha256").update(`enquiries:ip:${ipAddress}`).digest("hex");
+
+  await db.delete(rateLimitBucketsTable).where(lt(rateLimitBucketsTable.expiresAt, now));
+
+  const [bucket] = await db
+    .insert(rateLimitBucketsTable)
+    .values({ key, requestCount: 1, expiresAt })
+    .onConflictDoUpdate({
+      target: rateLimitBucketsTable.key,
+      set: {
+        requestCount: sql<number>`case
+          when ${rateLimitBucketsTable.expiresAt} <= ${now} then 1
+          else ${rateLimitBucketsTable.requestCount} + 1
+        end`,
+        expiresAt: sql<Date>`case
+          when ${rateLimitBucketsTable.expiresAt} <= ${now} then ${expiresAt}
+          else ${rateLimitBucketsTable.expiresAt}
+        end`,
+      },
+    })
+    .returning({ requestCount: rateLimitBucketsTable.requestCount });
+
+  return (bucket?.requestCount ?? 0) > MAX_ENQUIRIES_PER_IP_WINDOW;
+}
 
 router.post("/enquiries", async (req, res): Promise<void> => {
   const parsed = CreateEnquiryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Please provide a complete question" });
+    return;
+  }
+
+  if (await isEnquiryRateLimited(req.ip ?? "unknown")) {
+    res.status(429).json({ error: "Too many enquiries. Please wait a moment and try again." });
     return;
   }
 
