@@ -20,6 +20,7 @@ import Checkout from '@/pages/Checkout';
 import Journal from '@/pages/Journal';
 import JournalPost from '@/pages/JournalPost';
 import Policy from '@/pages/Policy';
+import PolicyHub from '@/pages/PolicyHub';
 import SignIn from '@/pages/SignIn';
 import SignUp from '@/pages/SignUp';
 import Staff from '@/pages/Staff';
@@ -37,11 +38,13 @@ function Router() {
         <Route path="/checkout" component={Checkout} />
         <Route path="/journal" component={Journal} />
         <Route path="/journal/:slug" component={JournalPost} />
+        <Route path="/policies" component={PolicyHub} />
         <Route path="/privacy" component={Policy} />
-        <Route path="/cookies" component={Policy} />
+        <Route path="/cookies" component={CookieRedirect} />
         <Route path="/terms" component={Policy} />
-        <Route path="/delivery" component={Policy} />
-        <Route path="/returns" component={Policy} />
+        <Route path="/delivery-returns" component={Policy} />
+        <Route path="/delivery" component={DeliveryRedirect} />
+        <Route path="/returns" component={ReturnsRedirect} />
         <Route path="/care" component={Policy} />
         <Route path="/sign-in/*?" component={SignIn} />
         <Route path="/sign-up/*?" component={SignUp} />
@@ -63,6 +66,18 @@ function StaffGate() {
       </Show>
     </>
   );
+}
+
+function CookieRedirect() {
+  return <Redirect to="/privacy#cookies" />;
+}
+
+function DeliveryRedirect() {
+  return <Redirect to="/delivery-returns#delivery" />;
+}
+
+function ReturnsRedirect() {
+  return <Redirect to="/delivery-returns#returns" />;
 }
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {

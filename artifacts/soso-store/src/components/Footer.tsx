@@ -24,8 +24,8 @@ export function Footer() {
         <div>
           <p className="text-[11px] tracking-[0.25em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>House</p>
           <Link href="/journal" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>The Journal</Link>
-          <Link href="/delivery" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Delivery guidance</Link>
-          <Link href="/returns" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Returns & cancellations</Link>
+          <Link href="/policies" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Policies & support</Link>
+          <Link href="/delivery-returns" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Delivery, returns & refunds</Link>
           <Link href="/care" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Garment care</Link>
           <a href="/#whatsapp" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Order support</a>
           <a href="/#whatsapp" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Contact / WhatsApp</a>
@@ -34,7 +34,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto mt-12 pt-6 flex flex-wrap justify-between gap-3 text-[11px] tracking-[0.1em]" style={{ borderTop: "1px solid rgba(184,145,47,0.15)", color: "#7a715c" }}>
         <span>© SOSO Africa. Abuja, Nigeria.</span>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <Link href="/privacy" className="soso-link">Privacy</Link>
+          <Link href="/privacy" className="soso-link">Privacy & cookies</Link>
           <button type="button" onClick={openPrivacyChoices} className="soso-link">Cookie choices</button>
           <Link href="/terms" className="soso-link">Terms</Link>
           <span>Prices are shown in Nigerian Naira (₦). Atelier making details are confirmed after payment.</span>

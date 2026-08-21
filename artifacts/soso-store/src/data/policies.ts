@@ -1,4 +1,5 @@
 export type PolicySection = {
+  id: string;
   heading: string;
   paragraphs?: string[];
   bullets?: string[];
@@ -13,38 +14,52 @@ export type PolicyDocument = {
 
 export const policies: Record<string, PolicyDocument> = {
   "/privacy": {
-    title: "Privacy notice",
-    eyebrow: "Privacy · working draft",
-    summary: "A working draft of how SOSO Africa collects, uses and protects personal information.",
+    title: "Privacy & cookie notice",
+    eyebrow: "Privacy & cookies · working draft",
+    summary: "A working draft of how SOSO Africa handles personal information, necessary browser storage and optional measurement.",
     sections: [
       {
+        id: "about",
         heading: "About this notice",
         paragraphs: [
-          "This working draft explains how SOSO Africa (“SOSO”, “we”, “us” or “our”) may handle personal information when you browse our storefront, ask for stylist support, place a made-to-order request, or contact the atelier.",
+          "This working draft explains how SOSO Africa (“SOSO”, “we”, “us” or “our”) may handle personal information when you browse our storefront, ask for stylist support, place a made-to-order request or contact the atelier.",
           "It is prepared for SOSO’s legal and business review. It is not the final privacy notice and should not be treated as approved legal advice until SOSO confirms the missing details and publishes an approved version.",
         ],
       },
       {
+        id: "information",
         heading: "Information we may receive",
         bullets: [
           "Contact information and the details you choose to send when you ask for stylist support or order assistance, such as your name, email address, phone number, preferred size and message.",
           "Order and product information, including the pieces selected, size, delivery destination, measurements or fitting notes that you choose to provide, and messages needed to make or fulfil an order.",
           "Payment and delivery information needed to complete a transaction. Full payment-card credentials should be handled by the payment service shown at checkout rather than sent to SOSO by chat.",
           "Technical and browsing information that is necessary to keep the site secure and functional.",
-          "Optional first-party measurement information only after you choose the measurement option in the privacy choices panel. SOSO’s current storefront is designed to keep optional measurement off by default.",
+          "Optional first-party measurement information only after you choose the measurement option in the privacy choices panel.",
         ],
       },
       {
+        id: "use",
         heading: "How we may use information",
         bullets: [
           "To respond to questions, stylist requests and customer-support messages.",
           "To prepare, confirm, fulfil and support made-to-order purchases.",
           "To coordinate payment, delivery and fulfilment services when those services are enabled for an order.",
           "To protect the storefront, prevent misuse, keep records and comply with applicable legal obligations.",
-          "To understand storefront performance using limited first-party measurement when you have given affirmative consent. You can withdraw that choice through Cookie choices.",
+          "To understand storefront performance using limited first-party measurement when you have given affirmative consent.",
         ],
       },
       {
+        id: "cookies",
+        heading: "Cookie and measurement choices",
+        paragraphs: [
+          "SOSO uses necessary browser storage to keep the shopping bag, remember your privacy choice and support basic storefront behaviour. Necessary storage remains active because the site cannot provide those functions without it.",
+          "The current storefront uses local browser storage for the shopping bag, the privacy choice and an anonymous visitor identifier used to associate a consent record. These identifiers are not intended to identify you by name.",
+          "Optional first-party measurement is off until you choose “Allow measurement”. When enabled, SOSO records limited events such as page views, product views, size-guide use, bag activity and checkout-start activity. You can change your choice at any time through Cookie choices in the footer.",
+          "This draft does not approve advertising cookies, cross-site tracking, third-party analytics or marketing audiences. SOSO should add any such technology only after a separate business and legal review.",
+        ],
+      },
+      {
+        id: "providers",
         heading: "Service providers",
         paragraphs: [
           "We may use carefully selected providers for hosting, payment, delivery, customer support and storefront operations. When the JusticeSure commerce service is enabled, it may process catalogue, delivery, order, payment and fulfilment information required for the requested transaction under its own applicable terms.",
@@ -52,50 +67,12 @@ export const policies: Record<string, PolicyDocument> = {
         ],
       },
       {
+        id: "rights",
         heading: "Retention, rights and contact",
         paragraphs: [
           "We keep information only for as long as it is needed for the purpose collected, an ongoing customer relationship, legitimate records, dispute handling or an applicable legal obligation. SOSO should insert its approved retention schedule before publication.",
           "Depending on applicable law, you may have rights to request access, correction, deletion, restriction or a copy of your information, and to withdraw consent where processing relies on consent. Requests should be sent through SOSO’s approved privacy contact: [insert approved privacy contact email or address].",
-          "If you are unhappy with how information is handled, the final notice should identify the relevant supervisory authority or complaint route for the customer’s location.",
-        ],
-      },
-      {
-        heading: "Updates and approval",
-        paragraphs: [
-          "SOSO may update this notice when its services, providers or legal obligations change. The published version should show an effective date and version number. Current status: working draft, not effective.",
-        ],
-      },
-    ],
-  },
-  "/cookies": {
-    title: "Cookie preferences",
-    eyebrow: "Cookie choices · working draft",
-    summary: "How SOSO uses necessary browser storage and optional first-party measurement.",
-    sections: [
-      {
-        heading: "Necessary storage",
-        paragraphs: [
-          "SOSO uses necessary browser storage to keep the shopping bag, remember your privacy choice and support basic storefront behavior. Necessary storage remains active because the site cannot provide those functions without it.",
-          "The current storefront uses local browser storage for the shopping bag, the privacy choice and an anonymous visitor identifier used to associate a consent record. These identifiers are not intended to identify you by name.",
-        ],
-      },
-      {
-        heading: "Optional measurement",
-        paragraphs: [
-          "Optional first-party measurement is off until you choose “Allow measurement”. When enabled, SOSO records limited events such as page views, product views, size-guide use, bag activity and checkout-start activity. The measurement is designed to be consent-aware and privacy-minimized.",
-          "You can change your choice at any time through Cookie choices in the footer. Changing to Necessary only stops future optional measurement from the storefront; SOSO should define its approved retention and deletion schedule for previously recorded events before this draft is finalised.",
-        ],
-      },
-      {
-        heading: "What this draft does not approve",
-        paragraphs: [
-          "This draft does not approve advertising cookies, cross-site tracking, third-party analytics or marketing audiences. SOSO should add any such technologies here only after a separate business and legal review.",
-        ],
-      },
-      {
-        heading: "Contact and version",
-        paragraphs: [
-          "For privacy questions, use SOSO’s approved contact: [insert approved privacy contact email or address]. Current status: working draft, not effective.",
+          "The published version should show an effective date and version number. Current status: working draft, not effective.",
         ],
       },
     ],
@@ -106,6 +83,7 @@ export const policies: Record<string, PolicyDocument> = {
     summary: "A working draft for SOSO’s bespoke, made-to-order purchase journey.",
     sections: [
       {
+        id: "bespoke-model",
         heading: "The SOSO model",
         paragraphs: [
           "SOSO creates and offers bespoke and made-to-order menswear, including kaftans, agbadas, dashikis, shirts, two-piece sets and accessories. A product page is an invitation to begin a purchase request; it is not a promise that every design, size or finish is permanently available.",
@@ -113,7 +91,8 @@ export const policies: Record<string, PolicyDocument> = {
         ],
       },
       {
-        heading: "How an order is expected to work",
+        id: "payment-and-atelier-confirmation",
+        heading: "Payment and atelier confirmation",
         bullets: [
           "You select a piece and size, with optional stylist support if you would like help.",
           "You provide accurate contact, delivery and fitting information requested at checkout.",
@@ -123,6 +102,7 @@ export const policies: Record<string, PolicyDocument> = {
         ],
       },
       {
+        id: "prices",
         heading: "Prices and payment",
         paragraphs: [
           "Prices are shown in Nigerian Naira unless the storefront says otherwise. The final checkout total should identify the item total, any delivery charge and any other applicable charge before payment.",
@@ -130,12 +110,14 @@ export const policies: Record<string, PolicyDocument> = {
         ],
       },
       {
-        heading: "Sizing, measurements and customer information",
+        id: "sizing",
+        heading: "Sizing and measurements",
         paragraphs: [
           "You are responsible for reviewing the size guide and providing accurate information. Stylist support is available as an optional service and is not required to pay. If a customer supplies measurements or fitting notes, SOSO should confirm how those measurements will be used and stored in the final privacy notice.",
         ],
       },
       {
+        id: "legal-rights",
         heading: "Changes and legal rights",
         paragraphs: [
           "The final terms should explain when a customer may amend or cancel a request, what happens when production has started, and the process for defects, incorrect items, delays and refunds. Nothing in these terms is intended to remove a right that cannot lawfully be excluded.",
@@ -144,54 +126,39 @@ export const policies: Record<string, PolicyDocument> = {
       },
     ],
   },
-  "/delivery": {
-    title: "Delivery information",
-    eyebrow: "Delivery · working draft",
-    summary: "A transparent working draft for delivery of SOSO made-to-order pieces.",
+  "/delivery-returns": {
+    title: "Delivery, returns & refunds",
+    eyebrow: "Order support · working draft",
+    summary: "A transparent working draft for delivery, cancellations, returns, alterations and refunds for SOSO made-to-order pieces.",
     sections: [
       {
-        heading: "Made-to-order timing",
+        id: "delivery",
+        heading: "Delivery and made-to-order timing",
         paragraphs: [
           "SOSO pieces are made-to-order or bespoke. Production and delivery timing depends on the piece, size or measurements, atelier capacity, destination and the delivery service available for the order.",
           "SOSO does not publish a fixed delivery promise in this draft. The atelier should confirm the expected production and delivery details after payment and before relying on them.",
+          "The delivery destination supplied at checkout must be accurate and complete. The final order should show the available delivery option and quote, or clearly explain when SOSO must confirm those details separately.",
         ],
       },
       {
-        heading: "Delivery quote and destination",
+        id: "delivery-support",
+        heading: "Delivery support",
         paragraphs: [
-          "The delivery destination supplied at checkout must be accurate and complete. The final order should show the available delivery option and quote, or clearly explain when SOSO must confirm those details separately.",
+          "If an order is delayed or the atelier needs clarification, SOSO should contact the customer through the approved contact details. Customers should keep their order reference when asking for an update.",
           "SOSO should add approved information about delivery areas, collection options, duties, taxes, address changes, failed delivery and the carrier used for each destination before publication.",
         ],
       },
       {
-        heading: "Delays and support",
-        paragraphs: [
-          "If an order is delayed or the atelier needs clarification, SOSO should contact the customer through the approved contact details. Customers should keep their order reference when asking for an update.",
-          "For delivery support, use SOSO’s approved order-support channel: [insert approved support email, phone or WhatsApp details]. Current status: working draft, not effective.",
-        ],
-      },
-    ],
-  },
-  "/returns": {
-    title: "Returns and cancellations",
-    eyebrow: "Returns · working draft",
-    summary: "A working draft for bespoke returns, alterations, cancellations and refunds.",
-    sections: [
-      {
-        heading: "Bespoke and made-to-order pieces",
+        id: "returns",
+        heading: "Returns and alterations",
         paragraphs: [
           "Because a bespoke or made-to-order piece may be cut, prepared or finished for one customer, a change-of-mind return may be limited once atelier production has started, subject to applicable law and the final terms SOSO approves.",
           "SOSO should confirm which products are treated as bespoke, when production is considered to have started, and whether any product categories have different rules before this draft is published as a binding policy.",
-        ],
-      },
-      {
-        heading: "Problems with an order",
-        paragraphs: [
           "If a piece arrives damaged, materially different from the confirmed order or affected by a manufacturing issue, contact SOSO as soon as reasonably possible with the order reference, a description of the issue and clear photographs where helpful. Do not alter or wash the piece before SOSO has advised what to do.",
-          "SOSO should define its inspection, repair, alteration, replacement and refund options in the final approved policy. Any remedy will remain subject to applicable consumer law.",
         ],
       },
       {
+        id: "cancellations-and-refunds",
         heading: "Cancellations and refunds",
         paragraphs: [
           "A cancellation request should be sent through SOSO’s approved support channel as soon as possible. Whether a cancellation can be accepted may depend on whether the atelier has started work and on the final approved terms.",
@@ -199,9 +166,10 @@ export const policies: Record<string, PolicyDocument> = {
         ],
       },
       {
+        id: "contact",
         heading: "Contact and approval",
         paragraphs: [
-          "Submit a return, alteration or cancellation request through: [insert approved support email, phone or WhatsApp details]. Current status: working draft, not effective.",
+          "For delivery, returns, alterations or cancellation support, use SOSO’s approved order-support channel: [insert approved support email, phone or WhatsApp details]. Current status: working draft, not effective.",
         ],
       },
     ],
@@ -212,12 +180,14 @@ export const policies: Record<string, PolicyDocument> = {
     summary: "General care guidance for SOSO garments while product-specific instructions are confirmed.",
     sections: [
       {
+        id: "before-cleaning",
         heading: "Before cleaning",
         paragraphs: [
           "Check the care label and any garment-specific instructions supplied with your piece. If the fabric, embellishment, lining or finish is unfamiliar, ask SOSO before cleaning it.",
         ],
       },
       {
+        id: "storage",
         heading: "Handling and storage",
         bullets: [
           "Allow a garment to air after wear and store it clean, dry and away from direct sunlight.",
@@ -227,6 +197,7 @@ export const policies: Record<string, PolicyDocument> = {
         ],
       },
       {
+        id: "cleaning",
         heading: "Cleaning and pressing",
         paragraphs: [
           "Use the care label as the controlling instruction. Do not assume that a richly coloured, embroidered, embellished or structured piece can be machine washed. Use a qualified cleaner when the label or atelier recommends it, and test any pressing method on an inconspicuous area only if the care instructions permit.",
@@ -234,6 +205,7 @@ export const policies: Record<string, PolicyDocument> = {
         ],
       },
       {
+        id: "care-contact",
         heading: "Questions",
         paragraphs: [
           "For care questions, use SOSO’s approved support channel: [insert approved support email, phone or WhatsApp details]. Current status: working draft, not effective.",

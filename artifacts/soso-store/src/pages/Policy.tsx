@@ -27,7 +27,7 @@ export default function Policy() {
         </div>
         <div className="mt-12 space-y-10">
           {page.sections.map((section) => (
-            <section key={section.heading}>
+            <section key={section.id} id={section.id} className="scroll-mt-24">
               <h2 className="soso-display text-2xl text-foreground md:text-3xl">{section.heading}</h2>
               {section.paragraphs?.map((paragraph) => (
                 <p key={paragraph} className="mt-4 text-sm leading-8 text-[#d8ceb9] md:text-base">{paragraph}</p>
