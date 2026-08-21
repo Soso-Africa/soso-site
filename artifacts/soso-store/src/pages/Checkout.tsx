@@ -5,6 +5,7 @@ import { Seo } from "@/components/Seo";
 import { useCart } from "@/context/CartContext";
 import { commerceGateway, CommerceConfigurationError } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
+import { trackStorefrontEvent } from "@/components/ConsentManager";
 
 type CheckoutState = "ready" | "processing" | "payment-unavailable" | "paid";
 
@@ -18,6 +19,7 @@ export default function Checkout() {
       setState("processing");
     setMessage("");
     const form = new FormData(event.currentTarget);
+    trackStorefrontEvent("checkout_started", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
 
     try {
         const result = await commerceGateway.createCheckoutSession({
@@ -35,6 +37,7 @@ export default function Checkout() {
         }
         setState("paid");
     } catch (error) {
+        trackStorefrontEvent("checkout_payment_unavailable");
         setState("payment-unavailable");
         setMessage(
           error instanceof CommerceConfigurationError

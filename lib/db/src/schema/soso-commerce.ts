@@ -133,6 +133,19 @@ export const journalPostsTable = pgTable(
   ],
 );
 
+export const journalPostRevisionsTable = pgTable(
+  "soso_journal_post_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    journalPostId: uuid("journal_post_id").notNull().references(() => journalPostsTable.id, { onDelete: "cascade" }),
+    snapshot: jsonb("snapshot").notNull(),
+    contentHash: text("content_hash").notNull(),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("soso_journal_post_revisions_post_created_idx").on(table.journalPostId, table.createdAt)],
+);
+
 export const analyticsEventsTable = pgTable(
   "soso_analytics_events",
   {
@@ -167,6 +180,16 @@ export const consentRecordsTable = pgTable(
   (table) => [index("soso_consent_records_anonymous_created_idx").on(table.anonymousId, table.createdAt)],
 );
 
+export const rateLimitBucketsTable = pgTable(
+  "soso_rate_limit_buckets",
+  {
+    key: text("key").primaryKey(),
+    requestCount: integer("request_count").notNull().default(0),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [index("soso_rate_limit_buckets_expires_idx").on(table.expiresAt)],
+);
+
 export const auditLogsTable = pgTable(
   "soso_audit_logs",
   {
@@ -194,6 +217,7 @@ export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;
 export type CustomerEnquiry = typeof customerEnquiriesTable.$inferSelect;
 export type JournalPost = typeof journalPostsTable.$inferSelect;
+export type JournalPostRevision = typeof journalPostRevisionsTable.$inferSelect;
 export type AnalyticsEvent = typeof analyticsEventsTable.$inferSelect;
 export type ConsentRecord = typeof consentRecordsTable.$inferSelect;
 export type InsertStaffUser = z.infer<typeof insertStaffUserSchema>;

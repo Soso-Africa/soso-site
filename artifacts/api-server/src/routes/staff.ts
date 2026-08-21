@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import {
   GetStaffOverviewResponse,
+  GetStaffFunnelResponse,
   GetStaffProfileResponse,
   ListStaffEnquiriesResponse,
   ListStaffOrdersResponse,
@@ -12,7 +13,7 @@ import {
   ordersTable,
 } from "@workspace/db";
 import { and, count, desc, eq, gte, inArray } from "drizzle-orm";
-import { requireStaff } from "../middlewares/staff";
+import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 
 const router: IRouter = Router();
 
@@ -57,7 +58,44 @@ router.get("/staff/overview", async (_req, res): Promise<void> => {
   );
 });
 
-router.get("/staff/orders", async (_req, res): Promise<void> => {
+router.get(
+  "/staff/funnel",
+  requireStaffRoles("owner", "analyst"),
+  async (_req, res): Promise<void> => {
+    const periodDays = 7;
+    const since = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000);
+    const eventNames = [
+      "page_view",
+      "product_view",
+      "size_guide_opened",
+      "add_to_bag",
+      "cart_opened",
+      "checkout_started",
+      "checkout_payment_unavailable",
+    ] as const;
+    const counts = await db
+      .select({
+        eventName: analyticsEventsTable.eventName,
+        value: count(),
+      })
+      .from(analyticsEventsTable)
+      .where(and(gte(analyticsEventsTable.occurredAt, since), inArray(analyticsEventsTable.eventName, eventNames)))
+      .groupBy(analyticsEventsTable.eventName);
+    const values = new Map(counts.map((row) => [row.eventName, Number(row.value)]));
+
+    res.json(
+      GetStaffFunnelResponse.parse({
+        periodDays,
+        events: eventNames.map((eventName) => ({
+          eventName,
+          count: values.get(eventName) ?? 0,
+        })),
+      }),
+    );
+  },
+);
+
+router.get("/staff/orders", requireStaffRoles("owner", "operations"), async (_req, res): Promise<void> => {
   const orders = await db
     .select({
       id: ordersTable.id,
@@ -76,7 +114,7 @@ router.get("/staff/orders", async (_req, res): Promise<void> => {
   res.json(ListStaffOrdersResponse.parse(orders));
 });
 
-router.get("/staff/enquiries", async (_req, res): Promise<void> => {
+router.get("/staff/enquiries", requireStaffRoles("owner", "operations", "stylist"), async (_req, res): Promise<void> => {
   const enquiries = await db
     .select()
     .from(customerEnquiriesTable)

@@ -65,7 +65,11 @@ export default function JournalPost() {
       )}
 
       <article className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 prose prose-invert prose-lg prose-headings:font-serif prose-headings:font-normal prose-headings:text-foreground prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-none prose-p:leading-relaxed prose-p:text-foreground/90">
-        <div dangerouslySetInnerHTML={{ __html: post.body }} />
+        <div className="space-y-6 whitespace-pre-line">
+          {post.body.split(/\n{2,}/).map((paragraph, index) => (
+            <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
+          ))}
+        </div>
       </article>
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-24 pt-12 border-t border-border">

@@ -209,6 +209,23 @@ export const ListStaffOrdersResponse = zod.array(ListStaffOrdersResponseItem)
 
 
 /**
+ * @summary Get consented first-party storefront event counts
+ */
+
+export const getStaffFunnelResponseEventsItemCountMin = 0;
+
+
+
+export const GetStaffFunnelResponse = zod.object({
+  "periodDays": zod.number().min(1),
+  "events": zod.array(zod.object({
+  "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_payment_unavailable']),
+  "count": zod.number().min(getStaffFunnelResponseEventsItemCountMin)
+}))
+})
+
+
+/**
  * @summary List customer enquiries
  */
 export const listStaffEnquiriesResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -225,5 +242,138 @@ export const ListStaffEnquiriesResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListStaffEnquiriesResponse = zod.array(ListStaffEnquiriesResponseItem)
+
+
+/**
+ * @summary List all Journal articles for staff management
+ */
+export const listStaffJournalPostsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffJournalPostsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffJournalPostsResponseIdRegExp),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string(),
+  "body": zod.string(),
+  "coverImageUrl": zod.string().nullish(),
+  "authorName": zod.string(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListStaffJournalPostsResponse = zod.array(ListStaffJournalPostsResponseItem)
+
+
+/**
+ * @summary Create a Journal article
+ */
+export const createStaffJournalPostBodySlugMin = 3;
+export const createStaffJournalPostBodySlugMax = 140;
+
+
+export const createStaffJournalPostBodySlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const createStaffJournalPostBodyTitleMin = 4;
+export const createStaffJournalPostBodyTitleMax = 180;
+
+export const createStaffJournalPostBodyExcerptMin = 20;
+export const createStaffJournalPostBodyExcerptMax = 360;
+
+export const createStaffJournalPostBodyBodyMin = 100;
+export const createStaffJournalPostBodyBodyMax = 50000;
+
+export const createStaffJournalPostBodyCoverImageUrlMax = 2048;
+
+export const createStaffJournalPostBodyAuthorNameMin = 2;
+export const createStaffJournalPostBodyAuthorNameMax = 120;
+
+
+
+export const CreateStaffJournalPostBody = zod.object({
+  "slug": zod.string().min(createStaffJournalPostBodySlugMin).max(createStaffJournalPostBodySlugMax).regex(createStaffJournalPostBodySlugRegExp),
+  "title": zod.string().min(createStaffJournalPostBodyTitleMin).max(createStaffJournalPostBodyTitleMax),
+  "excerpt": zod.string().min(createStaffJournalPostBodyExcerptMin).max(createStaffJournalPostBodyExcerptMax),
+  "body": zod.string().min(createStaffJournalPostBodyBodyMin).max(createStaffJournalPostBodyBodyMax),
+  "coverImageUrl": zod.string().max(createStaffJournalPostBodyCoverImageUrlMax).nullish(),
+  "authorName": zod.string().min(createStaffJournalPostBodyAuthorNameMin).max(createStaffJournalPostBodyAuthorNameMax),
+  "status": zod.enum(['draft', 'published', 'archived'])
+})
+
+export const createStaffJournalPostResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const CreateStaffJournalPostResponse = zod.object({
+  "id": zod.string().regex(createStaffJournalPostResponseIdRegExp),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string(),
+  "body": zod.string(),
+  "coverImageUrl": zod.string().nullish(),
+  "authorName": zod.string(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update, publish, draft, or archive a Journal article
+ */
+export const updateStaffJournalPostPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffJournalPostParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffJournalPostPathIdRegExp)
+})
+
+export const updateStaffJournalPostBodySlugMin = 3;
+export const updateStaffJournalPostBodySlugMax = 140;
+
+
+export const updateStaffJournalPostBodySlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const updateStaffJournalPostBodyTitleMin = 4;
+export const updateStaffJournalPostBodyTitleMax = 180;
+
+export const updateStaffJournalPostBodyExcerptMin = 20;
+export const updateStaffJournalPostBodyExcerptMax = 360;
+
+export const updateStaffJournalPostBodyBodyMin = 100;
+export const updateStaffJournalPostBodyBodyMax = 50000;
+
+export const updateStaffJournalPostBodyCoverImageUrlMax = 2048;
+
+export const updateStaffJournalPostBodyAuthorNameMin = 2;
+export const updateStaffJournalPostBodyAuthorNameMax = 120;
+
+
+
+export const UpdateStaffJournalPostBody = zod.object({
+  "slug": zod.string().min(updateStaffJournalPostBodySlugMin).max(updateStaffJournalPostBodySlugMax).regex(updateStaffJournalPostBodySlugRegExp).optional(),
+  "title": zod.string().min(updateStaffJournalPostBodyTitleMin).max(updateStaffJournalPostBodyTitleMax).optional(),
+  "excerpt": zod.string().min(updateStaffJournalPostBodyExcerptMin).max(updateStaffJournalPostBodyExcerptMax).optional(),
+  "body": zod.string().min(updateStaffJournalPostBodyBodyMin).max(updateStaffJournalPostBodyBodyMax).optional(),
+  "coverImageUrl": zod.string().max(updateStaffJournalPostBodyCoverImageUrlMax).nullish(),
+  "authorName": zod.string().min(updateStaffJournalPostBodyAuthorNameMin).max(updateStaffJournalPostBodyAuthorNameMax).optional(),
+  "status": zod.enum(['draft', 'published', 'archived']).optional()
+})
+
+export const updateStaffJournalPostResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffJournalPostResponse = zod.object({
+  "id": zod.string().regex(updateStaffJournalPostResponseIdRegExp),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string(),
+  "body": zod.string(),
+  "coverImageUrl": zod.string().nullish(),
+  "authorName": zod.string(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
 
 

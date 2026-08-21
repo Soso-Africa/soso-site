@@ -162,6 +162,22 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/StaffOrder"
+  /staff/funnel:
+    get:
+      operationId: getStaffFunnel
+      tags: [staff]
+      summary: Get consented first-party storefront event counts
+      responses:
+        "200":
+          description: Last seven days of raw consented event counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffFunnel"
+        "401":
+          description: Authentication required
+        "403":
+          description: Owner or analyst access required
   /staff/enquiries:
     get:
       operationId: listStaffEnquiries
@@ -176,6 +192,72 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Enquiry"
+  /staff/journal:
+    get:
+      operationId: listStaffJournalPosts
+      tags: [staff]
+      summary: List all Journal articles for staff management
+      responses:
+        "200":
+          description: Journal articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffJournalPost"
+    post:
+      operationId: createStaffJournalPost
+      tags: [staff]
+      summary: Create a Journal article
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffJournalPostInput"
+      responses:
+        "201":
+          description: Article created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffJournalPost"
+        "400":
+          description: Invalid article
+        "403":
+          description: Editor or owner access required
+  /staff/journal/{id}:
+    patch:
+      operationId: updateStaffJournalPost
+      tags: [staff]
+      summary: Update, publish, draft, or archive a Journal article
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F-]{36}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffJournalPostUpdate"
+      responses:
+        "200":
+          description: Article updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffJournalPost"
+        "400":
+          description: Invalid update
+        "403":
+          description: Editor or owner access required
+        "404":
+          description: Article not found
 components:
   schemas:
     HealthStatus:
@@ -284,6 +366,43 @@ components:
           required: [body]
           properties:
             body: { type: string }
+    StaffJournalPostInput:
+      type: object
+      required: [slug, title, excerpt, body, authorName, status]
+      properties:
+        slug: { type: string, minLength: 3, maxLength: 140, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        title: { type: string, minLength: 4, maxLength: 180 }
+        excerpt: { type: string, minLength: 20, maxLength: 360 }
+        body: { type: string, minLength: 100, maxLength: 50000 }
+        coverImageUrl: { type: ["string", "null"], maxLength: 2048 }
+        authorName: { type: string, minLength: 2, maxLength: 120 }
+        status: { type: string, enum: [draft, published, archived] }
+    StaffJournalPostUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        slug: { type: string, minLength: 3, maxLength: 140, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        title: { type: string, minLength: 4, maxLength: 180 }
+        excerpt: { type: string, minLength: 20, maxLength: 360 }
+        body: { type: string, minLength: 100, maxLength: 50000 }
+        coverImageUrl: { type: ["string", "null"], maxLength: 2048 }
+        authorName: { type: string, minLength: 2, maxLength: 120 }
+        status: { type: string, enum: [draft, published, archived] }
+    StaffJournalPost:
+      type: object
+      required: [id, slug, title, excerpt, body, authorName, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        slug: { type: string }
+        title: { type: string }
+        excerpt: { type: string }
+        body: { type: string }
+        coverImageUrl: { type: ["string", "null"] }
+        authorName: { type: string }
+        status: { type: string, enum: [draft, published, archived] }
+        publishedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     StaffProfile:
       type: object
       required: [id, email, role]
@@ -312,4 +431,19 @@ components:
         openEnquiries: { type: number, minimum: 0 }
         storefrontEvents7d: { type: number, minimum: 0 }
         paymentIsLive: { type: boolean }
+    StaffFunnel:
+      type: object
+      required: [periodDays, events]
+      properties:
+        periodDays: { type: number, minimum: 1 }
+        events:
+          type: array
+          items:
+            type: object
+            required: [eventName, count]
+            properties:
+              eventName:
+                type: string
+                enum: [page_view, product_view, size_guide_opened, add_to_bag, cart_opened, checkout_started, checkout_payment_unavailable]
+              count: { type: number, minimum: 0 }
 

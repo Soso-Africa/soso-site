@@ -6,6 +6,8 @@ import { WhatsAppIcon } from "@/components/Icons";
 import { useCart } from "@/context/CartContext";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
+import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
+import { trackStorefrontEvent } from "@/components/ConsentManager";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
@@ -16,6 +18,7 @@ export default function ProductDetail() {
   
   const [size, setSize] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [stylistOpen, setStylistOpen] = useState(false);
   const [img, setImg] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -33,6 +36,10 @@ export default function ProductDetail() {
     const t = setTimeout(() => setLoaded(true), 60);
     return () => clearTimeout(t);
   }, [product, setLocation]);
+
+  useEffect(() => {
+    if (product) trackStorefrontEvent("product_view", { productSlug: product.slug });
+  }, [product]);
 
   if (!product) return null;
 
@@ -118,7 +125,7 @@ export default function ProductDetail() {
           <div className="mt-8">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[12px] tracking-[0.2em] uppercase font-medium">Select size</span>
-              <button onClick={() => setGuideOpen(true)} className="text-[12px] underline underline-offset-4 hover:opacity-70" style={{ color: "hsl(var(--primary))" }}>
+              <button onClick={() => { setGuideOpen(true); trackStorefrontEvent("size_guide_opened", { productSlug: product.slug }); }} className="text-[12px] underline underline-offset-4 hover:opacity-70" style={{ color: "hsl(var(--primary))" }}>
                 Size guide & fit help
               </button>
             </div>
@@ -157,13 +164,14 @@ export default function ProductDetail() {
             >
               {needSize ? "Select a size to continue" : `Add to bag — ${naira(product.price)}`}
             </button>
-            <a
-              href="/#whatsapp"
+            <button
+              type="button"
+              onClick={() => setStylistOpen(true)}
               className="w-full block text-center py-4 text-[13px] tracking-[0.2em] uppercase flex items-center justify-center gap-2 transition-colors duration-300 hover:bg-[#0f3d2e] hover:text-white"
               style={{ border: "1px solid #128C56", color: "#0f6b43" }}
             >
               <WhatsAppIcon size={16} /> Ask about this piece
-            </a>
+            </button>
             <p className="text-center text-[12px] opacity-60 mt-2">
               Have a question before you pay? Speak to a stylist for fit or bespoke guidance.
             </p>
@@ -228,8 +236,8 @@ export default function ProductDetail() {
               </p>
             </div>
           </Reveal>
-          <Reveal delay={220}>
-            <a href="/#whatsapp" className="inline-flex mt-8 text-sm text-[hsl(var(--primary))] underline underline-offset-4">Ask a stylist about this piece</a>
+           <Reveal delay={220}>
+             <button type="button" onClick={() => setStylistOpen(true)} className="inline-flex mt-8 text-sm text-[hsl(var(--primary))] underline underline-offset-4">Ask a stylist about this piece</button>
           </Reveal>
         </div>
       </section>
@@ -345,6 +353,12 @@ export default function ProductDetail() {
           </div>
         </div>
       )}
+       <StylistEnquiryDialog
+         isOpen={stylistOpen}
+         onClose={() => setStylistOpen(false)}
+         productSlug={product.slug}
+         productName={product.name}
+       />
     </div>
   );
 }

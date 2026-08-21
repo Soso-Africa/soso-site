@@ -142,6 +142,120 @@ export type JournalPost = JournalPostSummary & {
   body: string;
 };
 
+export type StaffJournalPostInputStatus = typeof StaffJournalPostInputStatus[keyof typeof StaffJournalPostInputStatus];
+
+
+export const StaffJournalPostInputStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface StaffJournalPostInput {
+  /**
+     * @minLength 3
+     * @maxLength 140
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  slug: string;
+  /**
+     * @minLength 4
+     * @maxLength 180
+     */
+  title: string;
+  /**
+     * @minLength 20
+     * @maxLength 360
+     */
+  excerpt: string;
+  /**
+     * @minLength 100
+     * @maxLength 50000
+     */
+  body: string;
+  /**
+     * @maxLength 2048
+     * @nullable
+     */
+  coverImageUrl?: string | null;
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  authorName: string;
+  status: StaffJournalPostInputStatus;
+}
+
+export type StaffJournalPostUpdateStatus = typeof StaffJournalPostUpdateStatus[keyof typeof StaffJournalPostUpdateStatus];
+
+
+export const StaffJournalPostUpdateStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface StaffJournalPostUpdate {
+  /**
+     * @minLength 3
+     * @maxLength 140
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  slug?: string;
+  /**
+     * @minLength 4
+     * @maxLength 180
+     */
+  title?: string;
+  /**
+     * @minLength 20
+     * @maxLength 360
+     */
+  excerpt?: string;
+  /**
+     * @minLength 100
+     * @maxLength 50000
+     */
+  body?: string;
+  /**
+     * @maxLength 2048
+     * @nullable
+     */
+  coverImageUrl?: string | null;
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  authorName?: string;
+  status?: StaffJournalPostUpdateStatus;
+}
+
+export type StaffJournalPostStatus = typeof StaffJournalPostStatus[keyof typeof StaffJournalPostStatus];
+
+
+export const StaffJournalPostStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface StaffJournalPost {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  body: string;
+  /** @nullable */
+  coverImageUrl?: string | null;
+  authorName: string;
+  status: StaffJournalPostStatus;
+  /** @nullable */
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type StaffProfileRole = typeof StaffProfileRole[keyof typeof StaffProfileRole];
 
 
@@ -184,5 +298,30 @@ export interface StaffOverview {
   /** @minimum 0 */
   storefrontEvents7d: number;
   paymentIsLive: boolean;
+}
+
+export type StaffFunnelEventsItemEventName = typeof StaffFunnelEventsItemEventName[keyof typeof StaffFunnelEventsItemEventName];
+
+
+export const StaffFunnelEventsItemEventName = {
+  page_view: 'page_view',
+  product_view: 'product_view',
+  size_guide_opened: 'size_guide_opened',
+  add_to_bag: 'add_to_bag',
+  cart_opened: 'cart_opened',
+  checkout_started: 'checkout_started',
+  checkout_payment_unavailable: 'checkout_payment_unavailable',
+} as const;
+
+export type StaffFunnelEventsItem = {
+  eventName: StaffFunnelEventsItemEventName;
+  /** @minimum 0 */
+  count: number;
+};
+
+export interface StaffFunnel {
+  /** @minimum 1 */
+  periodDays: number;
+  events: StaffFunnelEventsItem[];
 }
 

@@ -37,3 +37,23 @@ export async function requireStaff(
   req.staff = staff;
   next();
 }
+
+export function requireStaffRoles(...allowedRoles: StaffUser["role"][]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.staff) {
+      res.status(500).json({ error: "Staff authorization context is unavailable" });
+      return;
+    }
+
+    if (!allowedRoles.includes(req.staff.role)) {
+      req.log.warn(
+        { staffId: req.staff.id, role: req.staff.role, allowedRoles },
+        "Denied staff mutation for insufficient role",
+      );
+      res.status(403).json({ error: "Your staff role cannot manage Journal content" });
+      return;
+    }
+
+    next();
+  };
+}

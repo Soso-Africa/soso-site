@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { trackStorefrontEvent } from '@/components/ConsentManager';
 
 export type CartItem = {
   slug: string;
@@ -40,10 +41,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('soso-cart', JSON.stringify(items));
   }, [items]);
 
-  const openDrawer = () => setIsDrawerOpen(true);
+  const openDrawer = () => setIsDrawerOpen((isOpen) => {
+    if (!isOpen) trackStorefrontEvent('cart_opened');
+    return true;
+  });
   const closeDrawer = () => setIsDrawerOpen(false);
 
   const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
+    trackStorefrontEvent('add_to_bag', { productSlug: newItem.slug, selectedSize: newItem.size });
     setItems(current => {
       const existing = current.find(i => i.slug === newItem.slug && i.size === newItem.size);
       if (existing) {

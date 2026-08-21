@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "wouter";
+import { openPrivacyChoices } from "./ConsentManager";
 
 export function Footer() {
   return (
@@ -33,7 +34,7 @@ export function Footer() {
         <span>© SOSO Africa. Abuja, Nigeria.</span>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           <Link href="/privacy" className="soso-link">Privacy</Link>
-          <Link href="/cookies" className="soso-link">Cookie choices</Link>
+          <button type="button" onClick={openPrivacyChoices} className="soso-link">Cookie choices</button>
           <Link href="/terms" className="soso-link">Terms</Link>
           <span>Prices are shown in Nigerian Naira (₦). Atelier making details are confirmed after payment.</span>
         </div>

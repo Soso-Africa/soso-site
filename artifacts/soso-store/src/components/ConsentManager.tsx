@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 
 type ConsentState = "essential_only" | "analytics" | "marketing";
+export type StorefrontEventName =
+  | "page_view"
+  | "product_view"
+  | "size_guide_opened"
+  | "add_to_bag"
+  | "cart_opened"
+  | "checkout_started"
+  | "checkout_payment_unavailable";
 
 const CONSENT_KEY = "soso-consent-v1";
 const VISITOR_KEY = "soso-visitor-id";
@@ -25,9 +34,49 @@ function readConsent(): ConsentState | null {
     : null;
 }
 
+function sendEvent(
+  consent: Exclude<ConsentState, "essential_only">,
+  eventName: StorefrontEventName,
+  properties?: Record<string, unknown>,
+) {
+  void fetch(apiUrl("/analytics/events"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      anonymousId: visitorId(),
+      eventName,
+      path: window.location.pathname,
+      referrer: document.referrer || undefined,
+      deviceType: window.innerWidth < 768 ? "mobile" : window.innerWidth < 1100 ? "tablet" : "desktop",
+      consent,
+      properties,
+    }),
+  }).catch(() => {
+    // Measurement must never interrupt browsing or checkout.
+  });
+}
+
+export function trackStorefrontEvent(
+  eventName: Exclude<StorefrontEventName, "page_view">,
+  properties?: Record<string, unknown>,
+) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("soso:storefront-event", {
+      detail: { eventName, properties },
+    }),
+  );
+}
+
+export function openPrivacyChoices() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event("soso:open-privacy-choices"));
+}
+
 export function ConsentManager() {
   const [consent, setConsent] = useState<ConsentState | null>(null);
   const [visible, setVisible] = useState(false);
+  const [pathname] = useLocation();
 
   useEffect(() => {
     const saved = readConsent();
@@ -38,38 +87,69 @@ export function ConsentManager() {
   useEffect(() => {
     if (consent !== "analytics" && consent !== "marketing") return;
 
-    void fetch(apiUrl("/analytics/events"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        anonymousId: visitorId(),
-        eventName: "page_view",
-        path: window.location.pathname,
-        referrer: document.referrer || undefined,
-        deviceType: window.innerWidth < 768 ? "mobile" : window.innerWidth < 1100 ? "tablet" : "desktop",
-        consent,
-      }),
-    }).catch(() => {
-      // Analytics must never interrupt the store when the analytics service is unavailable.
-    });
+    sendEvent(consent, "page_view");
+  }, [consent, pathname]);
+
+  useEffect(() => {
+    if (consent !== "analytics" && consent !== "marketing") return;
+
+    const recordTrackedEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        eventName: Exclude<StorefrontEventName, "page_view">;
+        properties?: Record<string, unknown>;
+      }>).detail;
+      if (detail?.eventName) sendEvent(consent, detail.eventName, detail.properties);
+    };
+
+    window.addEventListener("soso:storefront-event", recordTrackedEvent);
+    return () => window.removeEventListener("soso:storefront-event", recordTrackedEvent);
   }, [consent]);
 
-  const save = (state: ConsentState) => {
-    localStorage.setItem(CONSENT_KEY, state);
-    setConsent(state);
+  useEffect(() => {
+    const reopen = () => setVisible(true);
+    window.addEventListener("soso:open-privacy-choices", reopen);
+    return () => window.removeEventListener("soso:open-privacy-choices", reopen);
+  }, []);
+
+  const save = async (state: ConsentState) => {
     setVisible(false);
 
-    void fetch(apiUrl("/consent"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        anonymousId: visitorId(),
-        state,
-        policyVersion: "v1-pending-legal-approval",
-      }),
-    }).catch(() => {
-      // The preference remains stored locally and can be sent on a later visit.
-    });
+    if (state === "essential_only") {
+      localStorage.setItem(CONSENT_KEY, state);
+      setConsent(state);
+      void fetch(apiUrl("/consent"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anonymousId: visitorId(),
+          state,
+          policyVersion: "v1-pending-legal-approval",
+        }),
+      }).catch(() => {
+        // This preference remains active locally even if the record cannot be saved.
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(apiUrl("/consent"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anonymousId: visitorId(),
+          state,
+          policyVersion: "v1-pending-legal-approval",
+        }),
+      });
+      if (!response.ok) throw new Error("Consent could not be recorded");
+      localStorage.setItem(CONSENT_KEY, state);
+      setConsent(state);
+    } catch {
+      // Do not begin optional measurement if affirmative consent was not recorded.
+      localStorage.setItem(CONSENT_KEY, "essential_only");
+      setConsent("essential_only");
+      setVisible(true);
+    }
   };
 
   if (!visible) return null;

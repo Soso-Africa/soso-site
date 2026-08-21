@@ -29,6 +29,10 @@ import type {
   HealthStatus,
   JournalPost,
   JournalPostSummary,
+  StaffFunnel,
+  StaffJournalPost,
+  StaffJournalPostInput,
+  StaffJournalPostUpdate,
   StaffOrder,
   StaffOverview,
   StaffProfile
@@ -737,6 +741,83 @@ export function useListStaffOrders<TData = Awaited<ReturnType<typeof listStaffOr
 
 
 
+export const getGetStaffFunnelUrl = () => {
+
+
+
+
+  return `/api/staff/funnel`
+}
+
+/**
+ * @summary Get consented first-party storefront event counts
+ */
+export const getStaffFunnel = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffFunnel> => {
+
+  return customFetch<StaffFunnel>(getGetStaffFunnelUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffFunnelQueryKey = () => {
+    return [
+    `/api/staff/funnel`
+    ] as const;
+    }
+
+
+export const getGetStaffFunnelQueryOptions = <TData = Awaited<ReturnType<typeof getStaffFunnel>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffFunnel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffFunnelQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffFunnel>>> = ({ signal }) => getStaffFunnel({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffFunnel>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffFunnelQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffFunnel>>>
+export type GetStaffFunnelQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get consented first-party storefront event counts
+ */
+
+export function useGetStaffFunnel<TData = Awaited<ReturnType<typeof getStaffFunnel>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffFunnel>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffFunnelQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListStaffEnquiriesUrl = () => {
 
 
@@ -813,4 +894,224 @@ export function useListStaffEnquiries<TData = Awaited<ReturnType<typeof listStaf
 
 
 
+
+export const getListStaffJournalPostsUrl = () => {
+
+
+
+
+  return `/api/staff/journal`
+}
+
+/**
+ * @summary List all Journal articles for staff management
+ */
+export const listStaffJournalPosts = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffJournalPost[]> => {
+
+  return customFetch<StaffJournalPost[]>(getListStaffJournalPostsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffJournalPostsQueryKey = () => {
+    return [
+    `/api/staff/journal`
+    ] as const;
+    }
+
+
+export const getListStaffJournalPostsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffJournalPosts>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffJournalPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffJournalPostsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffJournalPosts>>> = ({ signal }) => listStaffJournalPosts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffJournalPosts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffJournalPostsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffJournalPosts>>>
+export type ListStaffJournalPostsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all Journal articles for staff management
+ */
+
+export function useListStaffJournalPosts<TData = Awaited<ReturnType<typeof listStaffJournalPosts>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffJournalPosts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffJournalPostsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffJournalPostUrl = () => {
+
+
+
+
+  return `/api/staff/journal`
+}
+
+/**
+ * @summary Create a Journal article
+ */
+export const createStaffJournalPost = async (staffJournalPostInput: StaffJournalPostInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffJournalPost> => {
+
+  return customFetch<StaffJournalPost>(getCreateStaffJournalPostUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffJournalPostInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffJournalPostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffJournalPost>>, TError,{data: BodyType<StaffJournalPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffJournalPost>>, TError,{data: BodyType<StaffJournalPostInput>}, TContext> => {
+
+const mutationKey = ['createStaffJournalPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffJournalPost>>, {data: BodyType<StaffJournalPostInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffJournalPost(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffJournalPostMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffJournalPost>>>
+    export type CreateStaffJournalPostMutationBody = BodyType<StaffJournalPostInput>
+    export type CreateStaffJournalPostMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a Journal article
+ */
+export const useCreateStaffJournalPost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffJournalPost>>, TError,{data: BodyType<StaffJournalPostInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffJournalPost>>,
+        TError,
+        {data: BodyType<StaffJournalPostInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffJournalPostMutationOptions(options));
+    }
+
+export const getUpdateStaffJournalPostUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/journal/${id}`
+}
+
+/**
+ * @summary Update, publish, draft, or archive a Journal article
+ */
+export const updateStaffJournalPost = async (id: string,
+    staffJournalPostUpdate: StaffJournalPostUpdate, options?: Parameters<typeof customFetch>[1]): Promise<StaffJournalPost> => {
+
+  return customFetch<StaffJournalPost>(getUpdateStaffJournalPostUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffJournalPostUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffJournalPostMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffJournalPost>>, TError,{id: string;data: BodyType<StaffJournalPostUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffJournalPost>>, TError,{id: string;data: BodyType<StaffJournalPostUpdate>}, TContext> => {
+
+const mutationKey = ['updateStaffJournalPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffJournalPost>>, {id: string;data: BodyType<StaffJournalPostUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStaffJournalPost(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffJournalPostMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffJournalPost>>>
+    export type UpdateStaffJournalPostMutationBody = BodyType<StaffJournalPostUpdate>
+    export type UpdateStaffJournalPostMutationError = ErrorType<void>
+
+    /**
+ * @summary Update, publish, draft, or archive a Journal article
+ */
+export const useUpdateStaffJournalPost = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffJournalPost>>, TError,{id: string;data: BodyType<StaffJournalPostUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffJournalPost>>,
+        TError,
+        {id: string;data: BodyType<StaffJournalPostUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffJournalPostMutationOptions(options));
+    }
 
