@@ -123,7 +123,7 @@ export function ConsentManager() {
         body: JSON.stringify({
           anonymousId: visitorId(),
           state,
-          policyVersion: "v1-pending-legal-approval",
+          policyVersion: "draft-2026-08-21",
         }),
       }).catch(() => {
         // This preference remains active locally even if the record cannot be saved.
@@ -138,7 +138,7 @@ export function ConsentManager() {
         body: JSON.stringify({
           anonymousId: visitorId(),
           state,
-          policyVersion: "v1-pending-legal-approval",
+          policyVersion: "draft-2026-08-21",
         }),
       });
       if (!response.ok) throw new Error("Consent could not be recorded");

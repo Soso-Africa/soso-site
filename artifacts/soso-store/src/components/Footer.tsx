@@ -26,6 +26,7 @@ export function Footer() {
           <Link href="/journal" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>The Journal</Link>
           <Link href="/delivery" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Delivery guidance</Link>
           <Link href="/returns" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Returns & cancellations</Link>
+          <Link href="/care" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Garment care</Link>
           <a href="/#whatsapp" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Order support</a>
           <a href="/#whatsapp" className="soso-link block text-[13px] py-1.5" style={{ color: "hsl(var(--secondary))" }}>Contact / WhatsApp</a>
         </div>

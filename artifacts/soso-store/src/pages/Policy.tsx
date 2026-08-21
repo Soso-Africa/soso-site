@@ -1,37 +1,10 @@
 import { useLocation } from "wouter";
 import { Seo } from "@/components/Seo";
-
-const pages = {
-  "/privacy": {
-    title: "Privacy notice",
-    eyebrow: "Privacy",
-    summary: "SOSO is preparing its full privacy notice for legal approval.",
-  },
-  "/cookies": {
-    title: "Cookie preferences",
-    eyebrow: "Cookie choices",
-    summary: "Necessary storage supports the bag and privacy preference. Optional measurement remains off unless you choose it.",
-  },
-  "/terms": {
-    title: "Terms of purchase",
-    eyebrow: "Terms",
-    summary: "The complete terms for SOSO made-to-order purchases are being finalised for publication.",
-  },
-  "/delivery": {
-    title: "Delivery information",
-    eyebrow: "Delivery",
-    summary: "Atelier making and delivery timing are confirmed with each order after payment; a fixed delivery promise is not published here.",
-  },
-  "/returns": {
-    title: "Returns and cancellations",
-    eyebrow: "Returns",
-    summary: "The complete returns, alterations, cancellation and refund position is being finalised for publication.",
-  },
-} as const;
+import { policies } from "@/data/policies";
 
 export default function Policy() {
   const [location] = useLocation();
-  const page = pages[location as keyof typeof pages] ?? pages["/privacy"];
+  const page = policies[location] ?? policies["/privacy"];
 
   return (
     <section className="min-h-[70vh] px-6 py-20 md:px-12 md:py-28">
@@ -48,8 +21,24 @@ export default function Policy() {
         <p className="mt-7 max-w-2xl text-base leading-8 text-[#d8ceb9] md:text-lg">
           {page.summary}
         </p>
-        <div className="mt-12 border-l border-[#b8912f] bg-[#17130e] px-6 py-5 text-sm leading-7 text-[#d8ceb9]">
-          SOSO will publish the approved policy text here before relying on it for an order. This status page does not replace the final legal notice or create terms that have not been approved.
+        <div className="mt-8 border border-[#b8912f]/50 bg-[#b8912f]/10 px-6 py-5 text-sm leading-7 text-[#f6f1e7]">
+          <strong className="font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">Working draft — not effective</strong>
+          <p className="mt-2">This draft is provided for SOSO’s legal and business review. It must be approved and completed before SOSO relies on it as a final notice or binding policy.</p>
+        </div>
+        <div className="mt-12 space-y-10">
+          {page.sections.map((section) => (
+            <section key={section.heading}>
+              <h2 className="soso-display text-2xl text-foreground md:text-3xl">{section.heading}</h2>
+              {section.paragraphs?.map((paragraph) => (
+                <p key={paragraph} className="mt-4 text-sm leading-8 text-[#d8ceb9] md:text-base">{paragraph}</p>
+              ))}
+              {section.bullets && (
+                <ul className="mt-4 list-disc space-y-3 pl-5 text-sm leading-8 text-[#d8ceb9] md:text-base">
+                  {section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+                </ul>
+              )}
+            </section>
+          ))}
         </div>
       </div>
     </section>

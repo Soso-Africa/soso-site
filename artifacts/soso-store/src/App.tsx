@@ -42,6 +42,7 @@ function Router() {
         <Route path="/terms" component={Policy} />
         <Route path="/delivery" component={Policy} />
         <Route path="/returns" component={Policy} />
+        <Route path="/care" component={Policy} />
         <Route path="/sign-in/*?" component={SignIn} />
         <Route path="/sign-up/*?" component={SignUp} />
         <Route path="/staff" component={StaffGate} />
