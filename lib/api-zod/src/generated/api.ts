@@ -130,7 +130,9 @@ export const CreateEnquiryResponse = zod.object({
   "productSlug": zod.string().nullish(),
   "message": zod.string(),
   "status": zod.string(),
-  "createdAt": zod.coerce.date()
+  "handlingNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 
 
@@ -185,6 +187,15 @@ export const GetStaffProfileResponse = zod.object({
 /**
  * @summary Get operational and funnel overview
  */
+export const getStaffOverviewQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffOverviewQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const GetStaffOverviewQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getStaffOverviewQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(getStaffOverviewQueryToRegExp).optional()
+})
+
 export const getStaffOverviewResponseOrdersTotalMin = 0;
 
 export const getStaffOverviewResponseOrdersInProductionMin = 0;
@@ -194,21 +205,52 @@ export const getStaffOverviewResponseOpenEnquiriesMin = 0;
 export const getStaffOverviewResponseStorefrontEvents7dMin = 0;
 
 
+export const getStaffOverviewResponseMetricsItemValueMin = 0;
+
+
 
 export const GetStaffOverviewResponse = zod.object({
   "ordersTotal": zod.number().min(getStaffOverviewResponseOrdersTotalMin),
   "ordersInProduction": zod.number().min(getStaffOverviewResponseOrdersInProductionMin),
   "openEnquiries": zod.number().min(getStaffOverviewResponseOpenEnquiriesMin),
   "storefrontEvents7d": zod.number().min(getStaffOverviewResponseStorefrontEvents7dMin),
-  "paymentIsLive": zod.boolean()
+  "paymentIsLive": zod.boolean(),
+  "from": zod.string(),
+  "to": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "freshnessMinutes": zod.number().min(1),
+  "metrics": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "definition": zod.string(),
+  "value": zod.number().min(getStaffOverviewResponseMetricsItemValueMin)
+}))
 })
 
 
 /**
- * @summary List recent paid and production orders
+ * @summary List the current active operations queue, or a date-bounded status history when status is supplied
  */
+export const listStaffOrdersQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const listStaffOrdersQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const ListStaffOrdersQueryParams = zod.object({
+  "from": zod.coerce.string().regex(listStaffOrdersQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(listStaffOrdersQueryToRegExp).optional(),
+  "status": zod.enum(['payment_pending', 'paid', 'atelier_confirmation', 'in_production', 'ready', 'fulfilled', 'cancelled', 'refunded']).optional()
+})
+
 export const listStaffOrdersResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
 export const listStaffOrdersResponseCustomerEmailMax = 320;
+
+export const listStaffOrdersResponseAtelierNotesMax = 2000;
+
+export const listStaffOrdersResponseDeliveryNotesMax = 2000;
+
+export const listStaffOrdersResponseRefundRequestReasonMax = 1000;
+
+export const listStaffOrdersResponseRefundDecisionNoteMax = 1000;
 
 
 
@@ -220,7 +262,15 @@ export const ListStaffOrdersResponseItem = zod.object({
   "total": zod.string(),
   "currency": zod.string(),
   "status": zod.string(),
-  "createdAt": zod.coerce.date()
+  "atelierNotes": zod.string().max(listStaffOrdersResponseAtelierNotesMax).nullish(),
+  "deliveryNotes": zod.string().max(listStaffOrdersResponseDeliveryNotesMax).nullish(),
+  "refundRequestStatus": zod.union([zod.literal('requested'),zod.literal('approved'),zod.literal('declined'),zod.literal(null)]).nullish(),
+  "refundRequestReason": zod.string().max(listStaffOrdersResponseRefundRequestReasonMax).nullish(),
+  "refundDecisionNote": zod.string().max(listStaffOrdersResponseRefundDecisionNoteMax).nullish(),
+  "refundRequestedAt": zod.coerce.date().nullish(),
+  "refundReviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 export const ListStaffOrdersResponse = zod.array(ListStaffOrdersResponseItem)
 
@@ -228,6 +278,15 @@ export const ListStaffOrdersResponse = zod.array(ListStaffOrdersResponseItem)
 /**
  * @summary Get consented first-party storefront event counts
  */
+export const getStaffFunnelQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffFunnelQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const GetStaffFunnelQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getStaffFunnelQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(getStaffFunnelQueryToRegExp).optional()
+})
+
 
 export const getStaffFunnelResponseEventsItemCountMin = 0;
 
@@ -235,6 +294,10 @@ export const getStaffFunnelResponseEventsItemCountMin = 0;
 
 export const GetStaffFunnelResponse = zod.object({
   "periodDays": zod.number().min(1),
+  "from": zod.string(),
+  "to": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "privacyNote": zod.string(),
   "events": zod.array(zod.object({
   "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable']),
   "count": zod.number().min(getStaffFunnelResponseEventsItemCountMin)
@@ -256,9 +319,299 @@ export const ListStaffEnquiriesResponseItem = zod.object({
   "productSlug": zod.string().nullish(),
   "message": zod.string(),
   "status": zod.string(),
-  "createdAt": zod.coerce.date()
+  "handlingNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
 })
 export const ListStaffEnquiriesResponse = zod.array(ListStaffEnquiriesResponseItem)
+
+
+/**
+ * @summary Advance a verified order, record atelier work or delivery information, and request an internal refund review
+ */
+export const updateStaffOrderPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffOrderParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffOrderPathIdRegExp)
+})
+
+export const updateStaffOrderBodyAtelierNotesMax = 2000;
+
+export const updateStaffOrderBodyDeliveryNotesMax = 2000;
+
+export const updateStaffOrderBodyRefundRequestReasonMin = 8;
+export const updateStaffOrderBodyRefundRequestReasonMax = 1000;
+
+export const updateStaffOrderBodyRefundDecisionNoteMin = 8;
+export const updateStaffOrderBodyRefundDecisionNoteMax = 1000;
+
+
+
+export const UpdateStaffOrderBody = zod.object({
+  "status": zod.enum(['atelier_confirmation', 'in_production', 'ready', 'fulfilled', 'cancelled']).optional(),
+  "atelierNotes": zod.string().max(updateStaffOrderBodyAtelierNotesMax).nullish(),
+  "deliveryNotes": zod.string().max(updateStaffOrderBodyDeliveryNotesMax).nullish(),
+  "refundRequestReason": zod.string().min(updateStaffOrderBodyRefundRequestReasonMin).max(updateStaffOrderBodyRefundRequestReasonMax).optional(),
+  "refundRequestDecision": zod.enum(['approved', 'declined']).optional(),
+  "refundDecisionNote": zod.string().min(updateStaffOrderBodyRefundDecisionNoteMin).max(updateStaffOrderBodyRefundDecisionNoteMax).optional()
+})
+
+export const updateStaffOrderResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const updateStaffOrderResponseCustomerEmailMax = 320;
+
+export const updateStaffOrderResponseAtelierNotesMax = 2000;
+
+export const updateStaffOrderResponseDeliveryNotesMax = 2000;
+
+export const updateStaffOrderResponseRefundRequestReasonMax = 1000;
+
+export const updateStaffOrderResponseRefundDecisionNoteMax = 1000;
+
+
+
+export const UpdateStaffOrderResponse = zod.object({
+  "id": zod.string().regex(updateStaffOrderResponseIdRegExp),
+  "orderNumber": zod.string(),
+  "customerName": zod.string(),
+  "customerEmail": zod.string().max(updateStaffOrderResponseCustomerEmailMax),
+  "total": zod.string(),
+  "currency": zod.string(),
+  "status": zod.string(),
+  "atelierNotes": zod.string().max(updateStaffOrderResponseAtelierNotesMax).nullish(),
+  "deliveryNotes": zod.string().max(updateStaffOrderResponseDeliveryNotesMax).nullish(),
+  "refundRequestStatus": zod.union([zod.literal('requested'),zod.literal('approved'),zod.literal('declined'),zod.literal(null)]).nullish(),
+  "refundRequestReason": zod.string().max(updateStaffOrderResponseRefundRequestReasonMax).nullish(),
+  "refundDecisionNote": zod.string().max(updateStaffOrderResponseRefundDecisionNoteMax).nullish(),
+  "refundRequestedAt": zod.coerce.date().nullish(),
+  "refundReviewedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update a customer enquiry queue status and internal handling note
+ */
+export const updateStaffEnquiryPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffEnquiryParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffEnquiryPathIdRegExp)
+})
+
+export const updateStaffEnquiryBodyHandlingNotesMax = 2000;
+
+
+
+export const UpdateStaffEnquiryBody = zod.object({
+  "status": zod.enum(['new', 'in_progress', 'resolved', 'closed']).optional(),
+  "handlingNotes": zod.string().max(updateStaffEnquiryBodyHandlingNotesMax).nullish()
+})
+
+export const updateStaffEnquiryResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffEnquiryResponse = zod.object({
+  "id": zod.string().regex(updateStaffEnquiryResponseIdRegExp),
+  "name": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "productSlug": zod.string().nullish(),
+  "message": zod.string(),
+  "status": zod.string(),
+  "handlingNotes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List privacy request queue items
+ */
+export const listStaffPrivacyRequestsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffPrivacyRequestsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffPrivacyRequestsResponseIdRegExp),
+  "requestType": zod.enum(['access', 'deletion']),
+  "requesterName": zod.string().nullish(),
+  "requesterEmail": zod.string(),
+  "status": zod.enum(['received', 'identity_verified', 'in_progress', 'completed', 'rejected']),
+  "verificationNote": zod.string().nullish(),
+  "resolutionNote": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListStaffPrivacyRequestsResponse = zod.array(ListStaffPrivacyRequestsResponseItem)
+
+
+/**
+ * @summary Log a privacy access or deletion request received by the support team
+ */
+export const createStaffPrivacyRequestBodyRequesterNameMax = 120;
+
+export const createStaffPrivacyRequestBodyRequesterEmailMax = 320;
+
+export const createStaffPrivacyRequestBodyVerificationNoteMax = 1000;
+
+
+
+export const CreateStaffPrivacyRequestBody = zod.object({
+  "requestType": zod.enum(['access', 'deletion']),
+  "requesterName": zod.string().max(createStaffPrivacyRequestBodyRequesterNameMax).nullish(),
+  "requesterEmail": zod.string().max(createStaffPrivacyRequestBodyRequesterEmailMax),
+  "verificationNote": zod.string().max(createStaffPrivacyRequestBodyVerificationNoteMax).nullish()
+})
+
+export const createStaffPrivacyRequestResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const CreateStaffPrivacyRequestResponse = zod.object({
+  "id": zod.string().regex(createStaffPrivacyRequestResponseIdRegExp),
+  "requestType": zod.enum(['access', 'deletion']),
+  "requesterName": zod.string().nullish(),
+  "requesterEmail": zod.string(),
+  "status": zod.enum(['received', 'identity_verified', 'in_progress', 'completed', 'rejected']),
+  "verificationNote": zod.string().nullish(),
+  "resolutionNote": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Verify, progress, complete, or reject a privacy request following the approved procedure
+ */
+export const updateStaffPrivacyRequestPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffPrivacyRequestParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffPrivacyRequestPathIdRegExp)
+})
+
+export const updateStaffPrivacyRequestBodyVerificationNoteMax = 1000;
+
+export const updateStaffPrivacyRequestBodyResolutionNoteMax = 2000;
+
+
+
+export const UpdateStaffPrivacyRequestBody = zod.object({
+  "status": zod.enum(['received', 'identity_verified', 'in_progress', 'completed', 'rejected']).optional(),
+  "verificationNote": zod.string().max(updateStaffPrivacyRequestBodyVerificationNoteMax).nullish(),
+  "resolutionNote": zod.string().max(updateStaffPrivacyRequestBodyResolutionNoteMax).nullish()
+})
+
+export const updateStaffPrivacyRequestResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffPrivacyRequestResponse = zod.object({
+  "id": zod.string().regex(updateStaffPrivacyRequestResponseIdRegExp),
+  "requestType": zod.enum(['access', 'deletion']),
+  "requesterName": zod.string().nullish(),
+  "requesterEmail": zod.string(),
+  "status": zod.enum(['received', 'identity_verified', 'in_progress', 'completed', 'rejected']),
+  "verificationNote": zod.string().nullish(),
+  "resolutionNote": zod.string().nullish(),
+  "completedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List operational notifications available to the active staff role
+ */
+export const listStaffNotificationsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffNotificationsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffNotificationsResponseIdRegExp),
+  "severity": zod.enum(['info', 'attention', 'urgent']),
+  "title": zod.string(),
+  "body": zod.string(),
+  "acknowledged": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+export const ListStaffNotificationsResponse = zod.array(ListStaffNotificationsResponseItem)
+
+
+/**
+ * @summary Acknowledge an operational notification
+ */
+export const acknowledgeStaffNotificationPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const AcknowledgeStaffNotificationParams = zod.object({
+  "id": zod.coerce.string().regex(acknowledgeStaffNotificationPathIdRegExp)
+})
+
+export const AcknowledgeStaffNotificationBody = zod.object({
+  "acknowledged": zod.boolean()
+})
+
+export const acknowledgeStaffNotificationResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const AcknowledgeStaffNotificationResponse = zod.object({
+  "id": zod.string().regex(acknowledgeStaffNotificationResponseIdRegExp),
+  "severity": zod.enum(['info', 'attention', 'urgent']),
+  "title": zod.string(),
+  "body": zod.string(),
+  "acknowledged": zod.boolean(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary List operational audit events without customer personal data
+ */
+export const listStaffAuditEventsQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const listStaffAuditEventsQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const ListStaffAuditEventsQueryParams = zod.object({
+  "from": zod.coerce.string().regex(listStaffAuditEventsQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(listStaffAuditEventsQueryToRegExp).optional()
+})
+
+export const listStaffAuditEventsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffAuditEventsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffAuditEventsResponseIdRegExp),
+  "action": zod.string(),
+  "entityType": zod.string(),
+  "entityId": zod.string().nullish(),
+  "metadata": zod.record(zod.string(), zod.unknown()),
+  "createdAt": zod.coerce.date()
+})
+export const ListStaffAuditEventsResponse = zod.array(ListStaffAuditEventsResponseItem)
+
+
+/**
+ * @summary Generate a controlled, privacy-safe operations or analytics export
+ */
+export const getStaffExportQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffExportQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const GetStaffExportQueryParams = zod.object({
+  "report": zod.enum(['operations_summary', 'analytics_summary']),
+  "from": zod.coerce.string().regex(getStaffExportQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(getStaffExportQueryToRegExp).optional()
+})
+
+export const GetStaffExportResponse = zod.object({
+  "report": zod.enum(['operations_summary', 'analytics_summary']),
+  "filename": zod.string(),
+  "generatedAt": zod.coerce.date(),
+  "privacyNote": zod.string(),
+  "columns": zod.array(zod.string()),
+  "rows": zod.array(zod.record(zod.string(), zod.unknown()))
+})
 
 
 /**

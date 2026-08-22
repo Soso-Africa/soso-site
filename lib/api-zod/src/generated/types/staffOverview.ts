@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StaffMetric } from './staffMetric';
 
 export interface StaffOverview {
   /** @minimum 0 */
@@ -16,4 +17,10 @@ export interface StaffOverview {
   /** @minimum 0 */
   storefrontEvents7d: number;
   paymentIsLive: boolean;
+  from: string;
+  to: string;
+  generatedAt: Date;
+  /** @minimum 1 */
+  freshnessMinutes: number;
+  metrics: StaffMetric[];
 }

@@ -50,7 +50,7 @@ export function requireStaffRoles(...allowedRoles: StaffUser["role"][]) {
         { staffId: req.staff.id, role: req.staff.role, allowedRoles },
         "Denied staff mutation for insufficient role",
       );
-      res.status(403).json({ error: "Your staff role cannot manage Journal content" });
+      res.status(403).json({ error: "Your staff role does not have permission for this action" });
       return;
     }
 

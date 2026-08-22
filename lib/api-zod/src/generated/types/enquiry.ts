@@ -19,5 +19,8 @@ export interface Enquiry {
   productSlug?: string | null;
   message: string;
   status: string;
+  /** @nullable */
+  handlingNotes?: string | null;
   createdAt: Date;
+  updatedAt: Date;
 }

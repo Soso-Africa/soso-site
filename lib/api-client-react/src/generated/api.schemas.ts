@@ -147,7 +147,10 @@ export interface Enquiry {
   productSlug?: string | null;
   message: string;
   status: string;
+  /** @nullable */
+  handlingNotes?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface JournalPostSummary {
@@ -297,6 +300,18 @@ export interface StaffProfile {
   role: StaffProfileRole;
 }
 
+/**
+ * @nullable
+ */
+export type StaffOrderRefundRequestStatus = typeof StaffOrderRefundRequestStatus[keyof typeof StaffOrderRefundRequestStatus] | null;
+
+
+export const StaffOrderRefundRequestStatus = {
+  requested: 'requested',
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
 export interface StaffOrder {
   /** @pattern ^[0-9a-fA-F-]{36}$ */
   id: string;
@@ -307,7 +322,105 @@ export interface StaffOrder {
   total: string;
   currency: string;
   status: string;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  atelierNotes?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  deliveryNotes?: string | null;
+  /** @nullable */
+  refundRequestStatus?: StaffOrderRefundRequestStatus;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  refundRequestReason?: string | null;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  refundDecisionNote?: string | null;
+  /** @nullable */
+  refundRequestedAt?: string | null;
+  /** @nullable */
+  refundReviewedAt?: string | null;
   createdAt: string;
+  updatedAt: string;
+}
+
+export type StaffOrderUpdateStatus = typeof StaffOrderUpdateStatus[keyof typeof StaffOrderUpdateStatus];
+
+
+export const StaffOrderUpdateStatus = {
+  atelier_confirmation: 'atelier_confirmation',
+  in_production: 'in_production',
+  ready: 'ready',
+  fulfilled: 'fulfilled',
+  cancelled: 'cancelled',
+} as const;
+
+export type StaffOrderUpdateRefundRequestDecision = typeof StaffOrderUpdateRefundRequestDecision[keyof typeof StaffOrderUpdateRefundRequestDecision];
+
+
+export const StaffOrderUpdateRefundRequestDecision = {
+  approved: 'approved',
+  declined: 'declined',
+} as const;
+
+export interface StaffOrderUpdate {
+  status?: StaffOrderUpdateStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  atelierNotes?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  deliveryNotes?: string | null;
+  /**
+     * @minLength 8
+     * @maxLength 1000
+     */
+  refundRequestReason?: string;
+  refundRequestDecision?: StaffOrderUpdateRefundRequestDecision;
+  /**
+     * @minLength 8
+     * @maxLength 1000
+     */
+  refundDecisionNote?: string;
+}
+
+export type StaffEnquiryUpdateStatus = typeof StaffEnquiryUpdateStatus[keyof typeof StaffEnquiryUpdateStatus];
+
+
+export const StaffEnquiryUpdateStatus = {
+  new: 'new',
+  in_progress: 'in_progress',
+  resolved: 'resolved',
+  closed: 'closed',
+} as const;
+
+export interface StaffEnquiryUpdate {
+  status?: StaffEnquiryUpdateStatus;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  handlingNotes?: string | null;
+}
+
+export interface StaffMetric {
+  key: string;
+  label: string;
+  definition: string;
+  /** @minimum 0 */
+  value: number;
 }
 
 export interface StaffOverview {
@@ -320,6 +433,12 @@ export interface StaffOverview {
   /** @minimum 0 */
   storefrontEvents7d: number;
   paymentIsLive: boolean;
+  from: string;
+  to: string;
+  generatedAt: string;
+  /** @minimum 1 */
+  freshnessMinutes: number;
+  metrics: StaffMetric[];
 }
 
 export type StaffFunnelEventsItemEventName = typeof StaffFunnelEventsItemEventName[keyof typeof StaffFunnelEventsItemEventName];
@@ -349,6 +468,234 @@ export type StaffFunnelEventsItem = {
 export interface StaffFunnel {
   /** @minimum 1 */
   periodDays: number;
+  from: string;
+  to: string;
+  generatedAt: string;
+  privacyNote: string;
   events: StaffFunnelEventsItem[];
 }
+
+export type StaffPrivacyRequestInputRequestType = typeof StaffPrivacyRequestInputRequestType[keyof typeof StaffPrivacyRequestInputRequestType];
+
+
+export const StaffPrivacyRequestInputRequestType = {
+  access: 'access',
+  deletion: 'deletion',
+} as const;
+
+export interface StaffPrivacyRequestInput {
+  requestType: StaffPrivacyRequestInputRequestType;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  requesterName?: string | null;
+  /** @maxLength 320 */
+  requesterEmail: string;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  verificationNote?: string | null;
+}
+
+export type StaffPrivacyRequestUpdateStatus = typeof StaffPrivacyRequestUpdateStatus[keyof typeof StaffPrivacyRequestUpdateStatus];
+
+
+export const StaffPrivacyRequestUpdateStatus = {
+  received: 'received',
+  identity_verified: 'identity_verified',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  rejected: 'rejected',
+} as const;
+
+export interface StaffPrivacyRequestUpdate {
+  status?: StaffPrivacyRequestUpdateStatus;
+  /**
+     * @maxLength 1000
+     * @nullable
+     */
+  verificationNote?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  resolutionNote?: string | null;
+}
+
+export type StaffPrivacyRequestRequestType = typeof StaffPrivacyRequestRequestType[keyof typeof StaffPrivacyRequestRequestType];
+
+
+export const StaffPrivacyRequestRequestType = {
+  access: 'access',
+  deletion: 'deletion',
+} as const;
+
+export type StaffPrivacyRequestStatus = typeof StaffPrivacyRequestStatus[keyof typeof StaffPrivacyRequestStatus];
+
+
+export const StaffPrivacyRequestStatus = {
+  received: 'received',
+  identity_verified: 'identity_verified',
+  in_progress: 'in_progress',
+  completed: 'completed',
+  rejected: 'rejected',
+} as const;
+
+export interface StaffPrivacyRequest {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  requestType: StaffPrivacyRequestRequestType;
+  /** @nullable */
+  requesterName?: string | null;
+  requesterEmail: string;
+  status: StaffPrivacyRequestStatus;
+  /** @nullable */
+  verificationNote?: string | null;
+  /** @nullable */
+  resolutionNote?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffNotificationAcknowledgement {
+  acknowledged: boolean;
+}
+
+export type StaffNotificationSeverity = typeof StaffNotificationSeverity[keyof typeof StaffNotificationSeverity];
+
+
+export const StaffNotificationSeverity = {
+  info: 'info',
+  attention: 'attention',
+  urgent: 'urgent',
+} as const;
+
+export interface StaffNotification {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  severity: StaffNotificationSeverity;
+  title: string;
+  body: string;
+  acknowledged: boolean;
+  createdAt: string;
+}
+
+export type StaffAuditEventMetadata = { [key: string]: unknown };
+
+export interface StaffAuditEvent {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  action: string;
+  entityType: string;
+  /** @nullable */
+  entityId?: string | null;
+  metadata: StaffAuditEventMetadata;
+  createdAt: string;
+}
+
+export type StaffExportReport = typeof StaffExportReport[keyof typeof StaffExportReport];
+
+
+export const StaffExportReport = {
+  operations_summary: 'operations_summary',
+  analytics_summary: 'analytics_summary',
+} as const;
+
+export type StaffExportRowsItem = { [key: string]: unknown };
+
+export interface StaffExport {
+  report: StaffExportReport;
+  filename: string;
+  generatedAt: string;
+  privacyNote: string;
+  columns: string[];
+  rows: StaffExportRowsItem[];
+}
+
+export type StaffDateFromParameter = string;
+
+export type StaffDateToParameter = string;
+
+export type GetStaffOverviewParams = {
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+};
+
+export type ListStaffOrdersParams = {
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+status?: ListStaffOrdersStatus;
+};
+
+export type ListStaffOrdersStatus = typeof ListStaffOrdersStatus[keyof typeof ListStaffOrdersStatus];
+
+
+export const ListStaffOrdersStatus = {
+  payment_pending: 'payment_pending',
+  paid: 'paid',
+  atelier_confirmation: 'atelier_confirmation',
+  in_production: 'in_production',
+  ready: 'ready',
+  fulfilled: 'fulfilled',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
+} as const;
+
+export type GetStaffFunnelParams = {
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+};
+
+export type ListStaffAuditEventsParams = {
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+};
+
+export type GetStaffExportParams = {
+report: GetStaffExportReport;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+};
+
+export type GetStaffExportReport = typeof GetStaffExportReport[keyof typeof GetStaffExportReport];
+
+
+export const GetStaffExportReport = {
+  operations_summary: 'operations_summary',
+  analytics_summary: 'analytics_summary',
+} as const;
 

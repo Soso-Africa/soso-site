@@ -39,6 +39,31 @@ export const consentStateEnum = pgEnum("soso_consent_state", [
   "marketing",
 ]);
 
+export const privacyRequestTypeEnum = pgEnum("soso_privacy_request_type", [
+  "access",
+  "deletion",
+]);
+
+export const privacyRequestStatusEnum = pgEnum("soso_privacy_request_status", [
+  "received",
+  "identity_verified",
+  "in_progress",
+  "completed",
+  "rejected",
+]);
+
+export const notificationSeverityEnum = pgEnum("soso_notification_severity", [
+  "info",
+  "attention",
+  "urgent",
+]);
+
+export const refundRequestStatusEnum = pgEnum("soso_refund_request_status", [
+  "requested",
+  "approved",
+  "declined",
+]);
+
 export const staffUsersTable = pgTable(
   "soso_staff_users",
   {
@@ -72,6 +97,12 @@ export const ordersTable = pgTable(
     paymentProvider: text("payment_provider"),
     paymentReference: text("payment_reference"),
     atelierNotes: text("atelier_notes"),
+    deliveryNotes: text("delivery_notes"),
+    refundRequestStatus: refundRequestStatusEnum("refund_request_status"),
+    refundRequestReason: text("refund_request_reason"),
+    refundDecisionNote: text("refund_decision_note"),
+    refundRequestedAt: timestamp("refund_requested_at", { withTimezone: true }),
+    refundReviewedAt: timestamp("refund_reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
@@ -106,10 +137,63 @@ export const customerEnquiriesTable = pgTable(
     productSlug: text("product_slug"),
     message: text("message").notNull(),
     status: text("status").notNull().default("new"),
+    handlingNotes: text("handling_notes"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (table) => [index("soso_customer_enquiries_status_created_idx").on(table.status, table.createdAt)],
+);
+
+export const privacyRequestsTable = pgTable(
+  "soso_privacy_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    requestType: privacyRequestTypeEnum("request_type").notNull(),
+    requesterName: text("requester_name"),
+    requesterEmail: text("requester_email").notNull(),
+    status: privacyRequestStatusEnum("status").notNull().default("received"),
+    verificationNote: text("verification_note"),
+    resolutionNote: text("resolution_note"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("soso_privacy_requests_status_created_idx").on(table.status, table.createdAt),
+    index("soso_privacy_requests_email_created_idx").on(table.requesterEmail, table.createdAt),
+  ],
+);
+
+export const operationalNotificationsTable = pgTable(
+  "soso_operational_notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    severity: notificationSeverityEnum("severity").notNull().default("info"),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    targetRole: staffRoleEnum("target_role"),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedByClerkUserId: text("acknowledged_by_clerk_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("soso_operational_notifications_created_idx").on(table.createdAt),
+    index("soso_operational_notifications_target_idx").on(table.targetRole, table.createdAt),
+  ],
+);
+
+export const operationalNotificationAcknowledgementsTable = pgTable(
+  "soso_operational_notification_acknowledgements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id").notNull().references(() => operationalNotificationsTable.id, { onDelete: "cascade" }),
+    clerkUserId: text("clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("soso_notification_acknowledgements_notification_staff_idx").on(table.notificationId, table.clerkUserId),
+    index("soso_notification_acknowledgements_staff_created_idx").on(table.clerkUserId, table.createdAt),
+  ],
 );
 
 export const journalPostsTable = pgTable(
@@ -214,6 +298,9 @@ export const insertStaffUserSchema = createInsertSchema(staffUsersTable).omit({ 
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItemsTable).omit({ id: true, createdAt: true });
 export const insertCustomerEnquirySchema = createInsertSchema(customerEnquiriesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPrivacyRequestSchema = createInsertSchema(privacyRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOperationalNotificationSchema = createInsertSchema(operationalNotificationsTable).omit({ id: true, createdAt: true, acknowledgedAt: true, acknowledgedByClerkUserId: true });
+export const insertOperationalNotificationAcknowledgementSchema = createInsertSchema(operationalNotificationAcknowledgementsTable).omit({ id: true, createdAt: true });
 export const insertJournalPostSchema = createInsertSchema(journalPostsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAnalyticsEventSchema = createInsertSchema(analyticsEventsTable).omit({ id: true, occurredAt: true });
 export const insertConsentRecordSchema = createInsertSchema(consentRecordsTable).omit({ id: true, createdAt: true });
@@ -222,6 +309,9 @@ export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;
 export type CustomerEnquiry = typeof customerEnquiriesTable.$inferSelect;
+export type PrivacyRequest = typeof privacyRequestsTable.$inferSelect;
+export type OperationalNotification = typeof operationalNotificationsTable.$inferSelect;
+export type OperationalNotificationAcknowledgement = typeof operationalNotificationAcknowledgementsTable.$inferSelect;
 export type JournalPost = typeof journalPostsTable.$inferSelect;
 export type JournalPostRevision = typeof journalPostRevisionsTable.$inferSelect;
 export type AnalyticsEvent = typeof analyticsEventsTable.$inferSelect;

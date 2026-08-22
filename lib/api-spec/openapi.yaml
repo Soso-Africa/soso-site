@@ -137,6 +137,9 @@ paths:
       operationId: getStaffOverview
       tags: [staff]
       summary: Get operational and funnel overview
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
       responses:
         "200":
           description: Current overview
@@ -152,7 +155,15 @@ paths:
     get:
       operationId: listStaffOrders
       tags: [staff]
-      summary: List recent paid and production orders
+      summary: List the current active operations queue, or a date-bounded status history when status is supplied
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [payment_pending, paid, atelier_confirmation, in_production, ready, fulfilled, cancelled, refunded]
       responses:
         "200":
           description: Recent orders
@@ -167,6 +178,9 @@ paths:
       operationId: getStaffFunnel
       tags: [staff]
       summary: Get consented first-party storefront event counts
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
       responses:
         "200":
           description: Last seven days of raw consented event counts
@@ -192,6 +206,186 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Enquiry"
+  /staff/orders/{id}:
+    patch:
+      operationId: updateStaffOrder
+      tags: [staff]
+      summary: Advance a verified order, record atelier work or delivery information, and request an internal refund review
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffOrderUpdate"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffOrder"
+        "400": { description: "Invalid workflow update" }
+        "403": { description: "Owner or operations access required" }
+        "404": { description: "Order not found" }
+        "409": { description: "Order changed while being updated" }
+  /staff/enquiries/{id}:
+    patch:
+      operationId: updateStaffEnquiry
+      tags: [staff]
+      summary: Update a customer enquiry queue status and internal handling note
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffEnquiryUpdate"
+      responses:
+        "200":
+          description: Updated enquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+        "400": { description: "Invalid enquiry update" }
+        "403": { description: "Owner, operations, or stylist access required" }
+        "404": { description: "Enquiry not found" }
+  /staff/privacy-requests:
+    get:
+      operationId: listStaffPrivacyRequests
+      tags: [staff]
+      summary: List privacy request queue items
+      responses:
+        "200":
+          description: Privacy requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffPrivacyRequest"
+        "403": { description: "Owner or operations access required" }
+    post:
+      operationId: createStaffPrivacyRequest
+      tags: [staff]
+      summary: Log a privacy access or deletion request received by the support team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffPrivacyRequestInput"
+      responses:
+        "201":
+          description: Privacy request logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffPrivacyRequest"
+        "400": { description: "Invalid privacy request" }
+        "403": { description: "Owner or operations access required" }
+  /staff/privacy-requests/{id}:
+    patch:
+      operationId: updateStaffPrivacyRequest
+      tags: [staff]
+      summary: Verify, progress, complete, or reject a privacy request following the approved procedure
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffPrivacyRequestUpdate"
+      responses:
+        "200":
+          description: Updated privacy request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffPrivacyRequest"
+        "400": { description: "Invalid privacy workflow update" }
+        "403": { description: "Required staff permission is missing" }
+        "404": { description: "Privacy request not found" }
+        "409": { description: "Privacy request changed while being updated" }
+  /staff/notifications:
+    get:
+      operationId: listStaffNotifications
+      tags: [staff]
+      summary: List operational notifications available to the active staff role
+      responses:
+        "200":
+          description: Operational notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffNotification"
+  /staff/notifications/{id}:
+    patch:
+      operationId: acknowledgeStaffNotification
+      tags: [staff]
+      summary: Acknowledge an operational notification
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffNotificationAcknowledgement"
+      responses:
+        "200":
+          description: Acknowledged notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffNotification"
+        "404": { description: "Notification not found" }
+  /staff/audit:
+    get:
+      operationId: listStaffAuditEvents
+      tags: [staff]
+      summary: List operational audit events without customer personal data
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAuditEvent"
+        "403": { description: "Owner or analyst access required" }
+  /staff/exports:
+    get:
+      operationId: getStaffExport
+      tags: [staff]
+      summary: Generate a controlled, privacy-safe operations or analytics export
+      parameters:
+        - name: report
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [operations_summary, analytics_summary]
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: Controlled export data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffExport"
+        "403": { description: "Owner or analyst access required" }
   /staff/journal:
     get:
       operationId: listStaffJournalPosts
@@ -259,6 +453,26 @@ paths:
         "404":
           description: Article not found
 components:
+  parameters:
+    StaffEntityId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9a-fA-F-]{36}$"
+    StaffDateFrom:
+      name: from
+      in: query
+      schema:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    StaffDateTo:
+      name: to
+      in: query
+      schema:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
   schemas:
     HealthStatus:
       type: object
@@ -359,7 +573,7 @@ components:
         message: { type: string, minLength: 8, maxLength: 2000 }
     Enquiry:
       type: object
-      required: [id, message, status, createdAt]
+      required: [id, message, status, createdAt, updatedAt]
       properties:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         name: { type: ["string", "null"] }
@@ -368,7 +582,9 @@ components:
         productSlug: { type: ["string", "null"] }
         message: { type: string }
         status: { type: string }
+        handlingNotes: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     JournalPostSummary:
       type: object
       required: [slug, title, excerpt, authorName, publishedAt]
@@ -432,7 +648,7 @@ components:
         role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
     StaffOrder:
       type: object
-      required: [id, orderNumber, customerName, customerEmail, total, currency, status, createdAt]
+      required: [id, orderNumber, customerName, customerEmail, total, currency, status, createdAt, updatedAt]
       properties:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         orderNumber: { type: string }
@@ -441,21 +657,61 @@ components:
         total: { type: string }
         currency: { type: string }
         status: { type: string }
+        atelierNotes: { type: ["string", "null"], maxLength: 2000 }
+        deliveryNotes: { type: ["string", "null"], maxLength: 2000 }
+        refundRequestStatus: { type: ["string", "null"], enum: [requested, approved, declined, null] }
+        refundRequestReason: { type: ["string", "null"], maxLength: 1000 }
+        refundDecisionNote: { type: ["string", "null"], maxLength: 1000 }
+        refundRequestedAt: { type: ["string", "null"], format: date-time }
+        refundReviewedAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StaffOrderUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        status:
+          type: string
+          enum: [atelier_confirmation, in_production, ready, fulfilled, cancelled]
+        atelierNotes: { type: ["string", "null"], maxLength: 2000 }
+        deliveryNotes: { type: ["string", "null"], maxLength: 2000 }
+        refundRequestReason: { type: string, minLength: 8, maxLength: 1000 }
+        refundRequestDecision: { type: string, enum: [approved, declined] }
+        refundDecisionNote: { type: string, minLength: 8, maxLength: 1000 }
+    StaffEnquiryUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        status:
+          type: string
+          enum: [new, in_progress, resolved, closed]
+        handlingNotes: { type: ["string", "null"], maxLength: 2000 }
     StaffOverview:
       type: object
-      required: [ordersTotal, ordersInProduction, openEnquiries, storefrontEvents7d, paymentIsLive]
+      required: [ordersTotal, ordersInProduction, openEnquiries, storefrontEvents7d, paymentIsLive, from, to, generatedAt, freshnessMinutes, metrics]
       properties:
         ordersTotal: { type: number, minimum: 0 }
         ordersInProduction: { type: number, minimum: 0 }
         openEnquiries: { type: number, minimum: 0 }
         storefrontEvents7d: { type: number, minimum: 0 }
         paymentIsLive: { type: boolean }
+        from: { type: string }
+        to: { type: string }
+        generatedAt: { type: string, format: date-time }
+        freshnessMinutes: { type: number, minimum: 1 }
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffMetric"
     StaffFunnel:
       type: object
-      required: [periodDays, events]
+      required: [periodDays, from, to, generatedAt, privacyNote, events]
       properties:
         periodDays: { type: number, minimum: 1 }
+        from: { type: string }
+        to: { type: string }
+        generatedAt: { type: string, format: date-time }
+        privacyNote: { type: string }
         events:
           type: array
           items:
@@ -466,4 +722,84 @@ components:
                 type: string
                 enum: [page_view, product_view, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_form_completed, payment_clicked, checkout_payment_unavailable]
               count: { type: number, minimum: 0 }
+    StaffMetric:
+      type: object
+      required: [key, label, definition, value]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        definition: { type: string }
+        value: { type: number, minimum: 0 }
+    StaffPrivacyRequestInput:
+      type: object
+      required: [requestType, requesterEmail]
+      properties:
+        requestType: { type: string, enum: [access, deletion] }
+        requesterName: { type: ["string", "null"], maxLength: 120 }
+        requesterEmail: { type: string, maxLength: 320 }
+        verificationNote: { type: ["string", "null"], maxLength: 1000 }
+    StaffPrivacyRequestUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        status: { type: string, enum: [received, identity_verified, in_progress, completed, rejected] }
+        verificationNote: { type: ["string", "null"], maxLength: 1000 }
+        resolutionNote: { type: ["string", "null"], maxLength: 2000 }
+    StaffPrivacyRequest:
+      type: object
+      required: [id, requestType, requesterEmail, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        requestType: { type: string, enum: [access, deletion] }
+        requesterName: { type: ["string", "null"] }
+        requesterEmail: { type: string }
+        status: { type: string, enum: [received, identity_verified, in_progress, completed, rejected] }
+        verificationNote: { type: ["string", "null"] }
+        resolutionNote: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StaffNotificationAcknowledgement:
+      type: object
+      required: [acknowledged]
+      properties:
+        acknowledged: { type: boolean }
+    StaffNotification:
+      type: object
+      required: [id, severity, title, body, acknowledged, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        severity: { type: string, enum: [info, attention, urgent] }
+        title: { type: string }
+        body: { type: string }
+        acknowledged: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    StaffAuditEvent:
+      type: object
+      required: [id, action, entityType, metadata, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+    StaffExport:
+      type: object
+      required: [report, filename, generatedAt, privacyNote, columns, rows]
+      properties:
+        report: { type: string, enum: [operations_summary, analytics_summary] }
+        filename: { type: string }
+        generatedAt: { type: string, format: date-time }
+        privacyNote: { type: string }
+        columns:
+          type: array
+          items: { type: string }
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
 

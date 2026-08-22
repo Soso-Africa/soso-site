@@ -10,5 +10,9 @@ import type { StaffFunnelEventsItem } from './staffFunnelEventsItem';
 export interface StaffFunnel {
   /** @minimum 1 */
   periodDays: number;
+  from: string;
+  to: string;
+  generatedAt: Date;
+  privacyNote: string;
   events: StaffFunnelEventsItem[];
 }
