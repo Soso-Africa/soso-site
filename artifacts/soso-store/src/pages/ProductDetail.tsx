@@ -8,6 +8,7 @@ import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
+import { catalogApproved } from "@/lib/seo";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
@@ -68,9 +69,10 @@ export default function ProductDetail() {
         description={`${product.description} View current price and speak to a SOSO stylist for fit assistance.`}
         path={`/product/${product.slug}`}
         product={product}
+        noIndex={!catalogApproved}
       />
       {/* ————— HERO / BUY BLOCK ————— */}
-      <main className="max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
+      <div className="max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
         {/* Gallery */}
         <div
           style={{
@@ -132,12 +134,14 @@ export default function ProductDetail() {
             <div className="flex flex-wrap gap-2">
               {product.sizes.map((s) => (
                 <button
+                  type="button"
                   key={s}
                   onClick={() => {
                     setSize(s);
                     trackStorefrontEvent("size_selected", { productSlug: product.slug, selectedSize: s });
                   }}
                   className="px-5 py-2.5 text-sm tracking-wide transition-all duration-300"
+                  aria-pressed={size === s}
                   style={
                     size === s
                       ? { background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: `1px solid hsl(var(--background))` }
@@ -194,7 +198,7 @@ export default function ProductDetail() {
             ))}
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Marquee */}
       <div className="overflow-hidden py-4 border-y" style={{ borderColor: "#e0d7c4", background: "hsl(var(--background))", color: "hsl(var(--foreground))" }}>

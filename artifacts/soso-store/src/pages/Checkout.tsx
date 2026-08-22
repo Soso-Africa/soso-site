@@ -59,6 +59,7 @@ export default function Checkout() {
         title="Secure checkout | SOSO Africa"
         description="Complete secure payment for your SOSO Africa order. Atelier making details are confirmed after payment."
         path="/checkout"
+        noIndex
       />
       <Link href="/shop" className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[hsl(var(--primary))]">
         <ChevronLeft size={15} /> Continue shopping

@@ -180,6 +180,8 @@ export function ConsentManager() {
   return (
     <section
       aria-label="Privacy choices"
+      aria-live="polite"
+      role="region"
       className="fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-xl border p-5 shadow-2xl md:left-auto"
       style={{
         background: "#17130e",

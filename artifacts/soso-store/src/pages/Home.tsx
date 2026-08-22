@@ -6,6 +6,7 @@ import { WhatsAppIcon } from "@/components/Icons";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
+import { indexingEnabled } from "@/lib/seo";
 
 export default function Home() {
   const [stylistOpen, setStylistOpen] = useState(false);
@@ -15,6 +16,7 @@ export default function Home() {
       <Seo
         title="SOSO Africa | Premium Nigerian Menswear"
         description="Discover SOSO Africa's premium kaftans, agbadas, dashikis and shirts. Explore the collection, sizing help and a considered purchase journey."
+        noIndex={!indexingEnabled}
       />
       {/* 1. HERO */}
       <section className="relative overflow-hidden" style={{ minHeight: "calc(100dvh - 104px)" }}>

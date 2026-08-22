@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { Seo } from "@/components/Seo";
+import { policiesApproved } from "@/lib/seo";
 
 const policyLinks = [
   {
@@ -31,6 +32,7 @@ export default function PolicyHub() {
         title="Policies & support | SOSO Africa"
         description="SOSO Africa’s customer policy and garment care drafts."
         path="/policies"
+        noIndex={!policiesApproved}
       />
       <div className="mx-auto max-w-4xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#b8912f]">

@@ -14,14 +14,14 @@ localPort = 24036
 [services.development]
 run = "pnpm --filter @workspace/soso-store run dev"
 
-[services.production]
-build = [ "pnpm", "--filter", "@workspace/soso-store", "run", "build" ]
-serve = "static"
-publicDir = "artifacts/soso-store/dist/public"
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/soso-store", "run", "build" ]
 
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
+[services.production.run]
+args = [ "node", "artifacts/soso-store/scripts/serve-production.mjs" ]
+
+[services.production.run.env]
+PORT = "24036"
 
 [services.env]
 PORT = "24036"

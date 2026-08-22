@@ -27,6 +27,20 @@ if (!basePath) {
   );
 }
 
+function normalizedPublicSiteUrl(value: string | undefined) {
+  if (!value) return "";
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return "";
+    if (url.username || url.password || url.search || url.hash) return "";
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname.endsWith(".replit.dev")) return "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
 export default defineConfig({
   base: basePath,
   plugins: [

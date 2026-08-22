@@ -1,3 +1,4 @@
 - [Conversion review evidence](conversion-review-evidence.md) — distinguish absent content from content that exists but is buried or poorly connected to the purchase decision.
 - [Payment-first bespoke checkout](payment-first-bespoke-checkout.md) — shoppers pay first; atelier production confirmation follows, with stylist help kept optional.
 - [OpenAPI Zod format compatibility](openapi-zod-format-compatibility.md) — avoid unsupported generated format helpers until the workspace toolchain is upgraded together.
+- [Launch SEO safety gates](soso-launch-seo-gates.md) — direct responses stay private unless approved domain, route category, and editorial metadata are explicitly supplied.

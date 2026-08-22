@@ -1,4 +1,5 @@
 User-agent: *
-Allow: /
+Disallow: /
 
-# Add the production sitemap URL when SOSO's canonical domain is configured.
+# The build replaces this safe default only when an approved public domain and
+# the explicit SOSO indexing switch are supplied. Never add a guessed URL here.

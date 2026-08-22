@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { WhatsAppIcon } from "@/components/Icons";
@@ -8,6 +8,9 @@ export function Navbar() {
   const [location] = useLocation();
   const { openDrawer, itemCount } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -20,6 +23,50 @@ export function Navbar() {
     setMobileMenuOpen(false);
     window.scrollTo(0, 0);
   }, [location]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const menu = mobileMenuRef.current;
+    const focusableSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusable = () => Array.from(menu?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
+    const firstFocusable = focusable()[0];
+    firstFocusable?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [mobileMenuOpen]);
+
+  const openMobileMenu = () => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : menuButtonRef.current;
+    setMobileMenuOpen(true);
+  };
 
   return (
     <>
@@ -40,8 +87,11 @@ export function Navbar() {
         {/* Mobile Hamburger */}
         <button 
           className="md:hidden p-2 -ml-2 text-white" 
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
+          onClick={() => mobileMenuOpen ? setMobileMenuOpen(false) : openMobileMenu()}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="soso-mobile-menu"
+          ref={menuButtonRef}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M4 6h16M4 12h16M4 18h16" />
@@ -89,10 +139,10 @@ export function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[100] md:hidden bg-black/90 backdrop-blur-md flex flex-col p-6 animate-in fade-in duration-300">
+        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label="Main navigation" className="fixed inset-0 z-[100] md:hidden bg-black/90 backdrop-blur-md flex flex-col p-6 animate-in fade-in duration-300">
           <div className="flex justify-between items-center mb-10">
             <img src="/images/soso/logo.png" alt="SOSO Africa" className="h-8" />
-            <button className="text-white text-3xl opacity-70" onClick={() => setMobileMenuOpen(false)}>&times;</button>
+            <button type="button" aria-label="Close menu" className="text-white text-3xl opacity-70" onClick={() => setMobileMenuOpen(false)}>&times;</button>
           </div>
           <nav className="flex flex-col gap-6 text-xl soso-display tracking-widest text-center">
             <Link href="/" className="hover:text-[hsl(var(--primary))] transition-colors">Home</Link>

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>SOSO Africa | Premium Nigerian Menswear</title>
     <meta name="description" content="Discover SOSO Africa's premium kaftans, agbadas, dashikis and shirts, with considered sizing guidance and stylist support." />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content="noindex, nofollow" data-soso-managed="robots" />
     <meta property="og:title" content="SOSO Africa | Premium Nigerian Menswear" />
     <meta property="og:description" content="Premium kaftans, agbadas, dashikis and shirts from SOSO Africa." />
     <meta property="og:type" content="website" />
@@ -18,9 +18,18 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "Organization",
-        "name": "SOSO Africa",
-        "description": "Premium Nigerian menswear including kaftans, agbadas, dashikis and shirts."
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "SOSO Africa",
+            "description": "Premium Nigerian menswear including kaftans, agbadas, dashikis and shirts."
+          },
+          {
+            "@type": "WebSite",
+            "name": "SOSO Africa",
+            "description": "SOSO Africa menswear storefront."
+          }
+        ]
       }
     </script>
   </head>

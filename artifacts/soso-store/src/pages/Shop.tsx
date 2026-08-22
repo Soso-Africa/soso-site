@@ -4,6 +4,7 @@ import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
+import { catalogApproved } from "@/lib/seo";
 
 const FILTERS = ["All", "Kaftans", "Agbadas", "Dashikis", "Two-Piece", "Shirts"];
 
@@ -20,6 +21,7 @@ export default function Shop() {
         title="Shop premium menswear | SOSO Africa"
         description="Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts. Pay securely, with optional stylist help before you order."
         path="/shop"
+        noIndex={!catalogApproved}
       />
       <div className="max-w-7xl mx-auto w-full px-6 lg:px-12 flex-1">
         <Reveal>
@@ -36,6 +38,7 @@ export default function Shop() {
               <button
                 key={f}
                 onClick={() => setActiveFilter(f)}
+                aria-pressed={activeFilter === f}
                 className={`px-5 py-2 text-[11px] tracking-[0.2em] uppercase transition-all duration-300 ${
                   activeFilter === f 
                     ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-bold"

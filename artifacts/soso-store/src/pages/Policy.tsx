@@ -1,6 +1,7 @@
 import { useLocation } from "wouter";
 import { Seo } from "@/components/Seo";
 import { policies } from "@/data/policies";
+import { policiesApproved } from "@/lib/seo";
 
 export default function Policy() {
   const [location] = useLocation();
@@ -12,6 +13,7 @@ export default function Policy() {
         title={`${page.title} | SOSO Africa`}
         description={page.summary}
         path={location}
+        noIndex={!policiesApproved}
       />
       <div className="mx-auto max-w-3xl border-y border-[#b8912f]/30 py-12">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#b8912f]">

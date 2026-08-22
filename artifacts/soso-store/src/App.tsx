@@ -12,6 +12,7 @@ import { Footer } from '@/components/Footer';
 import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { CartDrawer } from '@/components/CartDrawer';
 import { ConsentManager } from '@/components/ConsentManager';
+import { Seo } from '@/components/Seo';
 
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
@@ -106,9 +107,17 @@ function AppShell() {
 
   return (
     <>
+      <a href="#main-content" className="soso-skip-link">Skip to content</a>
       <div className="flex flex-col min-h-screen">
         {!staffOrAuthSurface && <Navbar />}
-        <main className="flex-1">
+        {staffOrAuthSurface && (
+          <Seo
+            title="Staff access | SOSO Africa"
+            description="Restricted SOSO Africa staff access."
+            noIndex
+          />
+        )}
+        <main id="main-content" className="flex-1" tabIndex={-1}>
           <Router />
         </main>
         {!staffOrAuthSurface && <Footer />}

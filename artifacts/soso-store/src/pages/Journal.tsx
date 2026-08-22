@@ -3,12 +3,21 @@ import { useListJournalPosts } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import { format } from 'date-fns';
 import { Loader2, ArrowRight } from 'lucide-react';
+import { Seo } from '@/components/Seo';
+import { journalApproved } from '@/lib/seo';
+import { approvedJournalEntries } from '@/data/journalSeo';
 
 export default function Journal() {
   const { data: posts, isLoading, isError } = useListJournalPosts();
 
   return (
     <div className="min-h-screen bg-background fade-in">
+      <Seo
+        title="The Journal | SOSO Africa"
+        description="Reflections on bespoke tailoring, cultural heritage, and the evolving narrative of African luxury from SOSO Africa."
+        path="/journal"
+        noIndex={!journalApproved || approvedJournalEntries.length === 0}
+      />
       <header className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 text-center border-b border-border/50 mb-16">
         <h1 className="text-5xl md:text-6xl soso-display mb-6 text-foreground tracking-tight">The Journal</h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
@@ -18,12 +27,12 @@ export default function Journal() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-32">
+            <div className="flex flex-col items-center justify-center py-32" role="status" aria-live="polite">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-6" />
             <p className="text-muted-foreground uppercase tracking-widest text-sm">Curating articles...</p>
           </div>
         ) : isError ? (
-          <div className="text-center py-32 border border-border bg-card">
+            <div className="text-center py-32 border border-border bg-card" role="alert">
             <p className="text-destructive uppercase tracking-widest font-medium">Unable to load the journal at this time.</p>
           </div>
         ) : !posts?.length ? (
