@@ -21,37 +21,44 @@ const router: IRouter = Router();
 
 router.use("/staff", requireStaff);
 
-function journalFingerprint(post: {
+type JournalPostCore = {
   slug: string;
   title: string;
   excerpt: string;
   body: string;
   coverImageUrl: string | null;
+  coverImageAlt: string | null;
   authorName: string;
+  category: string | null;
+  tags: string[] | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  readTimeMinutes: number | null;
+  relatedProductSlugs: string[] | null;
   status: string;
-}): string {
+};
+
+function journalFingerprint(post: JournalPostCore): string {
   return createHash("sha256")
     .update(JSON.stringify(post))
     .digest("hex");
 }
 
-function journalSnapshot(post: {
-  slug: string;
-  title: string;
-  excerpt: string;
-  body: string;
-  coverImageUrl: string | null;
-  authorName: string;
-  status: string;
-  publishedAt: Date | null;
-}) {
+function journalSnapshot(post: JournalPostCore & { publishedAt: Date | null }) {
   return {
     slug: post.slug,
     title: post.title,
     excerpt: post.excerpt,
     body: post.body,
     coverImageUrl: post.coverImageUrl,
+    coverImageAlt: post.coverImageAlt,
     authorName: post.authorName,
+    category: post.category,
+    tags: post.tags,
+    seoTitle: post.seoTitle,
+    seoDescription: post.seoDescription,
+    readTimeMinutes: post.readTimeMinutes,
+    relatedProductSlugs: post.relatedProductSlugs,
     status: post.status,
     publishedAt: post.publishedAt?.toISOString() ?? null,
   };

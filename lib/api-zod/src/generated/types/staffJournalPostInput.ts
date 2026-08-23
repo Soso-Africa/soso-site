@@ -35,9 +35,47 @@ export interface StaffJournalPostInput {
      */
   coverImageUrl?: string | null;
   /**
+     * @maxLength 300
+     * @nullable
+     */
+  coverImageAlt?: string | null;
+  /**
      * @minLength 2
      * @maxLength 120
      */
   authorName: string;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  category?: string | null;
+  /**
+     * @maxItems 10
+     * @nullable
+     * @items.maxLength 60
+     */
+  tags?: string[] | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  seoTitle?: string | null;
+  /**
+     * @maxLength 320
+     * @nullable
+     */
+  seoDescription?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 120
+     * @nullable
+     */
+  readTimeMinutes?: number | null;
+  /**
+     * @maxItems 6
+     * @nullable
+     * @items.maxLength 160
+     */
+  relatedProductSlugs?: string[] | null;
   status: StaffJournalPostInputStatus;
 }

@@ -11,7 +11,9 @@ export type AnalyticsEventInputEventName = typeof AnalyticsEventInputEventName[k
 
 export const AnalyticsEventInputEventName = {
   page_view: 'page_view',
+  session_started: 'session_started',
   product_view: 'product_view',
+  product_image_viewed: 'product_image_viewed',
   size_guide_opened: 'size_guide_opened',
   size_selected: 'size_selected',
   stylist_inquiry_started: 'stylist_inquiry_started',
@@ -19,7 +21,15 @@ export const AnalyticsEventInputEventName = {
   add_to_bag: 'add_to_bag',
   cart_opened: 'cart_opened',
   checkout_started: 'checkout_started',
+  checkout_field_error: 'checkout_field_error',
   checkout_form_completed: 'checkout_form_completed',
   payment_clicked: 'payment_clicked',
   checkout_payment_unavailable: 'checkout_payment_unavailable',
+  consent_banner_viewed: 'consent_banner_viewed',
+  consent_updated: 'consent_updated',
+  marketing_opt_out: 'marketing_opt_out',
+  blog_article_viewed: 'blog_article_viewed',
+  faq_expanded: 'faq_expanded',
+  scroll_depth_reached: 'scroll_depth_reached',
+  cta_clicked: 'cta_clicked',
 } as const;

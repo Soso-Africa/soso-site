@@ -16,7 +16,21 @@ export interface StaffJournalPost {
   body: string;
   /** @nullable */
   coverImageUrl?: string | null;
+  /** @nullable */
+  coverImageAlt?: string | null;
   authorName: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  tags?: string[] | null;
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  /** @nullable */
+  readTimeMinutes?: number | null;
+  /** @nullable */
+  relatedProductSlugs?: string[] | null;
   status: StaffJournalPostStatus;
   /** @nullable */
   publishedAt?: Date | null;

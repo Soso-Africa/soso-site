@@ -48,7 +48,7 @@ export default function Journal() {
                     {post.coverImageUrl ? (
                       <img 
                         src={post.coverImageUrl} 
-                        alt={post.title}
+                        alt={post.coverImageAlt ?? post.title}
                         className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
                       />
                     ) : (
@@ -58,10 +58,13 @@ export default function Journal() {
                     )}
                   </div>
                   <div className="flex-1 flex flex-col">
-                    <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-primary mb-4 font-medium">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-primary mb-4 font-medium flex-wrap">
+                      {post.category && <span>{post.category}</span>}
+                      {post.category && <span>&bull;</span>}
                       <span>{format(new Date(post.publishedAt), 'MMM d, yyyy')}</span>
                       <span>&bull;</span>
                       <span>{post.authorName}</span>
+                      {post.readTimeMinutes && <><span>&bull;</span><span>{post.readTimeMinutes} min read</span></>}
                     </div>
                     <h2 className="text-2xl md:text-3xl soso-display text-foreground mb-4 group-hover:text-primary transition-colors leading-snug">
                       {post.title}

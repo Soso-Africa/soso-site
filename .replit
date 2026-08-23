@@ -26,3 +26,4 @@ channel = "stable-25_05"
 
 [userenv.shared]
 JUSTICESURE_BASE_URL = "https://justicesure.ai"
+VITE_CLOUDINARY_UPLOAD_PRESET = "soso_media"

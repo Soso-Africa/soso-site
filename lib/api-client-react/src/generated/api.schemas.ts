@@ -18,7 +18,9 @@ export type AnalyticsEventInputEventName = typeof AnalyticsEventInputEventName[k
 
 export const AnalyticsEventInputEventName = {
   page_view: 'page_view',
+  session_started: 'session_started',
   product_view: 'product_view',
+  product_image_viewed: 'product_image_viewed',
   size_guide_opened: 'size_guide_opened',
   size_selected: 'size_selected',
   stylist_inquiry_started: 'stylist_inquiry_started',
@@ -26,9 +28,17 @@ export const AnalyticsEventInputEventName = {
   add_to_bag: 'add_to_bag',
   cart_opened: 'cart_opened',
   checkout_started: 'checkout_started',
+  checkout_field_error: 'checkout_field_error',
   checkout_form_completed: 'checkout_form_completed',
   payment_clicked: 'payment_clicked',
   checkout_payment_unavailable: 'checkout_payment_unavailable',
+  consent_banner_viewed: 'consent_banner_viewed',
+  consent_updated: 'consent_updated',
+  marketing_opt_out: 'marketing_opt_out',
+  blog_article_viewed: 'blog_article_viewed',
+  faq_expanded: 'faq_expanded',
+  scroll_depth_reached: 'scroll_depth_reached',
+  cta_clicked: 'cta_clicked',
 } as const;
 
 export type AnalyticsEventInputDeviceType = typeof AnalyticsEventInputDeviceType[keyof typeof AnalyticsEventInputDeviceType];
@@ -153,19 +163,40 @@ export interface Enquiry {
   updatedAt: string;
 }
 
+export interface FaqItem {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+}
+
 export interface JournalPostSummary {
   slug: string;
   title: string;
   excerpt: string;
   /** @nullable */
   coverImageUrl?: string | null;
+  /** @nullable */
+  coverImageAlt?: string | null;
   authorName: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  tags?: string[] | null;
+  /** @nullable */
+  readTimeMinutes?: number | null;
   publishedAt: string;
 }
 
-export type JournalPost = JournalPostSummary & {
+export type JournalPost = JournalPostSummary & ({
   body: string;
-};
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  /** @nullable */
+  relatedProductSlugs?: string[] | null;
+});
 
 export type StaffJournalPostInputStatus = typeof StaffJournalPostInputStatus[keyof typeof StaffJournalPostInputStatus];
 
@@ -204,10 +235,48 @@ export interface StaffJournalPostInput {
      */
   coverImageUrl?: string | null;
   /**
+     * @maxLength 300
+     * @nullable
+     */
+  coverImageAlt?: string | null;
+  /**
      * @minLength 2
      * @maxLength 120
      */
   authorName: string;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  category?: string | null;
+  /**
+     * @maxItems 10
+     * @nullable
+     * @items.maxLength 60
+     */
+  tags?: string[] | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  seoTitle?: string | null;
+  /**
+     * @maxLength 320
+     * @nullable
+     */
+  seoDescription?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 120
+     * @nullable
+     */
+  readTimeMinutes?: number | null;
+  /**
+     * @maxItems 6
+     * @nullable
+     * @items.maxLength 160
+     */
+  relatedProductSlugs?: string[] | null;
   status: StaffJournalPostInputStatus;
 }
 
@@ -248,10 +317,48 @@ export interface StaffJournalPostUpdate {
      */
   coverImageUrl?: string | null;
   /**
+     * @maxLength 300
+     * @nullable
+     */
+  coverImageAlt?: string | null;
+  /**
      * @minLength 2
      * @maxLength 120
      */
   authorName?: string;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  category?: string | null;
+  /**
+     * @maxItems 10
+     * @nullable
+     * @items.maxLength 60
+     */
+  tags?: string[] | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  seoTitle?: string | null;
+  /**
+     * @maxLength 320
+     * @nullable
+     */
+  seoDescription?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 120
+     * @nullable
+     */
+  readTimeMinutes?: number | null;
+  /**
+     * @maxItems 6
+     * @nullable
+     * @items.maxLength 160
+     */
+  relatedProductSlugs?: string[] | null;
   status?: StaffJournalPostUpdateStatus;
 }
 
@@ -273,7 +380,21 @@ export interface StaffJournalPost {
   body: string;
   /** @nullable */
   coverImageUrl?: string | null;
+  /** @nullable */
+  coverImageAlt?: string | null;
   authorName: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  tags?: string[] | null;
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  /** @nullable */
+  readTimeMinutes?: number | null;
+  /** @nullable */
+  relatedProductSlugs?: string[] | null;
   status: StaffJournalPostStatus;
   /** @nullable */
   publishedAt?: string | null;
@@ -446,7 +567,9 @@ export type StaffFunnelEventsItemEventName = typeof StaffFunnelEventsItemEventNa
 
 export const StaffFunnelEventsItemEventName = {
   page_view: 'page_view',
+  session_started: 'session_started',
   product_view: 'product_view',
+  product_image_viewed: 'product_image_viewed',
   size_guide_opened: 'size_guide_opened',
   size_selected: 'size_selected',
   stylist_inquiry_started: 'stylist_inquiry_started',
@@ -454,9 +577,17 @@ export const StaffFunnelEventsItemEventName = {
   add_to_bag: 'add_to_bag',
   cart_opened: 'cart_opened',
   checkout_started: 'checkout_started',
+  checkout_field_error: 'checkout_field_error',
   checkout_form_completed: 'checkout_form_completed',
   payment_clicked: 'payment_clicked',
   checkout_payment_unavailable: 'checkout_payment_unavailable',
+  consent_banner_viewed: 'consent_banner_viewed',
+  consent_updated: 'consent_updated',
+  marketing_opt_out: 'marketing_opt_out',
+  blog_article_viewed: 'blog_article_viewed',
+  faq_expanded: 'faq_expanded',
+  scroll_depth_reached: 'scroll_depth_reached',
+  cta_clicked: 'cta_clicked',
 } as const;
 
 export type StaffFunnelEventsItem = {

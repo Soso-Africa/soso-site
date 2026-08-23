@@ -17,6 +17,7 @@ export * from './consentInputState';
 export * from './consentRecord';
 export * from './enquiry';
 export * from './enquiryInput';
+export * from './faqItem';
 export * from './getStaffExportParams';
 export * from './getStaffExportReport';
 export * from './getStaffFunnelParams';

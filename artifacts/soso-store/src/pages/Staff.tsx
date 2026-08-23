@@ -68,7 +68,14 @@ const emptyArticle: StaffJournalPostInput = {
   excerpt: "",
   body: "",
   coverImageUrl: null,
+  coverImageAlt: null,
   authorName: "",
+  category: null,
+  tags: null,
+  seoTitle: null,
+  seoDescription: null,
+  readTimeMinutes: null,
+  relatedProductSlugs: null,
   status: "draft",
 };
 
@@ -396,8 +403,128 @@ function JournalManagementSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const save = async (event: FormEvent) => { event.preventDefault(); try { if (editingId) { await update.mutateAsync({ id: editingId, data: article }); } else { const result = await create.mutateAsync({ data: article }); setEditingId(result.id); } setNotice("Article saved."); void refetch(); } catch (error) { setNotice(errorMessage(error, "Article could not be saved.")); } };
-  const edit = (post: StaffJournalPost) => { setEditingId(post.id); setArticle({ slug: post.slug, title: post.title, excerpt: post.excerpt, body: post.body, coverImageUrl: post.coverImageUrl ?? null, authorName: post.authorName, status: post.status }); setNotice(""); };
-  return <section className="mt-12 border-t border-border pt-10"><SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, and archive approved editorial without leaving the operational workspace." /><div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]"><div className="border border-border bg-card">{isLoading ? <LoadingRows /> : !posts?.length ? <Empty label="No Journal articles yet." /> : <div className="divide-y divide-border">{posts.map((post) => <button type="button" onClick={() => edit(post)} key={post.id} className="block w-full p-4 text-left hover:bg-muted/30"><div className="flex justify-between gap-3"><p className="font-medium">{post.title}</p><span className="text-[10px] uppercase tracking-wider text-primary">{post.status}</span></div><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{post.excerpt}</p></button>)}</div>}</div><form onSubmit={save} className="border border-border bg-card p-5"><div className="flex items-center justify-between"><p className="text-sm font-medium">{editingId ? "Edit article" : "New article"}</p><button type="button" onClick={() => { setEditingId(null); setArticle(emptyArticle); }} className="text-xs uppercase tracking-wider text-primary"><Plus size={13} className="mr-1 inline" /> New</button></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><InputLabel label="Title"><input required minLength={4} value={article.title} onChange={(event) => setArticle({ ...article, title: event.target.value })} className="staff-input mt-1" /></InputLabel><InputLabel label="Slug"><input required minLength={3} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={article.slug} onChange={(event) => setArticle({ ...article, slug: event.target.value.toLowerCase() })} className="staff-input mt-1" /></InputLabel></div><InputLabel label="Standfirst"><textarea required minLength={20} rows={2} value={article.excerpt} onChange={(event) => setArticle({ ...article, excerpt: event.target.value })} className="staff-input mt-1 resize-y" /></InputLabel><div className="mt-3 grid gap-3 sm:grid-cols-2"><InputLabel label="Author"><input required minLength={2} value={article.authorName} onChange={(event) => setArticle({ ...article, authorName: event.target.value })} className="staff-input mt-1" /></InputLabel><InputLabel label="Status"><select value={article.status} onChange={(event) => setArticle({ ...article, status: event.target.value as StaffJournalPostInput["status"] })} className="staff-input mt-1"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></InputLabel></div><InputLabel label="Article body"><textarea required minLength={100} rows={8} value={article.body} onChange={(event) => setArticle({ ...article, body: event.target.value })} className="staff-input mt-1 resize-y" /></InputLabel><div className="mt-4 flex items-center justify-between gap-3"><p role="status" className="text-xs text-muted-foreground">{notice}</p><button disabled={create.isPending || update.isPending} className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={14} /> Save article</button></div></form></div></section>;
+  const edit = (post: StaffJournalPost) => {
+    setEditingId(post.id);
+    setArticle({
+      slug: post.slug,
+      title: post.title,
+      excerpt: post.excerpt,
+      body: post.body,
+      coverImageUrl: post.coverImageUrl ?? null,
+      coverImageAlt: post.coverImageAlt ?? null,
+      authorName: post.authorName,
+      category: post.category ?? null,
+      tags: post.tags ?? null,
+      seoTitle: post.seoTitle ?? null,
+      seoDescription: post.seoDescription ?? null,
+      readTimeMinutes: post.readTimeMinutes ?? null,
+      relatedProductSlugs: post.relatedProductSlugs ?? null,
+      status: post.status,
+    });
+    setNotice("");
+  };
+
+  const cloudinaryPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
+  const cloudName = "kc9ubkqs";
+
+  const openCloudinaryWidget = () => {
+    const w = window as unknown as Record<string, unknown>;
+    if (typeof w["cloudinary"] !== "object" || w["cloudinary"] === null) {
+      alert("Cloudinary widget is loading. Please wait a moment and try again.");
+      return;
+    }
+    const cloudinary = w["cloudinary"] as { createUploadWidget: (opts: Record<string, unknown>, cb: (err: unknown, result: { event: string; info: { secure_url: string; alt_text?: string } }) => void) => { open: () => void } };
+    const widget = cloudinary.createUploadWidget(
+      { cloudName, uploadPreset: cloudinaryPreset, multiple: false, sources: ["local", "url"], resourceType: "image", maxFileSize: 10000000 },
+      (_err, result) => {
+        if (result.event === "success") {
+          setArticle((prev) => ({ ...prev, coverImageUrl: result.info.secure_url }));
+          setNotice("Image uploaded via Cloudinary.");
+        }
+      },
+    );
+    widget.open();
+  };
+
+  return (
+    <section className="mt-12 border-t border-border pt-10">
+      <SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, and archive approved editorial. Cloudinary image uploads require a signed upload preset — paste an image URL directly if the preset is not yet configured." />
+      <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+        {/* Article list */}
+        <div className="border border-border bg-card">
+          {isLoading ? <LoadingRows /> : !posts?.length ? <Empty label="No Journal articles yet." /> : (
+            <div className="divide-y divide-border">
+              {posts.map((post) => (
+                <button type="button" onClick={() => edit(post)} key={post.id} className="block w-full p-4 text-left hover:bg-muted/30">
+                  <div className="flex justify-between gap-3">
+                    <p className="font-medium">{post.title}</p>
+                    <span className="text-[10px] uppercase tracking-wider text-primary">{post.status}</span>
+                  </div>
+                  {post.category && <p className="mt-0.5 text-[10px] uppercase tracking-wider text-primary/60">{post.category}</p>}
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{post.excerpt}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Article editor */}
+        <form onSubmit={save} className="border border-border bg-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-medium">{editingId ? "Edit article" : "New article"}</p>
+            <button type="button" onClick={() => { setEditingId(null); setArticle(emptyArticle); }} className="text-xs uppercase tracking-wider text-primary">
+              <Plus size={13} className="mr-1 inline" /> New
+            </button>
+          </div>
+
+          {/* Core fields */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <InputLabel label="Title"><input required minLength={4} value={article.title} onChange={(e) => setArticle({ ...article, title: e.target.value })} className="staff-input mt-1" /></InputLabel>
+            <InputLabel label="Slug (URL)"><input required minLength={3} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" value={article.slug} onChange={(e) => setArticle({ ...article, slug: e.target.value.toLowerCase() })} className="staff-input mt-1" /></InputLabel>
+          </div>
+          <InputLabel label="Standfirst / excerpt"><textarea required minLength={20} rows={2} value={article.excerpt} onChange={(e) => setArticle({ ...article, excerpt: e.target.value })} className="staff-input mt-1 resize-y" /></InputLabel>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <InputLabel label="Author"><input required minLength={2} value={article.authorName} onChange={(e) => setArticle({ ...article, authorName: e.target.value })} className="staff-input mt-1" /></InputLabel>
+            <InputLabel label="Category"><input value={article.category ?? ""} onChange={(e) => setArticle({ ...article, category: e.target.value || null })} placeholder="e.g. Craft" className="staff-input mt-1" /></InputLabel>
+            <InputLabel label="Status"><select value={article.status} onChange={(e) => setArticle({ ...article, status: e.target.value as StaffJournalPostInput["status"] })} className="staff-input mt-1"><option value="draft">Draft</option><option value="published">Published</option><option value="archived">Archived</option></select></InputLabel>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <InputLabel label="Tags (comma-separated)"><input value={(article.tags ?? []).join(", ")} onChange={(e) => setArticle({ ...article, tags: e.target.value ? e.target.value.split(",").map((t) => t.trim()).filter(Boolean) : null })} placeholder="e.g. Kaftan, Abuja, Craft" className="staff-input mt-1" /></InputLabel>
+            <InputLabel label="Reading time (minutes)"><input type="number" min={1} max={120} value={article.readTimeMinutes ?? ""} onChange={(e) => setArticle({ ...article, readTimeMinutes: e.target.value ? Number(e.target.value) : null })} placeholder="e.g. 5" className="staff-input mt-1" /></InputLabel>
+          </div>
+
+          {/* Cover image */}
+          <InputLabel label="Cover image URL">
+            <div className="mt-1 flex gap-2">
+              <input value={article.coverImageUrl ?? ""} onChange={(e) => setArticle({ ...article, coverImageUrl: e.target.value || null })} placeholder="https://res.cloudinary.com/..." className="staff-input flex-1" />
+              {cloudinaryPreset ? (
+                <button type="button" onClick={openCloudinaryWidget} className="shrink-0 border border-border px-3 text-[10px] uppercase tracking-wider hover:border-primary">Upload</button>
+              ) : (
+                <span className="shrink-0 text-[10px] text-muted-foreground self-center">No upload preset yet — paste URL</span>
+              )}
+            </div>
+          </InputLabel>
+          <InputLabel label="Image alt text"><input value={article.coverImageAlt ?? ""} onChange={(e) => setArticle({ ...article, coverImageAlt: e.target.value || null })} placeholder="Descriptive alt text for the cover image" className="staff-input mt-1" /></InputLabel>
+
+          {/* SEO overrides */}
+          <p className="mt-5 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-t border-border pt-4">SEO overrides (optional)</p>
+          <InputLabel label="SEO title (override)"><input value={article.seoTitle ?? ""} onChange={(e) => setArticle({ ...article, seoTitle: e.target.value || null })} placeholder="Defaults to article title" maxLength={120} className="staff-input mt-1" /></InputLabel>
+          <InputLabel label="SEO description (override)"><textarea rows={2} value={article.seoDescription ?? ""} onChange={(e) => setArticle({ ...article, seoDescription: e.target.value || null })} placeholder="Defaults to excerpt" maxLength={320} className="staff-input mt-1 resize-y" /></InputLabel>
+          <InputLabel label="Related product slugs (comma-separated)"><input value={(article.relatedProductSlugs ?? []).join(", ")} onChange={(e) => setArticle({ ...article, relatedProductSlugs: e.target.value ? e.target.value.split(",").map((s) => s.trim()).filter(Boolean) : null })} placeholder="e.g. vault, ivory-kaftan" className="staff-input mt-1" /></InputLabel>
+
+          {/* Article body */}
+          <InputLabel label="Article body"><textarea required minLength={100} rows={10} value={article.body} onChange={(e) => setArticle({ ...article, body: e.target.value })} className="staff-input mt-1 resize-y" /></InputLabel>
+
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <p role="status" className="text-xs text-muted-foreground">{notice}</p>
+            <button disabled={create.isPending || update.isPending} className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50">
+              <Save size={14} /> Save article
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+  );
 }
 
 function SectionHeading({ icon: Icon, title, description }: { icon: typeof Package; title: string; description: string }) {

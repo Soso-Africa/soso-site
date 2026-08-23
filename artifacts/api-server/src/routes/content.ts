@@ -65,7 +65,11 @@ router.get("/journal", async (_req, res): Promise<void> => {
       title: journalPostsTable.title,
       excerpt: journalPostsTable.excerpt,
       coverImageUrl: journalPostsTable.coverImageUrl,
+      coverImageAlt: journalPostsTable.coverImageAlt,
       authorName: journalPostsTable.authorName,
+      category: journalPostsTable.category,
+      tags: journalPostsTable.tags,
+      readTimeMinutes: journalPostsTable.readTimeMinutes,
       publishedAt: journalPostsTable.publishedAt,
     })
     .from(journalPostsTable)

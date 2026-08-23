@@ -116,6 +116,20 @@ paths:
                 $ref: "#/components/schemas/JournalPost"
         "404":
           description: Article not found
+  /faq:
+    get:
+      operationId: listFaqItems
+      tags: [storefront]
+      summary: List frequently asked questions
+      responses:
+        "200":
+          description: FAQ items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FaqItem"
   /staff/me:
     get:
       operationId: getStaffProfile
@@ -508,7 +522,7 @@ components:
           maxLength: 128
         eventName:
           type: string
-          enum: [page_view, product_view, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_form_completed, payment_clicked, checkout_payment_unavailable]
+          enum: [page_view, session_started, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
         path:
           type: string
           maxLength: 512
@@ -585,6 +599,14 @@ components:
         handlingNotes: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    FaqItem:
+      type: object
+      required: [id, question, answer, category]
+      properties:
+        id: { type: string }
+        question: { type: string }
+        answer: { type: string }
+        category: { type: string }
     JournalPostSummary:
       type: object
       required: [slug, title, excerpt, authorName, publishedAt]
@@ -593,7 +615,11 @@ components:
         title: { type: string }
         excerpt: { type: string }
         coverImageUrl: { type: ["string", "null"] }
+        coverImageAlt: { type: ["string", "null"] }
         authorName: { type: string }
+        category: { type: ["string", "null"] }
+        tags: { type: ["array", "null"], items: { type: string } }
+        readTimeMinutes: { type: ["number", "null"] }
         publishedAt: { type: string, format: date-time }
     JournalPost:
       allOf:
@@ -602,6 +628,9 @@ components:
           required: [body]
           properties:
             body: { type: string }
+            seoTitle: { type: ["string", "null"] }
+            seoDescription: { type: ["string", "null"] }
+            relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
     StaffJournalPostInput:
       type: object
       required: [slug, title, excerpt, body, authorName, status]
@@ -611,7 +640,14 @@ components:
         excerpt: { type: string, minLength: 20, maxLength: 360 }
         body: { type: string, minLength: 100, maxLength: 50000 }
         coverImageUrl: { type: ["string", "null"], maxLength: 2048 }
+        coverImageAlt: { type: ["string", "null"], maxLength: 300 }
         authorName: { type: string, minLength: 2, maxLength: 120 }
+        category: { type: ["string", "null"], maxLength: 80 }
+        tags: { type: ["array", "null"], items: { type: string, maxLength: 60 }, maxItems: 10 }
+        seoTitle: { type: ["string", "null"], maxLength: 120 }
+        seoDescription: { type: ["string", "null"], maxLength: 320 }
+        readTimeMinutes: { type: ["number", "null"], minimum: 1, maximum: 120 }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
         status: { type: string, enum: [draft, published, archived] }
     StaffJournalPostUpdate:
       type: object
@@ -622,7 +658,14 @@ components:
         excerpt: { type: string, minLength: 20, maxLength: 360 }
         body: { type: string, minLength: 100, maxLength: 50000 }
         coverImageUrl: { type: ["string", "null"], maxLength: 2048 }
+        coverImageAlt: { type: ["string", "null"], maxLength: 300 }
         authorName: { type: string, minLength: 2, maxLength: 120 }
+        category: { type: ["string", "null"], maxLength: 80 }
+        tags: { type: ["array", "null"], items: { type: string, maxLength: 60 }, maxItems: 10 }
+        seoTitle: { type: ["string", "null"], maxLength: 120 }
+        seoDescription: { type: ["string", "null"], maxLength: 320 }
+        readTimeMinutes: { type: ["number", "null"], minimum: 1, maximum: 120 }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
         status: { type: string, enum: [draft, published, archived] }
     StaffJournalPost:
       type: object
@@ -634,7 +677,14 @@ components:
         excerpt: { type: string }
         body: { type: string }
         coverImageUrl: { type: ["string", "null"] }
+        coverImageAlt: { type: ["string", "null"] }
         authorName: { type: string }
+        category: { type: ["string", "null"] }
+        tags: { type: ["array", "null"], items: { type: string } }
+        seoTitle: { type: ["string", "null"] }
+        seoDescription: { type: ["string", "null"] }
+        readTimeMinutes: { type: ["number", "null"] }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
         status: { type: string, enum: [draft, published, archived] }
         publishedAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
@@ -720,7 +770,7 @@ components:
             properties:
               eventName:
                 type: string
-                enum: [page_view, product_view, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_form_completed, payment_clicked, checkout_payment_unavailable]
+                enum: [page_view, session_started, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
               count: { type: number, minimum: 0 }
     StaffMetric:
       type: object

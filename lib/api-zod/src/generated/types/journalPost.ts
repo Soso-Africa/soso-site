@@ -7,6 +7,12 @@
  */
 import type { JournalPostSummary } from './journalPostSummary';
 
-export type JournalPost = JournalPostSummary & {
+export type JournalPost = JournalPostSummary & ({
   body: string;
-};
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  /** @nullable */
+  relatedProductSlugs?: string[] | null;
+});

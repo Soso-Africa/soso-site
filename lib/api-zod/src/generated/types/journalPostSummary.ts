@@ -12,6 +12,14 @@ export interface JournalPostSummary {
   excerpt: string;
   /** @nullable */
   coverImageUrl?: string | null;
+  /** @nullable */
+  coverImageAlt?: string | null;
   authorName: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  tags?: string[] | null;
+  /** @nullable */
+  readTimeMinutes?: number | null;
   publishedAt: Date;
 }

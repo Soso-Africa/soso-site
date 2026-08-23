@@ -1,17 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGetJournalPost } from '@workspace/api-client-react';
 import { useParams, Link } from 'wouter';
 import { format } from 'date-fns';
-import { Loader2, ArrowLeft, Share2 } from 'lucide-react';
+import { Loader2, ArrowLeft, Share2, Clock, Tag } from 'lucide-react';
 import { Seo } from '@/components/Seo';
-import { absoluteUrl, journalApproved, siteUrl } from '@/lib/seo';
+import { absoluteUrl, journalApproved, siteUrl, indexingEnabled } from '@/lib/seo';
 import { approvedJournalEntryForSlug } from '@/data/journalSeo';
+import { trackStorefrontEvent } from '@/components/ConsentManager';
+import { products } from '@/data/products';
 
 export default function JournalPost() {
   const params = useParams();
   const slug = params.slug || '';
   const { data: post, isLoading, isError } = useGetJournalPost(slug);
   const approvedArticle = approvedJournalEntryForSlug(slug);
+
+  // Track article view
+  useEffect(() => {
+    if (post) {
+      trackStorefrontEvent('blog_article_viewed', { slug: post.slug });
+    }
+  }, [post?.slug]);
 
   if (isLoading) {
     return (
@@ -36,24 +45,36 @@ export default function JournalPost() {
     );
   }
 
+  // SEO: prefer approved whitelist title/excerpt until general indexing is on;
+  // once journalApproved is true, fall back to live post data.
+  const seoTitle = post.seoTitle ?? approvedArticle?.title ?? post.title;
+  const seoExcerpt = post.seoDescription ?? approvedArticle?.excerpt ?? post.excerpt;
+  const seoImageUrl = post.coverImageUrl ?? approvedArticle?.coverImageUrl ?? undefined;
+  const canIndex = journalApproved && (!!approvedArticle || indexingEnabled);
+
+  const relatedProducts = (post.relatedProductSlugs ?? [])
+    .map((s) => products.find((p) => p.slug === s))
+    .filter(Boolean) as typeof products;
+
   return (
     <div className="min-h-screen bg-background pb-24 fade-in">
       <Seo
-        title={`${approvedArticle?.title ?? post.title} | SOSO Africa Journal`}
-        description={approvedArticle?.excerpt ?? post.excerpt}
+        title={`${seoTitle} | SOSO Africa Journal`}
+        description={seoExcerpt}
         path={`/journal/${post.slug}`}
         type="article"
-        noIndex={!journalApproved || !approvedArticle}
-        structuredData={siteUrl && approvedArticle ? {
-          "@context": "https://schema.org",
-          "@type": "BlogPosting",
-          headline: approvedArticle.title,
-          description: approvedArticle.excerpt,
-          datePublished: approvedArticle.publishedAt,
-          author: { "@type": "Person", name: approvedArticle.authorName },
-          mainEntityOfPage: absoluteUrl(`/journal/${post.slug}`),
-          ...(approvedArticle.coverImageUrl ? { image: approvedArticle.coverImageUrl } : {}),
-        } : null}
+        noIndex={!canIndex}
+        article={{
+          publishedAt: post.publishedAt ?? undefined,
+          modifiedAt: undefined,
+          authorName: post.authorName,
+          imageUrl: seoImageUrl,
+          tags: post.tags ?? undefined,
+        }}
+        breadcrumbs={[
+          { name: 'Journal', path: '/journal' },
+          { name: seoTitle, path: `/journal/${post.slug}` },
+        ]}
       />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8">
         <Link href="/journal" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest text-xs font-medium mb-16 group">
@@ -61,10 +82,21 @@ export default function JournalPost() {
         </Link>
         
         <header className="text-center mb-16">
-          <div className="flex items-center justify-center gap-3 text-sm uppercase tracking-widest text-primary mb-8 font-medium">
+          {/* Category + meta row */}
+          <div className="flex items-center justify-center flex-wrap gap-3 text-xs uppercase tracking-widest text-primary mb-8 font-medium">
+            {post.category && <span>{post.category}</span>}
+            {post.category && <span className="opacity-40">&bull;</span>}
             <span>{format(new Date(post.publishedAt), 'MMMM d, yyyy')}</span>
-            <span className="opacity-50">&bull;</span>
+            <span className="opacity-40">&bull;</span>
             <span>By {post.authorName}</span>
+            {post.readTimeMinutes && (
+              <>
+                <span className="opacity-40">&bull;</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> {post.readTimeMinutes} min read
+                </span>
+              </>
+            )}
           </div>
           <h1 className="text-4xl md:text-5xl lg:text-7xl soso-display text-foreground leading-[1.1] mb-8 tracking-tight">
             {post.title}
@@ -72,6 +104,16 @@ export default function JournalPost() {
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto italic font-serif leading-relaxed">
             {post.excerpt}
           </p>
+          {/* Tags */}
+          {post.tags && post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-center mt-6">
+              {post.tags.map((tag) => (
+                <span key={tag} className="flex items-center gap-1 text-[10px] uppercase tracking-[0.2em] px-3 py-1 border border-primary/30 text-primary/70">
+                  <Tag className="w-2.5 h-2.5" />{tag}
+                </span>
+              ))}
+            </div>
+          )}
         </header>
       </div>
 
@@ -80,7 +122,7 @@ export default function JournalPost() {
           <div className="aspect-[16/9] md:aspect-[21/9] relative overflow-hidden bg-card border border-border">
             <img 
               src={post.coverImageUrl} 
-              alt={post.title}
+              alt={post.coverImageAlt ?? post.title}
               className="w-full h-full object-cover"
             />
           </div>
@@ -94,6 +136,29 @@ export default function JournalPost() {
           ))}
         </div>
       </article>
+
+      {/* Related products */}
+      {relatedProducts.length > 0 && (
+        <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-20 pt-12 border-t border-border">
+          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">Featured in this article</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            {relatedProducts.map((product) => (
+              <Link key={product.slug} href={`/product/${product.slug}`} className="group block">
+                <div className="aspect-[3/4] overflow-hidden bg-muted mb-3">
+                  <img
+                    src={product.img}
+                    alt={product.name}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                </div>
+                <p className="text-xs uppercase tracking-[0.15em] text-primary mb-1">{product.category}</p>
+                <p className="soso-display text-sm text-foreground group-hover:text-primary transition-colors">{product.name}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-24 pt-12 border-t border-border">
         <div className="flex items-center justify-between">
@@ -125,7 +190,7 @@ function ShareArticleButton({ title }: { title: string }) {
 
   return (
     <button
-        type="button"
+      type="button"
       onClick={() => void share().catch(() => undefined)}
       className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors text-xs uppercase tracking-widest font-medium"
     >

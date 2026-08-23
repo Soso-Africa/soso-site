@@ -22,6 +22,9 @@ import Journal from '@/pages/Journal';
 import JournalPost from '@/pages/JournalPost';
 import Policy from '@/pages/Policy';
 import PolicyHub from '@/pages/PolicyHub';
+import About from '@/pages/About';
+import FAQ from '@/pages/FAQ';
+import CollectionPage from '@/pages/CollectionPage';
 import SignIn from '@/pages/SignIn';
 import SignUp from '@/pages/SignUp';
 import Staff from '@/pages/Staff';
@@ -39,6 +42,11 @@ function Router() {
         <Route path="/checkout" component={Checkout} />
         <Route path="/journal" component={Journal} />
         <Route path="/journal/:slug" component={JournalPost} />
+        <Route path="/about" component={About} />
+        <Route path="/faq" component={FAQ} />
+        <Route path="/collections/:slug">
+          {(params) => <CollectionPage slug={params.slug ?? ""} />}
+        </Route>
         <Route path="/policies" component={PolicyHub} />
         <Route path="/privacy" component={Policy} />
         <Route path="/cookies" component={CookieRedirect} />

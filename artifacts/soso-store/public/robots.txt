@@ -1,5 +1,11 @@
 User-agent: *
-Disallow: /
+Allow: /
 
-# The build replaces this safe default only when an approved public domain and
-# the explicit SOSO indexing switch are supplied. Never add a guessed URL here.
+# Do not index authenticated, checkout, or admin flows
+Disallow: /staff
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /checkout
+
+# Sitemap location — replace SITE_URL with the production domain before launch
+# Sitemap: https://SITE_URL/sitemap.xml

@@ -26,6 +26,7 @@ import type {
   ConsentRecord,
   Enquiry,
   EnquiryInput,
+  FaqItem,
   GetStaffExportParams,
   GetStaffFunnelParams,
   GetStaffOverviewParams,
@@ -512,6 +513,83 @@ export function useGetJournalPost<TData = Awaited<ReturnType<typeof getJournalPo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetJournalPostQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListFaqItemsUrl = () => {
+
+
+
+
+  return `/api/faq`
+}
+
+/**
+ * @summary List frequently asked questions
+ */
+export const listFaqItems = async ( options?: Parameters<typeof customFetch>[1]): Promise<FaqItem[]> => {
+
+  return customFetch<FaqItem[]>(getListFaqItemsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFaqItemsQueryKey = () => {
+    return [
+    `/api/faq`
+    ] as const;
+    }
+
+
+export const getListFaqItemsQueryOptions = <TData = Awaited<ReturnType<typeof listFaqItems>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFaqItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFaqItemsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFaqItems>>> = ({ signal }) => listFaqItems({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFaqItems>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFaqItemsQueryResult = NonNullable<Awaited<ReturnType<typeof listFaqItems>>>
+export type ListFaqItemsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List frequently asked questions
+ */
+
+export function useListFaqItems<TData = Awaited<ReturnType<typeof listFaqItems>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFaqItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFaqItemsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 
 type ConsentState = "essential_only" | "analytics" | "marketing";
 export type StorefrontEventName =
   | "page_view"
+  | "session_started"
   | "product_view"
+  | "product_image_viewed"
   | "size_guide_opened"
   | "size_selected"
   | "stylist_inquiry_started"
@@ -12,13 +14,23 @@ export type StorefrontEventName =
   | "add_to_bag"
   | "cart_opened"
   | "checkout_started"
+  | "checkout_field_error"
   | "checkout_form_completed"
   | "payment_clicked"
-  | "checkout_payment_unavailable";
+  | "checkout_payment_unavailable"
+  | "consent_banner_viewed"
+  | "consent_updated"
+  | "marketing_opt_out"
+  | "blog_article_viewed"
+  | "faq_expanded"
+  | "scroll_depth_reached"
+  | "cta_clicked";
 
 const CONSENT_KEY = "soso-consent-v1";
 const VISITOR_KEY = "soso-visitor-id";
 const SESSION_KEY = "soso-session-id";
+const SESSION_FIRED_KEY = "soso-session-started-fired";
+const SCROLL_DEPTHS_KEY = "soso-scroll-depths";
 const EVENT_VERSION = 1;
 
 function apiUrl(path: string): string {
@@ -96,10 +108,71 @@ export function openPrivacyChoices() {
   window.dispatchEvent(new Event("soso:open-privacy-choices"));
 }
 
+/** Active-time heartbeat: tracks visible time on page. */
+function useActiveTimeHeartbeat(consent: ConsentState | null, enabled: boolean) {
+  const visibleSinceRef = useRef<number | null>(null);
+  const accumulatedRef = useRef(0);
+
+  useEffect(() => {
+    if (!enabled || (consent !== "analytics" && consent !== "marketing")) return;
+
+    const onVisible = () => {
+      visibleSinceRef.current = performance.now();
+    };
+    const onHidden = () => {
+      if (visibleSinceRef.current !== null) {
+        accumulatedRef.current += performance.now() - visibleSinceRef.current;
+        visibleSinceRef.current = null;
+      }
+    };
+
+    if (!document.hidden) visibleSinceRef.current = performance.now();
+
+    document.addEventListener("visibilitychange", () => {
+      document.hidden ? onHidden() : onVisible();
+    });
+
+    return () => {
+      onHidden();
+      accumulatedRef.current = 0;
+    };
+  }, [consent, enabled]);
+}
+
+/** Scroll-depth tracker: fires at 25 / 50 / 75 / 90% once per page. */
+function useScrollDepth(consent: ConsentState | null) {
+  useEffect(() => {
+    if (consent !== "analytics" && consent !== "marketing") return;
+
+    const firedDepths = new Set<number>(
+      JSON.parse(sessionStorage.getItem(SCROLL_DEPTHS_KEY) ?? "[]") as number[],
+    );
+    const thresholds = [25, 50, 75, 90];
+
+    const check = () => {
+      const scrolled = window.scrollY + window.innerHeight;
+      const total = document.documentElement.scrollHeight;
+      const pct = total > 0 ? (scrolled / total) * 100 : 0;
+
+      for (const t of thresholds) {
+        if (pct >= t && !firedDepths.has(t)) {
+          firedDepths.add(t);
+          sessionStorage.setItem(SCROLL_DEPTHS_KEY, JSON.stringify([...firedDepths]));
+          trackStorefrontEvent("scroll_depth_reached", { depth_pct: t, path: window.location.pathname });
+        }
+      }
+    };
+
+    window.addEventListener("scroll", check, { passive: true });
+    return () => window.removeEventListener("scroll", check);
+  }, [consent]);
+}
+
 export function ConsentManager() {
   const [consent, setConsent] = useState<ConsentState | null>(null);
   const [visible, setVisible] = useState(false);
   const [pathname] = useLocation();
+  const bannerViewedRef = useRef(false);
 
   useEffect(() => {
     const saved = readConsent();
@@ -107,12 +180,32 @@ export function ConsentManager() {
     setVisible(!saved);
   }, []);
 
+  // Fire consent_banner_viewed once when banner appears
+  useEffect(() => {
+    if (visible && !bannerViewedRef.current) {
+      bannerViewedRef.current = true;
+      // Banner shown — fire after a brief delay in case the user has consent already in another tab
+      const saved = readConsent();
+      if (saved === "analytics" || saved === "marketing") {
+        sendEvent(saved, "consent_banner_viewed");
+      }
+    }
+  }, [visible]);
+
+  // Page view + session_started on navigation
   useEffect(() => {
     if (consent !== "analytics" && consent !== "marketing") return;
-
     sendEvent(consent, "page_view");
+
+    // session_started fires once per session
+    const alreadyFired = sessionStorage.getItem(SESSION_FIRED_KEY);
+    if (!alreadyFired) {
+      sessionStorage.setItem(SESSION_FIRED_KEY, "1");
+      sendEvent(consent, "session_started");
+    }
   }, [consent, pathname]);
 
+  // Listen for tracked storefront events
   useEffect(() => {
     if (consent !== "analytics" && consent !== "marketing") return;
 
@@ -128,17 +221,29 @@ export function ConsentManager() {
     return () => window.removeEventListener("soso:storefront-event", recordTrackedEvent);
   }, [consent]);
 
+  // Reopen on privacy-choices event
   useEffect(() => {
     const reopen = () => setVisible(true);
     window.addEventListener("soso:open-privacy-choices", reopen);
     return () => window.removeEventListener("soso:open-privacy-choices", reopen);
   }, []);
 
+  // Active-time heartbeat
+  useActiveTimeHeartbeat(consent, true);
+
+  // Scroll depth
+  useScrollDepth(consent);
+
   const save = async (state: ConsentState) => {
+    const previousConsent = readConsent();
     setVisible(false);
 
     if (state === "essential_only") {
       localStorage.setItem(CONSENT_KEY, state);
+      // Fire marketing_opt_out if downgrading from analytics/marketing
+      if (previousConsent === "analytics" || previousConsent === "marketing") {
+        sendEvent(previousConsent, "marketing_opt_out");
+      }
       setConsent(state);
       void fetch(apiUrl("/consent"), {
         method: "POST",
@@ -148,9 +253,7 @@ export function ConsentManager() {
           state,
           policyVersion: "draft-2026-08-21",
         }),
-      }).catch(() => {
-        // This preference remains active locally even if the record cannot be saved.
-      });
+      }).catch(() => {});
       return;
     }
 
@@ -167,8 +270,11 @@ export function ConsentManager() {
       if (!response.ok) throw new Error("Consent could not be recorded");
       localStorage.setItem(CONSENT_KEY, state);
       setConsent(state);
+      // Fire consent_updated if changing an existing preference
+      if (previousConsent && previousConsent !== state) {
+        sendEvent(state, "consent_updated", { previous: previousConsent, current: state });
+      }
     } catch {
-      // Do not begin optional measurement if affirmative consent was not recorded.
       localStorage.setItem(CONSENT_KEY, "essential_only");
       setConsent("essential_only");
       setVisible(true);
@@ -195,18 +301,24 @@ export function ConsentManager() {
       </p>
       <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
         <button
-          onClick={() => save("essential_only")}
+          onClick={() => void save("essential_only")}
           className="border border-[#b8912f]/70 px-4 py-3 text-[#f6f1e7] transition hover:bg-[#b8912f]/10"
         >
           Necessary only
         </button>
         <button
-          onClick={() => save("analytics")}
+          onClick={() => void save("analytics")}
           className="bg-[#b8912f] px-4 py-3 text-[#100e0b] transition hover:bg-[#d4b45a]"
         >
           Allow measurement
         </button>
       </div>
+      <p className="mt-3 text-[10px] text-[#a09070] leading-relaxed">
+        You can change your choice at any time from the footer.{" "}
+        <a href="/privacy" className="underline hover:text-[#f6f1e7]">
+          Privacy notice
+        </a>
+      </p>
     </section>
   );
 }

@@ -47,7 +47,7 @@ export const RecordAnalyticsEventBody = zod.object({
   "eventVersion": zod.number().min(1),
   "anonymousId": zod.string().min(recordAnalyticsEventBodyAnonymousIdMin).max(recordAnalyticsEventBodyAnonymousIdMax),
   "sessionId": zod.string().min(recordAnalyticsEventBodySessionIdMin).max(recordAnalyticsEventBodySessionIdMax),
-  "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable']),
+  "eventName": zod.enum(['page_view', 'session_started', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
   "path": zod.string().max(recordAnalyticsEventBodyPathMax),
   "referrer": zod.string().max(recordAnalyticsEventBodyReferrerMax).optional(),
   "source": zod.string().max(recordAnalyticsEventBodySourceMax).optional(),
@@ -144,7 +144,11 @@ export const ListJournalPostsResponseItem = zod.object({
   "title": zod.string(),
   "excerpt": zod.string(),
   "coverImageUrl": zod.string().nullish(),
+  "coverImageAlt": zod.string().nullish(),
   "authorName": zod.string(),
+  "category": zod.string().nullish(),
+  "tags": zod.array(zod.string()).nullish(),
+  "readTimeMinutes": zod.number().nullish(),
   "publishedAt": zod.coerce.date()
 })
 export const ListJournalPostsResponse = zod.array(ListJournalPostsResponseItem)
@@ -162,11 +166,30 @@ export const GetJournalPostResponse = zod.object({
   "title": zod.string(),
   "excerpt": zod.string(),
   "coverImageUrl": zod.string().nullish(),
+  "coverImageAlt": zod.string().nullish(),
   "authorName": zod.string(),
+  "category": zod.string().nullish(),
+  "tags": zod.array(zod.string()).nullish(),
+  "readTimeMinutes": zod.number().nullish(),
   "publishedAt": zod.coerce.date()
 }).and(zod.object({
-  "body": zod.string()
+  "body": zod.string(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "relatedProductSlugs": zod.array(zod.string()).nullish()
 }))
+
+
+/**
+ * @summary List frequently asked questions
+ */
+export const ListFaqItemsResponseItem = zod.object({
+  "id": zod.string(),
+  "question": zod.string(),
+  "answer": zod.string(),
+  "category": zod.string()
+})
+export const ListFaqItemsResponse = zod.array(ListFaqItemsResponseItem)
 
 
 /**
@@ -299,7 +322,7 @@ export const GetStaffFunnelResponse = zod.object({
   "generatedAt": zod.coerce.date(),
   "privacyNote": zod.string(),
   "events": zod.array(zod.object({
-  "eventName": zod.enum(['page_view', 'product_view', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable']),
+  "eventName": zod.enum(['page_view', 'session_started', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
   "count": zod.number().min(getStaffFunnelResponseEventsItemCountMin)
 }))
 })
@@ -627,7 +650,14 @@ export const ListStaffJournalPostsResponseItem = zod.object({
   "excerpt": zod.string(),
   "body": zod.string(),
   "coverImageUrl": zod.string().nullish(),
+  "coverImageAlt": zod.string().nullish(),
   "authorName": zod.string(),
+  "category": zod.string().nullish(),
+  "tags": zod.array(zod.string()).nullish(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "readTimeMinutes": zod.number().nullish(),
+  "relatedProductSlugs": zod.array(zod.string()).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']),
   "publishedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -655,8 +685,26 @@ export const createStaffJournalPostBodyBodyMax = 50000;
 
 export const createStaffJournalPostBodyCoverImageUrlMax = 2048;
 
+export const createStaffJournalPostBodyCoverImageAltMax = 300;
+
 export const createStaffJournalPostBodyAuthorNameMin = 2;
 export const createStaffJournalPostBodyAuthorNameMax = 120;
+
+export const createStaffJournalPostBodyCategoryMax = 80;
+
+export const createStaffJournalPostBodyTagsItemMax = 60;
+
+export const createStaffJournalPostBodyTagsMax = 10;
+
+export const createStaffJournalPostBodySeoTitleMax = 120;
+
+export const createStaffJournalPostBodySeoDescriptionMax = 320;
+
+export const createStaffJournalPostBodyReadTimeMinutesMax = 120;
+
+export const createStaffJournalPostBodyRelatedProductSlugsItemMax = 160;
+
+export const createStaffJournalPostBodyRelatedProductSlugsMax = 6;
 
 
 
@@ -666,7 +714,14 @@ export const CreateStaffJournalPostBody = zod.object({
   "excerpt": zod.string().min(createStaffJournalPostBodyExcerptMin).max(createStaffJournalPostBodyExcerptMax),
   "body": zod.string().min(createStaffJournalPostBodyBodyMin).max(createStaffJournalPostBodyBodyMax),
   "coverImageUrl": zod.string().max(createStaffJournalPostBodyCoverImageUrlMax).nullish(),
+  "coverImageAlt": zod.string().max(createStaffJournalPostBodyCoverImageAltMax).nullish(),
   "authorName": zod.string().min(createStaffJournalPostBodyAuthorNameMin).max(createStaffJournalPostBodyAuthorNameMax),
+  "category": zod.string().max(createStaffJournalPostBodyCategoryMax).nullish(),
+  "tags": zod.array(zod.string().max(createStaffJournalPostBodyTagsItemMax)).max(createStaffJournalPostBodyTagsMax).nullish(),
+  "seoTitle": zod.string().max(createStaffJournalPostBodySeoTitleMax).nullish(),
+  "seoDescription": zod.string().max(createStaffJournalPostBodySeoDescriptionMax).nullish(),
+  "readTimeMinutes": zod.number().min(1).max(createStaffJournalPostBodyReadTimeMinutesMax).nullish(),
+  "relatedProductSlugs": zod.array(zod.string().max(createStaffJournalPostBodyRelatedProductSlugsItemMax)).max(createStaffJournalPostBodyRelatedProductSlugsMax).nullish(),
   "status": zod.enum(['draft', 'published', 'archived'])
 })
 
@@ -680,7 +735,14 @@ export const CreateStaffJournalPostResponse = zod.object({
   "excerpt": zod.string(),
   "body": zod.string(),
   "coverImageUrl": zod.string().nullish(),
+  "coverImageAlt": zod.string().nullish(),
   "authorName": zod.string(),
+  "category": zod.string().nullish(),
+  "tags": zod.array(zod.string()).nullish(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "readTimeMinutes": zod.number().nullish(),
+  "relatedProductSlugs": zod.array(zod.string()).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']),
   "publishedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -714,8 +776,26 @@ export const updateStaffJournalPostBodyBodyMax = 50000;
 
 export const updateStaffJournalPostBodyCoverImageUrlMax = 2048;
 
+export const updateStaffJournalPostBodyCoverImageAltMax = 300;
+
 export const updateStaffJournalPostBodyAuthorNameMin = 2;
 export const updateStaffJournalPostBodyAuthorNameMax = 120;
+
+export const updateStaffJournalPostBodyCategoryMax = 80;
+
+export const updateStaffJournalPostBodyTagsItemMax = 60;
+
+export const updateStaffJournalPostBodyTagsMax = 10;
+
+export const updateStaffJournalPostBodySeoTitleMax = 120;
+
+export const updateStaffJournalPostBodySeoDescriptionMax = 320;
+
+export const updateStaffJournalPostBodyReadTimeMinutesMax = 120;
+
+export const updateStaffJournalPostBodyRelatedProductSlugsItemMax = 160;
+
+export const updateStaffJournalPostBodyRelatedProductSlugsMax = 6;
 
 
 
@@ -725,7 +805,14 @@ export const UpdateStaffJournalPostBody = zod.object({
   "excerpt": zod.string().min(updateStaffJournalPostBodyExcerptMin).max(updateStaffJournalPostBodyExcerptMax).optional(),
   "body": zod.string().min(updateStaffJournalPostBodyBodyMin).max(updateStaffJournalPostBodyBodyMax).optional(),
   "coverImageUrl": zod.string().max(updateStaffJournalPostBodyCoverImageUrlMax).nullish(),
+  "coverImageAlt": zod.string().max(updateStaffJournalPostBodyCoverImageAltMax).nullish(),
   "authorName": zod.string().min(updateStaffJournalPostBodyAuthorNameMin).max(updateStaffJournalPostBodyAuthorNameMax).optional(),
+  "category": zod.string().max(updateStaffJournalPostBodyCategoryMax).nullish(),
+  "tags": zod.array(zod.string().max(updateStaffJournalPostBodyTagsItemMax)).max(updateStaffJournalPostBodyTagsMax).nullish(),
+  "seoTitle": zod.string().max(updateStaffJournalPostBodySeoTitleMax).nullish(),
+  "seoDescription": zod.string().max(updateStaffJournalPostBodySeoDescriptionMax).nullish(),
+  "readTimeMinutes": zod.number().min(1).max(updateStaffJournalPostBodyReadTimeMinutesMax).nullish(),
+  "relatedProductSlugs": zod.array(zod.string().max(updateStaffJournalPostBodyRelatedProductSlugsItemMax)).max(updateStaffJournalPostBodyRelatedProductSlugsMax).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']).optional()
 })
 
@@ -739,7 +826,14 @@ export const UpdateStaffJournalPostResponse = zod.object({
   "excerpt": zod.string(),
   "body": zod.string(),
   "coverImageUrl": zod.string().nullish(),
+  "coverImageAlt": zod.string().nullish(),
   "authorName": zod.string(),
+  "category": zod.string().nullish(),
+  "tags": zod.array(zod.string()).nullish(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "readTimeMinutes": zod.number().nullish(),
+  "relatedProductSlugs": zod.array(zod.string()).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']),
   "publishedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
