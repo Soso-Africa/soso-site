@@ -95,13 +95,15 @@ export default function Staff() {
   const [rangeDays, setRangeDays] = useState(7);
   const range = useMemo(() => dateRangeFor(rangeDays), [rangeDays]);
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
+  // Stylists can view orders (read-only) so they can answer delivery queries.
+  const canViewOrders = canManageOrders || profile?.role === "stylist";
   const canManageEnquiries = canManageOrders || profile?.role === "stylist";
   const canSeeAnalytics = profile?.role === "owner" || profile?.role === "analyst";
   const canManagePrivacy = canManageOrders;
 
   const overview = useGetStaffOverview(range, { query: { queryKey: ["staff-overview", range.from, range.to], enabled: Boolean(profile), refetchInterval: 60_000 } });
   const funnel = useGetStaffFunnel(range, { query: { queryKey: ["staff-funnel", range.from, range.to], enabled: canSeeAnalytics, refetchInterval: 60_000 } });
-  const orders = useListStaffOrders(range, { query: { queryKey: ["staff-orders", range.from, range.to], enabled: canManageOrders, refetchInterval: 45_000 } });
+  const orders = useListStaffOrders(range, { query: { queryKey: ["staff-orders", range.from, range.to], enabled: canViewOrders, refetchInterval: 45_000 } });
   const enquiries = useListStaffEnquiries({ query: { queryKey: ["staff-enquiries"], enabled: canManageEnquiries, refetchInterval: 45_000 } });
   const privacy = useListStaffPrivacyRequests({ query: { queryKey: ["staff-privacy"], enabled: canManagePrivacy, refetchInterval: 45_000 } });
   const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications"], enabled: Boolean(profile), refetchInterval: 45_000 } });
@@ -116,7 +118,7 @@ export default function Staff() {
 
   const refreshOperations = () => {
     const refreshes: Promise<unknown>[] = [overview.refetch(), notifications.refetch()];
-    if (canManageOrders) refreshes.push(orders.refetch());
+    if (canViewOrders) refreshes.push(orders.refetch());
     if (canManageEnquiries) refreshes.push(enquiries.refetch());
     if (canManagePrivacy) refreshes.push(privacy.refetch());
     if (canSeeAnalytics) refreshes.push(audit.refetch(), funnel.refetch());
@@ -150,6 +152,7 @@ export default function Staff() {
       </section>
 
       <NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} />
+      <RoleCapabilityBanner role={profile.role} />
       <Pulse overview={overview.data} loading={overview.isLoading} />
 
       {canSeeAnalytics && (
@@ -163,9 +166,17 @@ export default function Staff() {
         />
       )}
 
-      {(canManageOrders || canManageEnquiries) && (
+      {(canViewOrders || canManageEnquiries) && (
         <section className="mt-12 grid gap-8 xl:grid-cols-2">
-          {canManageOrders && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} />}
+          {canViewOrders && (
+            <OrdersSection
+              orders={orders.data}
+              loading={orders.isLoading}
+              canRefund={profile.role === "owner"}
+              onChanged={refreshOperations}
+              readOnly={!canManageOrders}
+            />
+          )}
           {canManageEnquiries && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
         </section>
       )}
@@ -286,11 +297,36 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
   );
 }
 
-function OrdersSection({ orders, loading, canRefund, onChanged }: { orders: StaffOrder[] | undefined; loading: boolean; canRefund: boolean; onChanged: () => void }) {
-  return <section><SectionHeading icon={Package} title="Order & production queue" description="Every currently active paid, atelier, production, and ready-to-deliver order stays here until it reaches a terminal state." /> <div className="border border-border bg-card">{loading ? <LoadingRows /> : !orders?.length ? <Empty label="There are no active orders in the atelier queue." /> : <div className="divide-y divide-border">{orders.map((order) => <OrderRow key={order.id} order={order} canRefund={canRefund} onChanged={onChanged} />)}</div>}</div></section>;
+function OrdersSection({ orders, loading, canRefund, onChanged, readOnly }: { orders: StaffOrder[] | undefined; loading: boolean; canRefund: boolean; onChanged: () => void; readOnly?: boolean }) {
+  return (
+    <section>
+      <SectionHeading
+        icon={Package}
+        title={readOnly ? "Order lookup (read-only)" : "Order & production queue"}
+        description={
+          readOnly
+            ? "Active orders — for answering customer delivery and status queries. Contact operations to update an order."
+            : "Every currently active paid, atelier, production, and ready-to-deliver order stays here until it reaches a terminal state."
+        }
+      />
+      <div className="border border-border bg-card">
+        {loading ? (
+          <LoadingRows />
+        ) : !orders?.length ? (
+          <Empty label="There are no active orders in the atelier queue." />
+        ) : (
+          <div className="divide-y divide-border">
+            {orders.map((order) => (
+              <OrderRow key={order.id} order={order} canRefund={canRefund} onChanged={onChanged} readOnly={readOnly} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
-function OrderRow({ order, canRefund, onChanged }: { order: StaffOrder; canRefund: boolean; onChanged: () => void }) {
+function OrderRow({ order, canRefund, onChanged, readOnly }: { order: StaffOrder; canRefund: boolean; onChanged: () => void; readOnly?: boolean }) {
   const update = useUpdateStaffOrder();
   const [status, setStatus] = useState<StaffWorkflowDisplayStatus>(order.status as StaffWorkflowDisplayStatus);
   const [atelierNotes, setAtelierNotes] = useState(order.atelierNotes ?? "");
@@ -330,6 +366,33 @@ function OrderRow({ order, canRefund, onChanged }: { order: StaffOrder; canRefun
       onChanged();
     } catch (error) { setNotice(errorMessage(error, "The refund request could not be reviewed.")); }
   };
+
+  if (readOnly) {
+    return (
+      <article className="p-5">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm text-primary">#{order.orderNumber}</span>
+              <StatusBadge status={order.status} />
+            </div>
+            <p className="mt-2 text-sm font-medium">{order.customerName}</p>
+            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+              <Mail size={12} /> {order.customerEmail}
+            </p>
+          </div>
+          <div className="sm:text-right">
+            <p className="text-xl soso-display">{order.currency} {Number(order.total).toLocaleString()}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{format(new Date(order.createdAt), "d MMM yyyy")}</p>
+          </div>
+        </div>
+        {order.atelierNotes && (
+          <p className="mt-3 border-l-2 border-primary/30 pl-3 text-xs italic text-muted-foreground">Atelier: {order.atelierNotes}</p>
+        )}
+      </article>
+    );
+  }
+
   return (
     <article className="p-5">
       <div className="flex flex-col justify-between gap-3 sm:flex-row"><div><div className="flex items-center gap-2"><span className="font-mono text-sm text-primary">#{order.orderNumber}</span><StatusBadge status={order.status} /></div><p className="mt-2 text-sm font-medium">{order.customerName}</p><p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Mail size={12} /> {order.customerEmail}</p></div><div className="sm:text-right"><p className="text-xl soso-display">{order.currency} {Number(order.total).toLocaleString()}</p><p className="mt-1 text-xs text-muted-foreground">{format(new Date(order.createdAt), "d MMM yyyy")}</p></div></div>
@@ -524,6 +587,63 @@ function JournalManagementSection() {
         </form>
       </div>
     </section>
+  );
+}
+
+const ROLE_CAPABILITIES: Record<string, { summary: string; actions: string[] }> = {
+  operations: {
+    summary: "You manage the atelier's order queue, customer enquiries, and privacy requests.",
+    actions: [
+      "Move paid orders through the production workflow — atelier confirmation → in production → ready → fulfilled",
+      "Handle customer support enquiries and log internal handling notes",
+      "Log, verify, and process privacy access and deletion requests",
+      "Escalate refund requests to the owner for review",
+    ],
+  },
+  stylist: {
+    summary: "You handle customer enquiries and can look up active orders to answer delivery queries.",
+    actions: [
+      "Reply to customer styling, sizing, and fitting questions",
+      "Look up active order status to answer 'where is my order?' queries",
+      "To update an order status, contact operations",
+    ],
+  },
+  analyst: {
+    summary: "You review analytics, funnel data, and the operational audit trail.",
+    actions: [
+      "View consented event counts and conversion funnel data",
+      "Browse the audit trail of operational actions",
+      "Export aggregate operational reports",
+    ],
+  },
+  editor: {
+    summary: "You manage SOSO Journal content — articles, editorial metadata, and cover images.",
+    actions: [
+      "Create and edit journal articles, including draft and published states",
+      "Upload cover images via the Cloudinary upload widget",
+      "Set per-article SEO title, description, tags, category, and reading time",
+    ],
+  },
+};
+
+function RoleCapabilityBanner({ role }: { role: string }) {
+  const cap = ROLE_CAPABILITIES[role];
+  if (!cap) return null; // owner sees everything — no banner needed
+  return (
+    <div className="mt-5 border border-border/60 bg-muted/10 p-4 sm:flex sm:gap-6">
+      <div className="shrink-0">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">{role}</p>
+        <p className="mt-1.5 max-w-xs text-sm text-muted-foreground">{cap.summary}</p>
+      </div>
+      <ul className="mt-3 space-y-1.5 sm:mt-0 sm:border-l sm:border-border/40 sm:pl-6">
+        {cap.actions.map((action) => (
+          <li key={action} className="flex items-baseline gap-2 text-xs text-muted-foreground">
+            <span className="shrink-0 text-primary">·</span>
+            {action}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

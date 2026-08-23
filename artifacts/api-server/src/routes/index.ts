@@ -3,6 +3,7 @@ import analyticsRouter from "./analytics";
 import contentRouter from "./content";
 import faqRouter from "./faq";
 import healthRouter from "./health";
+import paymentRouter from "./payment";
 import staffContentRouter from "./staff-content";
 import staffRouter from "./staff";
 
@@ -12,6 +13,7 @@ router.use(healthRouter);
 router.use(analyticsRouter);
 router.use(contentRouter);
 router.use(faqRouter);
+router.use(paymentRouter);
 router.use(staffRouter);
 router.use(staffContentRouter);
 

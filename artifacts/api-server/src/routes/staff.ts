@@ -215,7 +215,7 @@ router.get(
   },
 );
 
-router.get("/staff/orders", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
+router.get("/staff/orders", requireStaffRoles("owner", "operations", "stylist"), async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   const status = typeof req.query.status === "string" && orderStatuses.includes(req.query.status as (typeof orderStatuses)[number])
     ? req.query.status as (typeof orderStatuses)[number]

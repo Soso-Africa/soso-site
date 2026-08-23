@@ -55,8 +55,24 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
     return this.unavailable();
   }
 
-  async createCheckoutSession(_request: CheckoutRequest): Promise<CheckoutResult> {
-    return this.unavailable();
+  async createCheckoutSession(request: CheckoutRequest): Promise<CheckoutResult> {
+    // Route through the server-side payment route. When JUSTICESURE_API_KEY,
+    // JUSTICESURE_API_URL, and JUSTICESURE_WEBHOOK_SECRET are all configured on
+    // the API server, this will return a real checkoutUrl. Until then it returns
+    // a 503 with a clear "No payment has been taken" message.
+    const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+    const response = await fetch(`${apiBase}/api/payment/initiate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({})) as Record<string, string>;
+      throw new CommerceConfigurationError(
+        data.error ?? "Payment could not be started. No payment has been taken.",
+      );
+    }
+    return response.json() as Promise<CheckoutResult>;
   }
 }
 
