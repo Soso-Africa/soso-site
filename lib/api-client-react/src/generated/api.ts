@@ -44,6 +44,8 @@ import type {
   JournalPostSummary,
   ListStaffAuditEventsParams,
   ListStaffOrdersParams,
+  PrivacyRequestAcknowledgement,
+  PrivacyRequestInput,
   RedirectLookup,
   StaffAuditEvent,
   StaffEnquiryUpdate,
@@ -753,6 +755,78 @@ export const useCreateEnquiry = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateEnquiryMutationOptions(options));
+    }
+
+export const getCreatePrivacyRequestUrl = () => {
+
+
+
+
+  return `/api/privacy-requests`
+}
+
+/**
+ * Accepts a request without disclosing whether the supplied contact details match any customer record.
+ * @summary Submit a privacy access or deletion request
+ */
+export const createPrivacyRequest = async (privacyRequestInput: PrivacyRequestInput, options?: Parameters<typeof customFetch>[1]): Promise<PrivacyRequestAcknowledgement> => {
+
+  return customFetch<PrivacyRequestAcknowledgement>(getCreatePrivacyRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(privacyRequestInput)
+  }
+);}
+
+
+
+
+
+export const getCreatePrivacyRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrivacyRequest>>, TError,{data: BodyType<PrivacyRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPrivacyRequest>>, TError,{data: BodyType<PrivacyRequestInput>}, TContext> => {
+
+const mutationKey = ['createPrivacyRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPrivacyRequest>>, {data: BodyType<PrivacyRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPrivacyRequest(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePrivacyRequestMutationResult = NonNullable<Awaited<ReturnType<typeof createPrivacyRequest>>>
+    export type CreatePrivacyRequestMutationBody = BodyType<PrivacyRequestInput>
+    export type CreatePrivacyRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a privacy access or deletion request
+ */
+export const useCreatePrivacyRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPrivacyRequest>>, TError,{data: BodyType<PrivacyRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createPrivacyRequest>>,
+        TError,
+        {data: BodyType<PrivacyRequestInput>},
+        TContext
+      > => {
+      return useMutation(getCreatePrivacyRequestMutationOptions(options));
     }
 
 export const getListJournalPostsUrl = () => {

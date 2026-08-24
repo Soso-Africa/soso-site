@@ -11,7 +11,7 @@ import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 type CheckoutState = "ready" | "processing" | "payment-unavailable";
 
 export default function Checkout() {
-  const { items, cartTotal } = useCart();
+  const { items, cartTotal, openDrawer } = useCart();
   const [state, setState] = useState<CheckoutState>("ready");
   const [message, setMessage] = useState("");
   const [stylistOpen, setStylistOpen] = useState(false);
@@ -115,7 +115,15 @@ export default function Checkout() {
 
               {state === "payment-unavailable" && (
                 <div role="alert" className="border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed">
-                  {message}
+                   <p>{message}</p>
+                   <div className="mt-4 flex flex-wrap gap-3">
+                     <button type="submit" className="border border-[rgba(246,241,231,.45)] px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-white">
+                       Retry secure payment
+                     </button>
+                      <button type="button" onClick={openDrawer} className="px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-[hsl(var(--primary))] underline underline-offset-4">
+                       Return to your bag
+                      </button>
+                   </div>
                 </div>
               )}
               <button disabled={state === "processing"} className="w-full soso-btn-gold py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>

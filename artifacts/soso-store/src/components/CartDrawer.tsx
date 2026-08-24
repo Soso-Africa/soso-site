@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useCart } from "@/context/CartContext";
 import { naira } from "@/lib/utils";
 import { Link } from "wouter";
@@ -6,17 +6,50 @@ import { WhatsAppIcon } from "@/components/Icons";
 
 export function CartDrawer() {
   const { isDrawerOpen, closeDrawer, items, removeItem, updateQuantity, cartTotal } = useCart();
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isDrawerOpen) {
+      previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
       document.body.style.overflow = 'hidden';
+      const focusTimer = window.setTimeout(() => {
+        drawerRef.current?.querySelector<HTMLElement>("[data-cart-initial-focus]")?.focus();
+      }, 0);
+
+      return () => {
+        window.clearTimeout(focusTimer);
+        document.body.style.overflow = '';
+        previouslyFocusedRef.current?.focus();
+      };
     } else {
       document.body.style.overflow = '';
+      return undefined;
     }
-    return () => {
-      document.body.style.overflow = '';
-    };
   }, [isDrawerOpen]);
+
+  const trapFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    const focusable = drawerRef.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) {
+      event.preventDefault();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   if (!isDrawerOpen) return null;
 
@@ -28,13 +61,26 @@ export function CartDrawer() {
         aria-hidden="true"
       />
       <div 
+        ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cart-drawer-title"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeDrawer();
+          } else {
+            trapFocus(event);
+          }
+        }}
         className="fixed inset-y-0 right-0 z-[101] w-full max-w-[400px] flex flex-col shadow-2xl animate-in slide-in-from-right-full duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
         style={{ backgroundColor: "hsl(var(--background))", borderLeft: "1px solid hsl(var(--border))" }}
       >
         <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: "hsl(var(--border))" }}>
-          <h2 className="soso-display text-2xl font-light">Your Bag</h2>
+          <h2 id="cart-drawer-title" className="soso-display text-2xl font-light">Your Bag</h2>
           <button 
             onClick={closeDrawer}
+            data-cart-initial-focus
             className="text-3xl opacity-60 hover:opacity-100 transition-opacity"
             aria-label="Close cart"
           >
@@ -63,6 +109,10 @@ export function CartDrawer() {
                     alt={item.name} 
                     className="w-24 aspect-[3/4] object-cover cursor-pointer hover:opacity-90 transition-opacity"
                     style={{ backgroundColor: "#1a1712" }}
+                     width={96}
+                     height={128}
+                     loading="lazy"
+                     decoding="async"
                   />
                 </Link>
                 <div className="flex-1 flex flex-col">

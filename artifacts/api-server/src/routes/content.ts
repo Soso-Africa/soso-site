@@ -3,21 +3,38 @@ import { createHash } from "node:crypto";
 import {
   CreateEnquiryBody,
   CreateEnquiryResponse,
+  CreatePrivacyRequestBody,
+  CreatePrivacyRequestResponse,
   GetJournalPostParams,
   GetJournalPostResponse,
   ListJournalPostsResponse,
 } from "@workspace/api-zod";
-import { customerEnquiriesTable, db, journalPostsTable, rateLimitBucketsTable } from "@workspace/db";
+import {
+  auditLogsTable,
+  customerEnquiriesTable,
+  db,
+  journalPostsTable,
+  operationalNotificationsTable,
+  privacyRequestsTable,
+  rateLimitBucketsTable,
+} from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 
 const router: IRouter = Router();
 const ENQUIRY_RATE_WINDOW_MS = 60_000;
 const MAX_ENQUIRIES_PER_IP_WINDOW = 8;
+const PRIVACY_REQUEST_RATE_WINDOW_MS = 60 * 60_000;
+const MAX_PRIVACY_REQUESTS_PER_IP_WINDOW = 3;
 
 async function isEnquiryRateLimited(ipAddress: string): Promise<boolean> {
+  return isRateLimited("enquiries", ipAddress, ENQUIRY_RATE_WINDOW_MS, MAX_ENQUIRIES_PER_IP_WINDOW);
+}
+
+async function isRateLimited(namespace: string, ipAddress: string, windowMs: number, maximum: number): Promise<boolean> {
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + ENQUIRY_RATE_WINDOW_MS);
-  const key = createHash("sha256").update(`enquiries:ip:${ipAddress}`).digest("hex");
+  const expiresAt = new Date(now.getTime() + windowMs);
+  const key = createHash("sha256").update(`${namespace}:ip:${ipAddress}`).digest("hex");
 
   await db.delete(rateLimitBucketsTable).where(lt(rateLimitBucketsTable.expiresAt, now));
 
@@ -39,7 +56,7 @@ async function isEnquiryRateLimited(ipAddress: string): Promise<boolean> {
     })
     .returning({ requestCount: rateLimitBucketsTable.requestCount });
 
-  return (bucket?.requestCount ?? 0) > MAX_ENQUIRIES_PER_IP_WINDOW;
+  return (bucket?.requestCount ?? 0) > maximum;
 }
 
 router.post("/enquiries", async (req, res): Promise<void> => {
@@ -56,6 +73,44 @@ router.post("/enquiries", async (req, res): Promise<void> => {
 
   const [enquiry] = await db.insert(customerEnquiriesTable).values(parsed.data).returning();
   res.status(201).json(CreateEnquiryResponse.parse(enquiry));
+});
+
+router.post("/privacy-requests", async (req, res): Promise<void> => {
+  const parsed = CreatePrivacyRequestBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Please provide a valid privacy request" });
+    return;
+  }
+
+  if (await isRateLimited("privacy-requests", req.ip ?? "unknown", PRIVACY_REQUEST_RATE_WINDOW_MS, MAX_PRIVACY_REQUESTS_PER_IP_WINDOW)) {
+    res.status(429).json({ error: "Too many requests. Please wait before trying again." });
+    return;
+  }
+
+  const policyVersion = currentPrivacyPolicyVersion();
+  await db.transaction(async (tx) => {
+    await recordPrivacyPolicyVersion(tx, policyVersion);
+    const [request] = await tx
+      .insert(privacyRequestsTable)
+      .values({ ...parsed.data, policyVersion })
+      .returning({ id: privacyRequestsTable.id, requestType: privacyRequestsTable.requestType });
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: "public",
+      action: "privacy_request.submitted",
+      entityType: "privacy_request",
+      entityId: request!.id,
+      metadata: { requestType: request!.requestType, policyVersion },
+    });
+    await tx.insert(operationalNotificationsTable).values({
+      severity: "attention",
+      title: "Privacy request received",
+      body: "A privacy request is awaiting identity verification.",
+      targetRole: "owner",
+    });
+  });
+
+  // Do not expose a record identifier or whether the requester is known.
+  res.status(202).json(CreatePrivacyRequestResponse.parse({ accepted: true }));
 });
 
 router.get("/journal", async (_req, res): Promise<void> => {

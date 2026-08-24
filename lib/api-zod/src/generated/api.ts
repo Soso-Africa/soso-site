@@ -340,6 +340,30 @@ export const CreateEnquiryResponse = zod.object({
 
 
 /**
+ * Accepts a request without disclosing whether the supplied contact details match any customer record.
+ * @summary Submit a privacy access or deletion request
+ */
+export const createPrivacyRequestBodyRequesterNameMax = 120;
+
+export const createPrivacyRequestBodyRequesterEmailMin = 3;
+export const createPrivacyRequestBodyRequesterEmailMax = 320;
+
+
+export const createPrivacyRequestBodyRequesterEmailRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+
+
+export const CreatePrivacyRequestBody = zod.object({
+  "requestType": zod.enum(['access', 'deletion']),
+  "requesterName": zod.string().min(1).max(createPrivacyRequestBodyRequesterNameMax).nullish(),
+  "requesterEmail": zod.string().min(createPrivacyRequestBodyRequesterEmailMin).max(createPrivacyRequestBodyRequesterEmailMax).regex(createPrivacyRequestBodyRequesterEmailRegExp)
+})
+
+export const CreatePrivacyRequestResponse = zod.object({
+  "accepted": zod.boolean()
+})
+
+
+/**
  * @summary List published Journal articles
  */
 export const ListJournalPostsResponseItem = zod.object({
@@ -718,6 +742,7 @@ export const ListStaffPrivacyRequestsResponseItem = zod.object({
   "requestType": zod.enum(['access', 'deletion']),
   "requesterName": zod.string().nullish(),
   "requesterEmail": zod.string(),
+  "policyVersion": zod.string(),
   "status": zod.enum(['received', 'identity_verified', 'in_progress', 'completed', 'rejected']),
   "verificationNote": zod.string().nullish(),
   "resolutionNote": zod.string().nullish(),
@@ -754,6 +779,7 @@ export const CreateStaffPrivacyRequestResponse = zod.object({
   "requestType": zod.enum(['access', 'deletion']),
   "requesterName": zod.string().nullish(),
   "requesterEmail": zod.string(),
+  "policyVersion": zod.string(),
   "status": zod.enum(['received', 'identity_verified', 'in_progress', 'completed', 'rejected']),
   "verificationNote": zod.string().nullish(),
   "resolutionNote": zod.string().nullish(),
@@ -793,6 +819,7 @@ export const UpdateStaffPrivacyRequestResponse = zod.object({
   "requestType": zod.enum(['access', 'deletion']),
   "requesterName": zod.string().nullish(),
   "requesterEmail": zod.string(),
+  "policyVersion": zod.string(),
   "status": zod.enum(['received', 'identity_verified', 'in_progress', 'completed', 'rejected']),
   "verificationNote": zod.string().nullish(),
   "resolutionNote": zod.string().nullish(),

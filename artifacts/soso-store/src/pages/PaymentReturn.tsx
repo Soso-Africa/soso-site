@@ -4,6 +4,7 @@ import { CheckCircle2, Clock3, ShieldAlert } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { clearCheckoutOperation, pendingPaymentAttempt } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
+import { useCart } from "@/context/CartContext";
 
 type PaymentStatus = {
   orderNumber?: string;
@@ -14,6 +15,7 @@ type PaymentStatus = {
 };
 
 export default function PaymentReturn() {
+  const { items } = useCart();
   const attemptId = useMemo(
     () => new URLSearchParams(window.location.search).get("attempt") ?? pendingPaymentAttempt(),
     [],
@@ -71,9 +73,32 @@ export default function PaymentReturn() {
         {typeof status?.totalKobo === "number" && <p className="mt-2 text-sm text-[hsl(var(--secondary))]">Authoritative total: {naira(status.totalKobo / 100)}</p>}
         {error && <p role="alert" className="mt-5 border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed text-white">{error} No payment is confirmed by this page.</p>}
         {!paid && !cancelled && !error && <p className="mt-5 text-xs uppercase tracking-[0.18em] text-[hsl(var(--primary))]">Please keep this page open while we check.</p>}
+        {!paid && (cancelled || error) && (
+          <div className="mt-6 border-t border-[rgba(246,241,231,.18)] pt-5">
+            <p className="text-sm leading-relaxed text-[hsl(var(--secondary))]">
+              Your local bag has not been changed. Return to it to review the exact piece and selected size before trying secure payment again.
+            </p>
+            {items.length > 0 && (
+              <ul className="mt-4 space-y-2 text-sm">
+                {items.map((item) => (
+                  <li key={`${item.slug}-${item.size}`}>
+                    <Link href={`/product/${item.slug}`} className="text-[hsl(var(--primary))] underline underline-offset-4">
+                      Review {item.name} — size {item.size}
+                    </Link>
+                    <span className="text-[hsl(var(--secondary))]"> · Qty {item.quantity}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/shop" className="soso-btn-gold px-5 py-3 text-xs font-bold uppercase tracking-[.18em]" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>Continue shopping</Link>
-          <Link href="/checkout" className="border border-[rgba(246,241,231,.3)] px-5 py-3 text-xs font-bold uppercase tracking-[.18em] text-white">Return to checkout</Link>
+          {!paid && (cancelled || error) ? (
+            <Link href="/checkout" className="soso-btn-gold px-5 py-3 text-xs font-bold uppercase tracking-[.18em]" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>Return to your bag</Link>
+          ) : (
+            <Link href="/shop" className="soso-btn-gold px-5 py-3 text-xs font-bold uppercase tracking-[.18em]" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>Continue shopping</Link>
+          )}
+          {!paid && <Link href="/checkout" className="border border-[rgba(246,241,231,.3)] px-5 py-3 text-xs font-bold uppercase tracking-[.18em] text-white">{cancelled || error ? "Retry checkout" : "Return to checkout"}</Link>}
         </div>
       </section>
     </main>

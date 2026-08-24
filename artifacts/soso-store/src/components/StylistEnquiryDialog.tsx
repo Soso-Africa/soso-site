@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Loader2, MessageCircle, X } from "lucide-react";
 import { useCreateEnquiry } from "@workspace/api-client-react";
 import { trackStorefrontEvent } from "./ConsentManager";
@@ -20,17 +20,37 @@ export function StylistEnquiryDialog({
   const createEnquiry = useCreateEnquiry();
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const dialogRef = useRef<HTMLElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const enquiryPendingRef = useRef(createEnquiry.isPending);
+
+  useEffect(() => {
+    enquiryPendingRef.current = createEnquiry.isPending;
+  }, [createEnquiry.isPending]);
 
   useEffect(() => {
     if (!isOpen) return;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusTimer = window.setTimeout(() => {
+      dialogRef.current?.querySelector<HTMLElement>("[data-stylist-initial-focus]")?.focus();
+    }, 0);
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !createEnquiry.isPending) onClose();
+      if (event.key === "Escape" && !enquiryPendingRef.current) {
+        event.preventDefault();
+        onClose();
+      }
     };
 
     window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [createEnquiry.isPending, isOpen, onClose]);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", closeOnEscape);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -44,6 +64,27 @@ export function StylistEnquiryDialog({
   }, [isOpen, productSlug]);
 
   if (!isOpen) return null;
+
+  const trapFocus = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Tab") return;
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) {
+      event.preventDefault();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -76,9 +117,11 @@ export function StylistEnquiryDialog({
       }}
     >
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${formId}-title`}
+        onKeyDown={trapFocus}
         className="w-full max-w-xl border border-[#b8912f]/40 bg-[#17130e] px-6 py-7 shadow-2xl sm:px-8 sm:py-9"
       >
         <div className="flex items-start justify-between gap-5">
@@ -94,6 +137,7 @@ export function StylistEnquiryDialog({
           <button
             type="button"
             onClick={onClose}
+            data-stylist-initial-focus
             disabled={createEnquiry.isPending}
             aria-label="Close stylist enquiry"
             className="shrink-0 text-[#d8ceb9] transition-colors hover:text-white disabled:opacity-50"

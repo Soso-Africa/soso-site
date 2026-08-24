@@ -4,7 +4,7 @@ import { Seo } from "@/components/Seo";
 import { products } from "@/data/products";
 import { useCart } from "@/context/CartContext";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
-import { catalogApproved, indexingEnabled, siteUrl, absoluteUrl } from "@/lib/seo";
+import { catalogApproved, siteUrl, absoluteUrl } from "@/lib/seo";
 
 type CollectionMeta = {
   slug: string;
@@ -118,7 +118,7 @@ export default function CollectionPage({ slug }: { slug: string }) {
         description={meta.description}
         path={`/collections/${meta.slug}`}
         structuredData={collectionSchema}
-        noIndex={!indexingEnabled}
+        noIndex={!catalogApproved}
       />
 
       <header className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-14 text-center border-b border-border/50 mb-14">

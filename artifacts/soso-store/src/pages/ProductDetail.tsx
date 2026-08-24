@@ -23,6 +23,7 @@ export default function ProductDetail() {
   
   const [size, setSize] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [fitAssistantSubmitted, setFitAssistantSubmitted] = useState(false);
   const [stylistOpen, setStylistOpen] = useState(false);
   const [img, setImg] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -373,9 +374,58 @@ export default function ProductDetail() {
                 ))}
               </tbody>
             </table>
-            <div className="mt-6 p-4 text-sm" style={{ background: "#EFE8DA" }}>
+            <form
+              className="mt-6 border p-4 text-sm"
+              style={{ background: "#EFE8DA", borderColor: "#ddd3bd" }}
+              onSubmit={(event) => {
+                event.preventDefault();
+                setFitAssistantSubmitted(true);
+              }}
+            >
+              <h4 className="font-semibold">Fit assistant</h4>
+              <p className="mt-1 text-[12px] leading-relaxed opacity-75">
+                Share a few details to prepare for a stylist conversation. This is not a size recommendation and it will not select a size for you.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <label className="text-[11px] uppercase tracking-wider">
+                  Height
+                  <input required name="height" inputMode="decimal" maxLength={30} className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]" />
+                </label>
+                <label className="text-[11px] uppercase tracking-wider">
+                  Weight
+                  <input required name="weight" inputMode="decimal" maxLength={30} className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]" />
+                </label>
+                <label className="text-[11px] uppercase tracking-wider">
+                  Chest
+                  <input required name="chest" inputMode="decimal" maxLength={30} className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]" />
+                </label>
+                <label className="text-[11px] uppercase tracking-wider">
+                  Preferred fit
+                  <select required name="preferredFit" defaultValue="" className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]">
+                    <option value="" disabled>Select one</option>
+                    <option value="closer">Closer</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="relaxed">Relaxed</option>
+                    <option value="unsure">Not sure</option>
+                  </select>
+                </label>
+              </div>
+              <label className="mt-3 block text-[11px] uppercase tracking-wider">
+                Occasion
+                <input required name="occasion" maxLength={120} placeholder="e.g. wedding or evening event" className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none placeholder:opacity-55 focus:border-[#0f6b43]" />
+              </label>
+              <button type="submit" className="mt-4 border border-[#0f6b43] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0f6b43]">
+                Prepare details for a stylist
+              </button>
+              {fitAssistantSubmitted && (
+                <p role="status" className="mt-3 text-[12px] leading-relaxed">
+                  Your details are ready to discuss. No size recommendation has been made, and these details are not sent automatically. A stylist can help you decide before you add to bag.
+                </p>
+              )}
+            </form>
+            <div className="mt-4 p-4 text-sm" style={{ background: "#EFE8DA" }}>
                Not sure? Ask a stylist for fit guidance, or choose <span className="font-semibold">Custom</span> when you need made-to-measure direction.
-            </div>
+             </div>
             <button
               type="button"
               onClick={() => {

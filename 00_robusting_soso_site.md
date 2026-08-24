@@ -93,14 +93,14 @@ This converts post-payment uncertainty into a premium service moment.
 
 ### B. Smart fit concierge
 
-> 🟡 **Implementation status — PARTIAL.** The product page has a standard size guide, Custom option, and optional human stylist enquiry with no account requirement. Height/weight/chest/occasion recommendations, confidence scoring, and automated Custom recommendations are **NOT STARTED**; these need approved fit rules and validation before they can safely advise customers.
+> 🟡 **Implementation status — PARTIAL.** The product page has a standard size guide, Custom option, optional human stylist enquiry with no account requirement, and a lightweight fit-assistant input surface for height, weight, chest, preferred fit, and occasion. It deliberately gives **no** size, confidence, or Custom recommendation: approved fit rules and validation are still required before it can safely advise customers.
 
 Keep the product page simple, but let shoppers open a lightweight fit assistant:
 
 - 🟢 Custom option
 - 🟢 Human stylist handoff when confidence is low
 - 🟢 No forced account creation before purchase
-- ⚫ Height, weight, chest, preferred fit, and occasion input
+- 🟢 Height, weight, chest, preferred fit, and occasion input
 - ⚫ Recommended size with a confidence explanation
 - ⚫ Custom recommendation when measurements are outside standard guidance
 
@@ -115,11 +115,11 @@ The assistant should improve confidence without turning sizing into a pre-paymen
 
 ### D. Concierge recovery, not aggressive retargeting
 
-> 🟡 **Implementation status — PARTIAL.** The bag persists locally and shoppers can return to their selected pieces; optional stylist support remains available. Return-to-bag messages, exact-view recovery, paid-customer suppression, email/WhatsApp recovery, frequency controls, and advertising audiences are **BLOCKED — approved contact channel, consent/legal basis, and live payment state**.
+> 🟡 **Implementation status — PARTIAL.** The bag persists defensively in local storage, shoppers can return to their selected pieces through a local return-to-bag path, and optional stylist support remains available. Payment-unavailable recovery preserves the bag, clearly says no payment was taken, and does not create a paid state. Contact-based recovery, paid-customer suppression, email/WhatsApp recovery, frequency controls, and advertising audiences are **BLOCKED — approved contact channel, consent/legal basis, and live payment state**.
 
 - 🟢 Preserve bag locally
 - 🟢 Optional stylist question route
-- 🔴 Return-to-bag link / exact piece recovery
+- 🟢 Return-to-bag link / local selected-piece recovery
 - 🔴 Exclude paid customers from acquisition reminders
 - 🔴 Avoid repeated popups and high-frequency ads
 
@@ -148,13 +148,14 @@ The assistant should improve confidence without turning sizing into a pre-paymen
 
 ### G. Experimentation system
 
-> ⚫ **Implementation status — NOT STARTED.** The first-party event foundation can support future experiments, but there is no experiment assignment, stopping rule, admin log, or conversion-guardrail system. This should follow live payment and enough consented traffic, not precede them.
+> 🟡 **Implementation status — PARTIAL, safely disabled.** A local, side-effect-free experiment registry defines the one proposed confidence-strip experiment, variants, allocations, stopping rule, mobile/desktop reporting segments, activation requirements, and payment/refund/support/speed guardrails. A read-only owner/analyst experiment log exposes that disabled configuration. It does not read an identifier, bucket visitors, alter the UI, or emit experiment analytics. There is no live experiment or results system; activation still requires live payment, sufficient consented traffic, owner approval, and a guardrail reviewer.
 
 - 🟢 First-party event foundation (supports future experiments)
-- ⚫ Experiment assignment and stopping rules
-- ⚫ Guardrails for payment failure, refunds, support load, and page speed
-- ⚫ Mobile and desktop results separately
-- ⚫ Experiment log in the admin portal
+- 🟢 Disabled registry with assignment boundary and stopping rules
+- 🟢 Predeclared guardrails for payment failure, refunds, support load, and page speed
+- 🟢 Mobile and desktop reporting segments defined
+- 🟢 Read-only disabled experiment log in the staff portal
+- ⚫ Experiment results system in the admin portal
 - ⬜ High-value experiments (CTA copy, trust strip placement, size guide placement) — not applicable until live traffic
 
 ---
@@ -277,7 +278,7 @@ Every product page should include:
 
 ### 3.2 Cart and checkout
 
-> 🟡 **Implementation status:** Add to bag → checkout → disabled payment handoff, optional delivery notes, exact local bag total, payment-first explanation, persistent bag, policy links, and optional first-party stylist support are **IMPLEMENTED**. A missing hosted URL or configuration failure records a consented payment-unavailable event and reports that no payment was taken; it never shows a false paid state. Real payment retry/result handling and delivery totals are **BLOCKED — provider/delivery quote contract**.
+> 🟡 **Implementation status:** Add to bag → checkout → disabled payment handoff, optional delivery notes, exact local bag total, payment-first explanation, persistent bag, return-to-bag recovery, policy links, and optional first-party stylist support are **IMPLEMENTED**. A missing hosted URL or configuration failure records a consented payment-unavailable event, preserves the bag/return path, and reports that no payment was taken; it never shows a false paid state. Real payment retry/result handling and delivery totals are **BLOCKED — provider/delivery quote contract**.
 
 - 🟢 Add to bag
 - 🟢 Proceed to payment
@@ -504,7 +505,7 @@ Automated quality checks:
 
 ### 4.8 Exports and privacy
 
-> 🟡 **Implementation status — PARTIAL.** Role restrictions, audit-log storage, and the no-card-data boundary are in place. Owner/analyst aggregate analytics, campaign, and content/SEO CSV exports plus owner-only aggregate operations CSV are **IMPLEMENTED**. First-touch UTM attribution is retained only after affirmative consent so campaign activity remains attributable across a shopper session. A staff privacy access/deletion request workflow and staff audit view are **IMPLEMENTED**; no identifiable customer-order export is offered. The approved retention schedule remains **BLOCKED — legal review**.
+> 🟡 **Implementation status — PARTIAL.** Role restrictions, audit-log storage, and the no-card-data boundary are in place. Owner/analyst aggregate analytics, campaign, and content/SEO CSV exports plus owner-only aggregate operations CSV are **IMPLEMENTED**. First-touch UTM attribution is retained only after affirmative consent so campaign activity remains attributable across a shopper session. A public access/deletion request form accepts the minimum contact details and returns the same non-enumerating acknowledgement regardless of whether an email is known; identity verification and staff processing remain required. Each request records the current server-configured opaque privacy-policy version, which is persisted separately for auditability; this is version mechanics, not legal approval or a policy CMS. Staff privacy-request workflow and audit visibility are **IMPLEMENTED**; no identifiable customer-order export is offered. The approved retention schedule remains **BLOCKED — legal review**.
 
 - 🟢 Role restrictions on data access
 - 🟢 Audit-log storage foundation
@@ -513,7 +514,8 @@ Automated quality checks:
 - 🟢 Aggregate operations export with owner restriction (no identifiable customer-order export)
 - 🟢 Campaign performance export (aggregate consented event rows only)
 - 🟢 Content/SEO performance export (aggregate consented content-event rows only)
-- 🟢 Data deletion/access request workflow
+- 🟢 Public non-enumerating access/deletion request intake plus staff workflow
+- 🟢 Current privacy-policy version recorded with requests and retained in the policy-version register
 - 🔴 Approved retention schedule (pending legal review)
 - 🟢 Audit log display in admin UI
 
@@ -521,11 +523,11 @@ Automated quality checks:
 
 ## 5. Cookies, consent, analytics, and retargeting
 
-> 🟡 **Implementation status — PARTIAL.** A restrained first-party consent panel, local preference storage, server consent records, affirmative-consent gate, policy version, and later-change control are implemented. No third-party analytics or ad pixels are loaded. Regional legal rules, cookie classifications beyond necessary/measurement, marketing activation, and retention policy remain external review items.
+> 🟡 **Implementation status — PARTIAL.** A restrained first-party consent panel, defensive local/session storage access, server consent records, affirmative-consent gate, version capture, and later-change control are implemented. Privacy requests use the current server-configured opaque privacy-policy version and persist it for auditability; consent submissions retain their declared draft version. Malformed, unavailable, blocked, or full browser storage falls back safely without interrupting browsing; optional measurement remains off unless it can be affirmatively enabled. No third-party analytics or ad pixels are loaded. Regional legal rules, cookie classifications beyond necessary/measurement, marketing activation, final policy-version governance, and retention policy remain external review items.
 
 ### 5.1 Important legal/product correction
 
-> 🟡 **Implementation status:** essential storage and optional measurement separation, affirmative opt-in before optional event recording, visible "Necessary only" and "Allow measurement" choices, server-side consent records, policy version, and footer reopening are **IMPLEMENTED**. Region-aware jurisdiction configuration, a distinct marketing consent UI, definitive region signal, and legal approval are **BLOCKED — qualified privacy/legal review and approved configuration**.
+> 🟡 **Implementation status:** essential storage and optional measurement separation, affirmative opt-in before optional event recording, visible "Necessary only" and "Allow measurement" choices, server-side consent records with the current draft policy version, and footer reopening are **IMPLEMENTED**. Storage reads, writes, removals, and generated identifiers are guarded so privacy-mode or quota failures degrade to in-memory/non-measurement-safe behaviour rather than breaking the shopper flow. Region-aware jurisdiction configuration, a distinct marketing consent UI, definitive region signal, final approved policy-version governance, and legal approval are **BLOCKED — qualified privacy/legal review and approved configuration**.
 
 - 🟢 Essential cookies may load (session, cart, security, checkout, consent preference)
 - 🟢 Analytics cookies require affirmative consent before loading
@@ -585,17 +587,17 @@ Guardrails (all enforced by absence until prerequisites met):
 
 ## 6. SEO implementation
 
-> 🟡 **Implementation status — PARTIAL.** Route-level titles/descriptions, Open Graph title/description, configured-base canonical tags, clean routes, 404 handling, product Offer JSON-LD, descriptive image text in core surfaces, and lazy below-fold imagery are implemented. A dynamic sitemap endpoint exists (requires `PUBLIC_SITE_URL` env var). Server-rendered crawl metadata, full structured-data coverage, Core Web Vitals monitoring, query-indexing policy, Search Console, authoritative collection pages, and an approved production social image are not complete.
+> 🟡 **Implementation status — PARTIAL, fail-closed for release.** Route-level titles/descriptions, Open Graph metadata, clean routes, 404 handling, descriptive image text in core surfaces, and lazy below-fold imagery are implemented. Indexing, canonical URLs, sitemap generation, and Organization/WebSite/Product/Offer/Article/Breadcrumb/FAQ JSON-LD are guarded by an approved HTTPS production origin and explicit release switches; without them the site defaults to noindex, a disallowing robots response, no public sitemap, no canonical URL, and no JSON-LD. Draft policies, unapproved catalogue/Journal content, checkout, staff/auth, and 404 routes remain noindex. Server-rendered crawl metadata validation, Core Web Vitals monitoring, Search Console, authoritative collection pages, and an approved production social image remain incomplete or blocked by production/content inputs.
 
 ### 6.1 Technical SEO
 
-> 🟡 **Implementation status:** canonical tags when `VITE_PUBLIC_SITE_URL` is configured, unique route metadata, clean slugs, 404, and robots file are **PARTIAL** foundations. Dynamic XML sitemap endpoint exists (`/api/sitemap.xml`, requires `PUBLIC_SITE_URL`). Redirect-management UI, hreflang, CWV monitoring, query canonicalisation, structured internal-link plan, Search Console verification, full image dimensions/modern conversion, and production domain configuration are **NOT STARTED** or **BLOCKED**.
+> 🟡 **Implementation status:** unique route metadata, clean slugs, 404 handling, and release-safe robots are **IMPLEMENTED**. Canonicals are emitted only for indexable routes when `VITE_PUBLIC_SITE_URL` is an approved HTTPS non-preview origin and indexing is explicitly enabled. The build emits the public sitemap only under the same approved-origin/master-switch gate, with separate catalogue, policy, and explicit Journal approval gates; the conservative API sitemap follows the same guardrails. Redirect-management UI, hreflang, CWV monitoring, query canonicalisation, structured internal-link plan, Search Console verification, full image dimensions/modern conversion, and production domain configuration are **NOT STARTED** or **BLOCKED**.
 
-- 🟢 One canonical URL per indexable page (when `VITE_PUBLIC_SITE_URL` set)
+- 🟢 One canonical URL per indexable page only after approved-origin and indexing release gates
 - 🟢 Correct `title` and meta description per route
 - 🟢 Open Graph and social cards
-- 🟡 XML sitemap — dynamic endpoint implemented (`/api/sitemap.xml`), requires `PUBLIC_SITE_URL` env var on API server
-- 🟡 `robots.txt` — exists; sitemap URL line requires production domain
+- 🟢 Safe sitemap/indexing guardrails — generated sitemap and conservative API endpoint require approved HTTPS production origin plus explicit indexing switch
+- 🟢 Fail-closed `robots.txt`/noindex fallback until the approved production release configuration exists
 - 🟢 Clean product, collection, blog, and policy slugs
 - 🟢 404 handling
 - 🟢 Redirect management UI
@@ -610,7 +612,7 @@ Guardrails (all enforced by absence until prerequisites met):
 
 ### 6.2 Structured data
 
-> 🟡 **Implementation status — PARTIAL.** Product and Offer JSON-LD use real curated preview product data and truthful pre-order availability. Organization/LocalBusiness, WebSite/SearchAction, Breadcrumb, and Article schemas are implemented. FAQPage schema is implemented for the FAQ route. Reviews, ratings, events, prices, and availability are never fabricated.
+> 🟡 **Implementation status — PARTIAL, release-gated.** Organization/ClothingStore, WebSite, Product/Offer, Breadcrumb, Article/BlogPosting, and FAQPage JSON-LD are implemented but injected only when an approved origin and indexing configuration make the route indexable. Product/Offer data uses curated preview catalogue data and truthful pre-order availability; it is not published as structured data before catalogue approval. Reviews, ratings, events, prices, and availability are never fabricated.
 
 - 🟢 Organization / ClothingStore JSON-LD
 - 🟢 WebSite JSON-LD
@@ -873,7 +875,7 @@ Persisted entities:
 - 🔴 Atelier statuses
 - 🟢 Stylist enquiries
 - 🟢 Blog articles
-- ⚫ Policy versions (no CMS yet)
+- 🟢 Privacy-policy version register and request-level version capture (no policy CMS yet)
 - 🟢 Admin users and roles
 - 🟢 Audit entries
 
@@ -895,18 +897,22 @@ Security requirements:
 
 ## 12. Performance and reliability
 
-> 🟡 **Implementation status — PARTIAL.** Error boundaries, lazy below-fold imagery in core product areas, no third-party marketing scripts, and non-blocking analytics failures are implemented. Measured mobile performance, font/image optimisation audit, monitoring/alerts, backups/restore plan, staging/sandbox release procedure, and payment/webhook reliability are **NOT STARTED** or **BLOCKED — production deployment and provider environment**.
+> 🟡 **Implementation status — PARTIAL.** Error boundaries, targeted accessibility/resilience fixes (keyboard/focusable controls, labels, live status/error feedback, defensive browser storage, and non-blocking analytics), lazy below-fold imagery in core product areas, and no third-party marketing scripts are implemented. Static release validation now typechecks, builds, and enforces media/client-asset budgets plus image alt-text/layout-reservation checks; it is a release safeguard, not real-device performance evidence. A minimal unauthenticated health endpoint exposes only process health. Non-production backup/restore evidence verification is available and hard-disabled in production; it makes no network, database, or restore calls. Measured mobile performance, font/image optimisation audit, external monitoring/alerts, an actual backup/restore drill, staging/sandbox release acceptance, and payment/webhook reliability are **NOT STARTED** or **BLOCKED — production deployment and provider environment**.
 
 - 🟢 Error boundaries on storefront
 - 🟢 Lazy-loaded below-the-fold imagery
 - 🟢 Minimal third-party scripts (none)
 - 🟢 No blocking ad pixels
 - 🟢 Resilient analytics (failure does not block checkout or browsing)
+- 🟡 Accessibility/resilience foundations (targeted controls and recovery; full device/assistive-technology review remains a release gate)
+- 🟢 Static media/performance/release validation (typecheck, build, asset budgets, alt text, and layout reservation checks)
+- 🟢 Non-sensitive process health endpoint (`GET /api/healthz`)
+- 🟢 Non-production-only backup/restore evidence verifier (evidence validation, not a backup or restore)
 - ⚫ Core Web Vitals measurement (real mobile devices)
 - ⚫ Error monitoring for storefront and API
 - 🔴 Error monitoring for payment and webhooks (blocked — no live payment)
 - ⚫ Uptime and webhook retry alerts
-- ⚫ Backups and restore procedure
+- ⚫ Backups and restore procedure/drill with production data and service owners
 - ⚫ Staging/sandbox environment before production
 
 ---
@@ -949,7 +955,7 @@ Security requirements:
 
 ## 14. Build phases
 
-> 🟡 **Implementation status:** Phase 0 is **PARTIAL / BLOCKED — JusticeSure’s v1 contract is supplied, but staging access, provider selection, business operations decisions, approved policies, analytics legal basis, and approved staff roster remain external inputs**. Phase 1 is **CONTRACT-SAFE / BLOCKED activation**: server catalogue projection, hosted-session adapter, durable idempotency, protected return recovery, signed replay-safe webhooks, and fail-closed payment are implemented; staging and production acceptance are not. Phase 2 is **PARTIAL**: trust, draft policies, product explanations, and persisted enquiries exist; final policies/reviews/order tracking need inputs. Phase 3 is **PARTIAL**: consented first-party events, route-aware engagement, attribution persistence, replay safety, and aggregate data-quality reporting exist; legal configuration and richer dashboard measurements are incomplete. Phase 4 is **PARTIAL**: real auth, RBAC, staff signals, Journal workflow/history, aggregate exports, privacy-request workflow, and audit visibility exist; full live-commerce operations and notification tooling do not. Phase 5 is **PARTIAL**: Journal/route SEO foundations, Article JSON-LD, dynamic sitemap, collection pages, and AEO content exist; full structured-data breadth, authoritative editorial, Search Console, and CWV monitoring do not. Phase 6 is **NOT STARTED / BLOCKED — legal consent, approved ad providers, live payment state, and campaign operations**.
+> 🟡 **Implementation status:** Phase 0 is **PARTIAL / BLOCKED — JusticeSure’s v1 contract is supplied, but staging access, provider selection, business operations decisions, approved policies, analytics legal basis, and approved staff roster remain external inputs**. Phase 1 is **CONTRACT-SAFE / BLOCKED activation**: server catalogue projection, hosted-session adapter, durable idempotency, protected return recovery, signed replay-safe webhooks, and fail-closed payment are implemented; staging and production acceptance are not. Phase 2 is **PARTIAL**: trust, draft policies, product explanations, local recovery, and persisted enquiries exist; final policies/reviews/order tracking need inputs. Phase 3 is **PARTIAL**: defensive consent/storage handling, versioned consent records, consented first-party events, route-aware engagement, attribution persistence, replay safety, and aggregate data-quality reporting exist; legal configuration and richer dashboard measurements are incomplete. Phase 4 is **PARTIAL**: real auth, RBAC, staff signals, Journal workflow/history, aggregate exports, public non-enumerating privacy-request intake, and audit visibility exist; full live-commerce operations and notification tooling do not. Phase 5 is **PARTIAL**: fail-closed sitemap/indexing/canonical/JSON-LD guardrails, Journal/route SEO foundations, collection pages, and AEO content exist; authoritative editorial, Search Console, and CWV monitoring do not. Phase 6 is **PARTIAL but disabled**: a no-side-effect experiment registry defines a future guarded experiment, while legal consent, approved ad providers, live payment state, campaign operations, and real experiments remain blocked.
 
 ### Phase 0 — Decisions and contracts
 
@@ -986,7 +992,7 @@ Security requirements:
 
 ### Phase 3 — Consent and analytics
 
-> 🟡 **Status — PARTIAL.** Consent manager, server consent records, consent-gated first-party events, version/session/event IDs, deduplication, and staff funnel counts are implemented. Quality dashboard, active-time, full journeys, and legally approved third-party tools are incomplete.
+> 🟡 **Status — PARTIAL.** Consent manager, defensive storage fallback, versioned server consent records, consent-gated first-party events, version/session/event IDs, deduplication, and staff funnel counts are implemented. Quality dashboard, active-time, full journeys, and legally approved third-party tools are incomplete.
 
 - 🟢 Consent manager
 - 🟢 First-party event collection
@@ -997,7 +1003,7 @@ Security requirements:
 
 ### Phase 4 — Admin portal
 
-> 🟡 **Status — PARTIAL.** Clerk + database role gate, least-privilege read surfaces, Journal workflow, audit/revision foundations, and basic signals are implemented. Complete orders/payments/production workflows, exports, privacy tools, and notifications need commerce/operations design.
+> 🟡 **Status — PARTIAL.** Clerk + database role gate, least-privilege read surfaces, Journal workflow, audit/revision foundations, aggregate exports, public non-enumerating privacy-request intake/staff workflow, and basic signals are implemented. Complete orders/payments/production workflows and notifications need commerce/operations design.
 
 - 🟢 Authentication and role-based access
 - 🟡 Orders, payments, production, enquiries screens (basic; no live data)
@@ -1005,16 +1011,16 @@ Security requirements:
 - 🟢 Journal content management
 - 🟡 Policy pages (routes exist; no CMS)
 - 🟢 Audit screens (foundation)
-- ⚫ Exports and privacy request tools
+- 🟢 Aggregate exports and privacy-request intake/workflow
 - ⚫ Operational notifications
 
 ### Phase 5 — SEO, AEO, GEO, and editorial
 
-> 🟡 **Status — PARTIAL.** Route metadata, canonical configuration, multiple JSON-LD schemas, public Journal, policies, dynamic sitemap, collection pages, FAQ with FAQPage schema, and AEO copy exist. Approved initial editorial, Search Console, full content monitoring, and CWV are incomplete or blocked by production/content inputs.
+> 🟡 **Status — PARTIAL.** Fail-closed route metadata, sitemap/indexing/canonical/JSON-LD release gates, public Journal, policies, collection pages, FAQ with FAQPage schema, and AEO copy exist. Approved initial editorial, Search Console, full content monitoring, and CWV are incomplete or blocked by production/content inputs.
 
-- 🟢 Technical SEO (route metadata, canonical, clean slugs, 404)
-- 🟢 Structured data (Organization, WebSite, Product, Offer, Breadcrumb, Article, FAQ)
-- 🟡 Sitemap (dynamic endpoint implemented; requires `PUBLIC_SITE_URL` and `VITE_ENABLE_INDEXING`)
+- 🟢 Technical SEO guardrails (route metadata, release-gated canonical/indexing/sitemap, clean slugs, 404)
+- 🟢 Release-gated structured data (Organization, WebSite, Product, Offer, Breadcrumb, Article, FAQ)
+- 🟢 Fail-closed sitemap (approved origin and explicit indexing switch required)
 - 🔴 Initial authoritative editorial articles
 - 🟡 FAQ and answer blocks (10 items; pending approved facts)
 - 🟢 Internal links and local/Abuja authority signals
@@ -1036,7 +1042,7 @@ Security requirements:
 
 ## 15. Launch gates
 
-> 🔴 **Implementation status — NOT READY FOR PRODUCTION COMMERCE.** Auth/RBAC foundation, consent-gated event ingestion, rate limiting, same-origin write protection, draft-policy visibility, and safe disabled payment behavior are verified. Real payment/webhook/order/atelier gates, final policies, real payment-funnel validation, regional consent/legal approval, marketing-pixel configuration, sitemap/indexability validation, device accessibility review, security review, backups, incident process, support process, and production deployment verification remain **BLOCKED** or **NOT STARTED**.
+> 🔴 **Implementation status — NOT READY FOR PRODUCTION COMMERCE.** Auth/RBAC foundation, consent-gated event ingestion, defensive storage handling, rate limiting, same-origin write protection, draft-policy visibility, safe disabled payment/return-to-bag recovery, release-gated SEO, static release validation, a minimal health endpoint, and non-production backup-evidence safeguards are verified. Real payment/webhook/order/atelier gates, final policies, real payment-funnel validation, regional consent/legal approval, marketing-pixel configuration, production sitemap/indexability validation, device accessibility review, security review, an actual backup/restore drill, incident process, support process, and production deployment verification remain **BLOCKED** or **NOT STARTED**.
 
 Do not call the site fully functional until all of the following are true:
 
@@ -1050,12 +1056,12 @@ Do not call the site fully functional until all of the following are true:
 - ⚫ Checkout and payment events distinguish failure, abandonment, and success.
 - 🔴 Consent behavior is documented and legally reviewed.
 - 🔴 Marketing pixels do not fire outside the approved consent/legal configuration.
-- 🟡 Sitemap, robots, canonical, metadata, structured data, and redirects pass validation (sitemap exists; robots sitemap URL and production canonical pending domain).
-- 🔴 Blog and policy pages are indexable only when complete (gated by `VITE_ENABLE_INDEXING`).
+- 🟡 Sitemap, robots, canonical, metadata, structured data, and redirects pass production validation (safe release gates exist; approved domain/configuration and production evidence are still required).
+- 🟢 Blog and policy pages remain non-indexable until their explicit approval gates are satisfied.
 - ⚫ Mobile checkout passes on real supported devices.
 - ⚫ Accessibility review covers keyboard use, focus, labels, contrast, and consent controls.
 - ⚫ Security review covers authentication, webhooks, PII, rate limiting, and secrets.
-- ⚫ Backup, incident, payment-failure, and support procedures are documented.
+- 🟡 Non-production backup-evidence safeguard is available; an actual backup/restore drill, incident, payment-failure, and support procedures still need documented operational evidence.
 
 ---
 

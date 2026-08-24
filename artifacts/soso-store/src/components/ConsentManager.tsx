@@ -35,30 +35,81 @@ const SCROLL_DEPTHS_KEY = "soso-scroll-depths";
 const ATTRIBUTION_KEY = "soso-first-touch-attribution";
 const EVENT_VERSION = 1;
 const MAX_ATTRIBUTION_VALUE_LENGTH = 120;
+const MAX_EVENT_PROPERTY_KEYS = 30;
+const MAX_EVENT_PROPERTY_ARRAY_ITEMS = 20;
+const MAX_EVENT_PROPERTY_DEPTH = 3;
+const MAX_EVENT_PROPERTY_STRING_LENGTH = 200;
+const MAX_EVENT_PROPERTIES_BYTES = 8_000;
+let inMemoryVisitorId: string | null = null;
+let inMemorySessionId: string | null = null;
 
 function apiUrl(path: string): string {
   const configuredBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
   return `${configuredBase ?? ""}/api${path}`;
 }
 
+function storageGet(storage: "local" | "session", key: string): string | null {
+  try {
+    return (storage === "local" ? window.localStorage : window.sessionStorage).getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(storage: "local" | "session", key: string, value: string): void {
+  try {
+    (storage === "local" ? window.localStorage : window.sessionStorage).setItem(key, value);
+  } catch {
+    // Storage can be blocked or full. Browsing and consent choices still work in memory.
+  }
+}
+
+function storageRemove(storage: "local" | "session", key: string): void {
+  try {
+    (storage === "local" ? window.localStorage : window.sessionStorage).removeItem(key);
+  } catch {
+    // A malformed persisted value is harmless when it cannot be removed.
+  }
+}
+
+function fallbackUuid(): string {
+  const timestamp = Date.now().toString(16).padStart(12, "0").slice(-12);
+  const randomHex = () => Math.floor(Math.random() * 16).toString(16);
+  return `${timestamp.slice(0, 8)}-${timestamp.slice(8)}-4${Array.from({ length: 3 }, randomHex).join("")}-${(8 + Math.floor(Math.random() * 4)).toString(16)}${Array.from({ length: 3 }, randomHex).join("")}-${Array.from({ length: 12 }, randomHex).join("")}`;
+}
+
+function createId(): string {
+  try {
+    const id = globalThis.crypto?.randomUUID?.();
+    if (typeof id === "string" && id) return id;
+  } catch {
+    // Some privacy modes expose crypto but reject randomUUID().
+  }
+  return fallbackUuid();
+}
+
 function visitorId(): string {
-  const saved = localStorage.getItem(VISITOR_KEY);
+  const saved = storageGet("local", VISITOR_KEY);
   if (saved) return saved;
-  const id = crypto.randomUUID();
-  localStorage.setItem(VISITOR_KEY, id);
-  return id;
+  if (!inMemoryVisitorId) {
+    inMemoryVisitorId = createId();
+    storageSet("local", VISITOR_KEY, inMemoryVisitorId);
+  }
+  return inMemoryVisitorId;
 }
 
 function sessionId(): string {
-  const saved = sessionStorage.getItem(SESSION_KEY);
+  const saved = storageGet("session", SESSION_KEY);
   if (saved) return saved;
-  const id = crypto.randomUUID();
-  sessionStorage.setItem(SESSION_KEY, id);
-  return id;
+  if (!inMemorySessionId) {
+    inMemorySessionId = createId();
+    storageSet("session", SESSION_KEY, inMemorySessionId);
+  }
+  return inMemorySessionId;
 }
 
 function readConsent(): ConsentState | null {
-  const saved = localStorage.getItem(CONSENT_KEY);
+  const saved = storageGet("local", CONSENT_KEY);
   return saved === "essential_only" || saved === "analytics" || saved === "marketing"
     ? saved
     : null;
@@ -71,25 +122,34 @@ type Attribution = {
 };
 
 function capturedAttribution(): Attribution {
-  const params = new URLSearchParams(window.location.search);
-  const value = (name: string) => params.get(name)?.trim().slice(0, MAX_ATTRIBUTION_VALUE_LENGTH) || undefined;
-  return {
-    source: value("utm_source"),
-    utmMedium: value("utm_medium"),
-    utmCampaign: value("utm_campaign"),
-  };
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const value = (name: string) => params.get(name)?.trim().slice(0, MAX_ATTRIBUTION_VALUE_LENGTH) || undefined;
+    return {
+      source: value("utm_source"),
+      utmMedium: value("utm_medium"),
+      utmCampaign: value("utm_campaign"),
+    };
+  } catch {
+    return {};
+  }
 }
 
 function savedAttribution(): Attribution | null {
-  const saved = sessionStorage.getItem(ATTRIBUTION_KEY);
+  const saved = storageGet("session", ATTRIBUTION_KEY);
   if (saved) {
     try {
       const parsed = JSON.parse(saved) as Attribution;
-      if (typeof parsed.source === "string" || typeof parsed.utmMedium === "string" || typeof parsed.utmCampaign === "string") {
-        return parsed;
+      if (parsed && typeof parsed === "object") {
+        const value = (name: keyof Attribution) => {
+          const candidate = parsed[name];
+          return typeof candidate === "string" ? candidate.trim().slice(0, MAX_ATTRIBUTION_VALUE_LENGTH) || undefined : undefined;
+        };
+        const attribution = { source: value("source"), utmMedium: value("utmMedium"), utmCampaign: value("utmCampaign") };
+        if (attribution.source || attribution.utmMedium || attribution.utmCampaign) return attribution;
       }
     } catch {
-      sessionStorage.removeItem(ATTRIBUTION_KEY);
+      storageRemove("session", ATTRIBUTION_KEY);
     }
   }
   return null;
@@ -99,7 +159,7 @@ function persistFirstTouchAttribution(captured: Attribution): Attribution {
   const existing = savedAttribution();
   if (existing) return existing;
   if (captured.source || captured.utmMedium || captured.utmCampaign) {
-    sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(captured));
+    storageSet("session", ATTRIBUTION_KEY, JSON.stringify(captured));
   }
   return captured;
 }
@@ -113,6 +173,35 @@ type SendEventOptions = {
   path?: string;
 };
 
+function boundedProperties(properties: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!properties) return undefined;
+  const sanitize = (value: unknown, depth: number): unknown => {
+    if (value === null || typeof value === "boolean") return value;
+    if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+    if (typeof value === "string") return value.slice(0, MAX_EVENT_PROPERTY_STRING_LENGTH);
+    if (depth >= MAX_EVENT_PROPERTY_DEPTH) return undefined;
+    if (Array.isArray(value)) {
+      return value.slice(0, MAX_EVENT_PROPERTY_ARRAY_ITEMS).map((entry) => sanitize(entry, depth + 1)).filter((entry) => entry !== undefined);
+    }
+    if (typeof value === "object") {
+      const result: Record<string, unknown> = {};
+      for (const [key, entry] of Object.entries(value).slice(0, MAX_EVENT_PROPERTY_KEYS)) {
+        const clean = sanitize(entry, depth + 1);
+        if (clean !== undefined) result[key.slice(0, MAX_EVENT_PROPERTY_STRING_LENGTH)] = clean;
+      }
+      return result;
+    }
+    return undefined;
+  };
+  try {
+    const clean = sanitize(properties, 0);
+    if (!clean || typeof clean !== "object" || Array.isArray(clean)) return undefined;
+    return JSON.stringify(clean).length <= MAX_EVENT_PROPERTIES_BYTES ? clean as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function sendEvent(
   consent: Exclude<ConsentState, "essential_only">,
   eventName: StorefrontEventName,
@@ -120,11 +209,12 @@ function sendEvent(
   options?: SendEventOptions,
 ) {
   const attribution = firstTouchAttribution();
+  const safeProperties = boundedProperties(properties);
   void fetch(apiUrl("/analytics/events"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      eventId: crypto.randomUUID(),
+      eventId: createId(),
       eventVersion: EVENT_VERSION,
       anonymousId: visitorId(),
       sessionId: sessionId(),
@@ -136,7 +226,7 @@ function sendEvent(
       utmCampaign: attribution.utmCampaign,
       deviceType: window.innerWidth < 768 ? "mobile" : window.innerWidth < 1100 ? "tablet" : "desktop",
       consent,
-      properties,
+      properties: safeProperties,
       occurredAt: new Date().toISOString(),
     }),
     keepalive: options?.keepalive,
@@ -225,9 +315,16 @@ function useScrollDepth(consent: ConsentState | null, pathname: string) {
     if (consent !== "analytics" && consent !== "marketing") return;
 
     const storageKey = `${SCROLL_DEPTHS_KEY}:${pathname}`;
-    const firedDepths = new Set<number>(
-      JSON.parse(sessionStorage.getItem(storageKey) ?? "[]") as number[],
-    );
+    const savedDepths = storageGet("session", storageKey);
+    let firedDepths = new Set<number>();
+    try {
+      const parsed = JSON.parse(savedDepths ?? "[]") as unknown;
+      if (Array.isArray(parsed)) {
+        firedDepths = new Set(parsed.filter((depth): depth is number => typeof depth === "number" && [25, 50, 75, 90].includes(depth)));
+      }
+    } catch {
+      storageRemove("session", storageKey);
+    }
     const thresholds = [25, 50, 75, 90];
 
     const check = () => {
@@ -238,7 +335,7 @@ function useScrollDepth(consent: ConsentState | null, pathname: string) {
       for (const t of thresholds) {
         if (pct >= t && !firedDepths.has(t)) {
           firedDepths.add(t);
-          sessionStorage.setItem(storageKey, JSON.stringify([...firedDepths]));
+          storageSet("session", storageKey, JSON.stringify([...firedDepths]));
           trackStorefrontEvent("scroll_depth_reached", { depth_pct: t, path: window.location.pathname });
         }
       }
@@ -283,9 +380,9 @@ export function ConsentManager() {
     sendEvent(consent, "page_view");
 
     // session_started fires once per session
-    const alreadyFired = sessionStorage.getItem(SESSION_FIRED_KEY);
+    const alreadyFired = storageGet("session", SESSION_FIRED_KEY);
     if (!alreadyFired) {
-      sessionStorage.setItem(SESSION_FIRED_KEY, "1");
+      storageSet("session", SESSION_FIRED_KEY, "1");
       sendEvent(consent, "session_started");
     }
   }, [consent, pathname]);
@@ -324,7 +421,7 @@ export function ConsentManager() {
     setVisible(false);
 
     if (state === "essential_only") {
-      localStorage.setItem(CONSENT_KEY, state);
+       storageSet("local", CONSENT_KEY, state);
       // Fire marketing_opt_out if downgrading from analytics/marketing
       if (previousConsent === "analytics" || previousConsent === "marketing") {
         sendEvent(previousConsent, "marketing_opt_out");
@@ -353,7 +450,7 @@ export function ConsentManager() {
         }),
       });
       if (!response.ok) throw new Error("Consent could not be recorded");
-      localStorage.setItem(CONSENT_KEY, state);
+       storageSet("local", CONSENT_KEY, state);
       persistFirstTouchAttribution(landingAttributionRef.current ?? capturedAttribution());
       setConsent(state);
       // Fire consent_updated if changing an existing preference
@@ -361,7 +458,7 @@ export function ConsentManager() {
         sendEvent(state, "consent_updated", { previous: previousConsent, current: state });
       }
     } catch {
-      localStorage.setItem(CONSENT_KEY, "essential_only");
+       storageSet("local", CONSENT_KEY, "essential_only");
       setConsent("essential_only");
       setVisible(true);
     }
@@ -415,6 +512,10 @@ export function ConsentManager() {
             />
             <span><strong>Measurement</strong> — anonymous page and product journey counts.</span>
           </label>
+           <label className="flex items-center gap-2 opacity-70">
+             <input type="checkbox" checked={false} disabled readOnly className="accent-[#b8912f]" />
+             <span><strong>Marketing</strong> — no marketing technology or pixels are currently active.</span>
+           </label>
         </div>
       </details>
       <p className="mt-3 text-[10px] text-[#a09070] leading-relaxed">

@@ -36,6 +36,7 @@ import {
   privacyRequestsTable,
 } from "@workspace/db";
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import {
   buildAnalyticsQualityReport,
@@ -388,7 +389,9 @@ router.post("/staff/privacy-requests", requireStaffRoles("owner", "operations"),
     return;
   }
   const created = await db.transaction(async (tx) => {
-    const [request] = await tx.insert(privacyRequestsTable).values(parsed.data).returning();
+    const policyVersion = currentPrivacyPolicyVersion();
+    await recordPrivacyPolicyVersion(tx, policyVersion);
+    const [request] = await tx.insert(privacyRequestsTable).values({ ...parsed.data, policyVersion }).returning();
     await tx.insert(auditLogsTable).values({
       actorClerkUserId: req.staff!.clerkUserId,
       action: "privacy_request.logged",

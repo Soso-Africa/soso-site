@@ -65,6 +65,7 @@ import {
   Users,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ExperimentLog } from "@/components/ExperimentLog";
 
 type StaffWorkflowDisplayStatus = StaffOrderUpdateStatus | "paid";
 
@@ -171,14 +172,17 @@ export default function Staff() {
       <Pulse overview={overview.data} loading={overview.isLoading} />
 
       {canSeeAnalytics && (
-        <AnalyticsSection
-          funnel={funnel.data}
-          auditEvents={audit.data}
-          loading={funnel.isLoading || audit.isLoading}
-          range={range}
-          role={profile.role}
-          onExported={() => void audit.refetch()}
-        />
+        <>
+          <AnalyticsSection
+            funnel={funnel.data}
+            auditEvents={audit.data}
+            loading={funnel.isLoading || audit.isLoading}
+            range={range}
+            role={profile.role}
+            onExported={() => void audit.refetch()}
+          />
+          <ExperimentLog />
+        </>
       )}
 
       {(canViewOrders || canManageEnquiries) && (
@@ -656,7 +660,7 @@ function PrivacyRow({ request, role, onChanged }: { request: StaffPrivacyRequest
     setVerificationNote(request.verificationNote ?? "");
     setResolutionNote(request.resolutionNote ?? "");
   }, [request.id, request.updatedAt, request.status, request.verificationNote, request.resolutionNote]);
-  return <article className="p-5"><div className="flex flex-col justify-between gap-2 sm:flex-row"><div><p className="text-sm font-medium capitalize">{request.requestType} request</p><p className="mt-1 text-xs text-muted-foreground">{request.requesterName || "Requester"} · {request.requesterEmail}</p></div><StatusBadge status={request.status} /></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Procedure status<select value={status} disabled={locked} onChange={(event) => setStatus(event.target.value as typeof status)} className="staff-input mt-1"><option value="received">Received</option><option value="identity_verified">Identity verified</option><option value="in_progress">In progress</option>{owner && <><option value="completed">Completed</option><option value="rejected">Rejected</option></>}</select></label><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Verification note<textarea disabled={locked} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label></div>{owner && <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Resolution note (required for complete/reject)<textarea disabled={locked} value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label>}<div className="mt-3 flex items-center justify-between"><p role="status" className="text-xs text-muted-foreground">{locked ? "This terminal privacy record is locked." : notice}</p><button type="button" disabled={locked || update.isPending} onClick={async () => { try { await update.mutateAsync({ id: request.id, data: { status, verificationNote: verificationNote || null, ...(owner ? { resolutionNote: resolutionNote || null } : {}) } }); setNotice("Privacy request updated."); onChanged(); } catch (error) { setNotice(errorMessage(error, "This request could not be updated.")); } }} className="inline-flex min-h-10 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Save size={14} /> Save procedure step</button></div></article>;
+  return <article className="p-5"><div className="flex flex-col justify-between gap-2 sm:flex-row"><div><p className="text-sm font-medium capitalize">{request.requestType} request</p><p className="mt-1 text-xs text-muted-foreground">{request.requesterName || "Requester"} · {request.requesterEmail}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Policy version: {request.policyVersion}</p></div><StatusBadge status={request.status} /></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Procedure status<select value={status} disabled={locked} onChange={(event) => setStatus(event.target.value as typeof status)} className="staff-input mt-1"><option value="received">Received</option><option value="identity_verified">Identity verified</option><option value="in_progress">In progress</option>{owner && <><option value="completed">Completed</option><option value="rejected">Rejected</option></>}</select></label><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Verification note<textarea disabled={locked} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label></div>{owner && <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Resolution note (required for complete/reject)<textarea disabled={locked} value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label>}<div className="mt-3 flex items-center justify-between"><p role="status" className="text-xs text-muted-foreground">{locked ? "This terminal privacy record is locked." : notice}</p><button type="button" disabled={locked || update.isPending} onClick={async () => { try { await update.mutateAsync({ id: request.id, data: { status, verificationNote: verificationNote || null, ...(owner ? { resolutionNote: resolutionNote || null } : {}) } }); setNotice("Privacy request updated."); onChanged(); } catch (error) { setNotice(errorMessage(error, "This request could not be updated.")); } }} className="inline-flex min-h-10 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Save size={14} /> Save procedure step</button></div></article>;
 }
 
 function JournalManagementSection() {

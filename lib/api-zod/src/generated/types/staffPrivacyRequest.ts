@@ -15,6 +15,7 @@ export interface StaffPrivacyRequest {
   /** @nullable */
   requesterName?: string | null;
   requesterEmail: string;
+  policyVersion: string;
   status: StaffPrivacyRequestStatus;
   /** @nullable */
   verificationNote?: string | null;

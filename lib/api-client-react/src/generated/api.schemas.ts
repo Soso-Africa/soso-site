@@ -164,6 +164,34 @@ export interface Enquiry {
   updatedAt: string;
 }
 
+export type PrivacyRequestInputRequestType = typeof PrivacyRequestInputRequestType[keyof typeof PrivacyRequestInputRequestType];
+
+
+export const PrivacyRequestInputRequestType = {
+  access: 'access',
+  deletion: 'deletion',
+} as const;
+
+export interface PrivacyRequestInput {
+  requestType: PrivacyRequestInputRequestType;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     * @nullable
+     */
+  requesterName?: string | null;
+  /**
+     * @minLength 3
+     * @maxLength 320
+     * @pattern ^[^\s@]+@[^\s@]+\.[^\s@]+$
+     */
+  requesterEmail: string;
+}
+
+export interface PrivacyRequestAcknowledgement {
+  accepted: boolean;
+}
+
 export interface FaqItem {
   id: string;
   question: string;
@@ -1037,6 +1065,7 @@ export interface StaffPrivacyRequest {
   /** @nullable */
   requesterName?: string | null;
   requesterEmail: string;
+  policyVersion: string;
   status: StaffPrivacyRequestStatus;
   /** @nullable */
   verificationNote?: string | null;

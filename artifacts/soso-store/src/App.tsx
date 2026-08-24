@@ -152,10 +152,18 @@ function RedirectGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let timedOut = false;
     setChecking(true);
+    // Redirects are a convenience layer; the storefront must remain available
+    // if that lookup is slow or unavailable.
+    const fallbackTimer = window.setTimeout(() => {
+      timedOut = true;
+      if (!cancelled) setChecking(false);
+    }, 4000);
+
     void getRedirect({ path: location })
       .then(({ redirect }) => {
-        if (cancelled) return;
+        if (cancelled || timedOut) return;
         if (!redirect) return;
         if (
           redirect.toPath !== location
@@ -171,10 +179,29 @@ function RedirectGuard({ children }: { children: ReactNode }) {
       .finally(() => {
         if (!cancelled) setChecking(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallbackTimer);
+    };
   }, [location, navigate]);
 
-  if (checking) return <div className="min-h-[45vh]" aria-busy="true" />;
+  if (checking) {
+    return (
+      <div
+        className="flex min-h-[45vh] items-center justify-center px-6 text-center"
+        aria-busy="true"
+        aria-live="polite"
+        role="status"
+      >
+        <div>
+          <p className="soso-display text-2xl font-light">Preparing your visit</p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Checking for the right SOSO page.
+          </p>
+        </div>
+      </div>
+    );
+  }
   return <>{children}</>;
 }
 

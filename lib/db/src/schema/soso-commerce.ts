@@ -218,6 +218,7 @@ export const privacyRequestsTable = pgTable(
     requestType: privacyRequestTypeEnum("request_type").notNull(),
     requesterName: text("requester_name"),
     requesterEmail: text("requester_email").notNull(),
+    policyVersion: text("policy_version").notNull().default("unconfigured"),
     status: privacyRequestStatusEnum("status").notNull().default("received"),
     verificationNote: text("verification_note"),
     resolutionNote: text("resolution_note"),
@@ -229,6 +230,18 @@ export const privacyRequestsTable = pgTable(
     index("soso_privacy_requests_status_created_idx").on(table.status, table.createdAt),
     index("soso_privacy_requests_email_created_idx").on(table.requesterEmail, table.createdAt),
   ],
+);
+
+/**
+ * Version identifiers only. Legal copy, approval decisions, and retention
+ * rules intentionally remain outside the application database.
+ */
+export const policyVersionsTable = pgTable(
+  "soso_policy_versions",
+  {
+    version: text("version").primaryKey(),
+    firstRecordedAt: timestamp("first_recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
 );
 
 export const operationalNotificationsTable = pgTable(
@@ -418,6 +431,7 @@ export type CommerceCheckoutAttempt = typeof commerceCheckoutAttemptsTable.$infe
 export type CommerceWebhookEvent = typeof commerceWebhookEventsTable.$inferSelect;
 export type CustomerEnquiry = typeof customerEnquiriesTable.$inferSelect;
 export type PrivacyRequest = typeof privacyRequestsTable.$inferSelect;
+export type PolicyVersion = typeof policyVersionsTable.$inferSelect;
 export type OperationalNotification = typeof operationalNotificationsTable.$inferSelect;
 export type OperationalNotificationAcknowledgement = typeof operationalNotificationAcknowledgementsTable.$inferSelect;
 export type JournalPost = typeof journalPostsTable.$inferSelect;

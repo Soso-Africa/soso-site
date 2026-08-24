@@ -33,10 +33,10 @@ Set these build-time variables **only after the matching approval is complete**:
 | `VITE_SOSO_INDEXING_ENABLED=true` | Master release switch for crawling, canonical URLs, and sitemap generation. |
 | `VITE_SOSO_CATALOG_APPROVED=true` | Allows the shop and product routes into the sitemap and search. |
 | `VITE_SOSO_POLICIES_APPROVED=true` | Allows policy routes into the sitemap and search after final text replaces the drafts. |
-| `VITE_SOSO_JOURNAL_APPROVED=true` | Allows the Journal landing page into search. |
+| `VITE_SOSO_JOURNAL_APPROVED=true` | Allows only Journal landing/article records present in the explicit approved SEO allowlist into search. |
 | `VITE_SOSO_SOCIAL_IMAGE_PATH=/images/...` | Path to SOSO's approved social-sharing image. |
 
-The storefront build generates `dist/public/robots.txt`, `dist/public/sitemap.xml`, and an internal SEO manifest after Vite completes. A production response layer sets route-specific robots and canonical metadata before React loads. Do not hand-edit generated files. The committed `public/robots.txt` is deliberately private as a safety fallback.
+The storefront build generates `dist/public/robots.txt`, `dist/public/sitemap.xml`, and an internal SEO manifest after Vite completes. The generated storefront sitemap is the public sitemap; the API sitemap is intentionally conservative and does not infer Journal approval from publication status. A production response layer sets route-specific robots and canonical metadata before React loads. Do not hand-edit generated files. The committed `public/robots.txt` is deliberately private as a safety fallback.
 
 Before enabling Journal indexing, add each approved, published article's factual SEO record to `src/data/journal-seo.json`. The record is the explicit publication allowlist used by the response layer and sitemap; keep it empty until editorial approval:
 
@@ -63,11 +63,24 @@ After publishing:
 Run:
 
 ```sh
-pnpm --filter @workspace/soso-store run typecheck
-pnpm --filter @workspace/soso-store run build
+pnpm --filter @workspace/soso-store run validate:release
 ```
 
+This performs the storefront typecheck, static media/performance budgets, production build, and a local staging-like inspection of the generated release files. Save the command output with the release record. The static check rejects embedded image data, public image files over 512 KiB, a public-image total over 1 MiB, images without alternative text or layout reservation, and built client assets over 1 MiB. These are lightweight safeguards, not a substitute for real-device measurement.
+
 Then verify the generated SEO files match the intended release state. A release build must only include a sitemap when the approved domain and master indexing switch are both present.
+
+### Service health and readiness evidence
+
+The API exposes the unauthenticated, non-sensitive process health endpoint `GET /api/healthz`. It intentionally reports only `{"status":"ok"}` and does not expose configuration, dependency status, or secrets. The deployment startup health check uses this endpoint.
+
+For a local or staging-like environment, after the managed services are available, capture:
+
+```sh
+curl --fail --silent --show-error http://localhost:80/api/healthz
+```
+
+Record the response, timestamp, target environment, and release identifier. Do not treat this process-level endpoint as proof that payment, database recovery, or third-party providers are operational; those have separate release gates.
 
 ### Accessibility and supported mobile devices
 
@@ -97,8 +110,19 @@ Run Lighthouse or an equivalent real-device test on the published production dom
 
 1. Identify every persistent source: production database, payment/order provider records, editorial records, and uploaded media.
 2. Confirm each source's backup owner, frequency, retention, encryption/access controls, and restore contact.
-3. Perform a non-destructive restore drill into an isolated environment and record the recovery time and result.
-4. Repeat before major schema, payment, or catalogue changes.
+3. Perform a non-destructive restore drill into an isolated local, test, preview, or staging environment and record the recovery time and result. Never supply production credentials or a production target to a release validation command.
+4. Create `backup-manifest.json` and `restored-manifest.json` in `artifacts/soso-store/.release-evidence/backup-restore/` (or set `BACKUP_RESTORE_EVIDENCE_DIR`). Each file must contain `environment` (`local`, `staging`, `preview`, or `test`), `production: false`, `snapshotId`, `integrityHash`, and non-negative integer `recordCount`. Use the same snapshot ID, integrity hash, and record count in both files only after the isolated restore has been checked.
+5. Run this evidence-only verifier; it is hard-disabled under `NODE_ENV=production` and makes no network, database, or restore calls:
+
+   ```sh
+   NODE_ENV=staging pnpm --filter @workspace/soso-store run verify:backup-restore
+   ```
+
+6. Save the manifests (without credentials or personal data), command output, restore target, operator, date, and measured recovery time in the release record. Repeat before major schema, payment, or catalogue changes.
+
+### Monitoring boundary
+
+No external monitoring, alerting, uptime, error-tracking, or analytics provider is configured by these safeguards. Keep provider credentials and integrations unconfigured until SOSO approves an owner, data handling, alert policy, retention, escalation process, and budget. Until then, retain the health-check and release/restore evidence above as local operational evidence; they do not create external alerts.
 
 ### Customer support handoff
 

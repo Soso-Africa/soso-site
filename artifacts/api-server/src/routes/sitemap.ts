@@ -1,36 +1,55 @@
 /**
  * SOSO Africa — Dynamic XML sitemap
  *
- * Serves /api/sitemap.xml with all static routes plus every published
- * Journal article. Respects PUBLIC_SITE_URL; returns 404 if not configured.
+ * Serves /api/sitemap.xml only when the approved canonical origin and the
+ * indexing release switch are configured. Journal URLs are intentionally not
+ * generated here: the storefront owns the explicit Journal SEO allowlist.
  *
- * The storefront robots.txt should point to this endpoint once a production
- * domain is confirmed and VITE_ENABLE_INDEXING / VITE_CATALOG_APPROVED are set.
+ * The storefront's generated sitemap is the canonical public sitemap. This
+ * endpoint remains conservative so it cannot publish a database record that
+ * has not been explicitly approved for search.
  */
 
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, journalPostsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
-const STATIC_PATHS = [
+type SitemapPath = {
+  path: string;
+  changefreq: string;
+  priority: string;
+  releaseGate?: "catalog" | "policies";
+};
+
+const STATIC_PATHS: SitemapPath[] = [
   { path: "/", changefreq: "weekly", priority: "1.0" },
-  { path: "/shop", changefreq: "weekly", priority: "0.9" },
   { path: "/about", changefreq: "monthly", priority: "0.7" },
-  { path: "/journal", changefreq: "weekly", priority: "0.8" },
   { path: "/faq", changefreq: "monthly", priority: "0.7" },
-  { path: "/collections/kaftans", changefreq: "weekly", priority: "0.8" },
-  { path: "/collections/agbadas", changefreq: "weekly", priority: "0.8" },
-  { path: "/collections/dashikis", changefreq: "weekly", priority: "0.8" },
-  { path: "/collections/shirts", changefreq: "weekly", priority: "0.8" },
-  { path: "/collections/two-piece", changefreq: "weekly", priority: "0.8" },
-  { path: "/privacy", changefreq: "monthly", priority: "0.4" },
-  { path: "/terms", changefreq: "monthly", priority: "0.4" },
-  { path: "/delivery-returns", changefreq: "monthly", priority: "0.5" },
-  { path: "/care", changefreq: "monthly", priority: "0.4" },
-  { path: "/sizing", changefreq: "monthly", priority: "0.5" },
+  { path: "/shop", changefreq: "weekly", priority: "0.9", releaseGate: "catalog" },
+  { path: "/collections/kaftans", changefreq: "weekly", priority: "0.8", releaseGate: "catalog" },
+  { path: "/collections/agbadas", changefreq: "weekly", priority: "0.8", releaseGate: "catalog" },
+  { path: "/collections/dashikis", changefreq: "weekly", priority: "0.8", releaseGate: "catalog" },
+  { path: "/collections/shirts", changefreq: "weekly", priority: "0.8", releaseGate: "catalog" },
+  { path: "/collections/two-piece", changefreq: "weekly", priority: "0.8", releaseGate: "catalog" },
+  { path: "/policies", changefreq: "monthly", priority: "0.5", releaseGate: "policies" },
+  { path: "/privacy", changefreq: "monthly", priority: "0.4", releaseGate: "policies" },
+  { path: "/terms", changefreq: "monthly", priority: "0.4", releaseGate: "policies" },
+  { path: "/delivery-returns", changefreq: "monthly", priority: "0.5", releaseGate: "policies" },
+  { path: "/care", changefreq: "monthly", priority: "0.4", releaseGate: "policies" },
 ];
+
+export function normalizeApprovedSiteUrl(value: string | undefined): string {
+  if (!value) return "";
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return "";
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname.endsWith(".replit.dev")) return "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
 
 function xmlEscape(str: string): string {
   return str
@@ -41,58 +60,44 @@ function xmlEscape(str: string): string {
     .replace(/'/g, "&apos;");
 }
 
-function sitemapUrl(base: string, path: string, lastmod?: string, changefreq?: string, priority?: string): string {
+function sitemapUrl(base: string, path: string, changefreq: string, priority: string): string {
   return [
     "  <url>",
     `    <loc>${xmlEscape(base.replace(/\/$/, "") + path)}</loc>`,
-    lastmod ? `    <lastmod>${lastmod.slice(0, 10)}</lastmod>` : "",
-    changefreq ? `    <changefreq>${changefreq}</changefreq>` : "",
-    priority ? `    <priority>${priority}</priority>` : "",
+    `    <changefreq>${changefreq}</changefreq>`,
+    `    <priority>${priority}</priority>`,
     "  </url>",
   ]
-    .filter(Boolean)
     .join("\n");
 }
 
-router.get("/sitemap.xml", async (_req, res): Promise<void> => {
-  const siteUrl = process.env.PUBLIC_SITE_URL?.replace(/\/$/, "");
-  if (!siteUrl) {
-    res.status(404).json({ error: "Sitemap is not available until a production domain is configured." });
-    return;
-  }
+export function buildSitemap(env: NodeJS.ProcessEnv): string | null {
+  const siteUrl = normalizeApprovedSiteUrl(env.VITE_PUBLIC_SITE_URL);
+  if (!siteUrl || env.VITE_SOSO_INDEXING_ENABLED !== "true") return null;
 
-  const publishedArticles = await db
-    .select({
-      slug: journalPostsTable.slug,
-      updatedAt: journalPostsTable.updatedAt,
-      publishedAt: journalPostsTable.publishedAt,
-    })
-    .from(journalPostsTable)
-    .where(eq(journalPostsTable.status, "published"))
-    .orderBy(journalPostsTable.publishedAt);
-
-  const staticEntries = STATIC_PATHS.map((p) =>
-    sitemapUrl(siteUrl, p.path, new Date().toISOString(), p.changefreq, p.priority),
-  );
-
-  const articleEntries = publishedArticles.map((a) =>
-    sitemapUrl(
-      siteUrl,
-      `/journal/${a.slug}`,
-      (a.updatedAt ?? a.publishedAt ?? new Date()).toISOString(),
-      "monthly",
-      "0.7",
-    ),
-  );
+  const releaseGates = {
+    catalog: env.VITE_SOSO_CATALOG_APPROVED === "true",
+    policies: env.VITE_SOSO_POLICIES_APPROVED === "true",
+  };
+  const staticEntries = STATIC_PATHS
+    .filter((entry) => !entry.releaseGate || releaseGates[entry.releaseGate])
+    .map((entry) => sitemapUrl(siteUrl, entry.path, entry.changefreq, entry.priority));
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ...staticEntries,
-    ...articleEntries,
     "</urlset>",
   ].join("\n");
+  return xml;
+}
 
+router.get("/sitemap.xml", async (_req, res): Promise<void> => {
+  const xml = buildSitemap(process.env);
+  if (!xml) {
+    res.status(404).json({ error: "Sitemap is unavailable until approved indexing configuration is supplied." });
+    return;
+  }
   res.set("Content-Type", "application/xml; charset=utf-8");
   res.set("Cache-Control", "public, max-age=3600");
   res.send(xml);

@@ -26,21 +26,61 @@ type CartContextType = {
 };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+const CART_KEY = 'soso-cart';
+const MAX_CART_ITEMS = 100;
+
+function readStoredCart(): CartItem[] {
+  try {
+    const saved = window.localStorage.getItem(CART_KEY);
+    if (!saved) return [];
+    const parsed: unknown = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(0, MAX_CART_ITEMS).flatMap((item): CartItem[] => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+      const candidate = item as Record<string, unknown>;
+      if (
+        typeof candidate.slug !== 'string'
+        || typeof candidate.name !== 'string'
+        || typeof candidate.img !== 'string'
+        || typeof candidate.size !== 'string'
+        || typeof candidate.price !== 'number'
+        || !Number.isFinite(candidate.price)
+        || typeof candidate.quantity !== 'number'
+        || !Number.isInteger(candidate.quantity)
+        || candidate.quantity < 1
+      ) return [];
+      return [{
+        slug: candidate.slug,
+        name: candidate.name,
+        img: candidate.img,
+        size: candidate.size,
+        price: candidate.price,
+        quantity: candidate.quantity,
+        ...(typeof candidate.commerceProductId === 'string' ? { commerceProductId: candidate.commerceProductId } : {}),
+        ...(typeof candidate.commerceVariantId === 'string' ? { commerceVariantId: candidate.commerceVariantId } : {}),
+      }];
+    });
+  } catch {
+    // Local storage may be unavailable, blocked, or contain invalid JSON.
+    return [];
+  }
+}
+
+function persistCart(items: CartItem[]): void {
+  try {
+    window.localStorage.setItem(CART_KEY, JSON.stringify(items));
+  } catch {
+    // Keep the current cart in memory when persistence is unavailable or full.
+  }
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('soso-cart');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [items, setItems] = useState<CartItem[]>(readStoredCart);
   
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('soso-cart', JSON.stringify(items));
+    persistCart(items);
   }, [items]);
 
   const openDrawer = () => setIsDrawerOpen((isOpen) => {

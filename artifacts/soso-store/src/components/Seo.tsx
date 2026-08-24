@@ -98,13 +98,14 @@ export function Seo({
   breadcrumbs,
 }: SeoProps) {
   useEffect(() => {
+    const pageIsIndexable = Boolean(siteUrl && indexingEnabled && !noIndex);
     document.title = title;
     setMeta('meta[name="description"]', description);
-    upsertMeta("name", "robots", noIndex || !indexingEnabled ? "noindex, follow" : "index, follow");
+    upsertMeta("name", "robots", pageIsIndexable ? "index, follow" : "noindex, follow");
     upsertMeta("property", "og:title", title);
     upsertMeta("property", "og:description", description);
     upsertMeta("property", "og:type", type);
-    upsertMeta("property", "og:url", siteUrl ? absoluteUrl(path) : null);
+    upsertMeta("property", "og:url", pageIsIndexable ? absoluteUrl(path) : null);
     upsertMeta("property", "og:image", article?.imageUrl || socialImageUrl() || null);
     upsertMeta("name", "twitter:card", "summary_large_image");
     upsertMeta("name", "twitter:title", title);
@@ -131,7 +132,7 @@ export function Seo({
 
     // Canonical
     document.head.querySelector('link[rel="canonical"]')?.remove();
-    if (siteUrl && !noIndex) {
+    if (pageIsIndexable) {
       const canonical = document.createElement("link");
       canonical.rel = "canonical";
       canonical.href = absoluteUrl(path);
@@ -140,7 +141,7 @@ export function Seo({
 
     // Page schema (product, article, or supplied)
     const productSchema =
-      product && siteUrl
+      product && pageIsIndexable
         ? {
             "@context": "https://schema.org",
             "@type": "Product",
@@ -160,7 +161,7 @@ export function Seo({
         : null;
 
     const articleSchema =
-      type === "article" && article && siteUrl
+      type === "article" && article && pageIsIndexable
         ? {
             "@context": "https://schema.org",
             "@type": "BlogPosting",
@@ -175,11 +176,11 @@ export function Seo({
           }
         : null;
 
-    injectSchema("soso-page-schema", structuredData ?? articleSchema ?? productSchema);
+    injectSchema("soso-page-schema", pageIsIndexable ? structuredData ?? articleSchema ?? productSchema : null);
 
     // Breadcrumb schema
     const breadcrumbSchema =
-      breadcrumbs && siteUrl && indexingEnabled
+      breadcrumbs && pageIsIndexable
         ? {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",

@@ -198,6 +198,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Enquiry"
+  /privacy-requests:
+    post:
+      operationId: createPrivacyRequest
+      tags: [storefront]
+      summary: Submit a privacy access or deletion request
+      description: Accepts a request without disclosing whether the supplied contact details match any customer record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacyRequestInput"
+      responses:
+        "202":
+          description: Request accepted for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivacyRequestAcknowledgement"
+        "400":
+          description: Invalid privacy request
+        "429":
+          description: Too many requests from this source
   /journal:
     get:
       operationId: listJournalPosts
@@ -770,6 +793,18 @@ components:
         handlingNotes: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    PrivacyRequestInput:
+      type: object
+      required: [requestType, requesterEmail]
+      properties:
+        requestType: { type: string, enum: [access, deletion] }
+        requesterName: { type: ["string", "null"], minLength: 1, maxLength: 120 }
+        requesterEmail: { type: string, minLength: 3, maxLength: 320, pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$' }
+    PrivacyRequestAcknowledgement:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: boolean }
     FaqItem:
       type: object
       required: [id, question, answer, category]
@@ -1163,12 +1198,13 @@ components:
         resolutionNote: { type: ["string", "null"], maxLength: 2000 }
     StaffPrivacyRequest:
       type: object
-      required: [id, requestType, requesterEmail, status, createdAt, updatedAt]
+      required: [id, requestType, requesterEmail, policyVersion, status, createdAt, updatedAt]
       properties:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         requestType: { type: string, enum: [access, deletion] }
         requesterName: { type: ["string", "null"] }
         requesterEmail: { type: string }
+        policyVersion: { type: string }
         status: { type: string, enum: [received, identity_verified, in_progress, completed, rejected] }
         verificationNote: { type: ["string", "null"] }
         resolutionNote: { type: ["string", "null"] }
