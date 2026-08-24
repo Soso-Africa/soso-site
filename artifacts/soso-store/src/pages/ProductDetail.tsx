@@ -9,13 +9,17 @@ import { Seo } from "@/components/Seo";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 import { catalogApproved } from "@/lib/seo";
+import { CommerceConfigurationError, commerceGateway, commerceMode } from "@/lib/commerce";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
   const [, setLocation] = useLocation();
   const { addItem } = useCart();
   
-  const product = products.find((p) => p.slug === params?.slug);
+  const [liveProduct, setLiveProduct] = useState<typeof products[number] | undefined>();
+  const [liveCatalogLoading, setLiveCatalogLoading] = useState(commerceMode === "justicesure-headless");
+  const previewProduct = products.find((p) => p.slug === params?.slug);
+  const product = commerceMode === "justicesure-headless" ? liveProduct : previewProduct;
   
   const [size, setSize] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -24,25 +28,44 @@ export default function ProductDetail() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (commerceMode !== "justicesure-headless") return;
+    let current = true;
+    setLiveCatalogLoading(true);
+    commerceGateway.getProduct(params?.slug ?? "")
+      .then((next) => {
+        if (current) setLiveProduct(next);
+      })
+      .catch((error) => {
+        if (current && error instanceof CommerceConfigurationError) setLiveProduct(undefined);
+      })
+      .finally(() => {
+        if (current) setLiveCatalogLoading(false);
+      });
+    return () => { current = false; };
+  }, [params?.slug]);
+
+  useEffect(() => {
     // Reset state on route change
     setSize(null);
     setImg(0);
     setLoaded(false);
     
-    if (!product) {
+    if (!product && !liveCatalogLoading) {
       setLocation("/shop");
       return;
     }
     
     const t = setTimeout(() => setLoaded(true), 60);
     return () => clearTimeout(t);
-  }, [product, setLocation]);
+  }, [product, liveCatalogLoading, setLocation]);
 
   useEffect(() => {
     if (product) trackStorefrontEvent("product_view", { productSlug: product.slug });
   }, [product]);
 
-  if (!product) return null;
+  if (!product) {
+    return liveCatalogLoading ? <main className="px-6 py-24 text-center text-[hsl(var(--secondary))]">Loading the verified JusticeSure collection…</main> : null;
+  }
 
   const gallery = [{ src: product.img, label: product.name }];
 
@@ -55,14 +78,16 @@ export default function ProductDetail() {
       name: product.name,
       img: product.img,
       price: product.price,
-      size: size
+      size: size,
+      commerceProductId: product.commerceProductId,
+      commerceVariantId: product.commerceVariantIds?.[size ?? ""],
     });
     trackStorefrontEvent("add_to_bag", { productSlug: product.slug, selectedSize: size ?? undefined });
     trackStorefrontEvent("cta_clicked", { ctaLabel: "add_to_bag", productSlug: product.slug });
   };
 
   // 4 random products for Complete the look
-  const look = products.filter(p => p.slug !== product.slug).slice(0, 4);
+  const look = commerceMode === "catalog-preview" ? products.filter(p => p.slug !== product.slug).slice(0, 4) : [];
 
   return (
     <div style={{ background: "hsl(var(--foreground))", color: "hsl(var(--background))" }} className="flex flex-col">

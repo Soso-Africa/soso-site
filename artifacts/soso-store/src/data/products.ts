@@ -8,6 +8,8 @@ export type CatalogProduct = {
   category: string;
   description: string;
   sizes: string[];
+  commerceProductId?: string;
+  commerceVariantIds?: Record<string, string>;
 };
 
 /**

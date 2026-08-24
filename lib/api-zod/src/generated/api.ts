@@ -18,6 +18,209 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Get the published JusticeSure catalogue
+ */
+export const getCommerceCatalogResponseProductsItemIdMin = 36;
+export const getCommerceCatalogResponseProductsItemIdMax = 36;
+
+export const getCommerceCatalogResponseProductsItemNameMax = 200;
+
+export const getCommerceCatalogResponseProductsItemDescriptionMax = 10000;
+
+export const getCommerceCatalogResponseProductsItemImagesItemMax = 2048;
+
+
+export const getCommerceCatalogResponseProductsItemAmountKoboMin = 0;
+
+export const getCommerceCatalogResponseProductsItemVariantsItemIdMin = 36;
+export const getCommerceCatalogResponseProductsItemVariantsItemIdMax = 36;
+
+export const getCommerceCatalogResponseProductsItemVariantsItemLabelMax = 160;
+
+
+
+export const GetCommerceCatalogResponse = zod.object({
+  "products": zod.array(zod.object({
+  "id": zod.string().min(getCommerceCatalogResponseProductsItemIdMin).max(getCommerceCatalogResponseProductsItemIdMax),
+  "name": zod.string().min(1).max(getCommerceCatalogResponseProductsItemNameMax),
+  "description": zod.string().max(getCommerceCatalogResponseProductsItemDescriptionMax).nullable(),
+  "images": zod.array(zod.string().min(1).max(getCommerceCatalogResponseProductsItemImagesItemMax)).min(1),
+  "amountKobo": zod.number().min(getCommerceCatalogResponseProductsItemAmountKoboMin),
+  "inStock": zod.boolean(),
+  "variants": zod.array(zod.object({
+  "id": zod.string().min(getCommerceCatalogResponseProductsItemVariantsItemIdMin).max(getCommerceCatalogResponseProductsItemVariantsItemIdMax),
+  "label": zod.string().min(1).max(getCommerceCatalogResponseProductsItemVariantsItemLabelMax)
+}))
+}))
+})
+
+
+/**
+ * @summary Get published JusticeSure pickup locations
+ */
+export const GetCommerceLocationsResponse = zod.object({
+  "locations": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
+/**
+ * @summary Create or safely resume a hosted JusticeSure payment session
+ */
+export const initiateCommerceCheckoutBodyCheckoutOperationIdMin = 8;
+export const initiateCommerceCheckoutBodyCheckoutOperationIdMax = 56;
+
+
+export const initiateCommerceCheckoutBodyCheckoutOperationIdRegExp = new RegExp('^[A-Za-z0-9_.:-]+$');
+export const initiateCommerceCheckoutBodyCustomerNameMax = 160;
+
+export const initiateCommerceCheckoutBodyCustomerEmailMin = 3;
+export const initiateCommerceCheckoutBodyCustomerEmailMax = 320;
+
+export const initiateCommerceCheckoutBodyCustomerPhoneMin = 3;
+export const initiateCommerceCheckoutBodyCustomerPhoneMax = 80;
+
+export const initiateCommerceCheckoutBodyItemsItemProductIdMin = 36;
+export const initiateCommerceCheckoutBodyItemsItemProductIdMax = 64;
+
+export const initiateCommerceCheckoutBodyItemsItemVariantIdMin = 36;
+export const initiateCommerceCheckoutBodyItemsItemVariantIdMax = 64;
+
+export const initiateCommerceCheckoutBodyItemsItemQuantityMax = 100;
+
+export const initiateCommerceCheckoutBodyItemsItemDisplayNameMax = 200;
+
+export const initiateCommerceCheckoutBodyItemsItemDisplaySlugMax = 160;
+
+export const initiateCommerceCheckoutBodyItemsItemSelectedSizeMax = 80;
+
+export const initiateCommerceCheckoutBodyItemsMax = 100;
+
+export const initiateCommerceCheckoutBodyFulfillmentLocationIdMin = 36;
+export const initiateCommerceCheckoutBodyFulfillmentLocationIdMax = 64;
+
+export const initiateCommerceCheckoutBodyFulfillmentAddressMax = 1000;
+
+export const initiateCommerceCheckoutBodyNotesMax = 1000;
+
+
+
+export const InitiateCommerceCheckoutBody = zod.object({
+  "checkoutOperationId": zod.string().min(initiateCommerceCheckoutBodyCheckoutOperationIdMin).max(initiateCommerceCheckoutBodyCheckoutOperationIdMax).regex(initiateCommerceCheckoutBodyCheckoutOperationIdRegExp),
+  "customer": zod.object({
+  "name": zod.string().min(1).max(initiateCommerceCheckoutBodyCustomerNameMax),
+  "email": zod.string().min(initiateCommerceCheckoutBodyCustomerEmailMin).max(initiateCommerceCheckoutBodyCustomerEmailMax),
+  "phone": zod.string().min(initiateCommerceCheckoutBodyCustomerPhoneMin).max(initiateCommerceCheckoutBodyCustomerPhoneMax)
+}),
+  "items": zod.array(zod.object({
+  "productId": zod.string().min(initiateCommerceCheckoutBodyItemsItemProductIdMin).max(initiateCommerceCheckoutBodyItemsItemProductIdMax),
+  "variantId": zod.string().min(initiateCommerceCheckoutBodyItemsItemVariantIdMin).max(initiateCommerceCheckoutBodyItemsItemVariantIdMax).optional(),
+  "quantity": zod.number().min(1).max(initiateCommerceCheckoutBodyItemsItemQuantityMax),
+  "displayName": zod.string().max(initiateCommerceCheckoutBodyItemsItemDisplayNameMax).optional(),
+  "displaySlug": zod.string().max(initiateCommerceCheckoutBodyItemsItemDisplaySlugMax).optional(),
+  "selectedSize": zod.string().max(initiateCommerceCheckoutBodyItemsItemSelectedSizeMax).optional()
+})).min(1).max(initiateCommerceCheckoutBodyItemsMax),
+  "fulfillment": zod.object({
+  "type": zod.enum(['pickup', 'delivery']),
+  "locationId": zod.string().min(initiateCommerceCheckoutBodyFulfillmentLocationIdMin).max(initiateCommerceCheckoutBodyFulfillmentLocationIdMax).optional(),
+  "address": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentAddressMax).optional()
+}),
+  "notes": zod.string().max(initiateCommerceCheckoutBodyNotesMax).optional()
+})
+
+export const initiateCommerceCheckoutResponseAttemptIdMin = 36;
+export const initiateCommerceCheckoutResponseAttemptIdMax = 36;
+
+export const initiateCommerceCheckoutResponseCheckoutUrlMin = 8;
+export const initiateCommerceCheckoutResponseCheckoutUrlMax = 2048;
+
+
+export const initiateCommerceCheckoutResponseCheckoutUrlRegExp = new RegExp('^https:/');
+
+
+export const InitiateCommerceCheckoutResponse = zod.object({
+  "attemptId": zod.string().min(initiateCommerceCheckoutResponseAttemptIdMin).max(initiateCommerceCheckoutResponseAttemptIdMax),
+  "checkoutUrl": zod.string().min(initiateCommerceCheckoutResponseCheckoutUrlMin).max(initiateCommerceCheckoutResponseCheckoutUrlMax).regex(initiateCommerceCheckoutResponseCheckoutUrlRegExp)
+})
+
+
+/**
+ * @summary Read JusticeSure-verified status for a browser-owned checkout attempt
+ */
+export const getCommercePaymentStatusPathAttemptIdMin = 36;
+export const getCommercePaymentStatusPathAttemptIdMax = 36;
+
+
+
+export const GetCommercePaymentStatusParams = zod.object({
+  "attemptId": zod.coerce.string().min(getCommercePaymentStatusPathAttemptIdMin).max(getCommercePaymentStatusPathAttemptIdMax)
+})
+
+export const getCommercePaymentStatusResponseAttemptIdMin = 36;
+export const getCommercePaymentStatusResponseAttemptIdMax = 36;
+
+export const getCommercePaymentStatusResponseOrderNumberMax = 120;
+
+export const getCommercePaymentStatusResponsePaymentStatusMax = 100;
+
+export const getCommercePaymentStatusResponseTotalKoboMin = 0;
+
+
+
+export const GetCommercePaymentStatusResponse = zod.object({
+  "attemptId": zod.string().min(getCommercePaymentStatusResponseAttemptIdMin).max(getCommercePaymentStatusResponseAttemptIdMax),
+  "orderNumber": zod.string().max(getCommercePaymentStatusResponseOrderNumberMax).optional(),
+  "status": zod.enum(['starting', 'payment_pending', 'paid', 'cancelled', 'refunded', 'fulfilled', 'failed']),
+  "paymentStatus": zod.string().max(getCommercePaymentStatusResponsePaymentStatusMax),
+  "provider": zod.enum(['paystack', 'flutterwave']).optional(),
+  "totalKobo": zod.number().min(getCommercePaymentStatusResponseTotalKoboMin).optional(),
+  "currency": zod.enum(['NGN']).optional(),
+  "checkedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Receive a signed JusticeSure Commerce webhook
+ */
+export const receiveCommerceWebhookHeaderXJusticeSureTimestampMax = 32;
+
+export const receiveCommerceWebhookHeaderXJusticeSureEventIdMax = 200;
+
+export const receiveCommerceWebhookHeaderXJusticeSureEventMax = 100;
+
+export const receiveCommerceWebhookHeaderXJusticeSureSignatureMin = 71;
+export const receiveCommerceWebhookHeaderXJusticeSureSignatureMax = 71;
+
+
+
+export const ReceiveCommerceWebhookHeader = zod.object({
+  "X-JusticeSure-Timestamp": zod.string().min(1).max(receiveCommerceWebhookHeaderXJusticeSureTimestampMax),
+  "X-JusticeSure-Event-Id": zod.string().min(1).max(receiveCommerceWebhookHeaderXJusticeSureEventIdMax),
+  "X-JusticeSure-Event": zod.string().min(1).max(receiveCommerceWebhookHeaderXJusticeSureEventMax),
+  "X-JusticeSure-Signature": zod.string().min(receiveCommerceWebhookHeaderXJusticeSureSignatureMin).max(receiveCommerceWebhookHeaderXJusticeSureSignatureMax)
+})
+
+export const receiveCommerceWebhookBodyIdMax = 200;
+
+export const receiveCommerceWebhookBodyEventMax = 100;
+
+export const receiveCommerceWebhookBodyApiVersionMax = 50;
+
+
+
+export const ReceiveCommerceWebhookBody = zod.object({
+  "id": zod.string().min(1).max(receiveCommerceWebhookBodyIdMax),
+  "event": zod.string().min(1).max(receiveCommerceWebhookBodyEventMax),
+  "apiVersion": zod.string().min(1).max(receiveCommerceWebhookBodyApiVersionMax),
+  "data": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const ReceiveCommerceWebhookResponse = zod.object({
+  "received": zod.boolean(),
+  "duplicate": zod.boolean().optional()
+})
+
+
+/**
  * @summary Record a consent-aware storefront event
  */
 export const recordAnalyticsEventBodyEventIdMin = 8;

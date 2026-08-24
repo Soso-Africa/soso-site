@@ -841,16 +841,16 @@ All content changes:
 
 ## 11. Data and backend foundation
 
-> 🟡 **Implementation status — PARTIAL.** The API is the trusted boundary for staff access, consent, analytics, enquiries, Journal, audit logs, and future commerce. Clerk authentication, database-backed roles, input validation, public rate limiting, same-origin browser-write protection, no card storage, and no browser provider credentials are implemented. Customer/entity persistence, production/fulfilment/payment attempts/webhook delivery, complete privacy workflows, encryption operation verification, and full service-domain routes need live commerce and approved operations.
+> 🟡 **Implementation status — PARTIAL.** The API is the trusted boundary for staff access, consent, analytics, enquiries, Journal, audit logs, and Commerce. Clerk authentication, database-backed roles, input validation, public rate limiting, same-origin browser-write protection, no card storage, no browser provider credentials, a server-projected JusticeSure catalogue, durable checkout attempts/idempotency keys, protected status recovery, and raw-body signed webhook handling are implemented. Live order/payment/fulfilment data, staging acceptance, complete privacy workflows, encryption operation verification, and full service-domain routes still need provider access and approved operations.
 
 Domain areas:
 
 - 🟢 auth/ (Clerk + DB-backed roles)
 - 🟡 admin/ (staff portal, partial coverage)
-- 🔴 catalog/ (blocked — JusticeSure contract)
-- 🟡 checkout/ (scaffold exists, disabled until JusticeSure)
-- 🔴 payments/ (scaffold exists, blocked activation)
-- 🟡 orders/ (schema + staff read, no live writes)
+- 🟡 catalog/ (server-projected JusticeSure v1 path; blocked activation)
+- 🟡 checkout/ (authoritative delivery/order/session flow, fail-closed)
+- 🟡 payments/ (hosted-session adapter and verified return recovery, blocked activation)
+- 🟡 orders/ (local view and authoritative refresh path; no live data)
 - 🔴 production/
 - 🔴 fulfilment/
 - 🟡 analytics/ (consent-gated events, partial funnel)
@@ -865,11 +865,11 @@ Persisted entities:
 - 🟢 Sessions
 - 🟢 Consent decisions
 - 🟢 Events
-- 🔴 Products and variants (blocked — JusticeSure catalog)
-- 🔴 Carts or checkout intents (local-only currently)
+- 🟡 Products and variants (server-projected provider identifiers; no live catalogue data)
+- 🟢 Checkout intents (durable browser-owned attempts and idempotency records)
 - 🟡 Orders (schema exists, no live data)
-- 🔴 Payment attempts (schema exists, no live data)
-- 🔴 Webhook deliveries
+- 🟡 Payment attempts (durable provider references; no live data)
+- 🟡 Webhook deliveries (durable claims/replay protection; no live deliveries)
 - 🔴 Atelier statuses
 - 🟢 Stylist enquiries
 - 🟢 Blog articles
@@ -884,7 +884,7 @@ Security requirements:
 - 🟢 Validation at every API boundary (Zod)
 - 🟢 Rate limiting on public event and checkout endpoints
 - 🟢 CSRF protection (same-origin cookie-auth protection)
-- 🔴 Webhook signature verification (scaffold exists, TODO to fill)
+- 🟢 Webhook signature verification, timestamp/replay protection, and durable claims (pending staged provider validation)
 - 🟢 PII minimization in analytics
 - 🟢 Encryption in transit (TLS via infrastructure)
 - 🟢 Audit logging for sensitive operations
@@ -949,14 +949,14 @@ Security requirements:
 
 ## 14. Build phases
 
-> 🟡 **Implementation status:** Phase 0 is **BLOCKED — the exact external inputs listed in section 16**. Phase 1 is **PARTIAL foundation / BLOCKED activation**: persistence and safe gateway boundary exist, but hosted payment/webhooks are disabled. Phase 2 is **PARTIAL**: trust, draft policies, product explanations, and persisted enquiries exist; final policies/reviews/order tracking need inputs. Phase 3 is **PARTIAL**: consented first-party events, route-aware engagement, attribution persistence, replay safety, and aggregate data-quality reporting exist; legal configuration and richer dashboard measurements are incomplete. Phase 4 is **PARTIAL**: real auth, RBAC, staff signals, Journal workflow/history, aggregate exports, privacy-request workflow, and audit visibility exist; full live-commerce operations and notification tooling do not. Phase 5 is **PARTIAL**: Journal/route SEO foundations, Article JSON-LD, dynamic sitemap, collection pages, and AEO content exist; full structured-data breadth, authoritative editorial, Search Console, and CWV monitoring do not. Phase 6 is **NOT STARTED / BLOCKED — legal consent, approved ad providers, live payment state, and campaign operations**.
+> 🟡 **Implementation status:** Phase 0 is **PARTIAL / BLOCKED — JusticeSure’s v1 contract is supplied, but staging access, provider selection, business operations decisions, approved policies, analytics legal basis, and approved staff roster remain external inputs**. Phase 1 is **CONTRACT-SAFE / BLOCKED activation**: server catalogue projection, hosted-session adapter, durable idempotency, protected return recovery, signed replay-safe webhooks, and fail-closed payment are implemented; staging and production acceptance are not. Phase 2 is **PARTIAL**: trust, draft policies, product explanations, and persisted enquiries exist; final policies/reviews/order tracking need inputs. Phase 3 is **PARTIAL**: consented first-party events, route-aware engagement, attribution persistence, replay safety, and aggregate data-quality reporting exist; legal configuration and richer dashboard measurements are incomplete. Phase 4 is **PARTIAL**: real auth, RBAC, staff signals, Journal workflow/history, aggregate exports, privacy-request workflow, and audit visibility exist; full live-commerce operations and notification tooling do not. Phase 5 is **PARTIAL**: Journal/route SEO foundations, Article JSON-LD, dynamic sitemap, collection pages, and AEO content exist; full structured-data breadth, authoritative editorial, Search Console, and CWV monitoring do not. Phase 6 is **NOT STARTED / BLOCKED — legal consent, approved ad providers, live payment state, and campaign operations**.
 
 ### Phase 0 — Decisions and contracts
 
-> 🔴 **Status — BLOCKED — JusticeSure documentation/credentials, business operations decisions, approved policies, analytics legal basis, and approved staff roster.**
+> 🟡 **Status — PARTIAL / BLOCKED — JusticeSure’s v1 contract is available; scoped staging credentials, published matching runtime, business operations decisions, approved policies, analytics legal basis, and approved staff roster remain required.**
 
-- 🔴 Obtain JusticeSure API and payment documentation.
-- 🔴 Decide whether JusticeSure owns payment or a separate provider is needed.
+- 🟢 Obtain JusticeSure v1 API and hosted-payment documentation.
+- 🟡 Confirm JusticeSure provider choice and settlement configuration.
 - 🔴 Confirm SOSO prices, currencies, delivery areas, and production workflow.
 - 🔴 Approve refund, return, cancellation, privacy, and cookie policies.
 - 🟡 Select analytics and consent approach (first-party approach selected; legal review pending).
@@ -964,13 +964,13 @@ Security requirements:
 
 ### Phase 1 — Commerce foundation
 
-> 🟡 **Status — PARTIAL foundation / BLOCKED activation.** Data models, staff visibility, and a fail-closed gateway boundary are in place; live adapter, hosted session, verified webhook, paid status, and atelier follow-up require provider contract and operations.
+> 🟡 **Status — CONTRACT-SAFE / BLOCKED activation.** Data models, server catalogue projection, browser-owned checkout attempts, hosted-session adapter, idempotency, verified webhook handling, and payment pending/success/failure recovery are in place and fail closed. A published matching provider runtime, staging merchant configuration, credentials, webhook registration, and atelier operations acceptance remain required.
 
-- 🟡 Server-side JusticeSure/payment adapter (scaffold — TODO to fill)
-- 🔴 Hosted secure payment session
-- 🟡 Verified webhooks and idempotency (scaffold — TODO to fill)
-- 🟡 Persist orders, payments, customers, and production status (schema exists; no live data)
-- 🔴 Payment success/failure/pending pages
+- 🟢 Server-side JusticeSure v1/payment adapter (server-only, contract-gated)
+- 🟡 Hosted secure payment session (implemented; blocked staging/runtime acceptance)
+- 🟢 Verified webhook validation, replay claims, and idempotency (pending staged provider validation)
+- 🟡 Persist orders, payments, customers, and production status (durable checkout/payment records; no live data)
+- 🟢 Payment success/failure/pending return pages (server-verified; no redirect trust)
 - 🔴 Post-payment atelier follow-up workflow
 
 ### Phase 2 — Trust and conversion

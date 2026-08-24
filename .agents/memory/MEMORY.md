@@ -1,5 +1,6 @@
 - [Conversion review evidence](conversion-review-evidence.md) — distinguish absent content from content that exists but is buried or poorly connected to the purchase decision.
 - [Payment-first bespoke checkout](payment-first-bespoke-checkout.md) — shoppers pay first; atelier production confirmation follows, with stylist help kept optional.
+- [JusticeSure v1 activation gate](justicesure-v1-activation-gate.md) — keep Commerce fail-closed until its staged runtime, credentials, webhook, catalogue, and return flow pass acceptance together.
 - [OpenAPI Zod format compatibility](openapi-zod-format-compatibility.md) — avoid unsupported generated format helpers until the workspace toolchain is upgraded together.
 - [Launch SEO safety gates](soso-launch-seo-gates.md) — direct responses stay private unless approved domain, route category, and editorial metadata are explicitly supplied.
 - [Lib package build order](lib-package-build-order.md) — after changing lib/db or lib/api-client-react schemas/exports, build those packages before typechecking consumers.

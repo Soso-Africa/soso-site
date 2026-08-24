@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ChevronLeft, LockKeyhole, MessageCircle } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { useCart } from "@/context/CartContext";
-import { commerceGateway, CommerceConfigurationError } from "@/lib/commerce";
+import { commerceGateway, CommerceConfigurationError, savePaymentAttempt } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
@@ -36,11 +36,16 @@ export default function Checkout() {
             name: String(form.get("name") || ""),
             email: String(form.get("email") || ""),
             phone: String(form.get("phone") || ""),
-            deliveryNote: String(form.get("deliveryNote") || ""),
+            },
+            fulfillment: {
+              type: "delivery",
+              address: String(form.get("address") || ""),
           },
+            notes: String(form.get("deliveryNote") || ""),
           items,
         });
         if (result.checkoutUrl) {
+          savePaymentAttempt(result.attemptId);
           window.location.assign(result.checkoutUrl);
           return;
         }
@@ -99,9 +104,14 @@ export default function Checkout() {
                 <input required type="email" name="email" autoComplete="email" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
               </label>
               <label className="text-sm block">
+                Delivery address
+                <textarea required name="address" autoComplete="street-address" rows={3} onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+              </label>
+              <label className="text-sm block">
                 Delivery notes <span className="opacity-60">(optional)</span>
                 <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
               </label>
+              <p className="text-xs leading-relaxed text-[hsl(var(--secondary))]">Delivery fees and final order totals are confirmed securely by JusticeSure before payment. Pickup will appear here when SOSO’s JusticeSure locations are published.</p>
 
               {state === "payment-unavailable" && (
                 <div role="alert" className="border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed">

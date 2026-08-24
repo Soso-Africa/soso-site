@@ -64,6 +64,22 @@ export const refundRequestStatusEnum = pgEnum("soso_refund_request_status", [
   "declined",
 ]);
 
+export const commerceAttemptStatusEnum = pgEnum("soso_commerce_attempt_status", [
+  "starting",
+  "payment_pending",
+  "paid",
+  "cancelled",
+  "refunded",
+  "fulfilled",
+  "failed",
+]);
+
+export const commerceWebhookStatusEnum = pgEnum("soso_commerce_webhook_status", [
+  "processing",
+  "completed",
+  "failed",
+]);
+
 export const staffUsersTable = pgTable(
   "soso_staff_users",
   {
@@ -125,6 +141,57 @@ export const orderItemsTable = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("soso_order_items_order_idx").on(table.orderId)],
+);
+
+export const commerceCheckoutAttemptsTable = pgTable(
+  "soso_commerce_checkout_attempts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownershipTokenHash: text("ownership_token_hash").notNull(),
+    requestHash: text("request_hash").notNull(),
+    customerName: text("customer_name").notNull(),
+    customerEmail: text("customer_email").notNull(),
+    customerPhone: text("customer_phone").notNull(),
+    items: jsonb("items").notNull(),
+    fulfillment: jsonb("fulfillment").notNull(),
+    orderIdempotencyKey: text("order_idempotency_key").notNull(),
+    paymentIdempotencyKey: text("payment_idempotency_key").notNull(),
+    justiceSureOrderId: text("justicesure_order_id"),
+    localOrderId: uuid("local_order_id").references(() => ordersTable.id, { onDelete: "set null" }),
+    provider: text("provider"),
+    paymentReference: text("payment_reference"),
+    checkoutUrl: text("checkout_url"),
+    status: commerceAttemptStatusEnum("status").notNull().default("starting"),
+    lastErrorCode: text("last_error_code"),
+    lastErrorMessage: text("last_error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("soso_commerce_attempt_order_key_idx").on(table.orderIdempotencyKey),
+    uniqueIndex("soso_commerce_attempt_payment_key_idx").on(table.paymentIdempotencyKey),
+    uniqueIndex("soso_commerce_attempt_justicesure_order_idx").on(table.justiceSureOrderId),
+    index("soso_commerce_attempt_status_created_idx").on(table.status, table.createdAt),
+  ],
+);
+
+export const commerceWebhookEventsTable = pgTable(
+  "soso_commerce_webhook_events",
+  {
+    eventId: text("event_id").primaryKey(),
+    eventType: text("event_type").notNull(),
+    apiVersion: text("api_version").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    status: commerceWebhookStatusEnum("status").notNull().default("processing"),
+    processingStartedAt: timestamp("processing_started_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    index("soso_commerce_webhook_status_updated_idx").on(table.status, table.updatedAt),
+  ],
 );
 
 export const customerEnquiriesTable = pgTable(
@@ -339,12 +406,16 @@ export const insertOperationalNotificationAcknowledgementSchema = createInsertSc
 export const insertJournalPostSchema = createInsertSchema(journalPostsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAnalyticsEventSchema = createInsertSchema(analyticsEventsTable).omit({ id: true, occurredAt: true });
 export const insertConsentRecordSchema = createInsertSchema(consentRecordsTable).omit({ id: true, createdAt: true });
+export const insertCommerceCheckoutAttemptSchema = createInsertSchema(commerceCheckoutAttemptsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCommerceWebhookEventSchema = createInsertSchema(commerceWebhookEventsTable).omit({ createdAt: true, updatedAt: true, completedAt: true });
 
 export type FaqItem = typeof faqItemsTable.$inferSelect;
 export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;
+export type CommerceCheckoutAttempt = typeof commerceCheckoutAttemptsTable.$inferSelect;
+export type CommerceWebhookEvent = typeof commerceWebhookEventsTable.$inferSelect;
 export type CustomerEnquiry = typeof customerEnquiriesTable.$inferSelect;
 export type PrivacyRequest = typeof privacyRequestsTable.$inferSelect;
 export type OperationalNotification = typeof operationalNotificationsTable.$inferSelect;
@@ -354,3 +425,5 @@ export type JournalPostRevision = typeof journalPostRevisionsTable.$inferSelect;
 export type AnalyticsEvent = typeof analyticsEventsTable.$inferSelect;
 export type ConsentRecord = typeof consentRecordsTable.$inferSelect;
 export type InsertStaffUser = z.infer<typeof insertStaffUserSchema>;
+export type InsertCommerceCheckoutAttempt = z.infer<typeof insertCommerceCheckoutAttemptSchema>;
+export type InsertCommerceWebhookEvent = z.infer<typeof insertCommerceWebhookEventSchema>;

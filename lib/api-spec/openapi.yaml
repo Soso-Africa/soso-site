@@ -28,6 +28,122 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /payment/catalog:
+    get:
+      operationId: getCommerceCatalog
+      tags: [storefront]
+      summary: Get the published JusticeSure catalogue
+      responses:
+        "200":
+          description: Customer-safe JusticeSure catalogue projection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommerceCatalog"
+  /payment/locations:
+    get:
+      operationId: getCommerceLocations
+      tags: [storefront]
+      summary: Get published JusticeSure pickup locations
+      responses:
+        "200":
+          description: Customer-safe JusticeSure locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommerceLocations"
+  /payment/initiate:
+    post:
+      operationId: initiateCommerceCheckout
+      tags: [storefront]
+      summary: Create or safely resume a hosted JusticeSure payment session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommerceCheckoutInput"
+      responses:
+        "200":
+          description: Hosted payment session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommercePaymentSession"
+        "400":
+          description: Invalid checkout details
+        "403":
+          description: Checkout attempt belongs to another browser session
+        "409":
+          description: Idempotency key conflicts with different checkout details
+        "503":
+          description: Payment is not available or cannot be confirmed
+  /payment/status/{attemptId}:
+    get:
+      operationId: getCommercePaymentStatus
+      tags: [storefront]
+      summary: Read JusticeSure-verified status for a browser-owned checkout attempt
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, minLength: 36, maxLength: 36 }
+      responses:
+        "200":
+          description: Verified Commerce order status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommercePaymentStatus"
+        "202":
+          description: Commerce order is still being created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommercePaymentStatus"
+        "404":
+          description: Checkout attempt is unknown or not owned by this browser
+        "503":
+          description: Authoritative payment status cannot be checked
+  /payment/webhook:
+    post:
+      operationId: receiveCommerceWebhook
+      tags: [storefront]
+      summary: Receive a signed JusticeSure Commerce webhook
+      parameters:
+        - in: header
+          name: X-JusticeSure-Timestamp
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 32 }
+        - in: header
+          name: X-JusticeSure-Event-Id
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - in: header
+          name: X-JusticeSure-Event
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - in: header
+          name: X-JusticeSure-Signature
+          required: true
+          schema: { type: string, minLength: 71, maxLength: 71 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommerceWebhookInput"
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommerceWebhookReceipt"
+        "401":
+          description: Invalid signature or event envelope
+        "503":
+          description: Processing did not complete; JusticeSure should retry
   /analytics/events:
     post:
       operationId: recordAnalyticsEvent
@@ -826,6 +942,118 @@ components:
           type: string
           enum: [new, in_progress, resolved, closed]
         handlingNotes: { type: ["string", "null"], maxLength: 2000 }
+    CommerceCustomerInput:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        email: { type: string, minLength: 3, maxLength: 320 }
+        phone: { type: string, minLength: 3, maxLength: 80 }
+    CommerceLineItemInput:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: string, minLength: 36, maxLength: 64 }
+        variantId: { type: string, minLength: 36, maxLength: 64 }
+        quantity: { type: number, minimum: 1, maximum: 100 }
+        displayName: { type: string, maxLength: 200 }
+        displaySlug: { type: string, maxLength: 160 }
+        selectedSize: { type: string, maxLength: 80 }
+    CommerceFulfillmentInput:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [pickup, delivery] }
+        locationId: { type: string, minLength: 36, maxLength: 64 }
+        address: { type: string, minLength: 1, maxLength: 1000 }
+    CommerceCheckoutInput:
+      type: object
+      required: [checkoutOperationId, customer, items, fulfillment]
+      properties:
+        checkoutOperationId: { type: string, minLength: 8, maxLength: 56, pattern: "^[A-Za-z0-9_.:-]+$" }
+        customer:
+          $ref: "#/components/schemas/CommerceCustomerInput"
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/CommerceLineItemInput"
+        fulfillment:
+          $ref: "#/components/schemas/CommerceFulfillmentInput"
+        notes: { type: string, maxLength: 1000 }
+    CommercePaymentSession:
+      type: object
+      required: [attemptId, checkoutUrl]
+      properties:
+        attemptId: { type: string, minLength: 36, maxLength: 36 }
+        checkoutUrl: { type: string, minLength: 8, maxLength: 2048, pattern: "^https://" }
+    CommercePaymentStatus:
+      type: object
+      required: [attemptId, status, paymentStatus, checkedAt]
+      properties:
+        attemptId: { type: string, minLength: 36, maxLength: 36 }
+        orderNumber: { type: string, maxLength: 120 }
+        status: { type: string, enum: [starting, payment_pending, paid, cancelled, refunded, fulfilled, failed] }
+        paymentStatus: { type: string, maxLength: 100 }
+        provider: { type: string, enum: [paystack, flutterwave] }
+        totalKobo: { type: number, minimum: 0 }
+        currency: { type: string, enum: [NGN] }
+        checkedAt: { type: string, format: date-time }
+    CommerceCatalog:
+      type: object
+      required: [products]
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommerceCatalogProduct"
+    CommerceCatalogProduct:
+      type: object
+      required: [id, name, description, images, amountKobo, inStock, variants]
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: ["string", "null"], maxLength: 10000 }
+        images:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 2048 }
+        amountKobo: { type: number, minimum: 0 }
+        inStock: { type: boolean }
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommerceCatalogVariant"
+    CommerceCatalogVariant:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        label: { type: string, minLength: 1, maxLength: 160 }
+    CommerceLocations:
+      type: object
+      required: [locations]
+      properties:
+        locations:
+          type: array
+          items: { type: object, additionalProperties: true }
+    CommerceWebhookInput:
+      type: object
+      required: [id, event, apiVersion]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 200 }
+        event: { type: string, minLength: 1, maxLength: 100 }
+        apiVersion: { type: string, minLength: 1, maxLength: 50 }
+        data:
+          type: object
+          additionalProperties: true
+    CommerceWebhookReceipt:
+      type: object
+      required: [received]
+      properties:
+        received: { type: boolean }
+        duplicate: { type: boolean }
     StaffOverview:
       type: object
       required: [ordersTotal, ordersInProduction, openEnquiries, storefrontEvents7d, paymentIsLive, from, to, generatedAt, freshnessMinutes, metrics]

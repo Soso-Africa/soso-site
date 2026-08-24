@@ -8,6 +8,8 @@ export type CartItem = {
   price: number;
   size: string;
   quantity: number;
+  commerceProductId?: string;
+  commerceVariantId?: string;
 };
 
 type CartContextType = {

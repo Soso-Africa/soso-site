@@ -602,6 +602,225 @@ export interface StaffEnquiryUpdate {
   handlingNotes?: string | null;
 }
 
+export interface CommerceCustomerInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  name: string;
+  /**
+     * @minLength 3
+     * @maxLength 320
+     */
+  email: string;
+  /**
+     * @minLength 3
+     * @maxLength 80
+     */
+  phone: string;
+}
+
+export interface CommerceLineItemInput {
+  /**
+     * @minLength 36
+     * @maxLength 64
+     */
+  productId: string;
+  /**
+     * @minLength 36
+     * @maxLength 64
+     */
+  variantId?: string;
+  /**
+     * @minimum 1
+     * @maximum 100
+     */
+  quantity: number;
+  /** @maxLength 200 */
+  displayName?: string;
+  /** @maxLength 160 */
+  displaySlug?: string;
+  /** @maxLength 80 */
+  selectedSize?: string;
+}
+
+export type CommerceFulfillmentInputType = typeof CommerceFulfillmentInputType[keyof typeof CommerceFulfillmentInputType];
+
+
+export const CommerceFulfillmentInputType = {
+  pickup: 'pickup',
+  delivery: 'delivery',
+} as const;
+
+export interface CommerceFulfillmentInput {
+  type: CommerceFulfillmentInputType;
+  /**
+     * @minLength 36
+     * @maxLength 64
+     */
+  locationId?: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  address?: string;
+}
+
+export interface CommerceCheckoutInput {
+  /**
+     * @minLength 8
+     * @maxLength 56
+     * @pattern ^[A-Za-z0-9_.:-]+$
+     */
+  checkoutOperationId: string;
+  customer: CommerceCustomerInput;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  items: CommerceLineItemInput[];
+  fulfillment: CommerceFulfillmentInput;
+  /** @maxLength 1000 */
+  notes?: string;
+}
+
+export interface CommercePaymentSession {
+  /**
+     * @minLength 36
+     * @maxLength 36
+     */
+  attemptId: string;
+  /**
+     * @minLength 8
+     * @maxLength 2048
+     * @pattern ^https://
+     */
+  checkoutUrl: string;
+}
+
+export type CommercePaymentStatusStatus = typeof CommercePaymentStatusStatus[keyof typeof CommercePaymentStatusStatus];
+
+
+export const CommercePaymentStatusStatus = {
+  starting: 'starting',
+  payment_pending: 'payment_pending',
+  paid: 'paid',
+  cancelled: 'cancelled',
+  refunded: 'refunded',
+  fulfilled: 'fulfilled',
+  failed: 'failed',
+} as const;
+
+export type CommercePaymentStatusProvider = typeof CommercePaymentStatusProvider[keyof typeof CommercePaymentStatusProvider];
+
+
+export const CommercePaymentStatusProvider = {
+  paystack: 'paystack',
+  flutterwave: 'flutterwave',
+} as const;
+
+export type CommercePaymentStatusCurrency = typeof CommercePaymentStatusCurrency[keyof typeof CommercePaymentStatusCurrency];
+
+
+export const CommercePaymentStatusCurrency = {
+  NGN: 'NGN',
+} as const;
+
+export interface CommercePaymentStatus {
+  /**
+     * @minLength 36
+     * @maxLength 36
+     */
+  attemptId: string;
+  /** @maxLength 120 */
+  orderNumber?: string;
+  status: CommercePaymentStatusStatus;
+  /** @maxLength 100 */
+  paymentStatus: string;
+  provider?: CommercePaymentStatusProvider;
+  /** @minimum 0 */
+  totalKobo?: number;
+  currency?: CommercePaymentStatusCurrency;
+  checkedAt: string;
+}
+
+export interface CommerceCatalogVariant {
+  /**
+     * @minLength 36
+     * @maxLength 36
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  label: string;
+}
+
+export interface CommerceCatalogProduct {
+  /**
+     * @minLength 36
+     * @maxLength 36
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * @maxLength 10000
+     * @nullable
+     */
+  description: string | null;
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     * @items.maxLength 2048
+     */
+  images: string[];
+  /** @minimum 0 */
+  amountKobo: number;
+  inStock: boolean;
+  variants: CommerceCatalogVariant[];
+}
+
+export interface CommerceCatalog {
+  products: CommerceCatalogProduct[];
+}
+
+export type CommerceLocationsLocationsItem = { [key: string]: unknown };
+
+export interface CommerceLocations {
+  locations: CommerceLocationsLocationsItem[];
+}
+
+export type CommerceWebhookInputData = { [key: string]: unknown };
+
+export interface CommerceWebhookInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  event: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  apiVersion: string;
+  data?: CommerceWebhookInputData;
+}
+
+export interface CommerceWebhookReceipt {
+  received: boolean;
+  duplicate?: boolean;
+}
+
 export interface StaffMetric {
   key: string;
   label: string;

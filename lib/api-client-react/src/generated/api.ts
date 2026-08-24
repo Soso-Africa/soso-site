@@ -23,6 +23,13 @@ import type {
   Acknowledgement,
   AnalyticsEventInput,
   AnalyticsQualityReport,
+  CommerceCatalog,
+  CommerceCheckoutInput,
+  CommerceLocations,
+  CommercePaymentSession,
+  CommercePaymentStatus,
+  CommerceWebhookInput,
+  CommerceWebhookReceipt,
   ConsentInput,
   ConsentRecord,
   Enquiry,
@@ -155,6 +162,386 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
+export const getGetCommerceCatalogUrl = () => {
+
+
+
+
+  return `/api/payment/catalog`
+}
+
+/**
+ * @summary Get the published JusticeSure catalogue
+ */
+export const getCommerceCatalog = async ( options?: Parameters<typeof customFetch>[1]): Promise<CommerceCatalog> => {
+
+  return customFetch<CommerceCatalog>(getGetCommerceCatalogUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommerceCatalogQueryKey = () => {
+    return [
+    `/api/payment/catalog`
+    ] as const;
+    }
+
+
+export const getGetCommerceCatalogQueryOptions = <TData = Awaited<ReturnType<typeof getCommerceCatalog>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommerceCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommerceCatalogQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommerceCatalog>>> = ({ signal }) => getCommerceCatalog({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommerceCatalog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommerceCatalogQueryResult = NonNullable<Awaited<ReturnType<typeof getCommerceCatalog>>>
+export type GetCommerceCatalogQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the published JusticeSure catalogue
+ */
+
+export function useGetCommerceCatalog<TData = Awaited<ReturnType<typeof getCommerceCatalog>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommerceCatalog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommerceCatalogQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetCommerceLocationsUrl = () => {
+
+
+
+
+  return `/api/payment/locations`
+}
+
+/**
+ * @summary Get published JusticeSure pickup locations
+ */
+export const getCommerceLocations = async ( options?: Parameters<typeof customFetch>[1]): Promise<CommerceLocations> => {
+
+  return customFetch<CommerceLocations>(getGetCommerceLocationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommerceLocationsQueryKey = () => {
+    return [
+    `/api/payment/locations`
+    ] as const;
+    }
+
+
+export const getGetCommerceLocationsQueryOptions = <TData = Awaited<ReturnType<typeof getCommerceLocations>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommerceLocations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommerceLocationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommerceLocations>>> = ({ signal }) => getCommerceLocations({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommerceLocations>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommerceLocationsQueryResult = NonNullable<Awaited<ReturnType<typeof getCommerceLocations>>>
+export type GetCommerceLocationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get published JusticeSure pickup locations
+ */
+
+export function useGetCommerceLocations<TData = Awaited<ReturnType<typeof getCommerceLocations>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommerceLocations>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommerceLocationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInitiateCommerceCheckoutUrl = () => {
+
+
+
+
+  return `/api/payment/initiate`
+}
+
+/**
+ * @summary Create or safely resume a hosted JusticeSure payment session
+ */
+export const initiateCommerceCheckout = async (commerceCheckoutInput: CommerceCheckoutInput, options?: Parameters<typeof customFetch>[1]): Promise<CommercePaymentSession> => {
+
+  return customFetch<CommercePaymentSession>(getInitiateCommerceCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commerceCheckoutInput)
+  }
+);}
+
+
+
+
+
+export const getInitiateCommerceCheckoutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateCommerceCheckout>>, TError,{data: BodyType<CommerceCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof initiateCommerceCheckout>>, TError,{data: BodyType<CommerceCheckoutInput>}, TContext> => {
+
+const mutationKey = ['initiateCommerceCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof initiateCommerceCheckout>>, {data: BodyType<CommerceCheckoutInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  initiateCommerceCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InitiateCommerceCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof initiateCommerceCheckout>>>
+    export type InitiateCommerceCheckoutMutationBody = BodyType<CommerceCheckoutInput>
+    export type InitiateCommerceCheckoutMutationError = ErrorType<void>
+
+    /**
+ * @summary Create or safely resume a hosted JusticeSure payment session
+ */
+export const useInitiateCommerceCheckout = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof initiateCommerceCheckout>>, TError,{data: BodyType<CommerceCheckoutInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof initiateCommerceCheckout>>,
+        TError,
+        {data: BodyType<CommerceCheckoutInput>},
+        TContext
+      > => {
+      return useMutation(getInitiateCommerceCheckoutMutationOptions(options));
+    }
+
+export const getGetCommercePaymentStatusUrl = (attemptId: string,) => {
+
+
+
+
+  return `/api/payment/status/${attemptId}`
+}
+
+/**
+ * @summary Read JusticeSure-verified status for a browser-owned checkout attempt
+ */
+export const getCommercePaymentStatus = async (attemptId: string, options?: Parameters<typeof customFetch>[1]): Promise<CommercePaymentStatus> => {
+
+  return customFetch<CommercePaymentStatus>(getGetCommercePaymentStatusUrl(attemptId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommercePaymentStatusQueryKey = (attemptId: string,) => {
+    return [
+    `/api/payment/status/${attemptId}`
+    ] as const;
+    }
+
+
+export const getGetCommercePaymentStatusQueryOptions = <TData = Awaited<ReturnType<typeof getCommercePaymentStatus>>, TError = ErrorType<void>>(attemptId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommercePaymentStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommercePaymentStatusQueryKey(attemptId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommercePaymentStatus>>> = ({ signal }) => getCommercePaymentStatus(attemptId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: attemptId !== null && attemptId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommercePaymentStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommercePaymentStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getCommercePaymentStatus>>>
+export type GetCommercePaymentStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read JusticeSure-verified status for a browser-owned checkout attempt
+ */
+
+export function useGetCommercePaymentStatus<TData = Awaited<ReturnType<typeof getCommercePaymentStatus>>, TError = ErrorType<void>>(
+ attemptId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommercePaymentStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommercePaymentStatusQueryOptions(attemptId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReceiveCommerceWebhookUrl = () => {
+
+
+
+
+  return `/api/payment/webhook`
+}
+
+/**
+ * @summary Receive a signed JusticeSure Commerce webhook
+ */
+export const receiveCommerceWebhook = async (commerceWebhookInput: CommerceWebhookInput, options?: Parameters<typeof customFetch>[1]): Promise<CommerceWebhookReceipt> => {
+
+  return customFetch<CommerceWebhookReceipt>(getReceiveCommerceWebhookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commerceWebhookInput)
+  }
+);}
+
+
+
+
+
+export const getReceiveCommerceWebhookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveCommerceWebhook>>, TError,{data: BodyType<CommerceWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof receiveCommerceWebhook>>, TError,{data: BodyType<CommerceWebhookInput>}, TContext> => {
+
+const mutationKey = ['receiveCommerceWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof receiveCommerceWebhook>>, {data: BodyType<CommerceWebhookInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  receiveCommerceWebhook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReceiveCommerceWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof receiveCommerceWebhook>>>
+    export type ReceiveCommerceWebhookMutationBody = BodyType<CommerceWebhookInput>
+    export type ReceiveCommerceWebhookMutationError = ErrorType<void>
+
+    /**
+ * @summary Receive a signed JusticeSure Commerce webhook
+ */
+export const useReceiveCommerceWebhook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof receiveCommerceWebhook>>, TError,{data: BodyType<CommerceWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof receiveCommerceWebhook>>,
+        TError,
+        {data: BodyType<CommerceWebhookInput>},
+        TContext
+      > => {
+      return useMutation(getReceiveCommerceWebhookMutationOptions(options));
+    }
+
 export const getRecordAnalyticsEventUrl = () => {
 
 
@@ -438,6 +825,13 @@ export function useListJournalPosts<TData = Awaited<ReturnType<typeof listJourna
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
+
 export const getGetJournalPostUrl = (slug: string,) => {
 
 
@@ -2130,4 +2524,10 @@ export function useListStaffJournalPostRevisions<TData = Awaited<ReturnType<type
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+
+
+
+
+
 

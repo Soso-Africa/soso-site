@@ -1,19 +1,38 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
 import { catalogApproved } from "@/lib/seo";
-
-const FILTERS = ["All", "Kaftans", "Agbadas", "Dashikis", "Two-Piece", "Shirts"];
+import { CommerceConfigurationError, commerceGateway, commerceMode } from "@/lib/commerce";
 
 export default function Shop() {
   const [activeFilter, setActiveFilter] = useState("All");
+  const [liveProducts, setLiveProducts] = useState<typeof products>([]);
+  const [catalogMessage, setCatalogMessage] = useState("");
 
+  useEffect(() => {
+    if (commerceMode !== "justicesure-headless") return;
+    let current = true;
+    commerceGateway.listProducts()
+      .then((next) => {
+        if (current) setLiveProducts(next);
+      })
+      .catch((error) => {
+        if (!current) return;
+        setCatalogMessage(error instanceof CommerceConfigurationError
+          ? error.message
+          : "The live JusticeSure catalogue is unavailable. No payment has been taken.");
+      });
+    return () => { current = false; };
+  }, []);
+
+  const sourceProducts = commerceMode === "justicesure-headless" ? liveProducts : products;
+  const filters = ["All", ...Array.from(new Set(sourceProducts.map((product) => product.category)))];
   const filteredProducts = activeFilter === "All" 
-    ? products 
-    : products.filter(p => p.category === activeFilter);
+    ? sourceProducts
+    : sourceProducts.filter(p => p.category === activeFilter);
 
   return (
     <div className="flex flex-col pt-10">
@@ -34,7 +53,7 @@ export default function Shop() {
         {/* Filter Bar */}
         <Reveal delay={100}>
           <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4 mb-16">
-            {FILTERS.map((f) => (
+            {filters.map((f) => (
               <button
                 key={f}
                 onClick={() => setActiveFilter(f)}
@@ -52,6 +71,14 @@ export default function Shop() {
         </Reveal>
 
         {/* Product Grid */}
+        {catalogMessage && (
+          <p role="status" className="mb-8 border border-[rgba(184,145,47,.45)] bg-[rgba(184,145,47,.08)] p-4 text-sm leading-relaxed text-white">
+            {catalogMessage}
+          </p>
+        )}
+        {commerceMode === "justicesure-headless" && !catalogMessage && filteredProducts.length === 0 && (
+          <p role="status" className="mb-8 text-center text-sm text-[hsl(var(--secondary))]">Loading the verified JusticeSure collection…</p>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-14 pb-24">
           {filteredProducts.map((p, i) => (
             <Reveal key={p.name} delay={(i % 3) * 120}>

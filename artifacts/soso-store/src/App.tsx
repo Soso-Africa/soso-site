@@ -19,6 +19,7 @@ import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
 import ProductDetail from '@/pages/ProductDetail';
 import Checkout from '@/pages/Checkout';
+import PaymentReturn from '@/pages/PaymentReturn';
 import Journal from '@/pages/Journal';
 import JournalPost from '@/pages/JournalPost';
 import JournalPreview from '@/pages/JournalPreview';
@@ -42,6 +43,7 @@ function Router() {
         <Route path="/shop" component={Shop} />
         <Route path="/product/:slug" component={ProductDetail} />
         <Route path="/checkout" component={Checkout} />
+        <Route path="/checkout/return" component={PaymentReturn} />
         <Route path="/journal" component={Journal} />
         <Route path="/journal/:slug" component={JournalPost} />
         <Route path="/journal/preview/:slug" component={JournalPreview} />
