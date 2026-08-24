@@ -11,6 +11,12 @@ Deploy `Soso-Africa/soso-site` as **one Vercel project from the repository root*
 
 Do not point Vercel at `artifacts/soso-store` as the project root: the API and workspace packages are required by the full-stack deployment.
 
+## Database decision
+
+The Replit development database is currently reachable, but this project does not have a Replit production database yet. Replit creates its production database when the project is published through Replit; there is no separate database-creation action. Publishing through Replit would also create a second hosted deployment, which is not required if Vercel is the chosen host.
+
+For a Vercel-hosted production app, use a production PostgreSQL database with a connection string that Vercel Functions can reach over the network. Keep it separate from the development database and from any preview database. Put its `DATABASE_URL` only in Vercel's encrypted Production environment variable store; never commit it or paste it into source files. Before launch, run the schema through the project's approved production migration path and verify connectivity with `/api/healthz`.
+
 ## Import steps
 
 1. In Vercel, create a project by importing `Soso-Africa/soso-site`.
