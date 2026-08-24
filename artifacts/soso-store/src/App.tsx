@@ -152,8 +152,9 @@ function RedirectGuard({ children }: { children: ReactNode }) {
     let cancelled = false;
     setChecking(true);
     void getRedirect({ path: location })
-      .then((redirect) => {
+      .then(({ redirect }) => {
         if (cancelled) return;
+        if (!redirect) return;
         if (
           redirect.toPath !== location
           && redirect.toPath.startsWith("/")

@@ -144,13 +144,11 @@ paths:
             maxLength: 512
       responses:
         "200":
-          description: Matching internal redirect
+          description: Matching redirect, or an explicit no-match result
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RedirectResolution"
-        "404":
-          description: No redirect configured for this path
+                $ref: "#/components/schemas/RedirectLookup"
   /staff/me:
     get:
       operationId: getStaffProfile
@@ -223,6 +221,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StaffFunnel"
+        "401":
+          description: Authentication required
+        "403":
+          description: Owner or analyst access required
+  /staff/analytics/quality:
+    get:
+      operationId: getStaffAnalyticsQuality
+      tags: [staff]
+      summary: Get aggregate data-quality signals for consented storefront analytics
+      responses:
+        "200":
+          description: Privacy-safe analytics data-quality report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsQualityReport"
         "401":
           description: Authentication required
         "403":
@@ -798,6 +812,25 @@ components:
                 type: string
                 enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
               count: { type: number, minimum: 0 }
+    AnalyticsQualityReport:
+      type: object
+      required: [status, checks, generatedAt]
+      properties:
+        status: { type: string, enum: [ok, review, issue] }
+        generatedAt: { type: string, format: date-time }
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsQualityCheck"
+    AnalyticsQualityCheck:
+      type: object
+      required: [check, status, detail, scope, nextAction]
+      properties:
+        check: { type: string }
+        status: { type: string, enum: [ok, review, issue] }
+        detail: { type: string }
+        scope: { type: string }
+        nextAction: { type: string }
     StaffMetric:
       type: object
       required: [key, label, definition, value]
@@ -813,6 +846,14 @@ components:
         fromPath: { type: string }
         toPath: { type: string }
         statusCode: { type: number, enum: [301, 302, 307, 308] }
+    RedirectLookup:
+      type: object
+      required: [redirect]
+      properties:
+        redirect:
+          anyOf:
+            - $ref: "#/components/schemas/RedirectResolution"
+            - type: "null"
     StaffPrivacyRequestInput:
       type: object
       required: [requestType, requesterEmail]

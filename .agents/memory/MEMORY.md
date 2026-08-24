@@ -3,3 +3,4 @@
 - [OpenAPI Zod format compatibility](openapi-zod-format-compatibility.md) — avoid unsupported generated format helpers until the workspace toolchain is upgraded together.
 - [Launch SEO safety gates](soso-launch-seo-gates.md) — direct responses stay private unless approved domain, route category, and editorial metadata are explicitly supplied.
 - [Lib package build order](lib-package-build-order.md) — after changing lib/db or lib/api-client-react schemas/exports, build those packages before typechecking consumers.
+- [Generated-client HMR refresh](generated-client-hmr-refresh.md) — Orval temporarily replaces generated source files; restart the storefront after generation before treating Vite import errors as app failures.

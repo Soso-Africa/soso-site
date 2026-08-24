@@ -625,6 +625,38 @@ export interface StaffFunnel {
   events: StaffFunnelEventsItem[];
 }
 
+export type AnalyticsQualityReportStatus = typeof AnalyticsQualityReportStatus[keyof typeof AnalyticsQualityReportStatus];
+
+
+export const AnalyticsQualityReportStatus = {
+  ok: 'ok',
+  review: 'review',
+  issue: 'issue',
+} as const;
+
+export type AnalyticsQualityCheckStatus = typeof AnalyticsQualityCheckStatus[keyof typeof AnalyticsQualityCheckStatus];
+
+
+export const AnalyticsQualityCheckStatus = {
+  ok: 'ok',
+  review: 'review',
+  issue: 'issue',
+} as const;
+
+export interface AnalyticsQualityCheck {
+  check: string;
+  status: AnalyticsQualityCheckStatus;
+  detail: string;
+  scope: string;
+  nextAction: string;
+}
+
+export interface AnalyticsQualityReport {
+  status: AnalyticsQualityReportStatus;
+  generatedAt: string;
+  checks: AnalyticsQualityCheck[];
+}
+
 export type RedirectResolutionStatusCode = typeof RedirectResolutionStatusCode[keyof typeof RedirectResolutionStatusCode];
 
 
@@ -639,6 +671,10 @@ export interface RedirectResolution {
   fromPath: string;
   toPath: string;
   statusCode: RedirectResolutionStatusCode;
+}
+
+export interface RedirectLookup {
+  redirect: RedirectResolution | null;
 }
 
 export type StaffPrivacyRequestInputRequestType = typeof StaffPrivacyRequestInputRequestType[keyof typeof StaffPrivacyRequestInputRequestType];

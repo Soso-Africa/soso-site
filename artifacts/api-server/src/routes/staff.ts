@@ -7,6 +7,7 @@ import {
   CreateStaffPrivacyRequestResponse,
   GetStaffExportResponse,
   GetStaffFunnelResponse,
+  GetStaffAnalyticsQualityResponse,
   GetStaffOverviewResponse,
   GetStaffProfileResponse,
   ListStaffAuditEventsResponse,
@@ -55,6 +56,9 @@ const orderStatuses = [
 ] as const;
 
 const activeOrderStatuses = ["paid", "atelier_confirmation", "in_production", "ready"] as const;
+const measurementConsents = ["analytics", "marketing"] as const;
+const qualityEventLimit = 10_000;
+const publicStorefrontPathPattern = "^/(|shop|checkout|journal|about|faq|policies|privacy|cookies|terms|delivery-returns|delivery|returns|care|product/[a-z0-9-]+|journal/[a-z0-9-]+|collections/[a-z0-9-]+)$";
 
 const orderTransitions: Record<(typeof orderStatuses)[number], readonly (typeof orderStatuses)[number][]> = {
   payment_pending: [],
@@ -598,47 +602,141 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), as
 });
 
 router.get("/staff/analytics/quality", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
-  // Check for data quality signals without any PII
+  // Every check is aggregate-only: visitor and session identifiers stay server-side.
   const now = new Date();
   const last24h = new Date(now.getTime() - 86_400_000);
   const last7d = new Date(now.getTime() - 7 * 86_400_000);
+  const futureTolerance = new Date(now.getTime() + 5 * 60_000);
+  const journeyEvents = ["product_view", "add_to_bag", "checkout_started", "payment_clicked"] as const;
 
-  const [recent, week] = await Promise.all([
+  const [recent, week, invalidPaths, incompleteAttribution, futureTimestamps, journeyRows, burstRows] = await Promise.all([
     db
       .select({ value: count() })
       .from(analyticsEventsTable)
-      .where(and(gte(analyticsEventsTable.occurredAt, last24h), inArray(analyticsEventsTable.consent, ["analytics", "marketing"]))),
+      .where(and(gte(analyticsEventsTable.occurredAt, last24h), inArray(analyticsEventsTable.consent, measurementConsents))),
     db
       .select({ value: count() })
       .from(analyticsEventsTable)
-      .where(and(gte(analyticsEventsTable.occurredAt, last7d), inArray(analyticsEventsTable.consent, ["analytics", "marketing"]))),
+      .where(and(gte(analyticsEventsTable.occurredAt, last7d), inArray(analyticsEventsTable.consent, measurementConsents))),
+    db
+      .select({ value: count() })
+      .from(analyticsEventsTable)
+      .where(and(
+        gte(analyticsEventsTable.occurredAt, last7d),
+        inArray(analyticsEventsTable.consent, measurementConsents),
+        sql`${analyticsEventsTable.path} !~* ${publicStorefrontPathPattern}`,
+      )),
+    db
+      .select({ value: count() })
+      .from(analyticsEventsTable)
+      .where(and(
+        gte(analyticsEventsTable.occurredAt, last7d),
+        inArray(analyticsEventsTable.consent, measurementConsents),
+        sql`${analyticsEventsTable.source} IS NULL AND (${analyticsEventsTable.utmMedium} IS NOT NULL OR ${analyticsEventsTable.utmCampaign} IS NOT NULL)`,
+      )),
+    db
+      .select({ value: count() })
+      .from(analyticsEventsTable)
+      .where(and(
+        inArray(analyticsEventsTable.consent, measurementConsents),
+        sql`${analyticsEventsTable.occurredAt} > ${futureTolerance}`,
+      )),
+    db
+      .select({
+        sessionId: analyticsEventsTable.sessionId,
+        eventName: analyticsEventsTable.eventName,
+        occurredAt: analyticsEventsTable.occurredAt,
+      })
+      .from(analyticsEventsTable)
+      .where(and(
+        gte(analyticsEventsTable.occurredAt, last7d),
+        inArray(analyticsEventsTable.consent, measurementConsents),
+        inArray(analyticsEventsTable.eventName, journeyEvents),
+      ))
+      .orderBy(analyticsEventsTable.occurredAt)
+      .limit(qualityEventLimit + 1),
+    db
+      .select({
+        sessionId: analyticsEventsTable.sessionId,
+        events: count(),
+      })
+      .from(analyticsEventsTable)
+      .where(and(
+        gte(analyticsEventsTable.occurredAt, last24h),
+        inArray(analyticsEventsTable.consent, measurementConsents),
+      ))
+      .groupBy(analyticsEventsTable.sessionId, sql`date_trunc('minute', ${analyticsEventsTable.occurredAt})`)
+      .having(sql`COUNT(*) > 60`)
+      .limit(100),
   ]);
 
   const events24h = Number(recent[0]?.value ?? 0);
   const events7d = Number(week[0]?.value ?? 0);
   const avgDaily = events7d / 7;
 
-  const checks: { check: string; status: "ok" | "review" | "issue"; detail: string }[] = [];
+  const checks: { check: string; status: "ok" | "review" | "issue"; detail: string; scope: string; nextAction: string }[] = [];
 
   // Spike check: today > 5x 7-day average
   if (avgDaily > 0 && events24h > avgDaily * 5) {
-    checks.push({ check: "volume_spike", status: "review", detail: `Last 24 h events (${events24h}) are ${Math.round(events24h / avgDaily)}× the 7-day daily average (${Math.round(avgDaily)}).` });
+    checks.push({ check: "volume_spike", status: "review", detail: `Last 24 h events (${events24h}) are ${Math.round(events24h / avgDaily)}× the 7-day daily average (${Math.round(avgDaily)}).`, scope: "Consented events in the last 24 hours versus seven days.", nextAction: "Review campaign launches and deployment logs before using this period for decisions." });
   } else {
-    checks.push({ check: "volume_spike", status: "ok", detail: `Event volume looks normal. Last 24 h: ${events24h}; 7-day daily avg: ${Math.round(avgDaily)}.` });
+    checks.push({ check: "volume_spike", status: "ok", detail: `Event volume looks normal. Last 24 h: ${events24h}; 7-day daily avg: ${Math.round(avgDaily)}.`, scope: "Consented events in the last 24 hours versus seven days.", nextAction: "No action needed." });
   }
 
   // Low-signal check: if 7d total < 10, data is thin
   if (events7d < 10) {
-    checks.push({ check: "signal_volume", status: "review", detail: `Only ${events7d} consented events in the last 7 days — funnel data is not yet statistically meaningful.` });
+    checks.push({ check: "signal_volume", status: "review", detail: `Only ${events7d} consented events in the last 7 days — funnel data is not yet statistically meaningful.`, scope: "All consented events in the last seven days.", nextAction: "Wait for more consented traffic before treating trends as directional." });
   } else {
-    checks.push({ check: "signal_volume", status: "ok", detail: `${events7d} consented events in the last 7 days.` });
+    checks.push({ check: "signal_volume", status: "ok", detail: `${events7d} consented events in the last 7 days.`, scope: "All consented events in the last seven days.", nextAction: "No action needed." });
   }
+
+  const invalidPathCount = Number(invalidPaths[0]?.value ?? 0);
+  checks.push(invalidPathCount
+    ? { check: "storefront_paths", status: "issue", detail: `${invalidPathCount} stored event${invalidPathCount === 1 ? "" : "s"} used a path outside the recognized storefront route set.`, scope: "Consented events in the last seven days.", nextAction: "Inspect the originating release before using affected path reports." }
+    : { check: "storefront_paths", status: "ok", detail: "All recent consented events use recognized storefront paths.", scope: "Consented events in the last seven days.", nextAction: "No action needed." });
+
+  const attributionCount = Number(incompleteAttribution[0]?.value ?? 0);
+  checks.push(attributionCount
+    ? { check: "attribution_completeness", status: "review", detail: `${attributionCount} event${attributionCount === 1 ? "" : "s"} included a UTM medium or campaign without a source.`, scope: "Consented events in the last seven days with UTM fields.", nextAction: "Correct campaign links so source, medium, and campaign travel together." }
+    : { check: "attribution_completeness", status: "ok", detail: "No incomplete UTM attribution combinations were found.", scope: "Consented events in the last seven days with UTM fields.", nextAction: "No action needed." });
+
+  const futureTimestampCount = Number(futureTimestamps[0]?.value ?? 0);
+  checks.push(futureTimestampCount
+    ? { check: "time_sanity", status: "issue", detail: `${futureTimestampCount} stored event${futureTimestampCount === 1 ? "" : "s"} is timestamped more than five minutes in the future.`, scope: "All consented stored events.", nextAction: "Investigate client clock or ingestion behavior before interpreting time-based reports." }
+    : { check: "time_sanity", status: "ok", detail: "No stored consented events are more than five minutes ahead of server time.", scope: "All consented stored events; new stale and future events are rejected at ingestion.", nextAction: "No action needed." });
+
+  const journeyStates = new Map<string, { productViewed: boolean; addedToBag: boolean; checkoutStarted: boolean }>();
+  let outOfOrderEvents = 0;
+  for (const event of journeyRows.slice(0, qualityEventLimit)) {
+    if (!event.sessionId) continue;
+    const state = journeyStates.get(event.sessionId) ?? { productViewed: false, addedToBag: false, checkoutStarted: false };
+    if (event.eventName === "product_view") state.productViewed = true;
+    if (event.eventName === "add_to_bag") {
+      if (!state.productViewed) outOfOrderEvents += 1;
+      state.addedToBag = true;
+    }
+    if (event.eventName === "checkout_started") {
+      if (!state.addedToBag) outOfOrderEvents += 1;
+      state.checkoutStarted = true;
+    }
+    if (event.eventName === "payment_clicked" && !state.checkoutStarted) outOfOrderEvents += 1;
+    journeyStates.set(event.sessionId, state);
+  }
+  const journeySampled = journeyRows.length > qualityEventLimit;
+  checks.push(outOfOrderEvents || journeySampled
+    ? { check: "journey_order", status: "review", detail: `${outOfOrderEvents} event${outOfOrderEvents === 1 ? "" : "s"} did not have its expected preceding journey signal${journeySampled ? "; the seven-day review hit its sampling limit" : ""}.`, scope: "Product view → add to bag → checkout start → payment click, evaluated per session over the last seven days.", nextAction: "Review the affected client release and use funnel rates cautiously until the sequence is clean." }
+    : { check: "journey_order", status: "ok", detail: "Recent sampled journeys follow the expected storefront sequence.", scope: "Product view → add to bag → checkout start → payment click, evaluated per session over the last seven days.", nextAction: "No action needed." });
+
+  const burstCount = burstRows.length;
+  checks.push(burstCount
+    ? { check: "automation_bursts", status: "review", detail: `${burstCount} session-minute bucket${burstCount === 1 ? "" : "s"} exceeded 60 consented events.`, scope: "Consented sessions in the last 24 hours; identifiers are not exposed.", nextAction: "Review release behavior and traffic patterns; exclude confirmed internal or automated traffic from decisions." }
+    : { check: "automation_bursts", status: "ok", detail: "No consented session exceeded 60 events in a one-minute bucket.", scope: "Consented sessions in the last 24 hours; identifiers are not exposed.", nextAction: "No action needed." });
 
   const overallStatus = checks.some((c) => c.status === "issue") ? "issue"
     : checks.some((c) => c.status === "review") ? "review"
     : "ok";
 
-  res.json({ status: overallStatus, checks, generatedAt: now });
+  res.json(GetStaffAnalyticsQualityResponse.parse({ status: overallStatus, checks, generatedAt: now }));
 });
 
 router.get("/staff/audit", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {

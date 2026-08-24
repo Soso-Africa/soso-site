@@ -22,6 +22,7 @@ import type {
 import type {
   Acknowledgement,
   AnalyticsEventInput,
+  AnalyticsQualityReport,
   ConsentInput,
   ConsentRecord,
   Enquiry,
@@ -36,7 +37,7 @@ import type {
   JournalPostSummary,
   ListStaffAuditEventsParams,
   ListStaffOrdersParams,
-  RedirectResolution,
+  RedirectLookup,
   StaffAuditEvent,
   StaffEnquiryUpdate,
   StaffExport,
@@ -622,9 +623,9 @@ export const getGetRedirectUrl = (params: GetRedirectParams,) => {
 /**
  * @summary Resolve a configured internal URL redirect
  */
-export const getRedirect = async (params: GetRedirectParams, options?: Parameters<typeof customFetch>[1]): Promise<RedirectResolution> => {
+export const getRedirect = async (params: GetRedirectParams, options?: Parameters<typeof customFetch>[1]): Promise<RedirectLookup> => {
 
-  return customFetch<RedirectResolution>(getGetRedirectUrl(params),
+  return customFetch<RedirectLookup>(getGetRedirectUrl(params),
   {
     ...options,
     method: 'GET'
@@ -644,7 +645,7 @@ export const getGetRedirectQueryKey = (params?: GetRedirectParams,) => {
     }
 
 
-export const getGetRedirectQueryOptions = <TData = Awaited<ReturnType<typeof getRedirect>>, TError = ErrorType<void>>(params: GetRedirectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRedirect>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetRedirectQueryOptions = <TData = Awaited<ReturnType<typeof getRedirect>>, TError = ErrorType<unknown>>(params: GetRedirectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRedirect>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -663,14 +664,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetRedirectQueryResult = NonNullable<Awaited<ReturnType<typeof getRedirect>>>
-export type GetRedirectQueryError = ErrorType<void>
+export type GetRedirectQueryError = ErrorType<unknown>
 
 
 /**
  * @summary Resolve a configured internal URL redirect
  */
 
-export function useGetRedirect<TData = Awaited<ReturnType<typeof getRedirect>>, TError = ErrorType<void>>(
+export function useGetRedirect<TData = Awaited<ReturnType<typeof getRedirect>>, TError = ErrorType<unknown>>(
  params: GetRedirectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRedirect>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -1005,6 +1006,83 @@ export function useGetStaffFunnel<TData = Awaited<ReturnType<typeof getStaffFunn
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStaffFunnelQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStaffAnalyticsQualityUrl = () => {
+
+
+
+
+  return `/api/staff/analytics/quality`
+}
+
+/**
+ * @summary Get aggregate data-quality signals for consented storefront analytics
+ */
+export const getStaffAnalyticsQuality = async ( options?: Parameters<typeof customFetch>[1]): Promise<AnalyticsQualityReport> => {
+
+  return customFetch<AnalyticsQualityReport>(getGetStaffAnalyticsQualityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffAnalyticsQualityQueryKey = () => {
+    return [
+    `/api/staff/analytics/quality`
+    ] as const;
+    }
+
+
+export const getGetStaffAnalyticsQualityQueryOptions = <TData = Awaited<ReturnType<typeof getStaffAnalyticsQuality>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffAnalyticsQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffAnalyticsQualityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffAnalyticsQuality>>> = ({ signal }) => getStaffAnalyticsQuality({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffAnalyticsQuality>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffAnalyticsQualityQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffAnalyticsQuality>>>
+export type GetStaffAnalyticsQualityQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get aggregate data-quality signals for consented storefront analytics
+ */
+
+export function useGetStaffAnalyticsQuality<TData = Awaited<ReturnType<typeof getStaffAnalyticsQuality>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffAnalyticsQuality>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffAnalyticsQualityQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

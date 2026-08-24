@@ -486,19 +486,19 @@ Event status by name:
 
 ### 4.7 Analytics data quality
 
-> 🟡 **Implementation status — PARTIAL.** Required event IDs, generated IDs on the storefront, unique event-ID storage, consent verification, input validation, and database-backed rate limits are **IMPLEMENTED**. Duplicate replay is accepted as a no-op. Impossible-event-order checks, payment-success verification linkage, attribution completeness checks, anomaly/bot detection, broken-path checks, time sanity checks, and an admin data-quality indicator are **NOT STARTED**.
+> 🟡 **Implementation status — PARTIAL.** Required event IDs, generated IDs on the storefront, unique event-ID storage, consent verification, input validation, database-backed rate limits, timestamp/path rejection, and an owner/analyst aggregate quality panel are **IMPLEMENTED**. Duplicate replay is accepted as a no-op. Journey-order, attribution completeness, burst automation, broken-path, timestamp, and volume checks are available without exposing visitor identifiers. Payment-success verification remains **BLOCKED — verified payment/webhook integration**.
 
 Automated quality checks:
 
 - 🟢 Missing event IDs (required, validated at ingestion)
 - 🟢 Duplicate events (replay-safe `ON CONFLICT DO NOTHING`)
-- ⚫ Impossible event order detection
+- 🟢 Impossible event order detection
 - 🔴 Payment success without a verified payment check
-- ⚫ Orders with no source attribution where attribution was expected
+- 🟢 Orders with no source attribution where attribution was expected
 - 🟢 Sudden event-volume spike detection
-- ⚫ Broken page paths check
-- ⚫ Bot traffic contamination detection
-- ⚫ Time values outside sane ranges check
+- 🟢 Broken page paths check
+- 🟢 Bot traffic contamination detection
+- 🟢 Time values outside sane ranges check
 - 🟢 Consent-state violations (server-side gate before recording)
 - 🟢 Admin data-quality status indicator
 

@@ -206,9 +206,11 @@ export const GetRedirectQueryParams = zod.object({
 })
 
 export const GetRedirectResponse = zod.object({
+  "redirect": zod.union([zod.object({
   "fromPath": zod.string(),
   "toPath": zod.string(),
   "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+}),zod.null()])
 })
 
 
@@ -344,6 +346,22 @@ export const GetStaffFunnelResponse = zod.object({
   "events": zod.array(zod.object({
   "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
   "count": zod.number().min(getStaffFunnelResponseEventsItemCountMin)
+}))
+})
+
+
+/**
+ * @summary Get aggregate data-quality signals for consented storefront analytics
+ */
+export const GetStaffAnalyticsQualityResponse = zod.object({
+  "status": zod.enum(['ok', 'review', 'issue']),
+  "generatedAt": zod.coerce.date(),
+  "checks": zod.array(zod.object({
+  "check": zod.string(),
+  "status": zod.enum(['ok', 'review', 'issue']),
+  "detail": zod.string(),
+  "scope": zod.string(),
+  "nextAction": zod.string()
 }))
 })
 

@@ -6,6 +6,7 @@ import {
   useCreateStaffJournalPost,
   useCreateStaffPrivacyRequest,
   useGetStaffFunnel,
+  type AnalyticsQualityReport,
   useGetStaffOverview,
   useGetStaffProfile,
   useListStaffAuditEvents,
@@ -278,11 +279,7 @@ type AnalyticsMetrics = {
   deviceBreakdown: { deviceType: string; events: number }[];
   scrollDepth: { depthPct: number; events: number }[];
 };
-type AnalyticsQuality = {
-  status: "ok" | "review" | "issue";
-  checks: { check: string; status: "ok" | "review" | "issue"; detail: string }[];
-  generatedAt: string;
-};
+type AnalyticsQuality = AnalyticsQualityReport;
 
 function useStaffAnalyticsMetrics(range: { from: string; to: string }, enabled: boolean) {
   const [data, setData] = useState<AnalyticsMetrics | null>(null);
@@ -291,7 +288,7 @@ function useStaffAnalyticsMetrics(range: { from: string; to: string }, enabled: 
     if (!enabled) return;
     let cancelled = false;
     setLoading(true);
-    void customFetch<AnalyticsMetrics>(`/staff/analytics/metrics?from=${range.from}&to=${range.to}`)
+    void customFetch<AnalyticsMetrics>(`/api/staff/analytics/metrics?from=${range.from}&to=${range.to}`)
       .then((d: AnalyticsMetrics) => { if (!cancelled) setData(d); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -307,7 +304,7 @@ function useAnalyticsQuality(enabled: boolean) {
     if (!enabled) return;
     let cancelled = false;
     setLoading(true);
-    void customFetch<AnalyticsQuality>("/staff/analytics/quality")
+    void customFetch<AnalyticsQuality>("/api/staff/analytics/quality")
       .then((d: AnalyticsQuality) => { if (!cancelled) setData(d); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -336,6 +333,8 @@ function QualityBadge({ quality }: { quality: AnalyticsQuality | null }) {
           <div key={c.check} className="p-3">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.check.replaceAll("_", " ")}</p>
             <p className="mt-1 text-sm">{c.detail}</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground"><span className="font-semibold text-foreground">Scope:</span> {c.scope}</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground"><span className="font-semibold text-foreground">Next action:</span> {c.nextAction}</p>
           </div>
         ))}
       </div>

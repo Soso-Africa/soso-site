@@ -27,11 +27,11 @@ router.get("/redirects", async (req, res): Promise<void> => {
     .limit(1);
 
   if (!redirect) {
-    res.status(404).json({ error: "No redirect configured" });
+    res.json({ redirect: null });
     return;
   }
 
-  res.json(redirect);
+  res.json({ redirect });
 });
 
 export default router;
