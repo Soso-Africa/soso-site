@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useGetJournalPost } from '@workspace/api-client-react';
+import { useGetJournalPost, useListJournalPosts } from '@workspace/api-client-react';
 import { useParams, Link } from 'wouter';
 import { format } from 'date-fns';
 import { Loader2, ArrowLeft, Share2, Clock, Tag } from 'lucide-react';
@@ -55,6 +55,10 @@ export default function JournalPost() {
   const relatedProducts = (post.relatedProductSlugs ?? [])
     .map((s) => products.find((p) => p.slug === s))
     .filter(Boolean) as typeof products;
+
+  const hasRelatedArticles = (post.relatedArticleSlugs?.length ?? 0) > 0;
+  const { data: allPosts } = useListJournalPosts({ query: { queryKey: ["journal-list-for-related"], enabled: hasRelatedArticles } });
+  const relatedArticles = allPosts?.filter((a) => post.relatedArticleSlugs?.includes(a.slug) && a.slug !== post.slug) ?? [];
 
   return (
     <div className="min-h-screen bg-background pb-24 fade-in">
@@ -136,6 +140,27 @@ export default function JournalPost() {
           ))}
         </div>
       </article>
+
+      {/* Related articles */}
+      {relatedArticles.length > 0 && (
+        <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-20 pt-12 border-t border-border">
+          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">Read also</p>
+          <div className="grid gap-6 sm:grid-cols-2">
+            {relatedArticles.map((article) => (
+              <Link key={article.slug} href={`/journal/${article.slug}`} className="group block border border-border/40 p-5 hover:border-primary/40 transition-colors">
+                {article.category && <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 mb-2">{article.category}</p>}
+                <p className="soso-display text-lg text-foreground group-hover:text-primary transition-colors leading-snug">{article.title}</p>
+                <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{article.excerpt}</p>
+                {article.readTimeMinutes && (
+                  <p className="mt-3 text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-2.5 h-2.5" /> {article.readTimeMinutes} min
+                  </p>
+                )}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Related products */}
       {relatedProducts.length > 0 && (

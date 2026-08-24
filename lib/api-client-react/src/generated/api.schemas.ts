@@ -196,6 +196,8 @@ export type JournalPost = JournalPostSummary & ({
   seoDescription?: string | null;
   /** @nullable */
   relatedProductSlugs?: string[] | null;
+  /** @nullable */
+  relatedArticleSlugs?: string[] | null;
 });
 
 export type StaffJournalPostInputStatus = typeof StaffJournalPostInputStatus[keyof typeof StaffJournalPostInputStatus];
@@ -277,6 +279,12 @@ export interface StaffJournalPostInput {
      * @items.maxLength 160
      */
   relatedProductSlugs?: string[] | null;
+  /**
+     * @maxItems 6
+     * @nullable
+     * @items.maxLength 160
+     */
+  relatedArticleSlugs?: string[] | null;
   status: StaffJournalPostInputStatus;
 }
 
@@ -359,6 +367,12 @@ export interface StaffJournalPostUpdate {
      * @items.maxLength 160
      */
   relatedProductSlugs?: string[] | null;
+  /**
+     * @maxItems 6
+     * @nullable
+     * @items.maxLength 160
+     */
+  relatedArticleSlugs?: string[] | null;
   status?: StaffJournalPostUpdateStatus;
 }
 
@@ -395,6 +409,8 @@ export interface StaffJournalPost {
   readTimeMinutes?: number | null;
   /** @nullable */
   relatedProductSlugs?: string[] | null;
+  /** @nullable */
+  relatedArticleSlugs?: string[] | null;
   status: StaffJournalPostStatus;
   /** @nullable */
   publishedAt?: string | null;

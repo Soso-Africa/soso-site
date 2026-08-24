@@ -213,6 +213,7 @@ export const journalPostsTable = pgTable(
     seoDescription: text("seo_description"),
     readTimeMinutes: integer("read_time_minutes"),
     relatedProductSlugs: jsonb("related_product_slugs").$type<string[]>(),
+    relatedArticleSlugs: jsonb("related_article_slugs").$type<string[]>(),
     status: text("status").notNull().default("draft"),
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

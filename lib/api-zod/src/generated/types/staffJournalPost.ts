@@ -31,6 +31,8 @@ export interface StaffJournalPost {
   readTimeMinutes?: number | null;
   /** @nullable */
   relatedProductSlugs?: string[] | null;
+  /** @nullable */
+  relatedArticleSlugs?: string[] | null;
   status: StaffJournalPostStatus;
   /** @nullable */
   publishedAt?: Date | null;

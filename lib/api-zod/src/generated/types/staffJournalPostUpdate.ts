@@ -77,5 +77,11 @@ export interface StaffJournalPostUpdate {
      * @items.maxLength 160
      */
   relatedProductSlugs?: string[] | null;
+  /**
+     * @maxItems 6
+     * @nullable
+     * @items.maxLength 160
+     */
+  relatedArticleSlugs?: string[] | null;
   status?: StaffJournalPostUpdateStatus;
 }

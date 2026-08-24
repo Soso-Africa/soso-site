@@ -631,6 +631,7 @@ components:
             seoTitle: { type: ["string", "null"] }
             seoDescription: { type: ["string", "null"] }
             relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
+            relatedArticleSlugs: { type: ["array", "null"], items: { type: string } }
     StaffJournalPostInput:
       type: object
       required: [slug, title, excerpt, body, authorName, status]
@@ -648,6 +649,7 @@ components:
         seoDescription: { type: ["string", "null"], maxLength: 320 }
         readTimeMinutes: { type: ["number", "null"], minimum: 1, maximum: 120 }
         relatedProductSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
         status: { type: string, enum: [draft, published, archived] }
     StaffJournalPostUpdate:
       type: object
@@ -666,6 +668,7 @@ components:
         seoDescription: { type: ["string", "null"], maxLength: 320 }
         readTimeMinutes: { type: ["number", "null"], minimum: 1, maximum: 120 }
         relatedProductSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
         status: { type: string, enum: [draft, published, archived] }
     StaffJournalPost:
       type: object
@@ -685,6 +688,7 @@ components:
         seoDescription: { type: ["string", "null"] }
         readTimeMinutes: { type: ["number", "null"] }
         relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string } }
         status: { type: string, enum: [draft, published, archived] }
         publishedAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }

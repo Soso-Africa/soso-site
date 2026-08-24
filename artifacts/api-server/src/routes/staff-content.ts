@@ -35,6 +35,7 @@ type JournalPostCore = {
   seoDescription: string | null;
   readTimeMinutes: number | null;
   relatedProductSlugs: string[] | null;
+  relatedArticleSlugs: string[] | null;
   status: string;
 };
 
@@ -59,6 +60,7 @@ function journalSnapshot(post: JournalPostCore & { publishedAt: Date | null }) {
     seoDescription: post.seoDescription,
     readTimeMinutes: post.readTimeMinutes,
     relatedProductSlugs: post.relatedProductSlugs,
+    relatedArticleSlugs: post.relatedArticleSlugs,
     status: post.status,
     publishedAt: post.publishedAt?.toISOString() ?? null,
   };

@@ -4,6 +4,7 @@ import contentRouter from "./content";
 import faqRouter from "./faq";
 import healthRouter from "./health";
 import paymentRouter from "./payment";
+import sitemapRouter from "./sitemap";
 import staffContentRouter from "./staff-content";
 import staffRouter from "./staff";
 
@@ -14,6 +15,7 @@ router.use(analyticsRouter);
 router.use(contentRouter);
 router.use(faqRouter);
 router.use(paymentRouter);
+router.use(sitemapRouter);
 router.use(staffRouter);
 router.use(staffContentRouter);
 

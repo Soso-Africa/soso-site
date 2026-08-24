@@ -176,7 +176,8 @@ export const GetJournalPostResponse = zod.object({
   "body": zod.string(),
   "seoTitle": zod.string().nullish(),
   "seoDescription": zod.string().nullish(),
-  "relatedProductSlugs": zod.array(zod.string()).nullish()
+  "relatedProductSlugs": zod.array(zod.string()).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string()).nullish()
 }))
 
 
@@ -658,6 +659,7 @@ export const ListStaffJournalPostsResponseItem = zod.object({
   "seoDescription": zod.string().nullish(),
   "readTimeMinutes": zod.number().nullish(),
   "relatedProductSlugs": zod.array(zod.string()).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string()).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']),
   "publishedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -706,6 +708,10 @@ export const createStaffJournalPostBodyRelatedProductSlugsItemMax = 160;
 
 export const createStaffJournalPostBodyRelatedProductSlugsMax = 6;
 
+export const createStaffJournalPostBodyRelatedArticleSlugsItemMax = 160;
+
+export const createStaffJournalPostBodyRelatedArticleSlugsMax = 6;
+
 
 
 export const CreateStaffJournalPostBody = zod.object({
@@ -722,6 +728,7 @@ export const CreateStaffJournalPostBody = zod.object({
   "seoDescription": zod.string().max(createStaffJournalPostBodySeoDescriptionMax).nullish(),
   "readTimeMinutes": zod.number().min(1).max(createStaffJournalPostBodyReadTimeMinutesMax).nullish(),
   "relatedProductSlugs": zod.array(zod.string().max(createStaffJournalPostBodyRelatedProductSlugsItemMax)).max(createStaffJournalPostBodyRelatedProductSlugsMax).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string().max(createStaffJournalPostBodyRelatedArticleSlugsItemMax)).max(createStaffJournalPostBodyRelatedArticleSlugsMax).nullish(),
   "status": zod.enum(['draft', 'published', 'archived'])
 })
 
@@ -743,6 +750,7 @@ export const CreateStaffJournalPostResponse = zod.object({
   "seoDescription": zod.string().nullish(),
   "readTimeMinutes": zod.number().nullish(),
   "relatedProductSlugs": zod.array(zod.string()).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string()).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']),
   "publishedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -797,6 +805,10 @@ export const updateStaffJournalPostBodyRelatedProductSlugsItemMax = 160;
 
 export const updateStaffJournalPostBodyRelatedProductSlugsMax = 6;
 
+export const updateStaffJournalPostBodyRelatedArticleSlugsItemMax = 160;
+
+export const updateStaffJournalPostBodyRelatedArticleSlugsMax = 6;
+
 
 
 export const UpdateStaffJournalPostBody = zod.object({
@@ -813,6 +825,7 @@ export const UpdateStaffJournalPostBody = zod.object({
   "seoDescription": zod.string().max(updateStaffJournalPostBodySeoDescriptionMax).nullish(),
   "readTimeMinutes": zod.number().min(1).max(updateStaffJournalPostBodyReadTimeMinutesMax).nullish(),
   "relatedProductSlugs": zod.array(zod.string().max(updateStaffJournalPostBodyRelatedProductSlugsItemMax)).max(updateStaffJournalPostBodyRelatedProductSlugsMax).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string().max(updateStaffJournalPostBodyRelatedArticleSlugsItemMax)).max(updateStaffJournalPostBodyRelatedArticleSlugsMax).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']).optional()
 })
 
@@ -834,6 +847,7 @@ export const UpdateStaffJournalPostResponse = zod.object({
   "seoDescription": zod.string().nullish(),
   "readTimeMinutes": zod.number().nullish(),
   "relatedProductSlugs": zod.array(zod.string()).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string()).nullish(),
   "status": zod.enum(['draft', 'published', 'archived']),
   "publishedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),

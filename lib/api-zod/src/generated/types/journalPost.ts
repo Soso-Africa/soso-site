@@ -15,4 +15,6 @@ export type JournalPost = JournalPostSummary & ({
   seoDescription?: string | null;
   /** @nullable */
   relatedProductSlugs?: string[] | null;
+  /** @nullable */
+  relatedArticleSlugs?: string[] | null;
 });
