@@ -141,6 +141,50 @@
 .soso-btn-gold:hover { background-color: #D4B45A !important; transform: translateY(-1px); }
 .soso-btn-ghost:hover { background-color: rgba(246,241,231,0.08); }
 .soso-link:hover { color: #D4B45A; }
+
+/* Staff workspace controls: keep editable surfaces distinct from the ink canvas. */
+.staff-input {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid rgba(212, 180, 90, 0.48);
+  border-radius: 2px;
+  background: #1c1914;
+  color: #f6f1e7;
+  padding: 0.7rem 0.8rem;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.staff-input:hover {
+  border-color: rgba(212, 180, 90, 0.72);
+  background: #211d17;
+}
+
+.staff-input:focus {
+  border-color: #d4b45a;
+  background: #211d17;
+  box-shadow: 0 0 0 3px rgba(212, 180, 90, 0.16), inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  outline: none;
+}
+
+.staff-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.staff-input::placeholder {
+  color: rgba(246, 241, 231, 0.48);
+}
+
+select.staff-input {
+  appearance: auto;
+}
+
+textarea.staff-input {
+  line-height: 1.55;
+}
+
 @keyframes soso-marquee { from { transform: translateX(0);} to { transform: translateX(-50%);} }
 .soso-marquee { animation: soso-marquee 30s linear infinite; }
 html { scroll-behavior: smooth; }
