@@ -12,3 +12,4 @@
 - [API Zod library rebuild](api-zod-library-rebuild.md) — rebuild composite library declarations with the root TypeScript project command before checking API consumers.
 - [Empty GitHub repository publishing](empty-github-repository-publishing.md) — bootstrap an empty repository through Contents before creating a full Git-data commit.
 - [Production serverless bundle checks](production-serverless-bundle-checks.md) — bundle Express handlers in production mode when development-only logging transports use runtime module resolution.
+- [External Vercel preview verification](external-vercel-preview-verification.md) — validate Clerk proxy attribution and every required schema table on the actual Vercel preview, not only local.

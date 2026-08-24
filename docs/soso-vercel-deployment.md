@@ -58,6 +58,14 @@ The Clerk values below must come from the external Clerk instance created for th
 
 Set `VITE_CLERK_PROXY_URL=/api/__clerk` only after the owned Production domain has been configured as the Clerk proxy URL in the external Clerk dashboard. Leave it unset for Development-key Preview testing because Clerk does not support Frontend API proxying for Development instances. It is a public route, not a secret.
 
+Before Preview validation, apply the Drizzle schema to the exact PostgreSQL target configured in Vercel Preview. Run the migration from a private environment where that target `DATABASE_URL` is available:
+
+```sh
+pnpm --filter @workspace/db run push
+```
+
+Do not paste the connection string into chat, source control, or a `VITE_*` variable. A working `/api/faq` alongside a failing `/api/redirects` means the database is reachable but the redirect table or its permissions are missing; it is not a general database connectivity failure.
+
 ### Optional operational values
 
 | Variable | Purpose |
@@ -79,6 +87,7 @@ With these launch-only values unset, the storefront remains deliberately noindex
 
 1. Request `/api/healthz` and expect only `{"status":"ok"}`.
 2. Open `/shop` directly in a new browser tab and confirm the storefront loads rather than returning a 404.
-3. Open `/staff` unauthenticated and confirm the Clerk sign-in boundary appears without staff data.
-4. Confirm `/robots.txt` still disallows crawling and no sitemap is emitted while release switches remain off.
-5. Record the Vercel preview URL, deployment timestamp, tested routes, and database target in the release record. A successful deployment does not satisfy the separate JusticeSure, legal, SEO, roster, backup, or real-device launch gates.
+3. Open `/staff` unauthenticated and confirm the Clerk sign-in boundary appears without staff data. The Clerk sign-in controls themselves must load; a branded page shell without the email/social controls is a failed sign-in check.
+4. Request `/api/redirects?path=/shop` and expect `{"redirect":null}` before staff configure any redirects. A 500 requires the Preview database schema/permissions to be corrected before proceeding.
+5. Confirm `/robots.txt` still disallows crawling and no XML sitemap is emitted while release switches remain off. Vercel’s SPA rewrite can return the noindex HTML shell for `/sitemap.xml`; confirm the response is not XML and contains no `<urlset>` sitemap.
+6. Record the Vercel preview URL, deployment timestamp, tested routes, and database target in the release record. A successful deployment does not satisfy the separate JusticeSure, legal, SEO, roster, backup, or real-device launch gates.
