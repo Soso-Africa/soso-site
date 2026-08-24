@@ -22,7 +22,7 @@ Choose one of these hosting paths before putting SOSO on Vercel:
 
 Until option 2 is completed, Vercel can only be treated as an unauthenticated storefront experiment; it is not a valid full-stack SOSO deployment because staff authentication cannot be carried over from Replit-managed Clerk.
 
-External Clerk production requires an owned, verified application domain. A temporary `*.vercel.app` URL cannot be the final production Clerk host or same-origin Clerk proxy target. Use a Vercel Preview deployment with external Clerk Development keys for interim testing, then attach the owned SOSO domain in Vercel and configure that same domain in Clerk before enabling Production Clerk keys and `VITE_CLERK_PROXY_URL`.
+SOSO staff sign-in uses secure, same-origin HTTP-only session cookies. A Vercel Preview URL works for testing; production should use the approved SOSO domain and HTTPS.
 
 ## Database decision
 
@@ -51,12 +51,11 @@ The Clerk values below must come from the external Clerk instance created for th
 
 | Variable | Environments | Purpose |
 | --- | --- | --- |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Preview, Production | Browser-side Clerk initialization. Use the external Clerk Development key for Preview and the Production key only after the owned production domain is configured. |
-| `CLERK_PUBLISHABLE_KEY` | Preview, Production | Server-side Clerk host fallback. Match the Clerk environment selected for that Vercel environment. |
-| `CLERK_SECRET_KEY` | Preview, Production | Server-side authentication and optional Clerk proxy. Match the Clerk environment selected for that Vercel environment. |
+| `SESSION_SECRET` | Preview, Production | Required server session signing secret. |
+| `STAFF_BOOTSTRAP_TOKEN` | Preview, Production | One-time secret used only when creating the first SOSO owner password; remove after setup. |
 | `DATABASE_URL` | Preview, Production | PostgreSQL connection used by the API. Use a network-reachable database and a pooled/serverless-safe connection string. |
 
-Set `VITE_CLERK_PROXY_URL=/api/__clerk` only after the owned Production domain has been configured as the Clerk proxy URL in the external Clerk dashboard. Leave it unset for Development-key Preview testing because Clerk does not support Frontend API proxying for Development instances. It is a public route, not a secret.
+No third-party authentication proxy or browser key is required.
 
 Before Preview validation, apply the Drizzle schema to the exact PostgreSQL target configured in Vercel Preview. Run the migration from a private environment where that target `DATABASE_URL` is available:
 

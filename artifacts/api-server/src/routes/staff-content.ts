@@ -70,9 +70,15 @@ router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (r
   }
   const [current] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   const next = saveSiteDraft(current, draft, req.staff!.clerkUserId);
-  const [row] = await db.insert(siteContentTable).values(next).onConflictDoUpdate({
+  const nextValues = {
+    key: next.key, draft: next.draft, published: next.published,
+    draftUpdatedAt: next.draftUpdatedAt ?? undefined, publishedAt: next.publishedAt ?? undefined,
+    updatedByClerkUserId: next.updatedByClerkUserId ?? undefined,
+    publishedByClerkUserId: next.publishedByClerkUserId ?? undefined,
+  };
+  const [row] = await db.insert(siteContentTable).values(nextValues).onConflictDoUpdate({
     target: siteContentTable.key,
-    set: next,
+    set: nextValues,
   }).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
@@ -86,7 +92,11 @@ router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"),
   const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
   const { row: published, audit } = publishSiteDraft(existing, req.staff!.clerkUserId);
-  const [row] = await db.update(siteContentTable).set(published).where(eq(siteContentTable.key, "site")).returning();
+  const [row] = await db.update(siteContentTable).set({
+    ...published,
+    draftUpdatedAt: published.draftUpdatedAt ?? undefined,
+    updatedByClerkUserId: published.updatedByClerkUserId ?? undefined,
+  }).where(eq(siteContentTable.key, "site")).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: audit.actorClerkUserId, action: audit.action,
     entityType: audit.entityType, entityId: audit.entityId, metadata: audit.metadata,

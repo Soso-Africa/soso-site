@@ -13,6 +13,7 @@ import { CartDrawer } from '@/components/CartDrawer';
 import { ConsentManager } from '@/components/ConsentManager';
 import { Seo } from '@/components/Seo';
 import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
+import { customFetch } from '@workspace/api-client-react';
 
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
@@ -60,7 +61,7 @@ function Router() {
         <Route path="/care" component={Policy} />
         <Route path="/sign-in/*?" component={SignIn} />
         <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
-        <Route path="/staff" component={Staff} />
+        <Route path="/staff" component={StaffGate} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>
@@ -69,6 +70,21 @@ function Router() {
 
 function CookieRedirect() {
   return <Redirect to="/privacy#cookies" />;
+}
+
+function StaffGate() {
+  const [ready, setReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void customFetch("/api/staff-auth/status")
+      .then(() => { if (!cancelled) setSignedIn(true); })
+      .catch(() => { if (!cancelled) setSignedIn(false); })
+      .finally(() => { if (!cancelled) setReady(true); });
+    return () => { cancelled = true; };
+  }, []);
+  if (!ready) return <div className="flex min-h-[45vh] items-center justify-center text-sm text-muted-foreground">Checking staff access…</div>;
+  return signedIn ? <Staff /> : <Redirect to="/sign-in" />;
 }
 
 function DeliveryRedirect() {
