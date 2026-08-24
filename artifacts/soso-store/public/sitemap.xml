@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SOSO Africa sitemap.
+  Static routes are listed here. When a production domain is configured
+  (VITE_PUBLIC_SITE_URL) and indexing is enabled, the canonical href values
+  below should be updated to the production domain.
+  Journal articles should be appended here when published.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <!-- Core pages -->
+  <url><loc>SITE_URL/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>SITE_URL/shop</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>SITE_URL/about</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>SITE_URL/faq</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>SITE_URL/journal</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+
+  <!-- Collection pages -->
+  <url><loc>SITE_URL/collections/kaftans</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>SITE_URL/collections/agbadas</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>SITE_URL/collections/dashikis</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>SITE_URL/collections/two-piece</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>SITE_URL/collections/shirts</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
+
+  <!-- Product pages -->
+  <url><loc>SITE_URL/product/vault</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>SITE_URL/product/ivory-kaftan</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>SITE_URL/product/sovereign-agbada</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>SITE_URL/product/heritage-dashiki</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>SITE_URL/product/boardroom-shirt</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>SITE_URL/product/twin-set</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+
+  <!-- Policy pages -->
+  <url><loc>SITE_URL/policies</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>SITE_URL/privacy</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>SITE_URL/terms</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>SITE_URL/delivery-returns</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>SITE_URL/care</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+
+  <!--
+    Journal articles: add one <url> entry per published article below.
+    <url><loc>SITE_URL/journal/article-slug</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  -->
+
+</urlset>

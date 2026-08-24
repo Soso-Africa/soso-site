@@ -16,16 +16,23 @@ import {
   faqItemsTable,
   journalPostRevisionsTable,
   journalPostsTable,
+<<<<<<< HEAD
   siteContentTable,
 } from "@workspace/db";
 import { asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
+=======
+} from "@workspace/db";
+import { asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { requireStaff, requireStaffRoles } from "../middlewares/staff";
+>>>>>>> github/main
 
 const router: IRouter = Router();
 
 router.use("/staff", requireStaff);
 
+<<<<<<< HEAD
 router.get("/staff/content/site", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
   const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   res.json(row ?? {
@@ -104,6 +111,8 @@ router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"),
   res.json(row);
 });
 
+=======
+>>>>>>> github/main
 type JournalPostCore = {
   slug: string;
   title: string;
@@ -182,11 +191,16 @@ router.post(
   "/staff/journal",
   requireStaffRoles("owner", "editor"),
   async (req, res): Promise<void> => {
+<<<<<<< HEAD
     const parsed = UpdateStaffJournalPostBody.safeParse(req.body);
+=======
+    const parsed = CreateStaffJournalPostBody.safeParse(req.body);
+>>>>>>> github/main
     if (!parsed.success) {
       res.status(400).json({ error: "Please complete the article details" });
       return;
     }
+<<<<<<< HEAD
     const params = ListStaffJournalPostRevisionsParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: "Invalid article reference" });
@@ -230,20 +244,39 @@ router.post(
               : null,
         })
         .where(eq(journalPostsTable.id, current.id))
+=======
+
+    const post = await db.transaction(async (tx) => {
+      const relationError = await validateRelatedArticles(tx, parsed.data.slug, parsed.data.relatedArticleSlugs, parsed.data.status);
+      if (relationError) return { kind: "relation_error" as const, message: relationError };
+      const [created] = await tx
+        .insert(journalPostsTable)
+        .values({
+          ...parsed.data,
+          publishedAt: parsed.data.status === "published" ? new Date() : null,
+        })
+>>>>>>> github/main
         .returning();
 
       const [revision] = await tx
         .insert(journalPostRevisionsTable)
         .values({
+<<<<<<< HEAD
           journalPostId: updated!.id,
           snapshot: journalSnapshot(updated!),
           contentHash: journalFingerprint(updated!),
+=======
+          journalPostId: created!.id,
+          snapshot: journalSnapshot(created!),
+          contentHash: journalFingerprint(created!),
+>>>>>>> github/main
           createdByClerkUserId: req.staff!.clerkUserId,
         })
         .returning();
 
       await tx.insert(auditLogsTable).values({
         actorClerkUserId: req.staff!.clerkUserId,
+<<<<<<< HEAD
         action: "journal.updated",
         entityType: "journal_post",
         entityId: updated!.id,
@@ -269,10 +302,26 @@ router.post(
       res.status(409).json({ error: "This article changed while you were editing it. Reload it before saving again." });
       return;
     }
+=======
+        action: "journal.created",
+        entityType: "journal_post",
+        entityId: created!.id,
+        metadata: {
+          slug: created!.slug,
+          status: created!.status,
+          contentHash: journalFingerprint(created!),
+          revisionId: revision!.id,
+        },
+      });
+      return { kind: "created" as const, post: created! };
+    });
+
+>>>>>>> github/main
     if (post.kind === "relation_error") {
       res.status(400).json({ error: post.message });
       return;
     }
+<<<<<<< HEAD
 
     res.json(UpdateStaffJournalPostResponse.parse(post.post));
   },
@@ -283,6 +332,17 @@ router.get(
   requireStaffRoles("owner", "editor"),
   async (req, res): Promise<void> => {
     const params = ListStaffJournalPostRevisionsParams.safeParse(req.params);
+=======
+    res.status(201).json(CreateStaffJournalPostResponse.parse(post.post));
+  },
+);
+
+router.patch(
+  "/staff/journal/:id",
+  requireStaffRoles("owner", "editor"),
+  async (req, res): Promise<void> => {
+    const params = UpdateStaffJournalPostParams.safeParse(req.params);
+>>>>>>> github/main
     const parsed = UpdateStaffJournalPostBody.safeParse(req.body);
     if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
       res.status(400).json({ error: "Please provide valid article updates" });
@@ -418,6 +478,7 @@ router.get(
 
 // ── FAQ management ─────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 export const faqSnapshot = (row: typeof faqItemsTable.$inferSelect) => ({
   question: row.question,
   answer: row.answer,
@@ -429,6 +490,11 @@ export const faqSnapshot = (row: typeof faqItemsTable.$inferSelect) => ({
 export const buildFaqCreateAuditMetadata = (row: typeof faqItemsTable.$inferSelect) => ({
   snapshot: faqSnapshot(row),
   transition: { from: null, to: row.isPublished ? "published" : "draft" },
+=======
+router.get("/staff/faq", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
+  const rows = await db.select().from(faqItemsTable).orderBy(asc(faqItemsTable.sortOrder), asc(faqItemsTable.createdAt));
+  res.json(rows);
+>>>>>>> github/main
 });
 
 router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
@@ -442,6 +508,7 @@ router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res)
     answer: answer.trim(),
     category: typeof category === "string" && category.trim() ? category.trim() : null,
     sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
+<<<<<<< HEAD
     isPublished: typeof isPublished === "boolean" ? isPublished : false,
   }).returning();
   await db.insert(auditLogsTable).values({
@@ -451,13 +518,21 @@ router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res)
     entityId: row!.id,
     metadata: buildFaqCreateAuditMetadata(row!),
   });
+=======
+    isPublished: isPublished !== false,
+  }).returning();
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.created", entityType: "faq_item", entityId: row!.id, metadata: { question: row!.question } });
+>>>>>>> github/main
   res.status(201).json(row);
 });
 
 router.patch("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
   const { question, answer, category, sortOrder, isPublished } = req.body as Record<string, unknown>;
+<<<<<<< HEAD
   const [current] = await db.select().from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
   if (!current) { res.status(404).json({ error: "FAQ item not found" }); return; }
+=======
+>>>>>>> github/main
   const updates: Partial<typeof faqItemsTable.$inferInsert> = {};
   if (typeof question === "string" && question.trim()) updates.question = question.trim();
   if (typeof answer === "string" && answer.trim()) updates.answer = answer.trim();
@@ -466,6 +541,7 @@ router.patch("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req,
   if (typeof isPublished === "boolean") updates.isPublished = isPublished;
   if (!Object.keys(updates).length) { res.status(400).json({ error: "No valid fields to update" }); return; }
   updates.updatedAt = new Date();
+<<<<<<< HEAD
   const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId,
@@ -474,10 +550,16 @@ router.patch("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req,
     entityId: row!.id,
     metadata: buildFaqUpdateAuditMetadata(current, row!),
   });
+=======
+  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, req.params.id as string)).returning();
+  if (!row) { res.status(404).json({ error: "FAQ item not found" }); return; }
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.updated", entityType: "faq_item", entityId: row.id, metadata: {} });
+>>>>>>> github/main
   res.json(row);
 });
 
 router.delete("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+<<<<<<< HEAD
   const [current] = await db.select().from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
   if (!current) { res.status(404).json({ error: "FAQ item not found" }); return; }
   await db.delete(faqItemsTable).where(eq(faqItemsTable.id, current.id));
@@ -536,3 +618,12 @@ export const buildFaqDeleteAuditMetadata = (row: typeof faqItemsTable.$inferSele
   previousSnapshot: faqSnapshot(row),
   transition: { from: row.isPublished ? "published" : "draft", to: "deleted" },
 });
+=======
+  const [row] = await db.delete(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).returning({ id: faqItemsTable.id });
+  if (!row) { res.status(404).json({ error: "FAQ item not found" }); return; }
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.deleted", entityType: "faq_item", entityId: row.id, metadata: {} });
+  res.status(204).send();
+});
+
+export default router;
+>>>>>>> github/main

@@ -22,8 +22,11 @@ Choose one of these hosting paths before putting SOSO on Vercel:
 
 Until option 2 is completed, Vercel can only be treated as an unauthenticated storefront experiment; it is not a valid full-stack SOSO deployment because staff authentication cannot be carried over from Replit-managed Clerk.
 
+<<<<<<< HEAD
 SOSO staff sign-in uses secure, same-origin HTTP-only session cookies. A Vercel Preview URL works for testing; production should use the approved SOSO domain and HTTPS.
 
+=======
+>>>>>>> github/main
 ## Database decision
 
 The Replit development database is currently reachable, but this project does not have a Replit production database yet. Replit creates its production database when the project is published through Replit; there is no separate database-creation action. Publishing through Replit would also create a second hosted deployment, which is not required if Vercel is the chosen host.
@@ -37,7 +40,11 @@ For a Vercel-hosted production app, use a production PostgreSQL database with a 
 3. Allow the committed `vercel.json` to supply the install command, build command, and output directory.
 4. Add the environment variables below before deploying a preview.
 5. Deploy a preview first and confirm `GET /api/healthz`, a storefront deep link, Clerk sign-in, and one staff route behave as expected.
+<<<<<<< HEAD
 6. Add and verify the owned production domain in both Vercel and external Clerk before enabling Production Clerk keys and the Clerk proxy. Do not enable SEO or commerce release switches as part of the hosting setup.
+=======
+6. Add the verified production domain only after the preview is healthy. Do not enable SEO or commerce release switches as part of the hosting setup.
+>>>>>>> github/main
 
 Vercel must have GitHub application access to the `Soso-Africa` organization. If the repository cannot be selected during import, an organization owner must grant Vercel access in GitHub's third-party application settings.
 
@@ -51,6 +58,7 @@ The Clerk values below must come from the external Clerk instance created for th
 
 | Variable | Environments | Purpose |
 | --- | --- | --- |
+<<<<<<< HEAD
 | `SESSION_SECRET` | Preview, Production | Required server session signing secret. |
 | `STAFF_BOOTSTRAP_TOKEN` | Preview, Production | One-time secret used only when creating the first SOSO owner password; remove after setup. |
 | `DATABASE_URL` | Preview, Production | PostgreSQL connection used by the API. Use a network-reachable database and a pooled/serverless-safe connection string. |
@@ -64,6 +72,14 @@ pnpm --filter @workspace/db run push
 ```
 
 Do not paste the connection string into chat, source control, or a `VITE_*` variable. A working `/api/faq` alongside a failing `/api/redirects` means the database is reachable but the redirect table or its permissions are missing; it is not a general database connectivity failure.
+=======
+| `VITE_CLERK_PUBLISHABLE_KEY` | Preview, Production | Browser-side Clerk initialization. |
+| `CLERK_PUBLISHABLE_KEY` | Preview, Production | Server-side Clerk host fallback. |
+| `CLERK_SECRET_KEY` | Preview, Production | Server-side authentication and optional Clerk proxy. |
+| `DATABASE_URL` | Preview, Production | PostgreSQL connection used by the API. Use a network-reachable database and a pooled/serverless-safe connection string. |
+
+`VITE_CLERK_PROXY_URL=/api/__clerk` is recommended when Clerk's same-origin proxy is required for the deployed domain. It is a public route, not a secret.
+>>>>>>> github/main
 
 ### Optional operational values
 
@@ -86,7 +102,13 @@ With these launch-only values unset, the storefront remains deliberately noindex
 
 1. Request `/api/healthz` and expect only `{"status":"ok"}`.
 2. Open `/shop` directly in a new browser tab and confirm the storefront loads rather than returning a 404.
+<<<<<<< HEAD
 3. Open `/staff` unauthenticated and confirm the Clerk sign-in boundary appears without staff data. The Clerk sign-in controls themselves must load; a branded page shell without the email/social controls is a failed sign-in check.
 4. Request `/api/redirects?path=/shop` and expect `{"redirect":null}` before staff configure any redirects. A 500 requires the Preview database schema/permissions to be corrected before proceeding.
 5. Confirm `/robots.txt` still disallows crawling and no XML sitemap is emitted while release switches remain off. Vercel’s SPA rewrite can return the noindex HTML shell for `/sitemap.xml`; confirm the response is not XML and contains no `<urlset>` sitemap.
 6. Record the Vercel preview URL, deployment timestamp, tested routes, and database target in the release record. A successful deployment does not satisfy the separate JusticeSure, legal, SEO, roster, backup, or real-device launch gates.
+=======
+3. Open `/staff` unauthenticated and confirm the Clerk sign-in boundary appears without staff data.
+4. Confirm `/robots.txt` still disallows crawling and no sitemap is emitted while release switches remain off.
+5. Record the Vercel preview URL, deployment timestamp, tested routes, and database target in the release record. A successful deployment does not satisfy the separate JusticeSure, legal, SEO, roster, backup, or real-device launch gates.
+>>>>>>> github/main

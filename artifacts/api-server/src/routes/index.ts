@@ -6,7 +6,10 @@ import healthRouter from "./health";
 import paymentRouter from "./payment";
 import redirectsRouter from "./redirects";
 import sitemapRouter from "./sitemap";
+<<<<<<< HEAD
 import staffAuthRouter from "./staff-auth";
+=======
+>>>>>>> github/main
 import staffContentRouter from "./staff-content";
 import staffRouter from "./staff";
 
@@ -19,7 +22,10 @@ router.use(faqRouter);
 router.use(paymentRouter);
 router.use(redirectsRouter);
 router.use(sitemapRouter);
+<<<<<<< HEAD
 router.use(staffAuthRouter);
+=======
+>>>>>>> github/main
 router.use(staffRouter);
 router.use(staffContentRouter);
 

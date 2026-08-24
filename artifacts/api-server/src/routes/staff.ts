@@ -10,12 +10,15 @@ import {
   GetStaffFunnelResponse,
   GetStaffOverviewResponse,
   GetStaffProfileResponse,
+<<<<<<< HEAD
   ListStaffAccessResponse,
   CreateStaffAccessBody,
   CreateStaffAccessResponse,
   UpdateStaffAccessBody,
   UpdateStaffAccessParams,
   UpdateStaffAccessResponse,
+=======
+>>>>>>> github/main
   ListStaffAuditEventsResponse,
   ListStaffEnquiriesResponse,
   ListStaffNotificationsResponse,
@@ -45,13 +48,19 @@ import {
   ordersTable,
   privacyRequestsTable,
   privacyAccessPackagesTable,
+<<<<<<< HEAD
   staffUsersTable,
   type StaffUser,
+=======
+>>>>>>> github/main
 } from "@workspace/db";
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
+<<<<<<< HEAD
 import { newManagedStaffIdentity, setManagedStaffPassword } from "./staff-auth";
+=======
+>>>>>>> github/main
 import {
   buildAnalyticsQualityReport,
   QUALITY_EVENT_LIMIT,
@@ -62,6 +71,7 @@ const router: IRouter = Router();
 
 router.use("/staff", requireStaff);
 
+<<<<<<< HEAD
 type StaffAccessChange = {
   role?: StaffUser["role"];
   isActive?: boolean;
@@ -92,6 +102,8 @@ export function staffAccessAuditMetadata(
   });
 }
 
+=======
+>>>>>>> github/main
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const orderStatuses = [
   "payment_pending",
@@ -193,6 +205,7 @@ router.get("/staff/me", (req, res): void => {
   );
 });
 
+<<<<<<< HEAD
 router.get("/staff/access", requireStaffRoles("owner"), async (_req, res): Promise<void> => {
   const mappings = await db.select().from(staffUsersTable).orderBy(desc(staffUsersTable.isActive), desc(staffUsersTable.updatedAt));
   res.json(ListStaffAccessResponse.parse(mappings));
@@ -274,6 +287,8 @@ router.patch("/staff/access/:id", requireStaffRoles("owner"), async (req, res): 
   res.json(UpdateStaffAccessResponse.parse(updated));
 });
 
+=======
+>>>>>>> github/main
 router.get("/staff/overview", async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   if (!range) {

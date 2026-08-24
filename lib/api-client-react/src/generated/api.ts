@@ -47,9 +47,12 @@ import type {
   PrivacyRequestAcknowledgement,
   PrivacyRequestInput,
   RedirectLookup,
+<<<<<<< HEAD
   StaffAccessInput,
   StaffAccessMapping,
   StaffAccessUpdate,
+=======
+>>>>>>> github/main
   StaffAuditEvent,
   StaffEnquiryUpdate,
   StaffExport,
@@ -1224,6 +1227,7 @@ export function useGetStaffProfile<TData = Awaited<ReturnType<typeof getStaffPro
 
 
 
+<<<<<<< HEAD
 export const getListStaffAccessUrl = () => {
 
 
@@ -1444,6 +1448,8 @@ export const useUpdateStaffAccess = <TError = ErrorType<void>,
       return useMutation(getUpdateStaffAccessMutationOptions(options));
     }
 
+=======
+>>>>>>> github/main
 export const getGetStaffOverviewUrl = (params?: GetStaffOverviewParams,) => {
   const normalizedParams = new URLSearchParams();
 

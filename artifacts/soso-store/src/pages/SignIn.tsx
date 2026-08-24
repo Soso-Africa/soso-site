@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import React, { FormEvent, useState } from 'react';
 import { useLocation } from "wouter";
 import { customFetch } from "@workspace/api-client-react";
@@ -21,6 +22,14 @@ export default function SignInPage() {
     } catch { setNotice("The email address or password is incorrect."); }
     finally { setSubmitting(false); }
   };
+=======
+import React from 'react';
+import { SignIn } from '@clerk/react';
+import { dark } from '@clerk/themes';
+
+export default function SignInPage() {
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+>>>>>>> github/main
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center bg-background px-4 py-12 relative overflow-hidden fade-in">
@@ -37,6 +46,7 @@ export default function SignInPage() {
           </p>
         </div>
 
+<<<<<<< HEAD
         <form onSubmit={submit} className="w-full border border-border/60 bg-card p-6 shadow-2xl">
           <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Staff email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="staff-input mt-2" autoComplete="email" /></label>
           {initialSetup && <label className="mt-5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">One-time setup token<input required type="password" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} className="staff-input mt-2" autoComplete="off" /></label>}
@@ -46,6 +56,43 @@ export default function SignInPage() {
           <button type="button" onClick={() => { setInitialSetup(!initialSetup); setNotice(""); }} className="mt-4 w-full text-xs text-primary underline underline-offset-4">{initialSetup ? "Back to staff sign in" : "First SOSO owner setup"}</button>
           <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{initialSetup ? "Use this once only, with the setup token stored in Replit Secrets." : "Access is issued by a SOSO owner. Contact an owner if you need an account or password reset."}</p>
         </form>
+=======
+        <SignIn 
+          appearance={{
+            theme: dark,
+            variables: {
+              colorPrimary: 'hsl(43, 59%, 45%)',
+              colorBackground: 'hsl(36, 18%, 5%)',
+              colorForeground: 'hsl(38, 41%, 94%)',
+              colorMutedForeground: 'hsl(41, 41%, 88%)',
+              colorInput: 'transparent',
+              colorInputForeground: 'hsl(38, 41%, 94%)',
+              borderRadius: '0px',
+              fontFamily: 'Plus Jakarta Sans, sans-serif'
+            },
+            elements: {
+              rootBox: "w-full",
+              card: "border border-border/60 shadow-2xl bg-background/90 backdrop-blur-md w-full p-4 sm:p-6 rounded-none",
+              headerTitle: "hidden",
+              headerSubtitle: "hidden",
+              socialButtonsBlockButton: "border-border hover:bg-secondary/5 rounded-none h-12 transition-colors",
+              socialButtonsBlockButtonText: "font-medium tracking-wider text-sm",
+              dividerLine: "bg-border",
+              dividerText: "text-muted-foreground font-medium uppercase tracking-widest text-xs",
+              formFieldInput: "border-border rounded-none h-12 focus:ring-1 focus:ring-primary focus:border-primary bg-background/50",
+              formFieldLabel: "text-foreground uppercase tracking-wider text-xs font-medium",
+              formButtonPrimary: "h-12 soso-btn-gold rounded-none text-primary-foreground font-medium uppercase tracking-widest text-sm w-full transition-colors mt-2",
+              footerActionLink: "text-primary hover:text-primary/80 transition-colors font-medium",
+              footerActionText: "text-muted-foreground",
+              identityPreviewText: "text-foreground",
+              identityPreviewEditButton: "text-primary hover:text-primary/80"
+            }
+          }}
+          routing="path"
+          path={`${basePath}/sign-in`}
+          signUpUrl={`${basePath}/sign-up`}
+        />
+>>>>>>> github/main
       </div>
     </div>
   );

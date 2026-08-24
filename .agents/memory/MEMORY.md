@@ -10,6 +10,9 @@
 - [Controlled privacy access packages](controlled-privacy-access-packages.md) — verified requests get a bounded, short-lived one-time export; deletion stays blocked without approved rules.
 - [Shared storefront analytics paths](shared-storefront-analytics-paths.md) — keep public-route validation as one deny-list policy usable by both JavaScript ingestion and PostgreSQL staff checks.
 - [API Zod library rebuild](api-zod-library-rebuild.md) — rebuild composite library declarations with the root TypeScript project command before checking API consumers.
+<<<<<<< HEAD
 - [Empty GitHub repository publishing](empty-github-repository-publishing.md) — bootstrap an empty repository through Contents before creating a full Git-data commit.
 - [Production serverless bundle checks](production-serverless-bundle-checks.md) — bundle Express handlers in production mode when development-only logging transports use runtime module resolution.
 - [External Vercel preview verification](external-vercel-preview-verification.md) — validate Clerk proxy attribution and every required schema table on the actual Vercel preview, not only local.
+=======
+>>>>>>> github/main

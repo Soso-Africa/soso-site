@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Seo } from "@/components/Seo";
@@ -5,11 +6,19 @@ import { absoluteUrl, indexingEnabled, siteUrl } from "@/lib/seo";
 import { faqItems } from "@/data/faq";
 import type { FaqItem } from "@/data/faq";
 import { customFetch } from "@workspace/api-client-react";
+=======
+import React, { useState, useEffect } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { Seo } from "@/components/Seo";
+import { absoluteUrl, indexingEnabled, siteUrl } from "@/lib/seo";
+import { faqItems, faqCategories } from "@/data/faq";
+>>>>>>> github/main
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 
 export default function FAQ() {
   const [open, setOpen] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("All");
+<<<<<<< HEAD
   const [liveItems, setLiveItems] = useState<FaqItem[] | null>(null);
 
   useEffect(() => {
@@ -27,6 +36,13 @@ export default function FAQ() {
     activeCategory === "All"
       ? items
       : items.filter((f) => f.category === activeCategory);
+=======
+
+  const visible =
+    activeCategory === "All"
+      ? faqItems
+      : faqItems.filter((f) => f.category === activeCategory);
+>>>>>>> github/main
 
   const toggle = (id: string) => {
     const next = open === id ? null : id;
@@ -41,7 +57,11 @@ export default function FAQ() {
       ? {
           "@context": "https://schema.org",
           "@type": "FAQPage",
+<<<<<<< HEAD
           mainEntity: items.map((item) => ({
+=======
+          mainEntity: faqItems.map((item) => ({
+>>>>>>> github/main
             "@type": "Question",
             name: item.question,
             acceptedAnswer: {
@@ -75,7 +95,11 @@ export default function FAQ() {
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
         {/* Category filter */}
         <div className="flex flex-wrap gap-2 mb-10">
+<<<<<<< HEAD
           {["All", ...categories].map((cat) => (
+=======
+          {["All", ...faqCategories].map((cat) => (
+>>>>>>> github/main
             <button
               key={cat}
               type="button"

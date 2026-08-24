@@ -457,6 +457,7 @@ export const GetStaffProfileResponse = zod.object({
 
 
 /**
+<<<<<<< HEAD
  * @summary List active and inactive staff access mappings
  */
 export const listStaffAccessResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -539,6 +540,8 @@ export const UpdateStaffAccessResponse = zod.object({
 
 
 /**
+=======
+>>>>>>> github/main
  * @summary Get operational and funnel overview
  */
 export const getStaffOverviewQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');

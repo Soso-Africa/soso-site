@@ -16,6 +16,7 @@ router.get("/redirects", async (req, res): Promise<void> => {
     return;
   }
 
+<<<<<<< HEAD
   try {
     const [redirect] = await db
       .select({
@@ -39,6 +40,24 @@ router.get("/redirects", async (req, res): Promise<void> => {
     req.log?.warn({ err: error }, "Redirect lookup unavailable");
     res.json({ redirect: null });
   }
+=======
+  const [redirect] = await db
+    .select({
+      fromPath: redirectsTable.fromPath,
+      toPath: redirectsTable.toPath,
+      statusCode: redirectsTable.statusCode,
+    })
+    .from(redirectsTable)
+    .where(eq(redirectsTable.fromPath, requestedPath))
+    .limit(1);
+
+  if (!redirect) {
+    res.json({ redirect: null });
+    return;
+  }
+
+  res.json({ redirect });
+>>>>>>> github/main
 });
 
 export default router;
