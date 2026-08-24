@@ -1,4 +1,4 @@
-const PRIVATE_SURFACE_PATH = /^\/(?:staff|sign-in|sign-up)(?:\/|$)|^\/journal\/preview(?:\/|$)/i;
+const PRIVATE_SURFACE_PATH = /^\/(?:api|staff|sign-in|sign-up)(?:\/|$)|^\/journal\/preview(?:\/|$)/i;
 
 /**
  * Analytics receives pathname values, not full URLs. Keep this policy

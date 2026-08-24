@@ -5,7 +5,6 @@ import {
   RecordAnalyticsEventResponse,
   RecordConsentBody,
   RecordConsentResponse,
-  isTrackableStorefrontPath,
 } from "@workspace/api-zod";
 import {
   analyticsEventsTable,
@@ -14,6 +13,7 @@ import {
   rateLimitBucketsTable,
 } from "@workspace/db";
 import { desc, eq, lt, sql } from "drizzle-orm";
+import { validateAnalyticsEvent } from "./analytics-validation";
 
 const router: IRouter = Router();
 const RATE_WINDOW_MS = 60_000;
@@ -22,8 +22,6 @@ const MAX_EVENTS_PER_ANONYMOUS_WINDOW = 120;
 const MAX_PRECONSENT_EVENTS_PER_IP_WINDOW = MAX_EVENTS_PER_IP_WINDOW;
 const MAX_CONSENT_PER_IP_WINDOW = 40;
 const MAX_CONSENT_PER_ANONYMOUS_WINDOW = 6;
-const MAX_EVENT_FUTURE_MS = 5 * 60_000;
-const MAX_EVENT_AGE_MS = 31 * 24 * 60 * 60_000;
 
 async function consumeRateLimit(scope: string, identifier: string, limit: number): Promise<boolean> {
   const now = new Date();
@@ -60,14 +58,13 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
     return;
   }
 
-  const now = Date.now();
-  const occurredAt = parsed.data.occurredAt.getTime();
-  if (occurredAt > now + MAX_EVENT_FUTURE_MS || occurredAt < now - MAX_EVENT_AGE_MS) {
+  const validationError = validateAnalyticsEvent(parsed.data);
+  if (validationError === "timestamp") {
     res.status(400).json({ error: "Analytics event timestamp is outside the accepted window" });
     return;
   }
 
-  if (!isTrackableStorefrontPath(parsed.data.path)) {
+  if (validationError === "path") {
     res.status(400).json({ error: "Analytics event path is not a valid public storefront pathname" });
     return;
   }
@@ -87,7 +84,6 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
     res.status(429).json({ error: "Too many measurement events" });
     return;
   }
-
   const [latestConsent] = await db
     .select({ state: consentRecordsTable.state })
     .from(consentRecordsTable)

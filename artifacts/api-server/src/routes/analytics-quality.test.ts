@@ -1,0 +1,132 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { RecordAnalyticsEventBody } from "@workspace/api-zod";
+import {
+  buildAnalyticsQualityReport,
+  type AnalyticsQualityFixture,
+} from "./analytics-quality";
+import { validateAnalyticsEvent } from "./analytics-validation";
+
+const now = new Date("2026-08-24T12:00:00.000Z");
+const baseFixture: AnalyticsQualityFixture = {
+  events24h: 20,
+  events7d: 140,
+  invalidPathCount: 0,
+  attributionCount: 0,
+  futureTimestampCount: 0,
+  journeyRows: [
+    { sessionId: "session-valid-001", eventName: "product_view", occurredAt: now },
+    { sessionId: "session-valid-001", eventName: "add_to_bag", occurredAt: now },
+    { sessionId: "session-valid-001", eventName: "checkout_started", occurredAt: now },
+    { sessionId: "session-valid-001", eventName: "payment_clicked", occurredAt: now },
+  ],
+  burstCount: 0,
+  generatedAt: now,
+};
+
+function checkStatuses(fixture: Partial<AnalyticsQualityFixture>) {
+  const report = buildAnalyticsQualityReport({ ...baseFixture, ...fixture });
+  return new Map(report.checks.map((check) => [check.check, check.status]));
+}
+
+test("accepts a valid consented storefront event within the timestamp window", () => {
+  const body = RecordAnalyticsEventBody.safeParse({
+    eventId: "event-valid-001",
+    eventVersion: 1,
+    anonymousId: "anonymous-valid-001",
+    sessionId: "session-valid-001",
+    eventName: "page_view",
+    path: "/shop",
+    consent: "analytics",
+    occurredAt: now.toISOString(),
+  });
+
+  assert.equal(body.success, true);
+  if (body.success) {
+    assert.equal(validateAnalyticsEvent(body.data, now.getTime()), null);
+    assert.equal(body.data.consent, "analytics");
+  }
+});
+
+test("rejects stale and future event timestamps", () => {
+  assert.equal(
+    validateAnalyticsEvent(
+      { path: "/shop", occurredAt: new Date(now.getTime() - 31 * 24 * 60 * 60_000 - 1) },
+      now.getTime(),
+    ),
+    "timestamp",
+  );
+  assert.equal(
+    validateAnalyticsEvent(
+      { path: "/shop", occurredAt: new Date(now.getTime() + 5 * 60_000 + 1) },
+      now.getTime(),
+    ),
+    "timestamp",
+  );
+});
+
+test("rejects non-storefront paths even when the timestamp is valid", () => {
+  assert.equal(
+    validateAnalyticsEvent({ path: "/api/staff/analytics/quality", occurredAt: now }, now.getTime()),
+    "path",
+  );
+  assert.equal(
+    validateAnalyticsEvent({ path: "/product/not valid", occurredAt: now }, now.getTime()),
+    "path",
+  );
+});
+
+test("each aggregate quality check moves from healthy to its flagged state", () => {
+  const scenarios: [
+    string,
+    Partial<AnalyticsQualityFixture>,
+    "review" | "issue",
+  ][] = [
+    ["volume_spike", { events24h: 101, events7d: 140 }, "review"],
+    ["signal_volume", { events7d: 9 }, "review"],
+    ["storefront_paths", { invalidPathCount: 1 }, "issue"],
+    ["attribution_completeness", { attributionCount: 2 }, "review"],
+    ["time_sanity", { futureTimestampCount: 1 }, "issue"],
+    [
+      "journey_order",
+      {
+        journeyRows: [
+          { sessionId: "session-out-of-order", eventName: "payment_clicked", occurredAt: now },
+        ],
+      },
+      "review",
+    ],
+    ["automation_bursts", { burstCount: 1 }, "review"],
+  ];
+
+  const healthy = checkStatuses({});
+  assert.deepEqual([...healthy.values()], ["ok", "ok", "ok", "ok", "ok", "ok", "ok"]);
+
+  for (const [check, fixture, status] of scenarios) {
+    assert.equal(checkStatuses(fixture).get(check), status, `${check} should be flagged`);
+  }
+});
+
+test("quality response keeps its contract and does not expose identifiers", () => {
+  const report = buildAnalyticsQualityReport({
+    ...baseFixture,
+    invalidPathCount: 1,
+    attributionCount: 1,
+    futureTimestampCount: 1,
+    burstCount: 1,
+  });
+
+  assert.ok(report.status === "ok" || report.status === "review" || report.status === "issue");
+  assert.equal(report.checks.length, 7);
+  for (const check of report.checks) {
+    assert.equal(typeof check.status, "string");
+    assert.equal(typeof check.detail, "string");
+    assert.equal(typeof check.scope, "string");
+    assert.equal(typeof check.nextAction, "string");
+  }
+
+  const serialized = JSON.stringify(report);
+  assert.equal(serialized.includes("anonymousId"), false);
+  assert.equal(serialized.includes("sessionId"), false);
+  assert.equal(serialized.includes("session-valid-001"), false);
+});
