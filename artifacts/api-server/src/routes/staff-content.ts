@@ -27,7 +27,7 @@ const router: IRouter = Router();
 router.use("/staff", requireStaff);
 
 router.get("/staff/content/site", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
-  const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
   res.json(row ?? {
     key: "site",
     draft: {},
@@ -68,14 +68,9 @@ router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (r
     res.status(400).json({ error: "Primary CTA must link to a local storefront path" });
     return;
   }
-  const [current] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+  const [current] = await db.select().from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
   const next = saveSiteDraft(current, draft, req.staff!.clerkUserId);
-  const [row] = await db.insert(siteContentTable).values({
-    key: next.key, draft: next.draft, updatedByClerkUserId: next.updatedByClerkUserId,
-  }).onConflictDoUpdate({
-    target: siteContentTable.key,
-    set: { draft, draftUpdatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId },
-  }).returning();
+  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
     entityType: "site_content", entityId: "site",
@@ -88,9 +83,7 @@ router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"),
   const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
   const { row: published, audit } = publishSiteDraft(existing, req.staff!.clerkUserId);
-  const [row] = await db.update(siteContentTable).set({
-    published: published.published, publishedAt: published.publishedAt, publishedByClerkUserId: published.publishedByClerkUserId,
-  }).where(eq(siteContentTable.key, "site")).returning();
+  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: audit.actorClerkUserId, action: audit.action,
     entityType: audit.entityType, entityId: audit.entityId, metadata: audit.metadata,
@@ -176,56 +169,98 @@ router.post(
   "/staff/journal",
   requireStaffRoles("owner", "editor"),
   async (req, res): Promise<void> => {
-    const parsed = CreateStaffJournalPostBody.safeParse(req.body);
+    const parsed = UpdateStaffJournalPostBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Please complete the article details" });
       return;
     }
-    const params = UpdateStaffJournalPostParams.safeParse(req.params);
+    const params = ListStaffJournalPostRevisionsParams.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: "Invalid article reference" });
       return;
     }
 
     const post = await db.transaction(async (tx) => {
-      const relationError = await validateRelatedArticles(tx, parsed.data.slug, parsed.data.relatedArticleSlugs, parsed.data.status);
+      const [current] = await tx
+        .select()
+        .from(journalPostsTable)
+        .where(eq(journalPostsTable.id, params.data.id))
+        .limit(1);
+      if (!current) return null;
+      if (expectedRevision && current.updatedAt.getTime() !== expectedRevision.getTime()) {
+        return { kind: "conflict" as const };
+      }
+      const nextStatus = parsed.data.status ?? current.status;
+      const relationError = await validateRelatedArticles(
+        tx,
+        parsed.data.slug ?? current.slug,
+        parsed.data.relatedArticleSlugs ?? current.relatedArticleSlugs,
+        nextStatus,
+      );
       if (relationError) return { kind: "relation_error" as const, message: relationError };
-      const [created] = await tx.insert(journalPostsTable).values({
-        ...parsed.data,
-        publishedAt: parsed.data.status === "published" ? new Date() : null,
-      }).returning();
+      const [previousRevision] = await tx
+        .select({ id: journalPostRevisionsTable.id })
+        .from(journalPostRevisionsTable)
+        .where(eq(journalPostRevisionsTable.journalPostId, current.id))
+        .orderBy(desc(journalPostRevisionsTable.createdAt))
+        .limit(1);
+
+      const status = nextStatus;
+      const [updated] = await tx
+        .update(journalPostsTable)
+        .set({
+          ...parsed.data,
+          publishedAt:
+            status === "published"
+              ? current.publishedAt ?? new Date()
+              : null,
+        })
+        .where(eq(journalPostsTable.id, current.id))
+        .returning();
 
       const [revision] = await tx
         .insert(journalPostRevisionsTable)
         .values({
-          journalPostId: created!.id,
-          snapshot: journalSnapshot(created!),
-          contentHash: journalFingerprint(created!),
+          journalPostId: updated!.id,
+          snapshot: journalSnapshot(updated!),
+          contentHash: journalFingerprint(updated!),
           createdByClerkUserId: req.staff!.clerkUserId,
         })
         .returning();
 
       await tx.insert(auditLogsTable).values({
         actorClerkUserId: req.staff!.clerkUserId,
-        action: "journal.created",
+        action: "journal.updated",
         entityType: "journal_post",
-        entityId: created!.id,
+        entityId: updated!.id,
         metadata: {
-          slug: created!.slug,
-          status: created!.status,
-          contentHash: journalFingerprint(created!),
+          previousSlug: current.slug,
+          slug: updated!.slug,
+          previousStatus: current.status,
+          status: updated!.status,
+          previousContentHash: journalFingerprint(current),
+          contentHash: journalFingerprint(updated!),
+          previousRevisionId: previousRevision?.id ?? null,
           revisionId: revision!.id,
         },
       });
-      return { kind: "created" as const, post: created! };
+      return { kind: "updated" as const, post: updated! };
     });
 
+    if (!post) {
+      res.status(404).json({ error: "Article not found" });
+      return;
+    }
+    if (post.kind === "conflict") {
+      res.status(409).json({ error: "This article changed while you were editing it. Reload it before saving again." });
+      return;
+    }
     if (post.kind === "relation_error") {
       res.status(400).json({ error: post.message });
       return;
     }
 
-    res.status(201).json(CreateStaffJournalPostResponse.parse(post.post));
+    res.json(UpdateStaffJournalPostResponse.parse(post.post));
   },
 );
 
@@ -369,7 +404,7 @@ router.get(
 
 // ── FAQ management ─────────────────────────────────────────────────────────
 
-const faqSnapshot = (row: typeof faqItemsTable.$inferSelect) => ({
+export const faqSnapshot = (row: typeof faqItemsTable.$inferSelect) => ({
   question: row.question,
   answer: row.answer,
   category: row.category,
@@ -377,7 +412,10 @@ const faqSnapshot = (row: typeof faqItemsTable.$inferSelect) => ({
   isPublished: row.isPublished,
 });
 
-router.get("/staff/faq", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
+export const buildFaqCreateAuditMetadata = (row: typeof faqItemsTable.$inferSelect) => ({
+  snapshot: faqSnapshot(row),
+  transition: { from: null, to: row.isPublished ? "published" : "draft" },
+});
   const rows = await db.select().from(faqItemsTable).orderBy(asc(faqItemsTable.sortOrder), asc(faqItemsTable.createdAt));
   res.json(rows);
 });
@@ -388,19 +426,13 @@ router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res)
     res.status(400).json({ error: "question and answer are required" });
     return;
   }
-  const [row] = await db.insert(faqItemsTable).values({
-    question: question.trim(),
-    answer: answer.trim(),
-    category: typeof category === "string" && category.trim() ? category.trim() : null,
-    sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
-    isPublished: isPublished !== false,
-  }).returning();
+  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId,
     action: "faq.created",
     entityType: "faq_item",
     entityId: row!.id,
-    metadata: { snapshot: faqSnapshot(row!), transition: { from: null, to: row!.isPublished ? "published" : "draft" } },
+    metadata: buildFaqCreateAuditMetadata(row!),
   });
   res.status(201).json(row);
 });
@@ -423,11 +455,7 @@ router.patch("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req,
     action: "faq.updated",
     entityType: "faq_item",
     entityId: row!.id,
-    metadata: {
-      previousSnapshot: faqSnapshot(current),
-      snapshot: faqSnapshot(row!),
-      transition: { from: current.isPublished ? "published" : "draft", to: row!.isPublished ? "published" : "draft" },
-    },
+    metadata: buildFaqUpdateAuditMetadata(current, row!),
   });
   res.json(row);
 });
@@ -441,7 +469,7 @@ router.delete("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req
     action: "faq.deleted",
     entityType: "faq_item",
     entityId: current.id,
-    metadata: { previousSnapshot: faqSnapshot(current), transition: { from: current.isPublished ? "published" : "draft", to: "deleted" } },
+    metadata: buildFaqDeleteAuditMetadata(current),
   });
   res.status(204).send();
 });
@@ -458,7 +486,36 @@ router.get("/staff/faq/:id/history", requireStaffRoles("owner", "editor"), async
     .where(eq(auditLogsTable.entityId, req.params.id as string))
     .orderBy(desc(auditLogsTable.createdAt));
   if (!item && !events.length) { res.status(404).json({ error: "FAQ item not found" }); return; }
-  res.json(events);
+  res.json(sortFaqHistoryNewestFirst(events));
 });
 
 export default router;
+
+export const buildFaqUpdateAuditMetadata = (
+  previous: typeof faqItemsTable.$inferSelect,
+  current: typeof faqItemsTable.$inferSelect,
+) => ({
+  previousSnapshot: faqSnapshot(previous),
+  snapshot: faqSnapshot(current),
+  transition: {
+    from: previous.isPublished ? "published" : "draft",
+    to: current.isPublished ? "published" : "draft",
+  },
+});
+
+export type FaqHistoryEvent = {
+  id: string;
+  actorClerkUserId: string;
+  action: string;
+  metadata: unknown;
+  createdAt: Date;
+};
+
+export function sortFaqHistoryNewestFirst<T extends Pick<FaqHistoryEvent, "createdAt">>(events: readonly T[]): T[] {
+  return [...events].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+export const buildFaqDeleteAuditMetadata = (row: typeof faqItemsTable.$inferSelect) => ({
+  previousSnapshot: faqSnapshot(row),
+  transition: { from: row.isPublished ? "published" : "draft", to: "deleted" },
+});
