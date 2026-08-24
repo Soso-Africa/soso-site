@@ -24,6 +24,7 @@ import {
   UpdateStaffPrivacyRequestBody,
   UpdateStaffPrivacyRequestParams,
   UpdateStaffPrivacyRequestResponse,
+  INVALID_STOREFRONT_PATH_PATTERN,
 } from "@workspace/api-zod";
 import {
   analyticsEventsTable,
@@ -66,9 +67,6 @@ const orderStatuses = [
 
 const activeOrderStatuses = ["paid", "atelier_confirmation", "in_production", "ready"] as const;
 const measurementConsents = ["analytics", "marketing"] as const;
-// Keep this SQL policy aligned with isTrackableStorefrontPath in api-zod.
-const invalidStorefrontPathPattern = "(^//)|(^/(api|staff|sign-in|sign-up)(/|$))|(^/journal/preview(/|$))|[?#[:space:][:cntrl:]\\\\]";
-
 const orderTransitions: Record<(typeof orderStatuses)[number], readonly (typeof orderStatuses)[number][]> = {
   payment_pending: [],
   paid: ["atelier_confirmation", "cancelled"],
@@ -180,12 +178,7 @@ router.get("/staff/overview", async (req, res): Promise<void> => {
       .where(and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end), inArray(analyticsEventsTable.consent, ["analytics", "marketing"]))),
   ]);
 
-  const values = {
-    ordersTotal: Number(orders?.value ?? 0),
-    ordersInProduction: Number(inProduction?.value ?? 0),
-    openEnquiries: Number(enquiries?.value ?? 0),
-    storefrontEvents7d: Number(events?.value ?? 0),
-  };
+    const values = new Map(counts.map((row) => [row.eventName, Number(row.value)]));
 
   res.json(
     GetStaffOverviewResponse.parse({
@@ -209,7 +202,7 @@ router.get(
   "/staff/funnel",
   requireStaffRoles("owner", "analyst"),
   async (req, res): Promise<void> => {
-    const range = resolveDateRange(req.query);
+  const range = resolveDateRange(req.query);
     if (!range) {
       res.status(400).json({ error: "Use a valid from/to date range (YYYY-MM-DD)" });
       return;
@@ -231,7 +224,12 @@ router.get(
       .groupBy(analyticsEventsTable.eventName);
     const values = new Map(counts.map((row) => [row.eventName, Number(row.value)]));
     const periodDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000));
-    const events = eventNames.map((eventName) => ({ eventName, count: values.get(eventName) ?? 0 }));
+  const events = await db
+    .select({ id: auditLogsTable.id, action: auditLogsTable.action, entityType: auditLogsTable.entityType, entityId: auditLogsTable.entityId, metadata: auditLogsTable.metadata, createdAt: auditLogsTable.createdAt })
+    .from(auditLogsTable)
+    .where(and(gte(auditLogsTable.createdAt, range.start), lte(auditLogsTable.createdAt, range.end)))
+    .orderBy(desc(auditLogsTable.createdAt))
+    .limit(100);
     const dropOffs = events.slice(1).map((event, index) => {
       const prior = events[index]!;
       const dropOffCount = Math.max(0, prior.count - event.count);
@@ -283,69 +281,80 @@ router.get("/staff/orders", requireStaffRoles("owner", "operations", "stylist"),
 });
 
 router.patch("/staff/orders/:id", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
-  const params = UpdateStaffOrderParams.safeParse(req.params);
-  const parsed = UpdateStaffOrderBody.safeParse(req.body);
+  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
+  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
   if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
-    res.status(400).json({ error: "Provide a valid order update" });
+    res.status(400).json({ error: "Provide a valid privacy request update" });
     return;
   }
 
   const result = await db.transaction(async (tx) => {
-    const [current] = await tx.select().from(ordersTable).where(eq(ordersTable.id, params.data.id)).limit(1);
-    if (!current) return { kind: "missing" as const };
+    const [request] = await tx.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
+    if (!request) return { kind: "missing" as const };
+    if (request.requestType !== "access") return { kind: "wrong_type" as const };
+    if ((request.status !== "identity_verified" && request.status !== "in_progress" && request.status !== "completed") || !hasRecordedIdentityVerification(request)) return { kind: "unverified" as const };
 
-    const nextStatus = parsed.data.status;
-    if (nextStatus && nextStatus !== current.status) {
-      if (!orderTransitions[current.status].includes(nextStatus)) return { kind: "transition" as const };
-    }
-    const requestingRefund = parsed.data.refundRequestReason !== undefined;
-    const decidingRefund = parsed.data.refundRequestDecision !== undefined;
-    if (requestingRefund && decidingRefund) return { kind: "refund_action" as const };
-    if (requestingRefund && (current.refundRequestStatus === "requested" || current.refundRequestStatus === "approved")) return { kind: "refund_pending" as const };
-    if (decidingRefund && req.staff!.role !== "owner") return { kind: "forbidden_refund" as const };
-    if (decidingRefund && current.refundRequestStatus !== "requested") return { kind: "refund_decision" as const };
-    if (decidingRefund && !parsed.data.refundDecisionNote?.trim()) return { kind: "refund_decision" as const };
+    const [existing] = await tx.select().from(privacyAccessPackagesTable)
+      .where(eq(privacyAccessPackagesTable.privacyRequestId, request.id)).limit(1);
+    if (existing && !existing.downloadedAt && existing.expiresAt > new Date()) return { kind: "existing" as const, package: existing };
 
-    const [updated] = await tx
-      .update(ordersTable)
-      .set({
-        ...(nextStatus ? { status: nextStatus } : {}),
-        ...(parsed.data.atelierNotes !== undefined ? { atelierNotes: parsed.data.atelierNotes } : {}),
-        ...(parsed.data.deliveryNotes !== undefined ? { deliveryNotes: parsed.data.deliveryNotes } : {}),
-        ...(requestingRefund ? {
-          refundRequestStatus: "requested",
-          refundRequestReason: parsed.data.refundRequestReason,
-          refundDecisionNote: null,
-          refundRequestedAt: new Date(),
-          refundReviewedAt: null,
-        } : {}),
-        ...(decidingRefund ? {
-          refundRequestStatus: parsed.data.refundRequestDecision,
-          refundDecisionNote: parsed.data.refundDecisionNote,
-          refundReviewedAt: new Date(),
-        } : {}),
-      })
-      .where(and(eq(ordersTable.id, current.id), eq(ordersTable.status, current.status)))
-      .returning();
-    if (!updated) return { kind: "conflict" as const };
+    const email = normalizedEmail(request.requesterEmail);
+    const orders = await tx.select({
+      id: ordersTable.id, orderNumber: ordersTable.orderNumber, customerName: ordersTable.customerName,
+      customerEmail: ordersTable.customerEmail, customerPhone: ordersTable.customerPhone, currency: ordersTable.currency,
+      subtotal: ordersTable.subtotal, total: ordersTable.total, status: ordersTable.status, source: ordersTable.source,
+      atelierNotes: ordersTable.atelierNotes, deliveryNotes: ordersTable.deliveryNotes, createdAt: ordersTable.createdAt, updatedAt: ordersTable.updatedAt,
+    }).from(ordersTable).where(sql`lower(${ordersTable.customerEmail}) = ${email}`);
+    const orderItems = orders.length ? await tx.select({
+      orderId: orderItemsTable.orderId, productSlug: orderItemsTable.productSlug, productName: orderItemsTable.productName,
+      selectedSize: orderItemsTable.selectedSize, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
+    }).from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
+    const enquiries = await tx.select({
+      name: customerEnquiriesTable.name, email: customerEnquiriesTable.email, phone: customerEnquiriesTable.phone,
+      productSlug: customerEnquiriesTable.productSlug, message: customerEnquiriesTable.message, status: customerEnquiriesTable.status,
+      createdAt: customerEnquiriesTable.createdAt, updatedAt: customerEnquiriesTable.updatedAt,
+    }).from(customerEnquiriesTable).where(sql`lower(${customerEnquiriesTable.email}) = ${email}`);
+    const checkoutAttempts = await tx.select({
+      customerName: commerceCheckoutAttemptsTable.customerName, customerEmail: commerceCheckoutAttemptsTable.customerEmail,
+      customerPhone: commerceCheckoutAttemptsTable.customerPhone, items: commerceCheckoutAttemptsTable.items,
+      fulfillment: commerceCheckoutAttemptsTable.fulfillment, status: commerceCheckoutAttemptsTable.status,
+      createdAt: commerceCheckoutAttemptsTable.createdAt, updatedAt: commerceCheckoutAttemptsTable.updatedAt,
+    }).from(commerceCheckoutAttemptsTable).where(sql`lower(${commerceCheckoutAttemptsTable.customerEmail}) = ${email}`);
+    const payload = {
+      format: "soso-subject-access-package-v1",
+      generatedAt: new Date().toISOString(),
+      requesterEmail: email,
+      scope: {
+        included: ["orders", "order_items", "customer_enquiries", "checkout_attempts"],
+        excluded: [
+          "payment card data, payment-provider references, ownership or idempotency tokens",
+          "staff-only audit and operational records",
+          "anonymous analytics and consent records, which are not linked to an identified requester",
+        ],
+      },
+      data: { orders, orderItems, enquiries, checkoutAttempts },
+    };
+    const rowCounts = { orders: orders.length, orderItems: orderItems.length, enquiries: enquiries.length, checkoutAttempts: checkoutAttempts.length };
+    const nextPackage = {
+      packageHash: privacyPackageHash(payload), payload, rowCounts,
+      createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    };
+    const [packageRecord] = existing
+      ? await tx.update(privacyAccessPackagesTable).set({
+        ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null,
+      }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()
+      : await tx.insert(privacyAccessPackagesTable).values({ privacyRequestId: request.id, ...nextPackage }).returning();
+    if (!packageRecord) return { kind: "conflict" as const };
 
+    const [updated] = await tx.update(privacyRequestsTable)
+      .set({ status: request.status === "identity_verified" ? "in_progress" : request.status })
+      .where(eq(privacyRequestsTable.id, request.id)).returning();
     await tx.insert(auditLogsTable).values({
-      actorClerkUserId: req.staff!.clerkUserId,
-      action: requestingRefund ? "refund_request.requested" : decidingRefund ? `refund_request.${parsed.data.refundRequestDecision}` : "order.updated",
-      entityType: "order",
-      entityId: current.id,
-      metadata: auditMetadata({ orderNumber: current.orderNumber, previousStatus: current.status, status: updated!.status, changedAtelierNotes: parsed.data.atelierNotes !== undefined, changedDeliveryNotes: parsed.data.deliveryNotes !== undefined, refundRequestStatus: updated!.refundRequestStatus }),
+      actorClerkUserId: req.staff!.clerkUserId, action: existing ? "privacy_request.access_package_reissued" : "privacy_request.access_package_generated",
+      entityType: "privacy_request", entityId: request.id,
+      metadata: auditMetadata({ packageId: packageRecord.id, packageHash: packageRecord.packageHash, rowCounts: packageRecord.rowCounts, expiresAt: packageRecord.expiresAt.toISOString(), requestStatus: updated?.status ?? request.status }),
     });
-
-    if (requestingRefund || decidingRefund || (nextStatus && nextStatus !== current.status)) {
-      await tx.insert(operationalNotificationsTable).values({
-        severity: requestingRefund ? "attention" : "info",
-        title: requestingRefund ? "Refund review required" : decidingRefund ? `Refund request ${parsed.data.refundRequestDecision}` : "Order workflow advanced",
-        body: requestingRefund ? `Order ${current.orderNumber} has an internal refund request awaiting owner review. No payment refund has been issued.` : decidingRefund ? `The internal refund request for order ${current.orderNumber} was ${parsed.data.refundRequestDecision}. Payment-provider execution is handled separately.` : `Order ${current.orderNumber} moved from ${current.status.replaceAll("_", " ")} to ${updated!.status.replaceAll("_", " ")}.`,
-        targetRole: requestingRefund ? "owner" : "operations",
-      });
-    }
-    return { kind: "updated" as const, order: updated! };
+    return { kind: existing ? "reissued" as const : "created" as const, package: packageRecord };
   });
 
   if (result.kind === "missing") {
@@ -373,8 +382,8 @@ router.get("/staff/enquiries", requireStaffRoles("owner", "operations", "stylist
 });
 
 router.patch("/staff/enquiries/:id", requireStaffRoles("owner", "operations", "stylist"), async (req, res): Promise<void> => {
-  const params = UpdateStaffEnquiryParams.safeParse(req.params);
-  const parsed = UpdateStaffEnquiryBody.safeParse(req.body);
+  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
+  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
   if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
     res.status(400).json({ error: "Provide a valid enquiry update" });
     return;
@@ -404,7 +413,7 @@ router.get("/staff/privacy-requests", requireStaffRoles("owner", "operations"), 
 });
 
 router.post("/staff/privacy-requests", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
-  const parsed = CreateStaffPrivacyRequestBody.safeParse(req.body);
+  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Provide a valid privacy request" });
     return;
@@ -432,78 +441,93 @@ router.post("/staff/privacy-requests", requireStaffRoles("owner", "operations"),
 });
 
 router.patch("/staff/privacy-requests/:id", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
-  const params = UpdateStaffPrivacyRequestParams.safeParse(req.params);
-  const parsed = UpdateStaffPrivacyRequestBody.safeParse(req.body);
+  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
+  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
   if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
     res.status(400).json({ error: "Provide a valid privacy request update" });
     return;
   }
 
   const result = await db.transaction(async (tx) => {
-    const [current] = await tx.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
-    if (!current) return { kind: "missing" as const };
-    const nextStatus = parsed.data.status ?? current.status;
-    if (current.status === "completed" || current.status === "rejected") return { kind: "terminal" as const };
-    if (nextStatus !== current.status && !privacyTransitions[current.status].includes(nextStatus)) return { kind: "transition" as const };
-    const ownerOnly = nextStatus === "completed" || nextStatus === "rejected";
-    if (ownerOnly && req.staff!.role !== "owner") return { kind: "forbidden" as const };
-    const verificationEvidence = parsed.data.verificationNote?.trim() || current.verificationNote?.trim();
-    if (nextStatus === "identity_verified" && current.status !== "identity_verified" && !parsed.data.verificationNote?.trim()) return { kind: "verification" as const };
-    if ((nextStatus === "identity_verified" || nextStatus === "in_progress" || nextStatus === "completed") && !verificationEvidence) return { kind: "verification" as const };
-    if (nextStatus === "completed" && current.requestType === "deletion") return { kind: "deletion_blocked" as const };
-    if (nextStatus === "completed" && (!verificationEvidence || (current.status !== "identity_verified" && current.status !== "in_progress"))) return { kind: "unverified" as const };
-    if ((nextStatus === "completed" || nextStatus === "rejected") && !parsed.data.resolutionNote) return { kind: "resolution" as const };
+    const [request] = await tx.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
+    if (!request) return { kind: "missing" as const };
+    if (request.requestType !== "access") return { kind: "wrong_type" as const };
+    if ((request.status !== "identity_verified" && request.status !== "in_progress" && request.status !== "completed") || !hasRecordedIdentityVerification(request)) return { kind: "unverified" as const };
 
-    const [updated] = await tx
-      .update(privacyRequestsTable)
-      .set({
-        ...parsed.data,
-        // Once verification is recorded, evidence is immutable through the
-        // general workflow endpoint. This prevents a later status edit from
-        // erasing the prerequisite for an access-package export.
-        verificationNote: hasRecordedIdentityVerification(current) ? current.verificationNote : parsed.data.verificationNote,
-        verifiedAt: nextStatus === "identity_verified" && current.status !== "identity_verified" ? new Date() : current.verifiedAt,
-        verifiedByClerkUserId: nextStatus === "identity_verified" && current.status !== "identity_verified" ? req.staff!.clerkUserId : current.verifiedByClerkUserId,
-        completedAt: nextStatus === "completed" || nextStatus === "rejected" ? new Date() : current.completedAt,
-      })
-      .where(and(eq(privacyRequestsTable.id, current.id), eq(privacyRequestsTable.status, current.status)))
-      .returning();
-    if (!updated) return { kind: "conflict" as const };
+    const [existing] = await tx.select().from(privacyAccessPackagesTable)
+      .where(eq(privacyAccessPackagesTable.privacyRequestId, request.id)).limit(1);
+    if (existing && !existing.downloadedAt && existing.expiresAt > new Date()) return { kind: "existing" as const, package: existing };
+
+    const email = normalizedEmail(request.requesterEmail);
+    const orders = await tx.select({
+      id: ordersTable.id, orderNumber: ordersTable.orderNumber, customerName: ordersTable.customerName,
+      customerEmail: ordersTable.customerEmail, customerPhone: ordersTable.customerPhone, currency: ordersTable.currency,
+      subtotal: ordersTable.subtotal, total: ordersTable.total, status: ordersTable.status, source: ordersTable.source,
+      atelierNotes: ordersTable.atelierNotes, deliveryNotes: ordersTable.deliveryNotes, createdAt: ordersTable.createdAt, updatedAt: ordersTable.updatedAt,
+    }).from(ordersTable).where(sql`lower(${ordersTable.customerEmail}) = ${email}`);
+    const orderItems = orders.length ? await tx.select({
+      orderId: orderItemsTable.orderId, productSlug: orderItemsTable.productSlug, productName: orderItemsTable.productName,
+      selectedSize: orderItemsTable.selectedSize, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
+    }).from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
+    const enquiries = await tx.select({
+      name: customerEnquiriesTable.name, email: customerEnquiriesTable.email, phone: customerEnquiriesTable.phone,
+      productSlug: customerEnquiriesTable.productSlug, message: customerEnquiriesTable.message, status: customerEnquiriesTable.status,
+      createdAt: customerEnquiriesTable.createdAt, updatedAt: customerEnquiriesTable.updatedAt,
+    }).from(customerEnquiriesTable).where(sql`lower(${customerEnquiriesTable.email}) = ${email}`);
+    const checkoutAttempts = await tx.select({
+      customerName: commerceCheckoutAttemptsTable.customerName, customerEmail: commerceCheckoutAttemptsTable.customerEmail,
+      customerPhone: commerceCheckoutAttemptsTable.customerPhone, items: commerceCheckoutAttemptsTable.items,
+      fulfillment: commerceCheckoutAttemptsTable.fulfillment, status: commerceCheckoutAttemptsTable.status,
+      createdAt: commerceCheckoutAttemptsTable.createdAt, updatedAt: commerceCheckoutAttemptsTable.updatedAt,
+    }).from(commerceCheckoutAttemptsTable).where(sql`lower(${commerceCheckoutAttemptsTable.customerEmail}) = ${email}`);
+    const payload = {
+      format: "soso-subject-access-package-v1",
+      generatedAt: new Date().toISOString(),
+      requesterEmail: email,
+      scope: {
+        included: ["orders", "order_items", "customer_enquiries", "checkout_attempts"],
+        excluded: [
+          "payment card data, payment-provider references, ownership or idempotency tokens",
+          "staff-only audit and operational records",
+          "anonymous analytics and consent records, which are not linked to an identified requester",
+        ],
+      },
+      data: { orders, orderItems, enquiries, checkoutAttempts },
+    };
+    const rowCounts = { orders: orders.length, orderItems: orderItems.length, enquiries: enquiries.length, checkoutAttempts: checkoutAttempts.length };
+    const nextPackage = {
+      packageHash: privacyPackageHash(payload), payload, rowCounts,
+      createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    };
+    const [packageRecord] = existing
+      ? await tx.update(privacyAccessPackagesTable).set({
+        ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null,
+      }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()
+      : await tx.insert(privacyAccessPackagesTable).values({ privacyRequestId: request.id, ...nextPackage }).returning();
+    if (!packageRecord) return { kind: "conflict" as const };
+
+    const [updated] = await tx.update(privacyRequestsTable)
+      .set({ status: request.status === "identity_verified" ? "in_progress" : request.status })
+      .where(eq(privacyRequestsTable.id, request.id)).returning();
     await tx.insert(auditLogsTable).values({
-      actorClerkUserId: req.staff!.clerkUserId,
-      action: "privacy_request.updated",
-      entityType: "privacy_request",
-      entityId: current.id,
-      metadata: auditMetadata({ requestType: current.requestType, previousStatus: current.status, status: updated!.status }),
+      actorClerkUserId: req.staff!.clerkUserId, action: existing ? "privacy_request.access_package_reissued" : "privacy_request.access_package_generated",
+      entityType: "privacy_request", entityId: request.id,
+      metadata: auditMetadata({ packageId: packageRecord.id, packageHash: packageRecord.packageHash, rowCounts: packageRecord.rowCounts, expiresAt: packageRecord.expiresAt.toISOString(), requestStatus: updated?.status ?? request.status }),
     });
-    return { kind: "updated" as const, request: updated! };
+    return { kind: existing ? "reissued" as const : "created" as const, package: packageRecord };
   });
-
-  if (result.kind === "missing") {
-    res.status(404).json({ error: "Privacy request not found" });
-    return;
-  }
-  if (result.kind === "forbidden") {
-    res.status(403).json({ error: "Only an owner can complete or reject a privacy request" });
-    return;
-  }
-  if (result.kind === "unverified" || result.kind === "verification" || result.kind === "resolution" || result.kind === "deletion_blocked") {
-    res.status(400).json({ error: result.kind === "unverified" ? "Verify the requester and record the evidence before completing this request" : result.kind === "verification" ? "Record a verification note before marking identity as verified" : result.kind === "deletion_blocked" ? "Deletion cannot be completed until an approved retention policy and deletion procedure are configured" : "A resolution note is required before completing or rejecting a request" });
-    return;
-  }
-  if (result.kind === "terminal" || result.kind === "transition") {
-    res.status(400).json({ error: result.kind === "terminal" ? "Completed and rejected privacy requests are locked" : "That privacy request procedure step is not allowed" });
-    return;
-  }
-  if (result.kind === "conflict") {
-    res.status(409).json({ error: "This privacy request changed while you were editing it. Refresh the queue and try again." });
-    return;
-  }
-  res.json(UpdateStaffPrivacyRequestResponse.parse(result.request));
+  if (result.kind === "missing") { res.status(404).json({ error: "Privacy request not found" }); return; }
+  if (result.kind === "wrong_type") { res.status(400).json({ error: "Only a verified access request can receive an access package" }); return; }
+  if (result.kind === "unverified") { res.status(400).json({ error: "Verify the requester before generating an access package" }); return; }
+  if (result.kind === "conflict") { res.status(409).json({ error: "An access package is already being generated; refresh and try again" }); return; }
+  res.status(result.kind === "created" || result.kind === "reissued" ? 201 : 200).json({
+    packageId: result.package.id, expiresAt: result.package.expiresAt, downloadedAt: result.package.downloadedAt,
+    rowCounts: result.package.rowCounts, downloadPath: `/api/staff/privacy-access-packages/${result.package.id}/download`,
+  });
 });
 
-router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("owner"), async (req, res): Promise<void> => {
-  const params = UpdateStaffPrivacyRequestParams.safeParse(req.params);
+router.get("/staff/privacy-access-packages/:id/download", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "Invalid privacy request reference" });
     return;
@@ -587,7 +611,7 @@ router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("own
 });
 
 router.get("/staff/privacy-access-packages/:id/download", requireStaffRoles("owner"), async (req, res): Promise<void> => {
-  const params = UpdateStaffPrivacyRequestParams.safeParse(req.params);
+  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: "Invalid access package reference" }); return; }
   const packageRecord = await db.transaction(async (tx) => {
     const [claimed] = await tx.update(privacyAccessPackagesTable)
@@ -914,7 +938,7 @@ router.get("/staff/analytics/quality", requireStaffRoles("owner", "analyst"), as
       .where(and(
         gte(analyticsEventsTable.occurredAt, last7d),
         inArray(analyticsEventsTable.consent, measurementConsents),
-        sql`${analyticsEventsTable.path} ~* ${invalidStorefrontPathPattern}`,
+        sql`${analyticsEventsTable.path} ~* ${INVALID_STOREFRONT_PATH_PATTERN}`,
       )),
     db
       .select({ value: count() })
@@ -1052,7 +1076,7 @@ router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, 
       .where(and(
         analyticsFilter,
         inArray(analyticsEventsTable.eventName, ["page_view", "blog_article_viewed", "faq_expanded", "scroll_depth_reached", "cta_clicked"]),
-        sql`${analyticsEventsTable.path} !~* ${invalidStorefrontPathPattern}`,
+        sql`${analyticsEventsTable.path} !~* ${INVALID_STOREFRONT_PATH_PATTERN}`,
       ))
       .groupBy(
         sql`date_trunc('day', ${analyticsEventsTable.occurredAt})`,
@@ -1069,7 +1093,7 @@ router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, 
       : report === "campaign_aggregate"
         ? ["date", "source", "utmMedium", "utmCampaign", "deviceType", "eventName", "events"]
         : ["date", "path", "eventName", "deviceType", "events"];
-  const rows = report === "campaign_aggregate" ? campaignRows : report === "content_seo_aggregate" ? contentRows : summaryRows;
+  const rows = await db.select().from(redirectsTable).orderBy(desc(redirectsTable.createdAt)).limit(200);
   const exportRows = rows.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, typeof value === "bigint" ? Number(value) : value])));
   const filename = `soso-${report}-${range.from}-to-${range.to}.csv`;
 
@@ -1111,9 +1135,7 @@ router.post("/staff/redirects", requireStaffRoles("owner", "operations"), async 
     return;
   }
   const code = typeof statusCode === "number" && [301, 302, 307, 308].includes(statusCode) ? statusCode : 301;
-  const [row] = await db.insert(redirectsTable).values({ fromPath: fromPath.trim(), toPath: toPath.trim(), statusCode: code })
-    .onConflictDoUpdate({ target: redirectsTable.fromPath, set: { toPath: toPath.trim(), statusCode: code } })
-    .returning();
+  const [row] = await db.delete(redirectsTable).where(eq(redirectsTable.id, req.params.id as string)).returning({ id: redirectsTable.id });
   await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.upserted", entityType: "redirect", entityId: row!.id, metadata: { fromPath, toPath, statusCode: code } });
   res.status(201).json(row);
 });

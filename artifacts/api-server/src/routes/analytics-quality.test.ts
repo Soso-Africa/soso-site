@@ -29,7 +29,31 @@ function checkStatuses(fixture: Partial<AnalyticsQualityFixture>) {
   return new Map(report.checks.map((check) => [check.check, check.status]));
 }
 
-test("accepts a valid consented storefront event within the timestamp window", () => {
+test("accepts current and newly launched public storefront paths", () => {
+  for (const path of [
+    "/",
+    "/shop",
+    "/collections/kaftans",
+    "/product/heritage-kaftan",
+    "/journal/new-story",
+  ]) {
+    assert.equal(
+      isTrackableStorefrontPath(path),
+      true,
+      `${path} should be tracked as a public storefront route`,
+    );
+    assert.equal(
+      new RegExp(INVALID_STOREFRONT_PATH_PATTERN, "i").test(path),
+      false,
+      `${path} should not be flagged by the staff quality SQL policy`,
+    );
+    assert.equal(
+      validateAnalyticsEvent({ path, occurredAt: now }, now.getTime()),
+      null,
+      `${path} should be accepted by analytics ingestion`,
+    );
+  }
+
   const body = RecordAnalyticsEventBody.safeParse({
     eventId: "event-valid-001",
     eventVersion: 1,
@@ -46,6 +70,34 @@ test("accepts a valid consented storefront event within the timestamp window", (
     assert.equal(validateAnalyticsEvent(body.data, now.getTime()), null);
     assert.equal(body.data.consent, "analytics");
   }
+});
+
+test("keeps private and API paths out of storefront measurement", () => {
+  for (const path of [
+    "/api/staff/analytics/quality",
+    "/staff",
+    "/sign-in",
+    "/journal/preview/draft-story",
+    "shop",
+    "/shop?utm_source=private",
+  ]) {
+    assert.equal(isTrackableStorefrontPath(path), false, `${path} should not be tracked`);
+    assert.equal(
+      validateAnalyticsEvent({ path, occurredAt: now }, now.getTime()),
+      "path",
+      `${path} should be rejected by analytics ingestion`,
+    );
+    assert.equal(
+      new RegExp(INVALID_STOREFRONT_PATH_PATTERN, "i").test(path),
+      true,
+      `${path} should be flagged by the staff quality SQL policy`,
+    );
+  }
+});
+
+test("a supported public page stays healthy in the quality report", () => {
+  assert.equal(isTrackableStorefrontPath("/collections/kaftans"), true);
+  assert.equal(checkStatuses({ invalidPathCount: 0 }).get("storefront_paths"), "ok");
 });
 
 test("rejects stale and future event timestamps", () => {
