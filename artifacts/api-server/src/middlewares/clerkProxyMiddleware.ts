@@ -34,8 +34,12 @@ export function clerkProxyMiddleware(): RequestHandler {
     target: CLERK_FAPI,
     changeOrigin: true,
     selfHandleResponse: true,
+    // Express removes the mount path before invoking this middleware, so
+    // `path` is already relative to /api/__clerk. Keeping this rewrite
+    // tolerant also makes the middleware safe to mount at the application
+    // root in a serverless adapter.
     pathRewrite: (path: string) =>
-      path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
+      path.replace(new RegExp(`^${CLERK_PROXY_PATH}(?=/|$)`), "") || "/",
     on: {
       proxyReq: (proxyReq, req) => {
         const protocol = req.headers["x-forwarded-proto"] || "https";
