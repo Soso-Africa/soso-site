@@ -14,8 +14,6 @@ import {
   auditLogsTable,
   db,
   faqItemsTable,
-  policyDocumentsTable,
-  policyDocumentRevisionsTable,
   journalPostRevisionsTable,
   journalPostsTable,
   siteContentTable,
@@ -175,93 +173,51 @@ router.post(
   "/staff/journal",
   requireStaffRoles("owner", "editor"),
   async (req, res): Promise<void> => {
-    const parsed = UpdateStaffJournalPostBody.safeParse(req.body);
+    const parsed = CreateStaffJournalPostBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Please complete the article details" });
       return;
     }
 
     const post = await db.transaction(async (tx) => {
-      const [current] = await tx
-        .select()
-        .from(journalPostsTable)
-        .where(eq(journalPostsTable.id, params.data.id))
-        .limit(1);
-      if (!current) return null;
-      if (expectedRevision && current.updatedAt.getTime() !== expectedRevision.getTime()) {
-        return { kind: "conflict" as const };
-      }
-      const nextStatus = parsed.data.status ?? current.status;
-      const relationError = await validateRelatedArticles(
-        tx,
-        parsed.data.slug ?? current.slug,
-        parsed.data.relatedArticleSlugs ?? current.relatedArticleSlugs,
-        nextStatus,
-      );
+      const relationError = await validateRelatedArticles(tx, parsed.data.slug, parsed.data.relatedArticleSlugs, parsed.data.status);
       if (relationError) return { kind: "relation_error" as const, message: relationError };
-      const [previousRevision] = await tx
-        .select({ id: journalPostRevisionsTable.id })
-        .from(journalPostRevisionsTable)
-        .where(eq(journalPostRevisionsTable.journalPostId, current.id))
-        .orderBy(desc(journalPostRevisionsTable.createdAt))
-        .limit(1);
-
-      const status = nextStatus;
-      const [updated] = await tx
-        .update(journalPostsTable)
-        .set({
-          ...parsed.data,
-          publishedAt:
-            status === "published"
-              ? current.publishedAt ?? new Date()
-              : null,
-        })
-        .where(eq(journalPostsTable.id, current.id))
-        .returning();
+      const [created] = await tx.insert(journalPostsTable).values({
+        ...parsed.data,
+        publishedAt: parsed.data.status === "published" ? new Date() : null,
+      }).returning();
 
       const [revision] = await tx
         .insert(journalPostRevisionsTable)
         .values({
-          journalPostId: updated!.id,
-          snapshot: journalSnapshot(updated!),
-          contentHash: journalFingerprint(updated!),
+          journalPostId: created!.id,
+          snapshot: journalSnapshot(created!),
+          contentHash: journalFingerprint(created!),
           createdByClerkUserId: req.staff!.clerkUserId,
         })
         .returning();
 
       await tx.insert(auditLogsTable).values({
         actorClerkUserId: req.staff!.clerkUserId,
-        action: "journal.updated",
+        action: "journal.created",
         entityType: "journal_post",
-        entityId: updated!.id,
+        entityId: created!.id,
         metadata: {
-          previousSlug: current.slug,
-          slug: updated!.slug,
-          previousStatus: current.status,
-          status: updated!.status,
-          previousContentHash: journalFingerprint(current),
-          contentHash: journalFingerprint(updated!),
-          previousRevisionId: previousRevision?.id ?? null,
+          slug: created!.slug,
+          status: created!.status,
+          contentHash: journalFingerprint(created!),
           revisionId: revision!.id,
         },
       });
-      return { kind: "updated" as const, post: updated! };
+      return { kind: "created" as const, post: created! };
     });
 
-    if (!post) {
-      res.status(404).json({ error: "Article not found" });
-      return;
-    }
-    if (post.kind === "conflict") {
-      res.status(409).json({ error: "This article changed while you were editing it. Reload it before saving again." });
-      return;
-    }
     if (post.kind === "relation_error") {
       res.status(400).json({ error: post.message });
       return;
     }
 
-    res.json(UpdateStaffJournalPostResponse.parse(post.post));
+    res.status(201).json(CreateStaffJournalPostResponse.parse(post.post));
   },
 );
 
@@ -405,6 +361,14 @@ router.get(
 
 // ── FAQ management ─────────────────────────────────────────────────────────
 
+const faqSnapshot = (row: typeof faqItemsTable.$inferSelect) => ({
+  question: row.question,
+  answer: row.answer,
+  category: row.category,
+  sortOrder: row.sortOrder,
+  isPublished: row.isPublished,
+});
+
 router.get("/staff/faq", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
   const rows = await db.select().from(faqItemsTable).orderBy(asc(faqItemsTable.sortOrder), asc(faqItemsTable.createdAt));
   res.json(rows);
@@ -416,68 +380,77 @@ router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res)
     res.status(400).json({ error: "question and answer are required" });
     return;
   }
-  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
-
-const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
-  ...row,
-  effectiveAt: row.effectiveAt?.toISOString() ?? null,
-  reviewedAt: row.reviewedAt?.toISOString() ?? null,
-  approvedAt: row.approvedAt?.toISOString() ?? null,
-  publishedAt: row.publishedAt?.toISOString() ?? null,
-});
-
-  const policyId = req.params.id as string;
-
-  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
-  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.created", entityType: "faq_item", entityId: row!.id, metadata: { question: row!.question } });
+  const [row] = await db.insert(faqItemsTable).values({
+    question: question.trim(),
+    answer: answer.trim(),
+    category: typeof category === "string" && category.trim() ? category.trim() : null,
+    sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
+    isPublished: isPublished !== false,
+  }).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId,
+    action: "faq.created",
+    entityType: "faq_item",
+    entityId: row!.id,
+    metadata: { snapshot: faqSnapshot(row!), transition: { from: null, to: row!.isPublished ? "published" : "draft" } },
+  });
   res.status(201).json(row);
 });
 
 router.patch("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
   const { question, answer, category, sortOrder, isPublished } = req.body as Record<string, unknown>;
-  const updates: Partial<typeof policyDocumentsTable.$inferInsert> = { updatedAt: new Date(), reviewedAt: null, reviewedByClerkUserId: null, approvedAt: null, approvedByClerkUserId: null, publishedAt: null };
-  if (typeof title === "string" && title.trim()) updates.title = title.trim();
-  if (typeof summary === "string" && summary.trim()) updates.summary = summary.trim();
-  if (Array.isArray(sections)) updates.sections = sections;
-  if (typeof req.body.status === "string" && ["draft", "review"].includes(req.body.status)) updates.status = req.body.status;
-  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
-
-const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
-  ...row,
-  effectiveAt: row.effectiveAt?.toISOString() ?? null,
-  reviewedAt: row.reviewedAt?.toISOString() ?? null,
-  approvedAt: row.approvedAt?.toISOString() ?? null,
-  publishedAt: row.publishedAt?.toISOString() ?? null,
+  const [current] = await db.select().from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
+  if (!current) { res.status(404).json({ error: "FAQ item not found" }); return; }
+  const updates: Partial<typeof faqItemsTable.$inferInsert> = {};
+  if (typeof question === "string" && question.trim()) updates.question = question.trim();
+  if (typeof answer === "string" && answer.trim()) updates.answer = answer.trim();
+  if (category !== undefined) updates.category = typeof category === "string" && category.trim() ? category.trim() : null;
+  if (typeof sortOrder === "number") updates.sortOrder = sortOrder;
+  if (typeof isPublished === "boolean") updates.isPublished = isPublished;
+  if (!Object.keys(updates).length) { res.status(400).json({ error: "No valid fields to update" }); return; }
+  updates.updatedAt = new Date();
+  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId,
+    action: "faq.updated",
+    entityType: "faq_item",
+    entityId: row!.id,
+    metadata: {
+      previousSnapshot: faqSnapshot(current),
+      snapshot: faqSnapshot(row!),
+      transition: { from: current.isPublished ? "published" : "draft", to: row!.isPublished ? "published" : "draft" },
+    },
+  });
+  res.json(row);
 });
 
-  const policyId = req.params.id as string;
-
-  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
-  if (!row) { res.status(404).json({ error: "Policy not found" }); return; }
-  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "policy.reviewed", entityType: "policy_document", entityId: row.id, metadata: {} });
-  res.json(policyShape(row));
+router.delete("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  const [current] = await db.select().from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
+  if (!current) { res.status(404).json({ error: "FAQ item not found" }); return; }
+  await db.delete(faqItemsTable).where(eq(faqItemsTable.id, current.id));
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId,
+    action: "faq.deleted",
+    entityType: "faq_item",
+    entityId: current.id,
+    metadata: { previousSnapshot: faqSnapshot(current), transition: { from: current.isPublished ? "published" : "draft", to: "deleted" } },
+  });
+  res.status(204).send();
 });
 
-router.post("/staff/policies/:id/approve", requireStaffRoles("owner"), async (req, res): Promise<void> => {
-  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
-
-const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
-  ...row,
-  effectiveAt: row.effectiveAt?.toISOString() ?? null,
-  reviewedAt: row.reviewedAt?.toISOString() ?? null,
-  approvedAt: row.approvedAt?.toISOString() ?? null,
-  publishedAt: row.publishedAt?.toISOString() ?? null,
-});
-
-  const policyId = req.params.id as string;
-
-  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
-  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "policy.published", entityType: "policy_document", entityId: row!.id, metadata: { version: row!.version, effectiveAt: effectiveAt.toISOString() } });
-  res.json(policyShape(row!));
-});
-
-router.get("/staff/policies/:id/revisions", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
-  res.json(await db.select().from(policyDocumentRevisionsTable).where(eq(policyDocumentRevisionsTable.policyDocumentId, req.params.id as string)).orderBy(desc(policyDocumentRevisionsTable.createdAt)));
+router.get("/staff/faq/:id/history", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  const [item] = await db.select({ id: faqItemsTable.id }).from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
+  const events = await db.select({
+    id: auditLogsTable.id,
+    actorClerkUserId: auditLogsTable.actorClerkUserId,
+    action: auditLogsTable.action,
+    metadata: auditLogsTable.metadata,
+    createdAt: auditLogsTable.createdAt,
+  }).from(auditLogsTable)
+    .where(eq(auditLogsTable.entityId, req.params.id as string))
+    .orderBy(desc(auditLogsTable.createdAt));
+  if (!item && !events.length) { res.status(404).json({ error: "FAQ item not found" }); return; }
+  res.json(events);
 });
 
 export default router;

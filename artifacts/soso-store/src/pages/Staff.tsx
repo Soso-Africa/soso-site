@@ -1041,6 +1041,7 @@ function JournalManagementSection() {
 }
 
 type FaqRow = { id: string; question: string; answer: string; category: string | null; sortOrder: number; isPublished: boolean; createdAt: string; updatedAt: string };
+type FaqHistoryEvent = { id: string; actorClerkUserId: string; action: string; metadata: { snapshot?: FaqRow; previousSnapshot?: FaqRow; transition?: { from: string | null; to: string } }; createdAt: string };
 type RedirectRow = { id: string; fromPath: string; toPath: string; statusCode: number; createdAt: string };
 
 function useCrudFetch<T>(path: string, enabled: boolean) {
@@ -1062,6 +1063,10 @@ function useCrudFetch<T>(path: string, enabled: boolean) {
 function FaqManagementSection() {
   const { data: items, loading, reload } = useCrudFetch<FaqRow>("/staff/faq", true);
   const [editing, setEditing] = useState<Partial<FaqRow> | null>(null);
+  const [historyId, setHistoryId] = useState<string | null>(null);
+  const [history, setHistory] = useState<FaqHistoryEvent[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1099,6 +1104,18 @@ function FaqManagementSection() {
     }
   };
 
+  const showHistory = async (id: string) => {
+    if (historyId === id) { setHistoryId(null); return; }
+    setHistoryId(id); setHistory(null); setHistoryError(""); setHistoryLoading(true);
+    try {
+      setHistory(await customFetch<FaqHistoryEvent[]>(`/api/staff/faq/${id}/history`));
+    } catch (err) {
+      setHistoryError(errorMessage(err, "History could not be loaded."));
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   return (
     <section className="mt-12 border-t border-border pt-10">
       <SectionHeading icon={FileText} title="FAQ management" description="Manage the FAQ items shown on the public /faq page. Published items appear on site; draft items are hidden." />
@@ -1133,7 +1150,8 @@ function FaqManagementSection() {
         {loading ? <LoadingRows /> : !items?.length ? <Empty label="No FAQ items yet. Add the first one above." /> : (
           <div className="divide-y divide-border">
             {items.map((item) => (
-              <div key={item.id} className="flex items-start gap-4 p-4">
+              <React.Fragment key={item.id}>
+              <div className="flex items-start gap-4 p-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     {item.category && <span className="text-[9px] uppercase tracking-wider border border-primary/30 px-2 py-0.5 text-primary/70">{item.category}</span>}
@@ -1144,10 +1162,38 @@ function FaqManagementSection() {
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.answer}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
+                  <button type="button" onClick={() => void showHistory(item.id)} aria-expanded={historyId === item.id} className="inline-flex min-h-9 items-center gap-1 border border-border px-2 text-xs hover:border-primary"><History size={12} /> {historyId === item.id ? "Hide history" : "History"}</button>
                   <button type="button" onClick={() => setEditing(item)} className="inline-flex min-h-9 items-center gap-1 border border-border px-2 text-xs hover:border-primary"><PenLine size={12} /> Edit</button>
                   <button type="button" disabled={deletingId === item.id} onClick={() => void del(item.id)} className="inline-flex min-h-9 items-center gap-1 border border-destructive/50 px-2 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"><Trash2 size={12} /></button>
                 </div>
               </div>
+              {historyId === item.id && <div className="border-t border-border bg-muted/20 px-4 py-4 sm:pl-8">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Change history</p>
+                <p className="mt-1 text-xs text-muted-foreground">Read-only audit records. Previous snapshots are shown for review; they cannot be restored here.</p>
+                {historyLoading && <p className="mt-3 text-xs text-muted-foreground">Loading history…</p>}
+                {historyError && <p className="mt-3 text-xs text-destructive">{historyError}</p>}
+                {!historyLoading && !historyError && !history?.length && <p className="mt-3 text-xs text-muted-foreground">No audit records are available.</p>}
+                <div className="mt-3 space-y-3">
+                  {history?.map((event) => {
+                    const transition = event.metadata?.transition;
+                    const snapshot = event.metadata?.snapshot ?? event.metadata?.previousSnapshot;
+                    return <div key={event.id} className="border-l-2 border-primary/30 pl-3 text-xs">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-semibold">{event.action.replace("faq.", "").replace(".", " ")}</span>
+                        {transition && <span className="text-muted-foreground">{transition.from ?? "new"} → {transition.to}</span>}
+                        <time className="text-muted-foreground">{format(new Date(event.createdAt), "d MMM yyyy, HH:mm")}</time>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">By {event.actorClerkUserId}</p>
+                      {snapshot && <div className="mt-2 border border-border bg-card p-2 text-muted-foreground">
+                        <p><span className="font-medium text-foreground">Question:</span> {snapshot.question}</p>
+                        <p className="mt-1 whitespace-pre-wrap"><span className="font-medium text-foreground">Answer:</span> {snapshot.answer}</p>
+                        {snapshot.category && <p className="mt-1"><span className="font-medium text-foreground">Category:</span> {snapshot.category}</p>}
+                      </div>}
+                    </div>;
+                  })}
+                </div>
+              </div>}
+              </React.Fragment>
             ))}
           </div>
         )}
