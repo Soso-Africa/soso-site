@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import {
+  nextMeasurementGrantGeneration,
+  pageViewRecordAfterSend,
+  shouldRecordPageViewForGrant,
+  type PageViewRecord,
+} from "@/lib/page-view-lifecycle";
 
 type ConsentState = "essential_only" | "analytics" | "marketing";
 export type StorefrontEventName =
@@ -108,10 +114,81 @@ function sessionId(): string {
   return inMemorySessionId;
 }
 
+type PersistedConsent = {
+  available: boolean;
+  consent: ConsentState | null;
+};
+
+function persistedConsent(): PersistedConsent {
+  try {
+    const saved = window.localStorage.getItem(CONSENT_KEY);
+    return {
+      available: true,
+      consent: saved === "essential_only" || saved === "analytics" || saved === "marketing"
+        ? saved
+        : null,
+    };
+  } catch {
+    return { available: false, consent: null };
+  }
+}
+
 function readConsent(): ConsentState | null {
-  const saved = storageGet("local", CONSENT_KEY);
-  return saved === "essential_only" || saved === "analytics" || saved === "marketing"
-    ? saved
+  return persistedConsent().consent;
+}
+
+type MeasurementConsent = Exclude<ConsentState, "essential_only">;
+
+// This is intentionally initialized outside React. Storefront page effects can
+// run before ConsentManager's effects, while returning visitors must not lose
+// their first event after already granting measurement consent.
+let consentSource: ConsentState | null = null;
+let measurementGrantGeneration = 0;
+let recordedPageView: PageViewRecord | null = null;
+let inMemorySessionStarted = false;
+
+function updateConsentSource(consent: ConsentState | null): void {
+  const previouslyAllowed = consentSource === "analytics" || consentSource === "marketing";
+  const nowAllowed = consent === "analytics" || consent === "marketing";
+  // A generation represents one continuous affirmative-measurement grant.
+  // Re-rendering, remounting, or analytics <-> marketing changes remain in
+  // the same generation; a genuine no/essential -> affirmative transition
+  // starts a new one and may record the current pathname once.
+  measurementGrantGeneration = nextMeasurementGrantGeneration(
+    measurementGrantGeneration,
+    previouslyAllowed,
+    nowAllowed,
+  );
+  consentSource = consent;
+}
+
+updateConsentSource(typeof window === "undefined" ? null : readConsent());
+
+/**
+ * Storage is the durable cross-tab authority when readable. When it is not,
+ * retain the in-memory decision so a visitor who accepted in this session can
+ * still use measurement.
+ */
+function reconcileConsentSource(): ConsentState | null {
+  const persisted = persistedConsent();
+  if (persisted.available) updateConsentSource(persisted.consent);
+  return consentSource;
+}
+
+function reconcileConsentUi(
+  setConsent: (consent: ConsentState | null) => void,
+  setVisible: (visible: boolean) => void,
+): ConsentState | null {
+  const consent = reconcileConsentSource();
+  setConsent(consent);
+  setVisible(!consent);
+  return consent;
+}
+
+function measurementConsent(): MeasurementConsent | null {
+  const consent = reconcileConsentSource();
+  return consent === "analytics" || consent === "marketing"
+    ? consent
     : null;
 }
 
@@ -203,7 +280,7 @@ function boundedProperties(properties: Record<string, unknown> | undefined): Rec
 }
 
 function sendEvent(
-  consent: Exclude<ConsentState, "essential_only">,
+  consent: MeasurementConsent,
   eventName: StorefrontEventName,
   properties?: Record<string, unknown>,
   options?: SendEventOptions,
@@ -235,16 +312,37 @@ function sendEvent(
   });
 }
 
+/** Sends only while the synchronous consent source allows measurement. */
+function sendConsentedEvent(
+  eventName: StorefrontEventName,
+  properties?: Record<string, unknown>,
+  options?: SendEventOptions,
+): boolean {
+  const consent = measurementConsent();
+  if (!consent) return false;
+  sendEvent(consent, eventName, properties, options);
+  return true;
+}
+
+function pageViewNeedsRecording(pathname: string): boolean {
+  return shouldRecordPageViewForGrant(recordedPageView, measurementGrantGeneration, pathname);
+}
+
+function recordPageView(pathname: string, sendSucceeded: boolean): void {
+  recordedPageView = pageViewRecordAfterSend(
+    recordedPageView,
+    measurementGrantGeneration,
+    pathname,
+    sendSucceeded,
+  );
+}
+
 export function trackStorefrontEvent(
   eventName: Exclude<StorefrontEventName, "page_view">,
   properties?: Record<string, unknown>,
 ) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent("soso:storefront-event", {
-      detail: { eventName, properties },
-    }),
-  );
+  sendConsentedEvent(eventName, properties);
 }
 
 export function openPrivacyChoices() {
@@ -271,7 +369,7 @@ function useActiveTimeHeartbeat(consent: ConsentState | null, enabled: boolean, 
       const newMs = totalMs - reportedRef.current;
       if (newMs < minimumReportMs) return;
       reportedRef.current = totalMs;
-      sendEvent(consent, "active_time_heartbeat", {
+      sendConsentedEvent("active_time_heartbeat", {
         active_seconds: Math.round(totalMs / 1000),
         interval_seconds: Math.round(newMs / 1000),
       }, { keepalive, path: pathname });
@@ -347,16 +445,14 @@ function useScrollDepth(consent: ConsentState | null, pathname: string) {
 }
 
 export function ConsentManager() {
-  const [consent, setConsent] = useState<ConsentState | null>(null);
-  const [visible, setVisible] = useState(false);
+  const [consent, setConsent] = useState<ConsentState | null>(() => consentSource);
+  const [visible, setVisible] = useState(() => !consentSource);
   const [pathname] = useLocation();
   const bannerViewedRef = useRef(false);
   const landingAttributionRef = useRef<Attribution | null>(null);
 
   useEffect(() => {
-    const saved = readConsent();
-    setConsent(saved);
-    setVisible(!saved);
+    reconcileConsentUi(setConsent, setVisible);
     // Keep the landing campaign in memory only. It becomes session storage
     // only after the visitor has affirmatively chosen measurement.
     landingAttributionRef.current = capturedAttribution();
@@ -367,41 +463,49 @@ export function ConsentManager() {
     if (visible && !bannerViewedRef.current) {
       bannerViewedRef.current = true;
       // Banner shown — fire after a brief delay in case the user has consent already in another tab
-      const saved = readConsent();
+      const saved = reconcileConsentUi(setConsent, setVisible);
       if (saved === "analytics" || saved === "marketing") {
-        sendEvent(saved, "consent_banner_viewed");
+        sendConsentedEvent("consent_banner_viewed");
       }
     }
   }, [visible]);
 
   // Page view + session_started on navigation
   useEffect(() => {
-    if (consent !== "analytics" && consent !== "marketing") return;
-    sendEvent(consent, "page_view");
+    const hasMeasurementConsent = consent === "analytics" || consent === "marketing";
+    if (!hasMeasurementConsent) return;
 
-    // session_started fires once per session
-    const alreadyFired = storageGet("session", SESSION_FIRED_KEY);
-    if (!alreadyFired) {
+    if (pageViewNeedsRecording(pathname)) {
+      const sendSucceeded = sendConsentedEvent("page_view");
+      recordPageView(pathname, sendSucceeded);
+      if (!sendSucceeded) {
+        // The sender may have synchronously observed a cross-tab revocation;
+        // only a successful consent-aware send records this pathname.
+        return;
+      }
+    }
+
+    // sessionStorage shares this marker across normal reloads. The in-memory
+    // marker prevents blocked/unavailable sessionStorage from sending again
+    // on each navigation or consent re-render.
+    const alreadyFired = inMemorySessionStarted || Boolean(storageGet("session", SESSION_FIRED_KEY));
+    if (alreadyFired) {
+      inMemorySessionStarted = true;
+    } else if (sendConsentedEvent("session_started")) {
+      inMemorySessionStarted = true;
       storageSet("session", SESSION_FIRED_KEY, "1");
-      sendEvent(consent, "session_started");
     }
   }, [consent, pathname]);
 
-  // Listen for tracked storefront events
   useEffect(() => {
-    if (consent !== "analytics" && consent !== "marketing") return;
-
-    const recordTrackedEvent = (event: Event) => {
-      const detail = (event as CustomEvent<{
-        eventName: Exclude<StorefrontEventName, "page_view">;
-        properties?: Record<string, unknown>;
-      }>).detail;
-      if (detail?.eventName) sendEvent(consent, detail.eventName, detail.properties);
+    const syncConsent = (event: StorageEvent) => {
+      if (event.key && event.key !== CONSENT_KEY) return;
+      reconcileConsentUi(setConsent, setVisible);
     };
 
-    window.addEventListener("soso:storefront-event", recordTrackedEvent);
-    return () => window.removeEventListener("soso:storefront-event", recordTrackedEvent);
-  }, [consent]);
+    window.addEventListener("storage", syncConsent);
+    return () => window.removeEventListener("storage", syncConsent);
+  }, []);
 
   // Reopen on privacy-choices event
   useEffect(() => {
@@ -417,15 +521,16 @@ export function ConsentManager() {
   useScrollDepth(consent, pathname);
 
   const save = async (state: ConsentState) => {
-    const previousConsent = readConsent();
+    const previousConsent = consentSource;
     setVisible(false);
 
     if (state === "essential_only") {
-       storageSet("local", CONSENT_KEY, state);
       // Fire marketing_opt_out if downgrading from analytics/marketing
       if (previousConsent === "analytics" || previousConsent === "marketing") {
-        sendEvent(previousConsent, "marketing_opt_out");
+        sendConsentedEvent("marketing_opt_out");
       }
+       storageSet("local", CONSENT_KEY, state);
+      updateConsentSource(state);
       setConsent(state);
       void fetch(apiUrl("/consent"), {
         method: "POST",
@@ -451,14 +556,16 @@ export function ConsentManager() {
       });
       if (!response.ok) throw new Error("Consent could not be recorded");
        storageSet("local", CONSENT_KEY, state);
+       updateConsentSource(state);
       persistFirstTouchAttribution(landingAttributionRef.current ?? capturedAttribution());
       setConsent(state);
       // Fire consent_updated if changing an existing preference
       if (previousConsent && previousConsent !== state) {
-        sendEvent(state, "consent_updated", { previous: previousConsent, current: state });
+        sendConsentedEvent("consent_updated", { previous: previousConsent, current: state });
       }
     } catch {
        storageSet("local", CONSENT_KEY, "essential_only");
+       updateConsentSource("essential_only");
       setConsent("essential_only");
       setVisible(true);
     }

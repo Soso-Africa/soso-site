@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { RecordAnalyticsEventBody } from "@workspace/api-zod";
+import { isPrivateStorefrontPath, RecordAnalyticsEventBody } from "@workspace/api-zod";
 import {
   buildAnalyticsQualityReport,
   type AnalyticsQualityFixture,
@@ -74,6 +74,45 @@ test("rejects non-storefront paths even when the timestamp is valid", () => {
     validateAnalyticsEvent({ path: "/product/not valid", occurredAt: now }, now.getTime()),
     "path",
   );
+});
+
+test("accepts new public paths while retaining namespace-aware private and malformed path checks", () => {
+  for (const path of [
+    "/staff-picks",
+    "/staffing",
+    "/sign-style",
+    "/sign-updates",
+    "/apiary",
+    "/journal/previews",
+    "/new-storefront-page",
+  ]) {
+    assert.equal(validateAnalyticsEvent({ path, occurredAt: now }, now.getTime()), null, path);
+    assert.equal(isPrivateStorefrontPath(path), false, path);
+  }
+
+  for (const path of [
+    "/api",
+    "/api/x",
+    "/staff",
+    "/staff/orders",
+    "/sign-in",
+    "/sign-in/callback",
+    "/sign-up",
+    "/sign-up/verify",
+    "/journal/preview",
+    "/journal/preview/draft",
+  ]) {
+    assert.equal(validateAnalyticsEvent({ path, occurredAt: now }, now.getTime()), "path", path);
+    assert.equal(isPrivateStorefrontPath(path), true, path);
+  }
+
+  for (const path of [
+    "/staff?tab=orders",
+    "//staff-picks",
+    "/sign-style#details",
+  ]) {
+    assert.equal(validateAnalyticsEvent({ path, occurredAt: now }, now.getTime()), "path", path);
+  }
 });
 
 test("each aggregate quality check moves from healthy to its flagged state", () => {

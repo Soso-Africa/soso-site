@@ -13,7 +13,7 @@ import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { CartDrawer } from '@/components/CartDrawer';
 import { ConsentManager } from '@/components/ConsentManager';
 import { Seo } from '@/components/Seo';
-import { getRedirect } from '@workspace/api-client-react';
+import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
 
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
@@ -116,7 +116,7 @@ function App() {
 
 function AppShell() {
   const [location] = useLocation();
-  const staffOrAuthSurface = location.startsWith("/staff") || location.startsWith("/sign-") || location.startsWith("/journal/preview");
+  const staffOrAuthSurface = isPrivateStorefrontPath(location);
 
   return (
     <>

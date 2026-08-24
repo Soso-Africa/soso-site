@@ -6,3 +6,4 @@
 - [Lib package build order](lib-package-build-order.md) — after changing lib/db or lib/api-client-react schemas/exports, build those packages before typechecking consumers.
 - [Generated-client HMR refresh](generated-client-hmr-refresh.md) — Orval temporarily replaces generated source files; restart the storefront after generation before treating Vite import errors as app failures.
 - [Consented first-touch attribution](consented-first-touch-attribution.md) — hold landing UTM values in memory until measurement consent, then retain first touch for the session.
+- [Consent-aware event lifecycle](consent-aware-event-lifecycle.md) — key page views to the affirmative-consent grant and pathname, and retain a memory fallback when browser session storage is unavailable.
