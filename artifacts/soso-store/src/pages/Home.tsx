@@ -7,9 +7,12 @@ import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { indexingEnabled } from "@/lib/seo";
+import { resolvedSiteContent, useSiteContent } from "@/data/siteContent";
 
 export default function Home() {
   const [stylistOpen, setStylistOpen] = useState(false);
+  const { data: siteData } = useSiteContent();
+  const site = resolvedSiteContent(siteData?.content);
 
   return (
     <div className="flex flex-col">
@@ -21,33 +24,32 @@ export default function Home() {
       {/* 1. HERO */}
       <section className="relative overflow-hidden" style={{ minHeight: "calc(100dvh - 104px)" }}>
         <div className="absolute inset-0">
-          <img src="/images/soso/vault-black.jpg" alt="" className="w-full h-full object-cover object-top" style={{ opacity: 0.55 }} />
+          <img src={site.heroImageUrl} alt={site.heroImageAlt} className="w-full h-full object-cover object-top" style={{ opacity: 0.55 }} />
           <div className="absolute inset-0" style={{ background: `linear-gradient(90deg, hsl(var(--background)) 8%, rgba(16,14,11,0.55) 55%, rgba(16,14,11,0.2) 100%)` }} />
           <div className="absolute inset-x-0 bottom-0 h-40" style={{ background: `linear-gradient(180deg, transparent, hsl(var(--background)))` }} />
         </div>
         <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-12 flex flex-col justify-center" style={{ minHeight: "calc(100dvh - 104px)" }}>
           <Reveal>
             <p className="text-[12px] tracking-[0.35em] uppercase mb-6" style={{ color: "hsl(var(--primary))" }}>
-              Bespoke Menswear &middot; Abuja, Nigeria
+              {site.heroEyebrow}
             </p>
           </Reveal>
           <Reveal delay={120}>
             <h1 className="soso-display font-light leading-[1.02] max-w-3xl text-white" style={{ fontSize: "clamp(2.6rem, 6vw, 5.2rem)" }}>
-              Dress like the man
+              {site.heroTitle}
               <br />
-              they <em style={{ color: "hsl(var(--primary))", fontStyle: "italic" }}>make way</em> for.
+              they <em style={{ color: "hsl(var(--primary))", fontStyle: "italic" }}>{site.heroAccent}</em> for.
             </h1>
           </Reveal>
           <Reveal delay={240}>
             <p className="mt-6 max-w-xl text-[15px] leading-relaxed" style={{ color: "hsl(var(--secondary))" }}>
-              Premium kaftans, agbadas and refined separates from SOSO Africa. Explore the collection,
-              use the size guide, or speak with a stylist before you place your order.
+              {site.heroDescription}
             </p>
           </Reveal>
           <Reveal delay={360}>
             <div className="mt-9 flex flex-wrap items-center gap-4">
-              <Link href="/shop" className="soso-btn-gold text-[13px] tracking-[0.15em] uppercase px-8 py-4 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
-                Shop the Collection
+              <Link href={site.primaryCtaHref} className="soso-btn-gold text-[13px] tracking-[0.15em] uppercase px-8 py-4 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
+                {site.primaryCta}
               </Link>
               <button
                 type="button"
@@ -55,7 +57,7 @@ export default function Home() {
                 className="soso-btn-ghost flex items-center gap-2.5 text-[13px] tracking-[0.15em] uppercase px-8 py-4 font-semibold"
                 style={{ border: `1px solid rgba(246,241,231,0.35)` }}
               >
-                <WhatsAppIcon size={17} /> Ask a stylist
+                <WhatsAppIcon size={17} /> {site.stylistCta}
               </button>
             </div>
           </Reveal>

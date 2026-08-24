@@ -16,6 +16,7 @@ import {
   faqItemsTable,
   journalPostRevisionsTable,
   journalPostsTable,
+  siteContentTable,
 } from "@workspace/db";
 import { asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
@@ -23,6 +24,76 @@ import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 const router: IRouter = Router();
 
 router.use("/staff", requireStaff);
+
+router.get("/staff/content/site", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
+  const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+  res.json(row ?? {
+    key: "site",
+    draft: {},
+    published: {},
+    draftUpdatedAt: null,
+    publishedAt: null,
+    updatedByClerkUserId: null,
+    publishedByClerkUserId: null,
+  });
+});
+
+router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
+    res.status(400).json({ error: "Content must be an object" });
+    return;
+  }
+  const allowedKeys = new Set([
+    "heroEyebrow", "heroTitle", "heroAccent", "heroDescription", "heroImageUrl",
+    "heroImageAlt", "primaryCta", "primaryCtaHref", "stylistCta", "announcement",
+    "footerDescription", "instagramUrl", "whatsappUrl",
+    "navKaftansLabel", "navAgbadasLabel", "navShirtsLabel", "contactEmail", "contactPhone",
+  ]);
+  const draft: Record<string, string> = {};
+  for (const [key, value] of Object.entries(req.body as Record<string, unknown>)) {
+    if (!allowedKeys.has(key) || typeof value !== "string" || value.length > 500) {
+      res.status(400).json({ error: `Invalid site content field: ${key}` });
+      return;
+    }
+    draft[key] = value.trim();
+  }
+  for (const key of ["heroImageUrl", "instagramUrl", "whatsappUrl"]) {
+    if (draft[key] && !/^https?:\/\/|^\//.test(draft[key])) {
+      res.status(400).json({ error: `${key} must be an https URL or local path` });
+      return;
+    }
+  }
+  if (draft.primaryCtaHref && !draft.primaryCtaHref.startsWith("/")) {
+    res.status(400).json({ error: "Primary CTA must link to a local storefront path" });
+    return;
+  }
+  const [row] = await db.insert(siteContentTable).values({
+    key: "site", draft, updatedByClerkUserId: req.staff!.clerkUserId,
+  }).onConflictDoUpdate({
+    target: siteContentTable.key,
+    set: { draft, draftUpdatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId },
+  }).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
+    entityType: "site_content", entityId: "site",
+    metadata: { keys: Object.keys(draft) },
+  });
+  res.json(row);
+});
+
+router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+  if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
+  const now = new Date();
+  const [row] = await db.update(siteContentTable).set({
+    published: existing.draft, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
+  }).where(eq(siteContentTable.key, "site")).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId, action: "site_content.published",
+    entityType: "site_content", entityId: "site", metadata: { publishedAt: now.toISOString() },
+  });
+  res.json(row);
+});
 
 type JournalPostCore = {
   slug: string;

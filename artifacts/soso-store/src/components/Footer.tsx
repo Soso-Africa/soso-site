@@ -1,8 +1,11 @@
 import React from "react";
 import { Link } from "wouter";
 import { openPrivacyChoices } from "./ConsentManager";
+import { resolvedSiteContent, useSiteContent } from "@/data/siteContent";
 
 export function Footer() {
+  const { data: siteData } = useSiteContent();
+  const site = resolvedSiteContent(siteData?.content);
   return (
     <footer className="px-6 lg:px-12 py-14" style={{ borderTop: `1px solid rgba(184,145,47,0.2)` }}>
       <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-10">
@@ -11,13 +14,12 @@ export function Footer() {
             <img src="/images/soso/logo.png" alt="SOSO Africa" className="h-9 mb-4 cursor-pointer" />
           </Link>
           <p className="text-[13px] max-w-sm leading-relaxed mb-6" style={{ color: "hsl(var(--secondary))" }}>
-            Bespoke menswear house, Abuja. Kaftans, agbadas, dashikis and shirting —
-            made to order for the individual.
+            {site.footerDescription}
           </p>
           {/* Social links — update with real handles when available */}
           <div className="flex gap-4">
             <a
-              href="https://instagram.com/sosoafrica"
+              href={site.instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="SOSO Africa on Instagram"
@@ -26,6 +28,7 @@ export function Footer() {
             >
               Instagram
             </a>
+            {site.contactEmail && <a href={`mailto:${site.contactEmail}`} className="text-[11px] uppercase tracking-[0.2em] soso-link" style={{ color: "hsl(var(--primary))" }}>{site.contactEmail}</a>}
           </div>
         </div>
         <div>

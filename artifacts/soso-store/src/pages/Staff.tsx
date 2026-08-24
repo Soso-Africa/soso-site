@@ -202,9 +202,88 @@ export default function Staff() {
 
       {canManagePrivacy && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
       {(profile.role === "owner" || profile.role === "editor") && <JournalManagementSection />}
+      {(profile.role === "owner" || profile.role === "editor") && <SiteContentManagementSection />}
       {(profile.role === "owner" || profile.role === "editor") && <FaqManagementSection />}
       {(profile.role === "owner" || profile.role === "operations") && <RedirectsManagementSection />}
     </main>
+  );
+}
+
+type EditableSiteContent = Record<string, string>;
+const editableSiteFields = [
+  ["heroEyebrow", "Homepage eyebrow"],
+  ["heroTitle", "Homepage title"],
+  ["heroAccent", "Homepage accent"],
+  ["heroDescription", "Homepage description"],
+  ["heroImageUrl", "Hero image URL"],
+  ["heroImageAlt", "Hero image alt text"],
+  ["primaryCta", "Primary CTA label"],
+  ["primaryCtaHref", "Primary CTA path"],
+  ["stylistCta", "Stylist CTA label"],
+  ["announcement", "Site announcement"],
+  ["footerDescription", "Footer description"],
+  ["instagramUrl", "Instagram URL"],
+  ["whatsappUrl", "WhatsApp link"],
+  ["navKaftansLabel", "Navigation: kaftans"],
+  ["navAgbadasLabel", "Navigation: agbadas"],
+  ["navShirtsLabel", "Navigation: shirts"],
+  ["contactEmail", "Contact email"],
+  ["contactPhone", "Contact phone"],
+] as const;
+
+function SiteContentManagementSection() {
+  const [content, setContent] = useState<EditableSiteContent>({});
+  const [status, setStatus] = useState("Loading content…");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void customFetch<{ draft: EditableSiteContent; published: EditableSiteContent }>("/api/staff/content/site", { responseType: "json" })
+      .then((row) => { setContent(row.draft && Object.keys(row.draft).length ? row.draft : row.published ?? {}); setStatus("Draft and published states are separate."); })
+      .catch((error) => setStatus(errorMessage(error, "Unable to load site content.")));
+  }, []);
+
+  const saveDraft = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await customFetch("/api/staff/content/site", { method: "PUT", body: JSON.stringify(content), responseType: "json" });
+      setStatus("Draft saved. It is not public until published.");
+    } catch (error) {
+      setStatus(errorMessage(error, "Draft could not be saved."));
+    } finally { setSaving(false); }
+  };
+  const publish = async () => {
+    setSaving(true);
+    try {
+      await customFetch("/api/staff/content/site/publish", { method: "POST", responseType: "json" });
+      setStatus("Published. The public storefront will use this content.");
+    } catch (error) { setStatus(errorMessage(error, "Content could not be published.")); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <section className="mt-12 border-t border-border pt-10">
+      <SectionHeading icon={Globe} title="Homepage & site content" description="Edit customer-facing copy, calls to action, image metadata, and social links. Save a draft, preview it here, then publish explicitly." />
+      <form onSubmit={(event) => void saveDraft(event)} className="border border-border bg-card p-5">
+        <div className="grid gap-4 md:grid-cols-2">
+          {editableSiteFields.map(([key, label]) => (
+            <label key={key} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {label}
+              {key === "heroDescription" || key === "footerDescription" ? (
+                <textarea rows={3} value={content[key] ?? ""} onChange={(event) => setContent({ ...content, [key]: event.target.value })} className="staff-input mt-1 resize-y" />
+              ) : (
+                <input value={content[key] ?? ""} onChange={(event) => setContent({ ...content, [key]: event.target.value })} className="staff-input mt-1" />
+              )}
+            </label>
+          ))}
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button type="submit" disabled={saving} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
+          <button type="button" disabled={saving} onClick={() => void publish()} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish draft</button>
+          <span className="text-xs text-muted-foreground" role="status">{status}</span>
+        </div>
+      </form>
+    </section>
   );
 }
 

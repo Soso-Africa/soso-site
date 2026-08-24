@@ -2,12 +2,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { WhatsAppIcon } from "@/components/Icons";
+import { resolvedSiteContent, useSiteContent } from "@/data/siteContent";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [location] = useLocation();
   const { openDrawer, itemCount } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { data: siteData } = useSiteContent();
+  const site = resolvedSiteContent(siteData?.content);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -71,7 +74,7 @@ export function Navbar() {
   return (
     <>
       <div className="text-center text-[11px] tracking-[0.22em] uppercase py-2 px-4" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}>
-        Fit guidance if you need it &nbsp;&middot;&nbsp; Atelier details confirmed after payment
+        {site.announcement}
       </div>
 
       <header
@@ -99,9 +102,9 @@ export function Navbar() {
         </button>
 
         <nav className="hidden md:flex items-center gap-8 text-[12px] tracking-[0.18em] uppercase" style={{ color: "hsl(var(--secondary))" }}>
-          <Link href="/shop" className="soso-link">Kaftans</Link>
-          <Link href="/shop" className="soso-link">Agbadas</Link>
-          <Link href="/shop" className="soso-link">Shirts</Link>
+          <Link href="/shop" className="soso-link">{site.navKaftansLabel}</Link>
+          <Link href="/shop" className="soso-link">{site.navAgbadasLabel}</Link>
+          <Link href="/shop" className="soso-link">{site.navShirtsLabel}</Link>
         </nav>
         
         <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center">
@@ -110,7 +113,7 @@ export function Navbar() {
         
         <div className="flex items-center gap-3 md:gap-5">
           <a
-            href="/#whatsapp"
+            href={site.whatsappUrl}
             className="hidden lg:flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link" 
             style={{ color: "hsl(var(--primary))" }}
           >
@@ -147,10 +150,10 @@ export function Navbar() {
           <nav className="flex flex-col gap-6 text-xl soso-display tracking-widest text-center">
             <Link href="/" className="hover:text-[hsl(var(--primary))] transition-colors">Home</Link>
             <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">All Collection</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">Kaftans</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">Agbadas</Link>
+            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">{site.navKaftansLabel}</Link>
+            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">{site.navAgbadasLabel}</Link>
             <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">Two-Piece Sets</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">Shirts</Link>
+            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">{site.navShirtsLabel}</Link>
           </nav>
           <div className="mt-auto flex flex-col gap-4">
             <a href="/#whatsapp" className="w-full flex items-center justify-center gap-2 py-4 soso-btn-gold text-[12px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }} onClick={() => setMobileMenuOpen(false)}>

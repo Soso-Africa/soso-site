@@ -410,6 +410,19 @@ export const faqItemsTable = pgTable(
   (table) => [index("soso_faq_items_sort_idx").on(table.sortOrder, table.isPublished)],
 );
 
+export const siteContentTable = pgTable(
+  "soso_site_content",
+  {
+    key: text("key").primaryKey(),
+    draft: jsonb("draft").$type<Record<string, unknown>>().notNull().default({}),
+    published: jsonb("published").$type<Record<string, unknown>>().notNull().default({}),
+    draftUpdatedAt: timestamp("draft_updated_at", { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    updatedByClerkUserId: text("updated_by_clerk_user_id"),
+    publishedByClerkUserId: text("published_by_clerk_user_id"),
+  },
+);
+
 export const redirectsTable = pgTable(
   "soso_redirects",
   {
@@ -450,6 +463,7 @@ export const insertCommerceCheckoutAttemptSchema = createInsertSchema(commerceCh
 export const insertCommerceWebhookEventSchema = createInsertSchema(commerceWebhookEventsTable).omit({ createdAt: true, updatedAt: true, completedAt: true });
 
 export type FaqItem = typeof faqItemsTable.$inferSelect;
+export type SiteContent = typeof siteContentTable.$inferSelect;
 export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type Order = typeof ordersTable.$inferSelect;

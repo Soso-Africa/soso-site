@@ -17,6 +17,7 @@ import {
   operationalNotificationsTable,
   privacyRequestsTable,
   rateLimitBucketsTable,
+  siteContentTable,
 } from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
@@ -132,6 +133,12 @@ router.get("/journal", async (_req, res): Promise<void> => {
     .orderBy(desc(journalPostsTable.publishedAt));
 
   res.json(ListJournalPostsResponse.parse(posts));
+});
+
+router.get("/content/site", async (_req, res): Promise<void> => {
+  const [row] = await db.select({ content: siteContentTable.published })
+    .from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+  res.json({ content: row?.content ?? {} });
 });
 
 router.get("/journal/:slug", async (req, res): Promise<void> => {
