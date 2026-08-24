@@ -58,6 +58,8 @@ After publishing:
 
 ## Required release validation
 
+For the Vercel-specific import flow, environment checklist, and post-deploy route checks, use [the Vercel deployment guide](./soso-vercel-deployment.md). Hosting the application does not relax any of the approval gates in this runbook.
+
 ### Local build and routes
 
 Run:
