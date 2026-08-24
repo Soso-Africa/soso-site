@@ -5,7 +5,7 @@
 Deploy `Soso-Africa/soso-site` as **one Vercel project from the repository root**.
 
 - The Vite storefront is built to `artifacts/soso-store/dist/public`.
-- `api/[...path].ts` exposes the existing Express application as a Vercel Function for `/api/*`.
+ - `api/[...path].mjs` exposes the compiled Express application as a Vercel Function for `/api/*`.
 - The storefront intentionally uses same-origin API paths, so do not set `VITE_API_BASE_URL` for this deployment.
 - The Vercel rewrite keeps client-side route refreshes working and explicitly excludes `/api` so API requests always reach the serverless function.
 
