@@ -46,6 +46,7 @@ import {
   privacyRequestsTable,
   privacyAccessPackagesTable,
   staffUsersTable,
+  type StaffUser,
 } from "@workspace/db";
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
@@ -59,6 +60,36 @@ import { buildReportingRates, comparisonDelta, eventCountMap } from "./analytics
 const router: IRouter = Router();
 
 router.use("/staff", requireStaff);
+
+type StaffAccessChange = {
+  role?: StaffUser["role"];
+  isActive?: boolean;
+};
+
+export function isFinalActiveOwnerChangeBlocked(
+  target: Pick<StaffUser, "role" | "isActive">,
+  change: StaffAccessChange,
+  activeOwnerCount: number,
+): boolean {
+  const removesOwnerStatus =
+    change.isActive === false ||
+    (change.role !== undefined && change.role !== "owner");
+
+  return target.role === "owner" && target.isActive && removesOwnerStatus && activeOwnerCount <= 1;
+}
+
+export function staffAccessAuditMetadata(
+  target: Pick<StaffUser, "email" | "role" | "isActive">,
+  updated: Pick<StaffUser, "role" | "isActive">,
+) {
+  return auditMetadata({
+    email: target.email,
+    beforeRole: target.role,
+    afterRole: updated.role,
+    beforeActive: target.isActive,
+    afterActive: updated.isActive,
+  });
+}
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const orderStatuses = [
@@ -200,10 +231,10 @@ router.patch("/staff/access/:id", requireStaffRoles("owner"), async (req, res): 
     res.status(404).json({ error: "Staff mapping not found." });
     return;
   }
-  if (target.role === "owner" && target.isActive && (parsed.data.isActive === false || parsed.data.role !== undefined && parsed.data.role !== "owner")) {
+  if (target.role === "owner" && target.isActive) {
     const [{ value: ownerCount }] = await db.select({ value: count() }).from(staffUsersTable)
       .where(and(eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true)));
-    if (Number(ownerCount) <= 1) {
+    if (isFinalActiveOwnerChangeBlocked(target, parsed.data, Number(ownerCount))) {
       res.status(400).json({ error: "The final active owner cannot be removed or changed." });
       return;
     }
@@ -216,7 +247,7 @@ router.patch("/staff/access/:id", requireStaffRoles("owner"), async (req, res): 
   const [updated] = await db.update(staffUsersTable).set(updates).where(eq(staffUsersTable.id, target.id)).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.updated", entityType: "staff_user", entityId: target.id,
-    metadata: auditMetadata({ email: target.email, beforeRole: target.role, afterRole: updated!.role, beforeActive: target.isActive, afterActive: updated!.isActive }),
+    metadata: staffAccessAuditMetadata(target, updated!),
   });
   res.json(UpdateStaffAccessResponse.parse(updated));
 });

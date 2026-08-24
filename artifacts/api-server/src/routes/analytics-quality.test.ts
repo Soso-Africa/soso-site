@@ -5,12 +5,19 @@ import {
   isPrivateStorefrontPath,
   isTrackableStorefrontPath,
   RecordAnalyticsEventBody,
+  CreateStaffAccessBody,
+  UpdateStaffAccessBody,
 } from "@workspace/api-zod";
+import { requireStaffRoles } from "../middlewares/staff";
 import {
   buildAnalyticsQualityReport,
   type AnalyticsQualityFixture,
 } from "./analytics-quality";
 import { validateAnalyticsEvent } from "./analytics-validation";
+import {
+  isFinalActiveOwnerChangeBlocked,
+  staffAccessAuditMetadata,
+} from "./staff";
 
 const now = new Date("2026-08-24T12:00:00.000Z");
 const baseFixture: AnalyticsQualityFixture = {
@@ -33,6 +40,66 @@ function checkStatuses(fixture: Partial<AnalyticsQualityFixture>) {
   const report = buildAnalyticsQualityReport({ ...baseFixture, ...fixture });
   return new Map(report.checks.map((check) => [check.check, check.status]));
 }
+
+test("staff access administration is owner-only", () => {
+  const denied = requireStaffRoles("owner");
+  let status: number | undefined;
+  let payload: unknown;
+  let continued = false;
+  denied(
+    {
+      staff: { role: "operations" },
+      log: { warn() {} },
+    } as never,
+    {
+      status(code: number) {
+        status = code;
+        return { json(value: unknown) { payload = value; } };
+      },
+    } as never,
+    () => { continued = true; },
+  );
+  assert.equal(status, 403);
+  assert.deepEqual(payload, { error: "Your staff role does not have permission for this action" });
+  assert.equal(continued, false);
+});
+
+test("staff access create, role changes, deactivation, and reactivation stay within the API contract", () => {
+  assert.equal(CreateStaffAccessBody.safeParse({
+    clerkUserId: "user-staff-001",
+    email: "  staff@example.com ",
+    role: "stylist",
+  }).success, true);
+  for (const change of [{ role: "operations" }, { isActive: false }, { isActive: true }]) {
+    assert.equal(UpdateStaffAccessBody.safeParse(change).success, true);
+  }
+});
+
+test("final active owner cannot be deactivated or changed, but ordinary changes remain available", () => {
+  const finalOwner = { role: "owner" as const, isActive: true };
+  assert.equal(isFinalActiveOwnerChangeBlocked(finalOwner, { isActive: false }, 1), true);
+  assert.equal(isFinalActiveOwnerChangeBlocked(finalOwner, { role: "operations" }, 1), true);
+  assert.equal(isFinalActiveOwnerChangeBlocked(finalOwner, { role: "owner" }, 1), false);
+  assert.equal(isFinalActiveOwnerChangeBlocked(finalOwner, { isActive: true }, 1), false);
+  assert.equal(isFinalActiveOwnerChangeBlocked(finalOwner, { isActive: false }, 2), false);
+  assert.equal(isFinalActiveOwnerChangeBlocked({ role: "owner", isActive: false }, { isActive: true }, 1), false);
+});
+
+test("successful staff access changes produce complete audit metadata", () => {
+  assert.deepEqual(
+    staffAccessAuditMetadata(
+      { email: "owner@example.com", role: "owner", isActive: true },
+      { role: "operations", isActive: false },
+    ),
+    {
+      email: "owner@example.com",
+      beforeRole: "owner",
+      afterRole: "operations",
+      beforeActive: true,
+      afterActive: false,
+    },
+  );
+});
 
 test("accepts current and newly launched public storefront paths", () => {
   for (const path of [
