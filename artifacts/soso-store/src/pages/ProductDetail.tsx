@@ -7,7 +7,7 @@ import { useCart } from "@/context/CartContext";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
-import { trackStorefrontEvent } from "@/components/ConsentManager";
+import { editorialOrigin, trackStorefrontEvent } from "@/components/ConsentManager";
 import { catalogApproved } from "@/lib/seo";
 import { CommerceConfigurationError, commerceGateway, commerceMode } from "@/lib/commerce";
 
@@ -61,7 +61,7 @@ export default function ProductDetail() {
   }, [product, liveCatalogLoading, setLocation]);
 
   useEffect(() => {
-    if (product) trackStorefrontEvent("product_view", { productSlug: product.slug });
+    if (product) trackStorefrontEvent("product_view", { productSlug: product.slug, articleSlug: editorialOrigin() });
   }, [product]);
 
   if (!product) {
@@ -83,8 +83,8 @@ export default function ProductDetail() {
       commerceProductId: product.commerceProductId,
       commerceVariantId: product.commerceVariantIds?.[size ?? ""],
     });
-    trackStorefrontEvent("add_to_bag", { productSlug: product.slug, selectedSize: size ?? undefined });
-    trackStorefrontEvent("cta_clicked", { ctaLabel: "add_to_bag", productSlug: product.slug });
+    trackStorefrontEvent("add_to_bag", { productSlug: product.slug, selectedSize: size ?? undefined, articleSlug: editorialOrigin() });
+    trackStorefrontEvent("cta_clicked", { ctaLabel: "add_to_bag", productSlug: product.slug, articleSlug: editorialOrigin() });
   };
 
   // 4 random products for Complete the look
@@ -201,7 +201,7 @@ export default function ProductDetail() {
             </button>
             <button
               type="button"
-              onClick={() => { setStylistOpen(true); trackStorefrontEvent("cta_clicked", { ctaLabel: "ask_stylist", productSlug: product.slug }); }}
+              onClick={() => { setStylistOpen(true); trackStorefrontEvent("cta_clicked", { ctaLabel: "ask_stylist", productSlug: product.slug, articleSlug: editorialOrigin() }); }}
               className="w-full block text-center py-4 text-[13px] tracking-[0.2em] uppercase flex items-center justify-center gap-2 transition-colors duration-300 hover:bg-[#0f3d2e] hover:text-white"
               style={{ border: "1px solid #128C56", color: "#0f6b43" }}
             >

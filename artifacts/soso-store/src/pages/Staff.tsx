@@ -92,6 +92,7 @@ const emptyArticle: StaffJournalPostInput = {
   seoDescription: null,
   readTimeMinutes: null,
   relatedProductSlugs: null,
+  relatedArticleSlugs: null,
   status: "draft",
 };
 
@@ -108,8 +109,7 @@ function errorMessage(error: unknown, fallback: string) {
 
 export default function Staff() {
   const { data: profile, isLoading: profileLoading, isError: profileError } = useGetStaffProfile();
-  const [rangeDays, setRangeDays] = useState(7);
-  const range = useMemo(() => dateRangeFor(rangeDays), [rangeDays]);
+  const [range, setRange] = useState(() => dateRangeFor(7));
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
   // Stylists can view orders (read-only) so they can answer delivery queries.
   const canViewOrders = canManageOrders || profile?.role === "stylist";
@@ -153,7 +153,7 @@ export default function Staff() {
               <span className="text-muted-foreground">{profile.email}</span>
             </div>
           </div>
-          <DateRangeControl rangeDays={rangeDays} onChange={setRangeDays} />
+          <DateRangeControl range={range} onChange={setRange} />
         </div>
       </header>
 
@@ -222,14 +222,20 @@ function AccessRestricted() {
   );
 }
 
-function DateRangeControl({ rangeDays, onChange }: { rangeDays: number; onChange: (days: number) => void }) {
+function DateRangeControl({ range, onChange }: { range: { from: string; to: string }; onChange: (range: { from: string; to: string }) => void }) {
+  const rangeDays = Math.round((new Date(`${range.to}T00:00:00`).getTime() - new Date(`${range.from}T00:00:00`).getTime()) / 86_400_000) + 1;
   return (
-    <div className="flex items-center gap-2" aria-label="Reporting range">
+    <div className="flex flex-wrap items-center justify-end gap-2" aria-label="Reporting range">
       {[7, 30, 90].map((days) => (
-        <button key={days} type="button" onClick={() => onChange(days)} className={`min-h-11 border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] ${rangeDays === days ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary"}`}>
+        <button key={days} type="button" onClick={() => onChange(dateRangeFor(days))} className={`min-h-11 border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] ${rangeDays === days ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:border-primary"}`}>
           {days === 7 ? "7 days" : `${days} days`}
         </button>
       ))}
+      <label className="sr-only" htmlFor="staff-range-from">From date</label>
+      <input id="staff-range-from" type="date" value={range.from} max={range.to} onChange={(event) => onChange({ ...range, from: event.target.value || range.from })} className="min-h-11 border border-border bg-background px-2 text-xs text-foreground" />
+      <span className="text-xs text-muted-foreground">to</span>
+      <label className="sr-only" htmlFor="staff-range-to">To date</label>
+      <input id="staff-range-to" type="date" value={range.to} min={range.from} max={format(new Date(), "yyyy-MM-dd")} onChange={(event) => onChange({ ...range, to: event.target.value || range.to })} className="min-h-11 border border-border bg-background px-2 text-xs text-foreground" />
     </div>
   );
 }
@@ -284,6 +290,13 @@ type AnalyticsMetrics = {
   topProducts: { slug: string; views: number }[];
   deviceBreakdown: { deviceType: string; events: number }[];
   scrollDepth: { depthPct: number; events: number }[];
+  visitorTypes: { newVisitors: number; returningVisitors: number; definition: string };
+  rates: { key: string; label: string; numerator: number; denominator: number; value: number | null; definition: string }[];
+  comparison: { from: string; to: string; events: { eventName: string; current: number; previous: number; delta: number | null }[] };
+  acquisition: { source: string; medium: string; campaign: string; events: number; visitors: number }[];
+  countries: { country: string; events: number }[];
+  journey: { sessionsWithProductView: number; sessionsWithBag: number; sessionsWithCheckout: number; sessionsWithPaymentClick: number; definition: string };
+  freshness: { latestEventAt: string | null; activeDays: number; periodDays: number; coverageRate: number; definition: string };
 };
 type AnalyticsQuality = AnalyticsQualityReport;
 
@@ -409,6 +422,25 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
         ))}
       </div>
 
+      {metrics.data && (
+        <>
+          <div className="mt-4 border border-border bg-muted/20 p-4 text-xs leading-relaxed text-muted-foreground">
+            <span className="font-semibold uppercase tracking-wider text-foreground">Signal freshness · </span>
+            {metrics.data.freshness.latestEventAt ? `Latest consented event ${format(new Date(metrics.data.freshness.latestEventAt), "d MMM, HH:mm")}. ` : "No consented event in this range. "}
+            {metrics.data.freshness.activeDays} of {metrics.data.freshness.periodDays} days have signal ({Math.round(metrics.data.freshness.coverageRate * 100)}% coverage). {metrics.data.freshness.definition}
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {metrics.data.rates.map((metric) => (
+              <article key={metric.key} className="border border-border bg-card p-4">
+                <div className="flex items-center gap-1.5"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{metric.label}</p><Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Definition for ${metric.label}`} className="text-muted-foreground hover:text-primary"><Info size={13} /></button></TooltipTrigger><TooltipContent className="max-w-xs leading-relaxed">{metric.definition}</TooltipContent></Tooltip></div>
+                <p className="mt-3 text-3xl soso-display">{metric.value === null ? "—" : `${Math.round(metric.value * 100)}%`}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{metric.numerator.toLocaleString()} / {metric.denominator.toLocaleString()} consented events</p>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         {/* Event funnel */}
         <div className="border border-border bg-card">{loading || !funnel ? <LoadingRows /> : <><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consented event counts · {funnel.from} to {funnel.to}</div><div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3">{funnel.events.map((event) => <div key={event.eventName} className="p-4"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{event.eventName.replaceAll("_", " ")}</p><p className="mt-3 text-2xl soso-display">{event.count.toLocaleString()}</p></div>)}</div><div className="border-t border-border p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Stage-to-stage event drop-off</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Rates compare aggregate event counts, not unique shoppers or completed payments.</p><div className="mt-3 space-y-2">{funnel.dropOffs.map((drop) => <div key={`${drop.fromEventName}-${drop.toEventName}`} className="flex items-center justify-between gap-3 text-xs"><span className="min-w-0 truncate">{drop.fromEventName.replaceAll("_", " ")} → {drop.toEventName.replaceAll("_", " ")}</span><span className="shrink-0 font-medium">{drop.dropOffRate === null ? "No baseline" : `${Math.round(drop.dropOffRate * 100)}%`} <span className="text-muted-foreground">({drop.dropOffCount.toLocaleString()} fewer)</span></span></div>)}</div></div></>}</div>
@@ -416,6 +448,26 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
         <div className="flex flex-col gap-4">
           <QualityBadge quality={quality.data} />
           <div className="border border-border bg-card"><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audit visibility</div>{loading ? <LoadingRows /> : !auditEvents?.length ? <Empty label="No audited operational actions in this period." /> : <div className="divide-y divide-border">{auditEvents.slice(0, 5).map((event) => <div key={event.id} className="p-4"><p className="text-sm font-medium">{event.action.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-muted-foreground">{event.entityType.replaceAll("_", " ")} · {format(new Date(event.createdAt), "d MMM, HH:mm")}</p></div>)}</div>}</div>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comparison period</p><p className="mt-1 text-xs text-muted-foreground">{metrics.data ? `${metrics.data.comparison.from} to ${metrics.data.comparison.to} · equal-length prior period` : "Loading prior period…"}</p></div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : (
+            <div className="divide-y divide-border">
+              {metrics.data.comparison.events.map((item) => <div key={item.eventName} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-4 py-3 text-xs"><span className="capitalize">{item.eventName.replaceAll("_", " ")}</span><span>{item.current.toLocaleString()}</span><span className="text-muted-foreground">vs {item.previous.toLocaleString()}</span><span className={item.delta === null ? "text-muted-foreground" : item.delta >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"}>{item.delta === null ? "No baseline" : `${item.delta >= 0 ? "+" : ""}${Math.round(item.delta * 100)}%`}</span></div>)}
+            </div>
+          )}
+        </div>
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consented session journey</p><p className="mt-1 text-xs text-muted-foreground">Sessions can appear at more than one stage; payment click is not payment success.</p></div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-4">{[
+            ["Product", metrics.data.journey.sessionsWithProductView],
+            ["Bag", metrics.data.journey.sessionsWithBag],
+            ["Checkout", metrics.data.journey.sessionsWithCheckout],
+            ["Payment click", metrics.data.journey.sessionsWithPaymentClick],
+          ].map(([label, value]) => <div key={String(label)} className="p-4 text-center"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-2 text-2xl soso-display">{Number(value).toLocaleString()}</p></div>)}</div>}
         </div>
       </div>
 
@@ -459,6 +511,17 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
               })}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acquisition sources</p><p className="mt-1 text-xs text-muted-foreground">Aggregate, consented first-touch context. This is not paid-conversion attribution.</p></div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.acquisition.length ? <Empty label="No consented acquisition data yet." /> : <div className="divide-y divide-border">{metrics.data.acquisition.map((row) => <div key={`${row.source}-${row.medium}-${row.campaign}`} className="grid grid-cols-[1fr_auto] gap-3 p-3 text-xs"><div className="min-w-0"><p className="truncate font-medium">{row.source} · {row.medium}</p><p className="mt-1 truncate text-muted-foreground">{row.campaign}</p></div><p className="text-right"><span className="block font-medium">{row.visitors.toLocaleString()} visitors</span><span className="text-muted-foreground">{row.events.toLocaleString()} events</span></p></div>)}</div>}
+        </div>
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Country signal</p><p className="mt-1 text-xs text-muted-foreground">Server-enriched country headers only; no precise location is retained here.</p></div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.countries.length ? <Empty label="No consented country data yet." /> : <div className="divide-y divide-border">{metrics.data.countries.map((row) => <div key={row.country} className="flex items-center justify-between gap-3 p-3 text-sm"><span>{row.country}</span><span className="font-medium">{row.events.toLocaleString()} events</span></div>)}</div>}
         </div>
       </div>
 
@@ -653,6 +716,7 @@ function PrivacyRow({ request, role, onChanged }: { request: StaffPrivacyRequest
   const [verificationNote, setVerificationNote] = useState(request.verificationNote ?? "");
   const [resolutionNote, setResolutionNote] = useState(request.resolutionNote ?? "");
   const [notice, setNotice] = useState("");
+  const [packaging, setPackaging] = useState(false);
   const owner = role === "owner";
   const locked = request.status === "completed" || request.status === "rejected";
   useEffect(() => {
@@ -660,7 +724,30 @@ function PrivacyRow({ request, role, onChanged }: { request: StaffPrivacyRequest
     setVerificationNote(request.verificationNote ?? "");
     setResolutionNote(request.resolutionNote ?? "");
   }, [request.id, request.updatedAt, request.status, request.verificationNote, request.resolutionNote]);
-  return <article className="p-5"><div className="flex flex-col justify-between gap-2 sm:flex-row"><div><p className="text-sm font-medium capitalize">{request.requestType} request</p><p className="mt-1 text-xs text-muted-foreground">{request.requesterName || "Requester"} · {request.requesterEmail}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Policy version: {request.policyVersion}</p></div><StatusBadge status={request.status} /></div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Procedure status<select value={status} disabled={locked} onChange={(event) => setStatus(event.target.value as typeof status)} className="staff-input mt-1"><option value="received">Received</option><option value="identity_verified">Identity verified</option><option value="in_progress">In progress</option>{owner && <><option value="completed">Completed</option><option value="rejected">Rejected</option></>}</select></label><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Verification note<textarea disabled={locked} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label></div>{owner && <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Resolution note (required for complete/reject)<textarea disabled={locked} value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label>}<div className="mt-3 flex items-center justify-between"><p role="status" className="text-xs text-muted-foreground">{locked ? "This terminal privacy record is locked." : notice}</p><button type="button" disabled={locked || update.isPending} onClick={async () => { try { await update.mutateAsync({ id: request.id, data: { status, verificationNote: verificationNote || null, ...(owner ? { resolutionNote: resolutionNote || null } : {}) } }); setNotice("Privacy request updated."); onChanged(); } catch (error) { setNotice(errorMessage(error, "This request could not be updated.")); } }} className="inline-flex min-h-10 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Save size={14} /> Save procedure step</button></div></article>;
+  const canCreatePackage = owner && request.requestType === "access" && (request.status === "identity_verified" || request.status === "in_progress" || request.status === "completed");
+  const generatePackage = async () => {
+    setPackaging(true);
+    setNotice("");
+    try {
+      const result = await customFetch<{ expiresAt: string; downloadPath: string }>(`/api/staff/privacy-requests/${request.id}/access-package`, { method: "POST" });
+      setNotice(`Access package is ready until ${format(new Date(result.expiresAt), "d MMM, HH:mm")}. It can be downloaded once.`);
+      window.location.assign(result.downloadPath);
+      onChanged();
+    } catch (error) {
+      setNotice(errorMessage(error, "The controlled access package could not be generated."));
+    } finally {
+      setPackaging(false);
+    }
+  };
+  return (
+    <article className="p-5">
+      <div className="flex flex-col justify-between gap-2 sm:flex-row"><div><p className="text-sm font-medium capitalize">{request.requestType} request</p><p className="mt-1 text-xs text-muted-foreground">{request.requesterName || "Requester"} · {request.requesterEmail}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Policy version: {request.policyVersion}</p></div><StatusBadge status={request.status} /></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Procedure status<select value={status} disabled={locked} onChange={(event) => setStatus(event.target.value as typeof status)} className="staff-input mt-1"><option value="received">Received</option><option value="identity_verified">Identity verified</option><option value="in_progress">In progress</option>{owner && request.requestType !== "deletion" && <option value="completed">Completed</option>}{owner && <option value="rejected">Rejected</option>}</select></label><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Verification note<textarea disabled={locked} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label></div>
+      {request.requestType === "deletion" && <p className="mt-3 border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-relaxed text-muted-foreground">Deletion remains blocked: an approved retention policy and deletion procedure have not been supplied. Record verification and escalate; do not mark this request complete.</p>}
+      {owner && <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Resolution note (required for complete/reject)<textarea disabled={locked} value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label>}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-xs text-muted-foreground">{locked ? "This terminal privacy record is locked." : notice}</p><div className="flex flex-wrap gap-2">{canCreatePackage && <button type="button" disabled={packaging} onClick={() => void generatePackage()} className="inline-flex min-h-10 items-center gap-2 border border-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary hover:bg-primary/5 disabled:opacity-50"><Download size={14} /> {packaging ? "Preparing…" : "Generate access package"}</button>}<button type="button" disabled={locked || update.isPending} onClick={async () => { try { await update.mutateAsync({ id: request.id, data: { status, verificationNote: verificationNote || null, ...(owner ? { resolutionNote: resolutionNote || null } : {}) } }); setNotice("Privacy request updated."); onChanged(); } catch (error) { setNotice(errorMessage(error, "This request could not be updated.")); } }} className="inline-flex min-h-10 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Save size={14} /> Save procedure step</button></div></div>
+    </article>
+  );
 }
 
 function JournalManagementSection() {
@@ -669,13 +756,15 @@ function JournalManagementSection() {
   const update = useUpdateStaffJournalPost();
   const [article, setArticle] = useState<StaffJournalPostInput>(emptyArticle);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [expectedRevision, setExpectedRevision] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const { data: revisions, isLoading: revisionsLoading, isError: revisionsError } = useListStaffJournalPostRevisions(editingId ?? "", {
     query: { queryKey: ["staff-journal-revisions", editingId], enabled: Boolean(editingId) },
   });
-  const save = async (event: FormEvent) => { event.preventDefault(); try { if (editingId) { await update.mutateAsync({ id: editingId, data: article }); } else { const result = await create.mutateAsync({ data: article }); setEditingId(result.id); } setNotice("Article saved."); void refetch(); } catch (error) { setNotice(errorMessage(error, "Article could not be saved.")); } };
+  const save = async (event: FormEvent) => { event.preventDefault(); try { if (editingId) { const saved = await customFetch<StaffJournalPost>(`/api/staff/journal/${editingId}`, { method: "PATCH", body: JSON.stringify(article), headers: { "content-type": "application/json", ...(expectedRevision ? { "x-soso-expected-revision": expectedRevision } : {}) } }); setExpectedRevision(saved.updatedAt); } else { const result = await create.mutateAsync({ data: article }); setEditingId(result.id); setExpectedRevision(result.updatedAt); } setNotice("Article saved."); void refetch(); } catch (error) { setNotice(errorMessage(error, "Article could not be saved. If another editor made a change, reopen the article before trying again.")); } };
   const edit = (post: StaffJournalPost) => {
     setEditingId(post.id);
+    setExpectedRevision(post.updatedAt);
     setArticle({
       slug: post.slug,
       title: post.title,
@@ -690,6 +779,7 @@ function JournalManagementSection() {
       seoDescription: post.seoDescription ?? null,
       readTimeMinutes: post.readTimeMinutes ?? null,
       relatedProductSlugs: post.relatedProductSlugs ?? null,
+      relatedArticleSlugs: post.relatedArticleSlugs ?? null,
       status: post.status,
     });
     setNotice("");
@@ -743,7 +833,7 @@ function JournalManagementSection() {
         <form onSubmit={save} className="border border-border bg-card p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-medium">{editingId ? "Edit article" : "New article"}</p>
-            <button type="button" onClick={() => { setEditingId(null); setArticle(emptyArticle); }} className="text-xs uppercase tracking-wider text-primary">
+            <button type="button" onClick={() => { setEditingId(null); setExpectedRevision(null); setArticle(emptyArticle); }} className="text-xs uppercase tracking-wider text-primary">
               <Plus size={13} className="mr-1 inline" /> New
             </button>
           </div>

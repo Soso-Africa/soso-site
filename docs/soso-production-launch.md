@@ -124,6 +124,20 @@ Run Lighthouse or an equivalent real-device test on the published production dom
 
 No external monitoring, alerting, uptime, error-tracking, or analytics provider is configured by these safeguards. Keep provider credentials and integrations unconfigured until SOSO approves an owner, data handling, alert policy, retention, escalation process, and budget. Until then, retain the health-check and release/restore evidence above as local operational evidence; they do not create external alerts.
 
+### Privacy access-package procedure
+
+The staff workspace may generate a subject-access package **only after an owner has verified identity and recorded verification evidence**. The package is intentionally bounded to the requester's matched orders, order items, enquiries, and checkout-attempt records. It excludes payment card data, payment-provider references and tokens, staff/audit records, credentials, and anonymous analytics.
+
+The owner downloads the server-stored package through a one-time, 24-hour link. The package contents are never placed in audit metadata; audit records retain only the package reference, hash, row counts, and the generating/downloading owner. Do not email, paste, or re-upload the exported JSON to an unapproved service.
+
+Deletion requests remain operationally blocked. Staff may receive and verify them, but must not mark them complete until SOSO approves the retention schedule, legal basis, jurisdictional process, and deletion procedure.
+
+### Analytics interpretation boundary
+
+Staff reporting is consent-gated and aggregate only. It offers custom ranges, equal-length prior-period comparisons, anonymous new/returning visitor splits, acquisition and country aggregates, funnel event rates, session-stage journeys, and signal freshness/coverage.
+
+`payment_clicked` is only an intent event. It is not payment success, revenue, paid conversion attribution, CAC, or a verified order. Editorial article-to-product/stylist handoffs are reported only as non-payment assist signals until a provider-authoritative order/payment link is approved and implemented.
+
 ### Customer support handoff
 
 1. Publish only the approved support channels in final policy text and checkout communications.

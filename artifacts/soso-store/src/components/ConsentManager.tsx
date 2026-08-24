@@ -39,6 +39,7 @@ const SESSION_KEY = "soso-session-id";
 const SESSION_FIRED_KEY = "soso-session-started-fired";
 const SCROLL_DEPTHS_KEY = "soso-scroll-depths";
 const ATTRIBUTION_KEY = "soso-first-touch-attribution";
+const EDITORIAL_ORIGIN_KEY = "soso-editorial-origin";
 const EVENT_VERSION = 1;
 const MAX_ATTRIBUTION_VALUE_LENGTH = 120;
 const MAX_EVENT_PROPERTY_KEYS = 30;
@@ -48,6 +49,7 @@ const MAX_EVENT_PROPERTY_STRING_LENGTH = 200;
 const MAX_EVENT_PROPERTIES_BYTES = 8_000;
 let inMemoryVisitorId: string | null = null;
 let inMemorySessionId: string | null = null;
+let inMemoryEditorialOrigin: string | null = null;
 
 function apiUrl(path: string): string {
   const configuredBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
@@ -343,6 +345,25 @@ export function trackStorefrontEvent(
 ) {
   if (typeof window === "undefined") return;
   sendConsentedEvent(eventName, properties);
+}
+
+/**
+ * Carries a Journal article context across an in-app product handoff only
+ * after the visitor has allowed optional measurement. This is intentionally
+ * session-scoped and is never stored before consent.
+ */
+export function rememberEditorialOrigin(articleSlug: string): void {
+  if (typeof window === "undefined" || !measurementConsent()) return;
+  const cleanSlug = articleSlug.trim().slice(0, MAX_EVENT_PROPERTY_STRING_LENGTH);
+  if (!cleanSlug) return;
+  inMemoryEditorialOrigin = cleanSlug;
+  storageSet("session", EDITORIAL_ORIGIN_KEY, cleanSlug);
+}
+
+export function editorialOrigin(): string | undefined {
+  if (typeof window === "undefined" || !measurementConsent()) return undefined;
+  const stored = storageGet("session", EDITORIAL_ORIGIN_KEY)?.trim().slice(0, MAX_EVENT_PROPERTY_STRING_LENGTH);
+  return stored || inMemoryEditorialOrigin || undefined;
 }
 
 export function openPrivacyChoices() {

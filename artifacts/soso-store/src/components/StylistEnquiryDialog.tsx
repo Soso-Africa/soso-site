@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Loader2, MessageCircle, X } from "lucide-react";
 import { useCreateEnquiry } from "@workspace/api-client-react";
-import { trackStorefrontEvent } from "./ConsentManager";
+import { editorialOrigin, trackStorefrontEvent } from "./ConsentManager";
 
 type StylistEnquiryDialogProps = {
   isOpen: boolean;
@@ -60,7 +60,7 @@ export function StylistEnquiryDialog({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) trackStorefrontEvent("stylist_inquiry_started", { productSlug: productSlug || undefined });
+    if (isOpen) trackStorefrontEvent("stylist_inquiry_started", { productSlug: productSlug || undefined, articleSlug: editorialOrigin() });
   }, [isOpen, productSlug]);
 
   if (!isOpen) return null;
@@ -102,7 +102,7 @@ export function StylistEnquiryDialog({
         },
       });
       setSent(true);
-      trackStorefrontEvent("stylist_inquiry_completed", { productSlug: productSlug || undefined });
+      trackStorefrontEvent("stylist_inquiry_completed", { productSlug: productSlug || undefined, articleSlug: editorialOrigin() });
     } catch {
       setError("We could not send your question just now. Please try again shortly.");
     }

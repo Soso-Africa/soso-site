@@ -6,7 +6,7 @@ import { Loader2, ArrowLeft, Share2, Clock, Tag } from 'lucide-react';
 import { Seo } from '@/components/Seo';
 import { absoluteUrl, journalApproved, siteUrl, indexingEnabled } from '@/lib/seo';
 import { approvedJournalEntryForSlug } from '@/data/journalSeo';
-import { trackStorefrontEvent } from '@/components/ConsentManager';
+import { rememberEditorialOrigin, trackStorefrontEvent } from '@/components/ConsentManager';
 import { products } from '@/data/products';
 
 export default function JournalPost() {
@@ -153,7 +153,7 @@ export default function JournalPost() {
           <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">Read also</p>
           <div className="grid gap-6 sm:grid-cols-2">
             {relatedArticles.map((article) => (
-              <Link key={article.slug} href={`/journal/${article.slug}`} className="group block border border-border/40 p-5 hover:border-primary/40 transition-colors">
+              <Link key={article.slug} href={`/journal/${article.slug}`} onClick={() => trackStorefrontEvent("cta_clicked", { ctaLabel: "journal_related_article", articleSlug: post.slug, targetArticleSlug: article.slug })} className="group block border border-border/40 p-5 hover:border-primary/40 transition-colors">
                 {article.category && <p className="text-[10px] uppercase tracking-[0.2em] text-primary/70 mb-2">{article.category}</p>}
                 <p className="soso-display text-lg text-foreground group-hover:text-primary transition-colors leading-snug">{article.title}</p>
                 <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{article.excerpt}</p>
@@ -174,7 +174,10 @@ export default function JournalPost() {
           <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">Featured in this article</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {relatedProducts.map((product) => (
-              <Link key={product.slug} href={`/product/${product.slug}`} className="group block">
+              <Link key={product.slug} href={`/product/${product.slug}`} onClick={() => {
+                rememberEditorialOrigin(post.slug);
+                trackStorefrontEvent("cta_clicked", { ctaLabel: "journal_related_product", articleSlug: post.slug, productSlug: product.slug });
+              }} className="group block">
                 <div className="aspect-[3/4] overflow-hidden bg-muted mb-3">
                   <img
                     src={product.img}

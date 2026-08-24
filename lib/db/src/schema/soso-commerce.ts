@@ -221,6 +221,8 @@ export const privacyRequestsTable = pgTable(
     policyVersion: text("policy_version").notNull().default("unconfigured"),
     status: privacyRequestStatusEnum("status").notNull().default("received"),
     verificationNote: text("verification_note"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedByClerkUserId: text("verified_by_clerk_user_id"),
     resolutionNote: text("resolution_note"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -229,6 +231,31 @@ export const privacyRequestsTable = pgTable(
   (table) => [
     index("soso_privacy_requests_status_created_idx").on(table.status, table.createdAt),
     index("soso_privacy_requests_email_created_idx").on(table.requesterEmail, table.createdAt),
+  ],
+);
+
+/**
+ * Controlled, short-lived subject-access packages. The package content never
+ * appears in audit metadata or public responses; it is only available to an
+ * authenticated owner through the one-time download route.
+ */
+export const privacyAccessPackagesTable = pgTable(
+  "soso_privacy_access_packages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    privacyRequestId: uuid("privacy_request_id").notNull().references(() => privacyRequestsTable.id, { onDelete: "cascade" }),
+    packageHash: text("package_hash").notNull(),
+    payload: jsonb("payload").notNull(),
+    rowCounts: jsonb("row_counts").notNull().default({}),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    downloadedAt: timestamp("downloaded_at", { withTimezone: true }),
+    downloadedByClerkUserId: text("downloaded_by_clerk_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("soso_privacy_access_packages_request_idx").on(table.privacyRequestId),
+    index("soso_privacy_access_packages_expiry_idx").on(table.expiresAt),
   ],
 );
 

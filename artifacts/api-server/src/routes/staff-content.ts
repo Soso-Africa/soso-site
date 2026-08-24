@@ -17,7 +17,7 @@ import {
   journalPostRevisionsTable,
   journalPostsTable,
 } from "@workspace/db";
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 
 const router: IRouter = Router();
@@ -69,6 +69,25 @@ function journalSnapshot(post: JournalPostCore & { publishedAt: Date | null }) {
   };
 }
 
+async function validateRelatedArticles(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  sourceSlug: string,
+  relatedArticleSlugs: string[] | null | undefined,
+  nextStatus: string,
+): Promise<string | null> {
+  const slugs = Array.from(new Set((relatedArticleSlugs ?? []).map((slug) => slug.trim()).filter(Boolean)));
+  if (!slugs.length) return null;
+  if (slugs.includes(sourceSlug)) return "An article cannot link to itself";
+  const related = await tx.select({ slug: journalPostsTable.slug, status: journalPostsTable.status })
+    .from(journalPostsTable).where(inArray(journalPostsTable.slug, slugs));
+  if (related.length !== slugs.length) return "Every related article must exist before it can be linked";
+  if (related.some((post) => post.status === "archived")) return "Archived articles cannot be used as related content";
+  if (nextStatus === "published" && related.some((post) => post.status !== "published")) {
+    return "Published articles may only link to other published articles";
+  }
+  return null;
+}
+
 router.get("/staff/journal", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
   const posts = await db
     .select()
@@ -90,6 +109,8 @@ router.post(
     }
 
     const post = await db.transaction(async (tx) => {
+      const relationError = await validateRelatedArticles(tx, parsed.data.slug, parsed.data.relatedArticleSlugs, parsed.data.status);
+      if (relationError) return { kind: "relation_error" as const, message: relationError };
       const [created] = await tx
         .insert(journalPostsTable)
         .values({
@@ -120,10 +141,14 @@ router.post(
           revisionId: revision!.id,
         },
       });
-      return created!;
+      return { kind: "created" as const, post: created! };
     });
 
-    res.status(201).json(CreateStaffJournalPostResponse.parse(post));
+    if (post.kind === "relation_error") {
+      res.status(400).json({ error: post.message });
+      return;
+    }
+    res.status(201).json(CreateStaffJournalPostResponse.parse(post.post));
   },
 );
 
@@ -137,6 +162,12 @@ router.patch(
       res.status(400).json({ error: "Please provide valid article updates" });
       return;
     }
+    const revisionHeader = req.header("x-soso-expected-revision");
+    const expectedRevision = revisionHeader ? new Date(revisionHeader) : null;
+    if (revisionHeader && (!expectedRevision || Number.isNaN(expectedRevision.getTime()))) {
+      res.status(400).json({ error: "The article revision reference is invalid" });
+      return;
+    }
 
     const post = await db.transaction(async (tx) => {
       const [current] = await tx
@@ -145,6 +176,17 @@ router.patch(
         .where(eq(journalPostsTable.id, params.data.id))
         .limit(1);
       if (!current) return null;
+      if (expectedRevision && current.updatedAt.getTime() !== expectedRevision.getTime()) {
+        return { kind: "conflict" as const };
+      }
+      const nextStatus = parsed.data.status ?? current.status;
+      const relationError = await validateRelatedArticles(
+        tx,
+        parsed.data.slug ?? current.slug,
+        parsed.data.relatedArticleSlugs ?? current.relatedArticleSlugs,
+        nextStatus,
+      );
+      if (relationError) return { kind: "relation_error" as const, message: relationError };
       const [previousRevision] = await tx
         .select({ id: journalPostRevisionsTable.id })
         .from(journalPostRevisionsTable)
@@ -152,7 +194,7 @@ router.patch(
         .orderBy(desc(journalPostRevisionsTable.createdAt))
         .limit(1);
 
-      const status = parsed.data.status ?? current.status;
+      const status = nextStatus;
       const [updated] = await tx
         .update(journalPostsTable)
         .set({
@@ -191,15 +233,23 @@ router.patch(
           revisionId: revision!.id,
         },
       });
-      return updated!;
+      return { kind: "updated" as const, post: updated! };
     });
 
     if (!post) {
       res.status(404).json({ error: "Article not found" });
       return;
     }
+    if (post.kind === "conflict") {
+      res.status(409).json({ error: "This article changed while you were editing it. Reload it before saving again." });
+      return;
+    }
+    if (post.kind === "relation_error") {
+      res.status(400).json({ error: post.message });
+      return;
+    }
 
-    res.json(UpdateStaffJournalPostResponse.parse(post));
+    res.json(UpdateStaffJournalPostResponse.parse(post.post));
   },
 );
 

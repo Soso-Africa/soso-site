@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { createHash } from "node:crypto";
 import {
   AcknowledgeStaffNotificationBody,
   AcknowledgeStaffNotificationParams,
@@ -28,12 +29,15 @@ import {
   analyticsEventsTable,
   auditLogsTable,
   customerEnquiriesTable,
+  commerceCheckoutAttemptsTable,
   db,
+  orderItemsTable,
   redirectsTable,
   operationalNotificationAcknowledgementsTable,
   operationalNotificationsTable,
   ordersTable,
   privacyRequestsTable,
+  privacyAccessPackagesTable,
 } from "@workspace/db";
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
@@ -42,6 +46,7 @@ import {
   buildAnalyticsQualityReport,
   QUALITY_EVENT_LIMIT,
 } from "./analytics-quality";
+import { buildReportingRates, comparisonDelta, eventCountMap } from "./analytics-reporting";
 
 const router: IRouter = Router();
 
@@ -102,6 +107,22 @@ function resolveDateRange(query: Record<string, unknown>) {
 
 function auditMetadata(metadata: Record<string, unknown>) {
   return metadata;
+}
+
+function normalizedEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function privacyPackageHash(payload: unknown): string {
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+export function hasRecordedIdentityVerification(request: {
+  verificationNote: string | null;
+  verifiedAt: Date | null;
+  verifiedByClerkUserId: string | null;
+}): boolean {
+  return Boolean(request.verificationNote?.trim() && request.verifiedAt && request.verifiedByClerkUserId);
 }
 
 function orderView(order: typeof ordersTable.$inferSelect) {
@@ -428,6 +449,8 @@ router.patch("/staff/privacy-requests/:id", requireStaffRoles("owner", "operatio
     if (ownerOnly && req.staff!.role !== "owner") return { kind: "forbidden" as const };
     const verificationEvidence = parsed.data.verificationNote?.trim() || current.verificationNote?.trim();
     if (nextStatus === "identity_verified" && current.status !== "identity_verified" && !parsed.data.verificationNote?.trim()) return { kind: "verification" as const };
+    if ((nextStatus === "identity_verified" || nextStatus === "in_progress" || nextStatus === "completed") && !verificationEvidence) return { kind: "verification" as const };
+    if (nextStatus === "completed" && current.requestType === "deletion") return { kind: "deletion_blocked" as const };
     if (nextStatus === "completed" && (!verificationEvidence || (current.status !== "identity_verified" && current.status !== "in_progress"))) return { kind: "unverified" as const };
     if ((nextStatus === "completed" || nextStatus === "rejected") && !parsed.data.resolutionNote) return { kind: "resolution" as const };
 
@@ -435,6 +458,12 @@ router.patch("/staff/privacy-requests/:id", requireStaffRoles("owner", "operatio
       .update(privacyRequestsTable)
       .set({
         ...parsed.data,
+        // Once verification is recorded, evidence is immutable through the
+        // general workflow endpoint. This prevents a later status edit from
+        // erasing the prerequisite for an access-package export.
+        verificationNote: hasRecordedIdentityVerification(current) ? current.verificationNote : parsed.data.verificationNote,
+        verifiedAt: nextStatus === "identity_verified" && current.status !== "identity_verified" ? new Date() : current.verifiedAt,
+        verifiedByClerkUserId: nextStatus === "identity_verified" && current.status !== "identity_verified" ? req.staff!.clerkUserId : current.verifiedByClerkUserId,
         completedAt: nextStatus === "completed" || nextStatus === "rejected" ? new Date() : current.completedAt,
       })
       .where(and(eq(privacyRequestsTable.id, current.id), eq(privacyRequestsTable.status, current.status)))
@@ -458,8 +487,8 @@ router.patch("/staff/privacy-requests/:id", requireStaffRoles("owner", "operatio
     res.status(403).json({ error: "Only an owner can complete or reject a privacy request" });
     return;
   }
-  if (result.kind === "unverified" || result.kind === "verification" || result.kind === "resolution") {
-    res.status(400).json({ error: result.kind === "unverified" ? "Verify the requester and record the evidence before completing this request" : result.kind === "verification" ? "Record a verification note before marking identity as verified" : "A resolution note is required before completing or rejecting a request" });
+  if (result.kind === "unverified" || result.kind === "verification" || result.kind === "resolution" || result.kind === "deletion_blocked") {
+    res.status(400).json({ error: result.kind === "unverified" ? "Verify the requester and record the evidence before completing this request" : result.kind === "verification" ? "Record a verification note before marking identity as verified" : result.kind === "deletion_blocked" ? "Deletion cannot be completed until an approved retention policy and deletion procedure are configured" : "A resolution note is required before completing or rejecting a request" });
     return;
   }
   if (result.kind === "terminal" || result.kind === "transition") {
@@ -471,6 +500,113 @@ router.patch("/staff/privacy-requests/:id", requireStaffRoles("owner", "operatio
     return;
   }
   res.json(UpdateStaffPrivacyRequestResponse.parse(result.request));
+});
+
+router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const params = UpdateStaffPrivacyRequestParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid privacy request reference" });
+    return;
+  }
+  const result = await db.transaction(async (tx) => {
+    const [request] = await tx.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
+    if (!request) return { kind: "missing" as const };
+    if (request.requestType !== "access") return { kind: "wrong_type" as const };
+    if ((request.status !== "identity_verified" && request.status !== "in_progress" && request.status !== "completed") || !hasRecordedIdentityVerification(request)) return { kind: "unverified" as const };
+
+    const [existing] = await tx.select().from(privacyAccessPackagesTable)
+      .where(eq(privacyAccessPackagesTable.privacyRequestId, request.id)).limit(1);
+    if (existing && !existing.downloadedAt && existing.expiresAt > new Date()) return { kind: "existing" as const, package: existing };
+
+    const email = normalizedEmail(request.requesterEmail);
+    const orders = await tx.select({
+      id: ordersTable.id, orderNumber: ordersTable.orderNumber, customerName: ordersTable.customerName,
+      customerEmail: ordersTable.customerEmail, customerPhone: ordersTable.customerPhone, currency: ordersTable.currency,
+      subtotal: ordersTable.subtotal, total: ordersTable.total, status: ordersTable.status, source: ordersTable.source,
+      atelierNotes: ordersTable.atelierNotes, deliveryNotes: ordersTable.deliveryNotes, createdAt: ordersTable.createdAt, updatedAt: ordersTable.updatedAt,
+    }).from(ordersTable).where(sql`lower(${ordersTable.customerEmail}) = ${email}`);
+    const orderItems = orders.length ? await tx.select({
+      orderId: orderItemsTable.orderId, productSlug: orderItemsTable.productSlug, productName: orderItemsTable.productName,
+      selectedSize: orderItemsTable.selectedSize, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
+    }).from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
+    const enquiries = await tx.select({
+      name: customerEnquiriesTable.name, email: customerEnquiriesTable.email, phone: customerEnquiriesTable.phone,
+      productSlug: customerEnquiriesTable.productSlug, message: customerEnquiriesTable.message, status: customerEnquiriesTable.status,
+      createdAt: customerEnquiriesTable.createdAt, updatedAt: customerEnquiriesTable.updatedAt,
+    }).from(customerEnquiriesTable).where(sql`lower(${customerEnquiriesTable.email}) = ${email}`);
+    const checkoutAttempts = await tx.select({
+      customerName: commerceCheckoutAttemptsTable.customerName, customerEmail: commerceCheckoutAttemptsTable.customerEmail,
+      customerPhone: commerceCheckoutAttemptsTable.customerPhone, items: commerceCheckoutAttemptsTable.items,
+      fulfillment: commerceCheckoutAttemptsTable.fulfillment, status: commerceCheckoutAttemptsTable.status,
+      createdAt: commerceCheckoutAttemptsTable.createdAt, updatedAt: commerceCheckoutAttemptsTable.updatedAt,
+    }).from(commerceCheckoutAttemptsTable).where(sql`lower(${commerceCheckoutAttemptsTable.customerEmail}) = ${email}`);
+    const payload = {
+      format: "soso-subject-access-package-v1",
+      generatedAt: new Date().toISOString(),
+      requesterEmail: email,
+      scope: {
+        included: ["orders", "order_items", "customer_enquiries", "checkout_attempts"],
+        excluded: [
+          "payment card data, payment-provider references, ownership or idempotency tokens",
+          "staff-only audit and operational records",
+          "anonymous analytics and consent records, which are not linked to an identified requester",
+        ],
+      },
+      data: { orders, orderItems, enquiries, checkoutAttempts },
+    };
+    const rowCounts = { orders: orders.length, orderItems: orderItems.length, enquiries: enquiries.length, checkoutAttempts: checkoutAttempts.length };
+    const nextPackage = {
+      packageHash: privacyPackageHash(payload), payload, rowCounts,
+      createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    };
+    const [packageRecord] = existing
+      ? await tx.update(privacyAccessPackagesTable).set({
+        ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null,
+      }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()
+      : await tx.insert(privacyAccessPackagesTable).values({ privacyRequestId: request.id, ...nextPackage }).returning();
+    if (!packageRecord) return { kind: "conflict" as const };
+
+    const [updated] = await tx.update(privacyRequestsTable)
+      .set({ status: request.status === "identity_verified" ? "in_progress" : request.status })
+      .where(eq(privacyRequestsTable.id, request.id)).returning();
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId, action: existing ? "privacy_request.access_package_reissued" : "privacy_request.access_package_generated",
+      entityType: "privacy_request", entityId: request.id,
+      metadata: auditMetadata({ packageId: packageRecord.id, packageHash: packageRecord.packageHash, rowCounts: packageRecord.rowCounts, expiresAt: packageRecord.expiresAt.toISOString(), requestStatus: updated?.status ?? request.status }),
+    });
+    return { kind: existing ? "reissued" as const : "created" as const, package: packageRecord };
+  });
+  if (result.kind === "missing") { res.status(404).json({ error: "Privacy request not found" }); return; }
+  if (result.kind === "wrong_type") { res.status(400).json({ error: "Only a verified access request can receive an access package" }); return; }
+  if (result.kind === "unverified") { res.status(400).json({ error: "Verify the requester before generating an access package" }); return; }
+  if (result.kind === "conflict") { res.status(409).json({ error: "An access package is already being generated; refresh and try again" }); return; }
+  res.status(result.kind === "created" || result.kind === "reissued" ? 201 : 200).json({
+    packageId: result.package.id, expiresAt: result.package.expiresAt, downloadedAt: result.package.downloadedAt,
+    rowCounts: result.package.rowCounts, downloadPath: `/api/staff/privacy-access-packages/${result.package.id}/download`,
+  });
+});
+
+router.get("/staff/privacy-access-packages/:id/download", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const params = UpdateStaffPrivacyRequestParams.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid access package reference" }); return; }
+  const packageRecord = await db.transaction(async (tx) => {
+    const [claimed] = await tx.update(privacyAccessPackagesTable)
+      .set({ downloadedAt: new Date(), downloadedByClerkUserId: req.staff!.clerkUserId })
+      .where(and(eq(privacyAccessPackagesTable.id, params.data.id), isNull(privacyAccessPackagesTable.downloadedAt), sql`${privacyAccessPackagesTable.expiresAt} > now()`))
+      .returning();
+    if (!claimed) return null;
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId, action: "privacy_request.access_package_downloaded",
+      entityType: "privacy_request", entityId: claimed.privacyRequestId,
+      metadata: auditMetadata({ packageId: claimed.id, packageHash: claimed.packageHash, rowCounts: claimed.rowCounts }),
+    });
+    return claimed;
+  });
+  if (!packageRecord) { res.status(404).json({ error: "This access package is unavailable, expired, or has already been downloaded" }); return; }
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="soso-subject-access-${packageRecord.id}.json"`);
+  res.setHeader("Cache-Control", "no-store");
+  res.status(200).send(JSON.stringify(packageRecord.payload, null, 2));
 });
 
 router.get("/staff/notifications", async (req, res): Promise<void> => {
@@ -553,13 +689,28 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), as
 
   const consentFilter = inArray(analyticsEventsTable.consent, ["analytics", "marketing"]);
   const dateFilter = and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end));
+  const periodMs = range.end.getTime() - range.start.getTime() + 1;
+  const comparisonEnd = new Date(range.start.getTime() - 1);
+  const comparisonStart = new Date(comparisonEnd.getTime() - periodMs + 1);
+  const comparisonFilter = and(
+    gte(analyticsEventsTable.occurredAt, comparisonStart),
+    lte(analyticsEventsTable.occurredAt, comparisonEnd),
+  );
+  const stageEventNames = ["page_view", "product_view", "add_to_bag", "checkout_started", "payment_clicked"];
 
   const [
     visitorRows,
+    visitorTypeRows,
     pageRows,
     deviceRows,
     scrollRows,
     productRows,
+    eventRows,
+    comparisonRows,
+    acquisitionRows,
+    countryRows,
+    freshnessRows,
+    journeyRows,
   ] = await Promise.all([
     // Unique visitors + sessions
     db
@@ -569,6 +720,26 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), as
       })
       .from(analyticsEventsTable)
       .where(and(dateFilter, consentFilter)),
+    // A visitor is returning only if they had an earlier consented event. This
+    // avoids treating anonymous analytics as an identified customer record.
+    db
+      .select({
+        visitorType: sql<string>`case when exists (
+          select 1 from soso_analytics_events earlier
+          where earlier.anonymous_id = ${analyticsEventsTable.anonymousId}
+            and earlier.occurred_at < ${range.start}
+            and earlier.consent in ('analytics', 'marketing')
+        ) then 'returning' else 'new' end`,
+        visitors: sql<number>`COUNT(DISTINCT ${analyticsEventsTable.anonymousId})`,
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter))
+      .groupBy(sql`case when exists (
+        select 1 from soso_analytics_events earlier
+        where earlier.anonymous_id = ${analyticsEventsTable.anonymousId}
+          and earlier.occurred_at < ${range.start}
+          and earlier.consent in ('analytics', 'marketing')
+      ) then 'returning' else 'new' end`),
     // Top pages
     db
       .select({ path: analyticsEventsTable.path, views: sql<number>`COUNT(*)` })
@@ -605,7 +776,68 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), as
       .groupBy(sql`${analyticsEventsTable.properties}->>'productSlug'`)
       .orderBy(sql`COUNT(*) DESC`)
       .limit(10),
+    db
+      .select({ eventName: analyticsEventsTable.eventName, events: count() })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter, inArray(analyticsEventsTable.eventName, stageEventNames)))
+      .groupBy(analyticsEventsTable.eventName),
+    db
+      .select({ eventName: analyticsEventsTable.eventName, events: count() })
+      .from(analyticsEventsTable)
+      .where(and(comparisonFilter, consentFilter, inArray(analyticsEventsTable.eventName, stageEventNames)))
+      .groupBy(analyticsEventsTable.eventName),
+    db
+      .select({
+        source: sql<string>`coalesce(nullif(${analyticsEventsTable.source}, ''), '(direct)')`,
+        medium: sql<string>`coalesce(nullif(${analyticsEventsTable.utmMedium}, ''), '(none)')`,
+        campaign: sql<string>`coalesce(nullif(${analyticsEventsTable.utmCampaign}, ''), '(none)')`,
+        events: count(),
+        visitors: sql<number>`COUNT(DISTINCT ${analyticsEventsTable.anonymousId})`,
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter))
+      .groupBy(analyticsEventsTable.source, analyticsEventsTable.utmMedium, analyticsEventsTable.utmCampaign)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(10),
+    db
+      .select({
+        country: sql<string>`coalesce(nullif(${analyticsEventsTable.properties}->>'_country', ''), 'unknown')`,
+        events: count(),
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter))
+      .groupBy(sql`coalesce(nullif(${analyticsEventsTable.properties}->>'_country', ''), 'unknown')`)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(10),
+    db
+      .select({
+        latestEventAt: sql<Date | null>`MAX(${analyticsEventsTable.occurredAt})`,
+        activeDays: sql<number>`COUNT(DISTINCT DATE(${analyticsEventsTable.occurredAt}))`,
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter)),
+    db
+      .select({
+        sessionId: analyticsEventsTable.sessionId,
+        eventName: analyticsEventsTable.eventName,
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter, inArray(analyticsEventsTable.eventName, stageEventNames), sql`${analyticsEventsTable.sessionId} IS NOT NULL`))
+      .groupBy(analyticsEventsTable.sessionId, analyticsEventsTable.eventName),
   ]);
+
+  const currentCounts = eventCountMap(eventRows.map((row) => ({ eventName: row.eventName, count: Number(row.events) })));
+  const previousCounts = eventCountMap(comparisonRows.map((row) => ({ eventName: row.eventName, count: Number(row.events) })));
+  const sessionStages = new Map<string, Set<string>>();
+  for (const row of journeyRows) {
+    if (!row.sessionId) continue;
+    const stages = sessionStages.get(row.sessionId) ?? new Set<string>();
+    stages.add(row.eventName);
+    sessionStages.set(row.sessionId, stages);
+  }
+  const sessionsAtStage = (stage: string) => Array.from(sessionStages.values()).filter((stages) => stages.has(stage)).length;
+  const latestEventAt = freshnessRows[0]?.latestEventAt ?? null;
+  const rangeDays = Math.max(1, Math.round(periodMs / 86_400_000));
 
   res.json({
     from: range.from,
@@ -618,6 +850,44 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), as
     topProducts: productRows.filter((r) => r.slug).map((r) => ({ slug: r.slug, views: Number(r.views) })),
     deviceBreakdown: deviceRows.map((r) => ({ deviceType: r.deviceType ?? "unknown", events: Number(r.events) })),
     scrollDepth: scrollRows.map((r) => ({ depthPct: Number(r.depthPct ?? 0), events: Number(r.events) })),
+    visitorTypes: {
+      newVisitors: Number(visitorTypeRows.find((row) => row.visitorType === "new")?.visitors ?? 0),
+      returningVisitors: Number(visitorTypeRows.find((row) => row.visitorType === "returning")?.visitors ?? 0),
+      definition: "Returning visitors had an earlier consented event before this reporting period; this is not account or customer identity data.",
+    },
+    rates: buildReportingRates(currentCounts),
+    comparison: {
+      from: comparisonStart.toISOString().slice(0, 10),
+      to: comparisonEnd.toISOString().slice(0, 10),
+      events: stageEventNames.map((eventName) => ({
+        eventName,
+        current: currentCounts[eventName] ?? 0,
+        previous: previousCounts[eventName] ?? 0,
+        delta: comparisonDelta(currentCounts[eventName] ?? 0, previousCounts[eventName] ?? 0),
+      })),
+    },
+    acquisition: acquisitionRows.map((row) => ({
+      source: row.source,
+      medium: row.medium,
+      campaign: row.campaign,
+      events: Number(row.events),
+      visitors: Number(row.visitors),
+    })),
+    countries: countryRows.map((row) => ({ country: row.country, events: Number(row.events) })),
+    journey: {
+      sessionsWithProductView: sessionsAtStage("product_view"),
+      sessionsWithBag: sessionsAtStage("add_to_bag"),
+      sessionsWithCheckout: sessionsAtStage("checkout_started"),
+      sessionsWithPaymentClick: sessionsAtStage("payment_clicked"),
+      definition: "A journey stage counts consented sessions that recorded that event in the selected period. Payment-click is not a payment success.",
+    },
+    freshness: {
+      latestEventAt,
+      activeDays: Number(freshnessRows[0]?.activeDays ?? 0),
+      periodDays: rangeDays,
+      coverageRate: Number(freshnessRows[0]?.activeDays ?? 0) / rangeDays,
+      definition: "Coverage is the share of calendar days in the selected range with at least one consented event.",
+    },
   });
 });
 
