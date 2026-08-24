@@ -11,6 +11,17 @@ Deploy `Soso-Africa/soso-site` as **one Vercel project from the repository root*
 
 Do not point Vercel at `artifacts/soso-store` as the project root: the API and workspace packages are required by the full-stack deployment.
 
+## Clerk hosting decision
+
+SOSO currently uses **Replit-managed Clerk**. Replit provisions those Development and Production keys automatically, and the project is confirmed to be in the managed mode. Replit-managed Clerk is designed for Replit hosting: its live keys are not exportable for external hosts such as Vercel.
+
+Choose one of these hosting paths before putting SOSO on Vercel:
+
+1. **Keep Replit-managed Clerk and host on Replit.** Replit automatically switches from Development/test keys to Production/live keys when the app is published.
+2. **Host on Vercel and use an external Clerk instance.** Create and configure your own Clerk Development and Production environments, then migrate the app's authentication configuration. Store that provider's keys in Vercel as described below. Do not replace or edit the existing Replit-managed keys in the Replit Secrets pane.
+
+Until option 2 is completed, Vercel can only be treated as an unauthenticated storefront experiment; it is not a valid full-stack SOSO deployment because staff authentication cannot be carried over from Replit-managed Clerk.
+
 ## Database decision
 
 The Replit development database is currently reachable, but this project does not have a Replit production database yet. Replit creates its production database when the project is published through Replit; there is no separate database-creation action. Publishing through Replit would also create a second hosted deployment, which is not required if Vercel is the chosen host.
@@ -32,7 +43,9 @@ Vercel must have GitHub application access to the `Soso-Africa` organization. If
 
 Vite values are embedded into the client bundle at build time. Change a `VITE_*` value only through Vercel environment settings and redeploy; never place secrets in a `VITE_*` variable.
 
-### Required for the full-stack preview and production deployment
+### Required for the full-stack preview and production deployment after external Clerk setup
+
+The Clerk values below must come from the external Clerk instance created for the Vercel deployment. They cannot be copied from Replit-managed Clerk.
 
 | Variable | Environments | Purpose |
 | --- | --- | --- |
