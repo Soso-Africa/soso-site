@@ -68,6 +68,66 @@ test("staff auth rejects anonymous protected requests without account details", 
   }
 });
 
+test("staff login and logout cookies are secure in production", async () => {
+  const email = `secure-cookie-test-${randomBytes(8).toString("hex")}@example.com`;
+  const clerkUserId = `secure-cookie-test-${randomBytes(8).toString("hex")}`;
+  const productionSetting = process.env.NODE_ENV;
+  let userId: string | undefined;
+  let server: Server | undefined;
+
+  try {
+    process.env.NODE_ENV = "production";
+    const inserted = await db.insert(staffUsersTable).values({
+      clerkUserId,
+      email,
+      role: "owner",
+      isActive: true,
+    }).returning({ id: staffUsersTable.id });
+    userId = inserted[0]!.id;
+    await setManagedStaffPassword(userId, password);
+
+    const running = await listen();
+    server = running.server;
+    const login = await request(running.baseUrl, "/api/staff-auth/login", {
+      method: "POST",
+      body: { email, password },
+    });
+    assert.equal(login.status, 200);
+    assert.ok(login.cookie);
+    assert.match(login.setCookie ?? "", /^soso_staff_session=[^;]+;/i);
+    assert.match(login.setCookie ?? "", /Path=\//i);
+    assert.match(login.setCookie ?? "", /HttpOnly/i);
+    assert.match(login.setCookie ?? "", /SameSite=Lax/i);
+    assert.match(login.setCookie ?? "", /Secure/i);
+
+    const logout = await request(running.baseUrl, "/api/staff-auth/logout", {
+      method: "POST",
+      cookie: login.cookie,
+    });
+    assert.equal(logout.status, 204);
+    assert.match(logout.setCookie ?? "", /^soso_staff_session=;/i);
+    assert.match(logout.setCookie ?? "", /Path=\//i);
+    assert.match(logout.setCookie ?? "", /HttpOnly/i);
+    assert.match(logout.setCookie ?? "", /SameSite=Lax/i);
+    assert.match(logout.setCookie ?? "", /Secure/i);
+  } finally {
+    if (server) {
+      server.close();
+      await once(server, "close");
+    }
+    if (userId) {
+      await db.delete(staffSessionsTable).where(eq(staffSessionsTable.staffUserId, userId));
+      await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, userId));
+      await db.delete(staffUsersTable).where(eq(staffUsersTable.id, userId));
+    }
+    if (productionSetting === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = productionSetting;
+    }
+  }
+});
+
 test("staff login, bootstrap guard, status, logout, reset, disable, and session expiry are enforced", async () => {
   const email = `auth-test-${randomBytes(8).toString("hex")}@example.com`;
   const clerkUserId = `auth-test-${randomBytes(8).toString("hex")}`;
