@@ -1,0 +1,1257 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: storefront
+    description: Public SOSO storefront services
+  - name: staff
+    description: Authenticated staff operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /payment/catalog:
+    get:
+      operationId: getCommerceCatalog
+      tags: [storefront]
+      summary: Get the published JusticeSure catalogue
+      responses:
+        "200":
+          description: Customer-safe JusticeSure catalogue projection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommerceCatalog"
+  /payment/locations:
+    get:
+      operationId: getCommerceLocations
+      tags: [storefront]
+      summary: Get published JusticeSure pickup locations
+      responses:
+        "200":
+          description: Customer-safe JusticeSure locations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommerceLocations"
+  /payment/initiate:
+    post:
+      operationId: initiateCommerceCheckout
+      tags: [storefront]
+      summary: Create or safely resume a hosted JusticeSure payment session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommerceCheckoutInput"
+      responses:
+        "200":
+          description: Hosted payment session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommercePaymentSession"
+        "400":
+          description: Invalid checkout details
+        "403":
+          description: Checkout attempt belongs to another browser session
+        "409":
+          description: Idempotency key conflicts with different checkout details
+        "503":
+          description: Payment is not available or cannot be confirmed
+  /payment/status/{attemptId}:
+    get:
+      operationId: getCommercePaymentStatus
+      tags: [storefront]
+      summary: Read JusticeSure-verified status for a browser-owned checkout attempt
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, minLength: 36, maxLength: 36 }
+      responses:
+        "200":
+          description: Verified Commerce order status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommercePaymentStatus"
+        "202":
+          description: Commerce order is still being created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommercePaymentStatus"
+        "404":
+          description: Checkout attempt is unknown or not owned by this browser
+        "503":
+          description: Authoritative payment status cannot be checked
+  /payment/webhook:
+    post:
+      operationId: receiveCommerceWebhook
+      tags: [storefront]
+      summary: Receive a signed JusticeSure Commerce webhook
+      parameters:
+        - in: header
+          name: X-JusticeSure-Timestamp
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 32 }
+        - in: header
+          name: X-JusticeSure-Event-Id
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+        - in: header
+          name: X-JusticeSure-Event
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - in: header
+          name: X-JusticeSure-Signature
+          required: true
+          schema: { type: string, minLength: 71, maxLength: 71 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommerceWebhookInput"
+      responses:
+        "200":
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommerceWebhookReceipt"
+        "401":
+          description: Invalid signature or event envelope
+        "503":
+          description: Processing did not complete; JusticeSure should retry
+  /analytics/events:
+    post:
+      operationId: recordAnalyticsEvent
+      tags: [storefront]
+      summary: Record a consent-aware storefront event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyticsEventInput"
+      responses:
+        "202":
+          description: Event accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Acknowledgement"
+  /consent:
+    post:
+      operationId: recordConsent
+      tags: [storefront]
+      summary: Save a visitor consent decision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentInput"
+      responses:
+        "201":
+          description: Consent saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentRecord"
+  /enquiries:
+    post:
+      operationId: createEnquiry
+      tags: [storefront]
+      summary: Send a pre-purchase question to the atelier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnquiryInput"
+      responses:
+        "201":
+          description: Enquiry saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+  /privacy-requests:
+    post:
+      operationId: createPrivacyRequest
+      tags: [storefront]
+      summary: Submit a privacy access or deletion request
+      description: Accepts a request without disclosing whether the supplied contact details match any customer record.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacyRequestInput"
+      responses:
+        "202":
+          description: Request accepted for review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrivacyRequestAcknowledgement"
+        "400":
+          description: Invalid privacy request
+        "429":
+          description: Too many requests from this source
+  /journal:
+    get:
+      operationId: listJournalPosts
+      tags: [storefront]
+      summary: List published Journal articles
+      responses:
+        "200":
+          description: Published articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JournalPostSummary"
+  /journal/{slug}:
+    get:
+      operationId: getJournalPost
+      tags: [storefront]
+      summary: Get a published Journal article
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Published article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalPost"
+        "404":
+          description: Article not found
+  /faq:
+    get:
+      operationId: listFaqItems
+      tags: [storefront]
+      summary: List frequently asked questions
+      responses:
+        "200":
+          description: FAQ items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FaqItem"
+  /redirects:
+    get:
+      operationId: getRedirect
+      tags: [storefront]
+      summary: Resolve a configured internal URL redirect
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: Matching redirect, or an explicit no-match result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedirectLookup"
+  /staff/me:
+    get:
+      operationId: getStaffProfile
+      tags: [staff]
+      summary: Get the authenticated staff member's role
+      responses:
+        "200":
+          description: Current staff profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffProfile"
+        "401":
+          description: Authentication required
+        "403":
+          description: Staff access required
+  /staff/overview:
+    get:
+      operationId: getStaffOverview
+      tags: [staff]
+      summary: Get operational and funnel overview
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: Current overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffOverview"
+        "401":
+          description: Authentication required
+        "403":
+          description: Staff access required
+  /staff/orders:
+    get:
+      operationId: listStaffOrders
+      tags: [staff]
+      summary: List the current active operations queue, or a date-bounded status history when status is supplied
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [payment_pending, paid, atelier_confirmation, in_production, ready, fulfilled, cancelled, refunded]
+      responses:
+        "200":
+          description: Recent orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffOrder"
+  /staff/funnel:
+    get:
+      operationId: getStaffFunnel
+      tags: [staff]
+      summary: Get consented first-party storefront event counts
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: Last seven days of raw consented event counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffFunnel"
+        "401":
+          description: Authentication required
+        "403":
+          description: Owner or analyst access required
+  /staff/analytics/quality:
+    get:
+      operationId: getStaffAnalyticsQuality
+      tags: [staff]
+      summary: Get aggregate data-quality signals for consented storefront analytics
+      responses:
+        "200":
+          description: Privacy-safe analytics data-quality report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsQualityReport"
+        "401":
+          description: Authentication required
+        "403":
+          description: Owner or analyst access required
+  /staff/enquiries:
+    get:
+      operationId: listStaffEnquiries
+      tags: [staff]
+      summary: List customer enquiries
+      responses:
+        "200":
+          description: Recent enquiries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Enquiry"
+  /staff/orders/{id}:
+    patch:
+      operationId: updateStaffOrder
+      tags: [staff]
+      summary: Advance a verified order, record atelier work or delivery information, and request an internal refund review
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffOrderUpdate"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffOrder"
+        "400": { description: "Invalid workflow update" }
+        "403": { description: "Owner or operations access required" }
+        "404": { description: "Order not found" }
+        "409": { description: "Order changed while being updated" }
+  /staff/enquiries/{id}:
+    patch:
+      operationId: updateStaffEnquiry
+      tags: [staff]
+      summary: Update a customer enquiry queue status and internal handling note
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffEnquiryUpdate"
+      responses:
+        "200":
+          description: Updated enquiry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Enquiry"
+        "400": { description: "Invalid enquiry update" }
+        "403": { description: "Owner, operations, or stylist access required" }
+        "404": { description: "Enquiry not found" }
+  /staff/privacy-requests:
+    get:
+      operationId: listStaffPrivacyRequests
+      tags: [staff]
+      summary: List privacy request queue items
+      responses:
+        "200":
+          description: Privacy requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffPrivacyRequest"
+        "403": { description: "Owner or operations access required" }
+    post:
+      operationId: createStaffPrivacyRequest
+      tags: [staff]
+      summary: Log a privacy access or deletion request received by the support team
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffPrivacyRequestInput"
+      responses:
+        "201":
+          description: Privacy request logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffPrivacyRequest"
+        "400": { description: "Invalid privacy request" }
+        "403": { description: "Owner or operations access required" }
+  /staff/privacy-requests/{id}:
+    patch:
+      operationId: updateStaffPrivacyRequest
+      tags: [staff]
+      summary: Verify, progress, complete, or reject a privacy request following the approved procedure
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffPrivacyRequestUpdate"
+      responses:
+        "200":
+          description: Updated privacy request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffPrivacyRequest"
+        "400": { description: "Invalid privacy workflow update" }
+        "403": { description: "Required staff permission is missing" }
+        "404": { description: "Privacy request not found" }
+        "409": { description: "Privacy request changed while being updated" }
+  /staff/notifications:
+    get:
+      operationId: listStaffNotifications
+      tags: [staff]
+      summary: List operational notifications available to the active staff role
+      responses:
+        "200":
+          description: Operational notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffNotification"
+  /staff/notifications/{id}:
+    patch:
+      operationId: acknowledgeStaffNotification
+      tags: [staff]
+      summary: Acknowledge an operational notification
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffNotificationAcknowledgement"
+      responses:
+        "200":
+          description: Acknowledged notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffNotification"
+        "404": { description: "Notification not found" }
+  /staff/audit:
+    get:
+      operationId: listStaffAuditEvents
+      tags: [staff]
+      summary: List operational audit events without customer personal data
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAuditEvent"
+        "403": { description: "Owner or analyst access required" }
+  /staff/exports:
+    get:
+      operationId: getStaffExport
+      tags: [staff]
+      summary: Generate a controlled, privacy-safe operations or analytics export
+      parameters:
+        - name: report
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [operations_summary, analytics_summary, campaign_aggregate, content_seo_aggregate]
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: Controlled export data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffExport"
+        "403": { description: "Owner or analyst access required" }
+  /staff/journal:
+    get:
+      operationId: listStaffJournalPosts
+      tags: [staff]
+      summary: List all Journal articles for staff management
+      responses:
+        "200":
+          description: Journal articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffJournalPost"
+    post:
+      operationId: createStaffJournalPost
+      tags: [staff]
+      summary: Create a Journal article
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffJournalPostInput"
+      responses:
+        "201":
+          description: Article created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffJournalPost"
+        "400":
+          description: Invalid article
+        "403":
+          description: Editor or owner access required
+  /staff/journal/{id}:
+    patch:
+      operationId: updateStaffJournalPost
+      tags: [staff]
+      summary: Update, publish, draft, or archive a Journal article
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F-]{36}$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffJournalPostUpdate"
+      responses:
+        "200":
+          description: Article updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffJournalPost"
+        "400":
+          description: Invalid update
+        "403":
+          description: Editor or owner access required
+        "404":
+          description: Article not found
+  /staff/journal/{id}/revisions:
+    get:
+      operationId: listStaffJournalPostRevisions
+      tags: [staff]
+      summary: List immutable revision snapshots for a Journal article
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      responses:
+        "200":
+          description: Journal revision history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffJournalPostRevision"
+        "403":
+          description: Editor or owner access required
+        "404":
+          description: Article not found
+components:
+  parameters:
+    StaffEntityId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[0-9a-fA-F-]{36}$"
+    StaffDateFrom:
+      name: from
+      in: query
+      schema:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    StaffDateTo:
+      name: to
+      in: query
+      schema:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    Acknowledgement:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+    AnalyticsEventInput:
+      type: object
+      required: [eventId, eventVersion, anonymousId, sessionId, eventName, path, consent, occurredAt]
+      properties:
+        eventId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        eventVersion:
+          type: number
+          minimum: 1
+        anonymousId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        sessionId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        eventName:
+          type: string
+          enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
+        path:
+          type: string
+          maxLength: 512
+        referrer:
+          type: string
+          maxLength: 1024
+        source:
+          type: string
+          maxLength: 128
+        utmMedium:
+          type: string
+          maxLength: 128
+        utmCampaign:
+          type: string
+          maxLength: 256
+        deviceType:
+          type: string
+          enum: [mobile, tablet, desktop, unknown]
+        consent:
+          type: string
+          enum: [essential_only, analytics, marketing]
+        properties:
+          type: object
+          additionalProperties: true
+        occurredAt:
+          type: string
+          format: date-time
+    ConsentInput:
+      type: object
+      required: [anonymousId, state, policyVersion]
+      properties:
+        anonymousId:
+          type: string
+          minLength: 8
+          maxLength: 128
+        state:
+          type: string
+          enum: [essential_only, analytics, marketing]
+        policyVersion:
+          type: string
+          maxLength: 64
+        region:
+          type: string
+          maxLength: 32
+    ConsentRecord:
+      type: object
+      required: [id, anonymousId, state, policyVersion, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        anonymousId: { type: string }
+        state: { type: string }
+        policyVersion: { type: string }
+        createdAt: { type: string, format: date-time }
+    EnquiryInput:
+      type: object
+      required: [message]
+      properties:
+        name: { type: string, maxLength: 120 }
+        email: { type: string, maxLength: 320 }
+        phone: { type: string, maxLength: 40 }
+        productSlug: { type: string, maxLength: 160 }
+        message: { type: string, minLength: 8, maxLength: 2000 }
+    Enquiry:
+      type: object
+      required: [id, message, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        name: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        productSlug: { type: ["string", "null"] }
+        message: { type: string }
+        status: { type: string }
+        handlingNotes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PrivacyRequestInput:
+      type: object
+      required: [requestType, requesterEmail]
+      properties:
+        requestType: { type: string, enum: [access, deletion] }
+        requesterName: { type: ["string", "null"], minLength: 1, maxLength: 120 }
+        requesterEmail: { type: string, minLength: 3, maxLength: 320, pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$' }
+    PrivacyRequestAcknowledgement:
+      type: object
+      required: [accepted]
+      properties:
+        accepted: { type: boolean }
+    FaqItem:
+      type: object
+      required: [id, question, answer, category]
+      properties:
+        id: { type: string }
+        question: { type: string }
+        answer: { type: string }
+        category: { type: string }
+    JournalPostSummary:
+      type: object
+      required: [slug, title, excerpt, authorName, publishedAt]
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        excerpt: { type: string }
+        coverImageUrl: { type: ["string", "null"] }
+        coverImageAlt: { type: ["string", "null"] }
+        authorName: { type: string }
+        category: { type: ["string", "null"] }
+        tags: { type: ["array", "null"], items: { type: string } }
+        readTimeMinutes: { type: ["number", "null"] }
+        publishedAt: { type: string, format: date-time }
+    JournalPost:
+      allOf:
+        - $ref: "#/components/schemas/JournalPostSummary"
+        - type: object
+          required: [body, updatedAt]
+          properties:
+            body: { type: string }
+            seoTitle: { type: ["string", "null"] }
+            seoDescription: { type: ["string", "null"] }
+            relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
+            relatedArticleSlugs: { type: ["array", "null"], items: { type: string } }
+            updatedAt: { type: string, format: date-time }
+    StaffJournalPostInput:
+      type: object
+      required: [slug, title, excerpt, body, authorName, status]
+      properties:
+        slug: { type: string, minLength: 3, maxLength: 140, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        title: { type: string, minLength: 4, maxLength: 180 }
+        excerpt: { type: string, minLength: 20, maxLength: 360 }
+        body: { type: string, minLength: 100, maxLength: 50000 }
+        coverImageUrl: { type: ["string", "null"], maxLength: 2048 }
+        coverImageAlt: { type: ["string", "null"], maxLength: 300 }
+        authorName: { type: string, minLength: 2, maxLength: 120 }
+        category: { type: ["string", "null"], maxLength: 80 }
+        tags: { type: ["array", "null"], items: { type: string, maxLength: 60 }, maxItems: 10 }
+        seoTitle: { type: ["string", "null"], maxLength: 120 }
+        seoDescription: { type: ["string", "null"], maxLength: 320 }
+        readTimeMinutes: { type: ["number", "null"], minimum: 1, maximum: 120 }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
+        status: { type: string, enum: [draft, published, archived] }
+    StaffJournalPostUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        slug: { type: string, minLength: 3, maxLength: 140, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        title: { type: string, minLength: 4, maxLength: 180 }
+        excerpt: { type: string, minLength: 20, maxLength: 360 }
+        body: { type: string, minLength: 100, maxLength: 50000 }
+        coverImageUrl: { type: ["string", "null"], maxLength: 2048 }
+        coverImageAlt: { type: ["string", "null"], maxLength: 300 }
+        authorName: { type: string, minLength: 2, maxLength: 120 }
+        category: { type: ["string", "null"], maxLength: 80 }
+        tags: { type: ["array", "null"], items: { type: string, maxLength: 60 }, maxItems: 10 }
+        seoTitle: { type: ["string", "null"], maxLength: 120 }
+        seoDescription: { type: ["string", "null"], maxLength: 320 }
+        readTimeMinutes: { type: ["number", "null"], minimum: 1, maximum: 120 }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
+        status: { type: string, enum: [draft, published, archived] }
+    StaffJournalPostSnapshot:
+      type: object
+      required: [slug, title, excerpt, body, authorName, status]
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        excerpt: { type: string }
+        body: { type: string }
+        coverImageUrl: { type: ["string", "null"] }
+        coverImageAlt: { type: ["string", "null"] }
+        authorName: { type: string }
+        category: { type: ["string", "null"] }
+        tags: { type: ["array", "null"], items: { type: string } }
+        seoTitle: { type: ["string", "null"] }
+        seoDescription: { type: ["string", "null"] }
+        readTimeMinutes: { type: ["number", "null"] }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string } }
+        status: { type: string, enum: [draft, published, archived] }
+        publishedAt: { type: ["string", "null"], format: date-time }
+    StaffJournalPostRevision:
+      type: object
+      required: [id, journalPostId, snapshot, contentHash, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        journalPostId: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        snapshot:
+          $ref: "#/components/schemas/StaffJournalPostSnapshot"
+        contentHash: { type: string }
+        createdAt: { type: string, format: date-time }
+    StaffJournalPost:
+      type: object
+      required: [id, slug, title, excerpt, body, authorName, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        slug: { type: string }
+        title: { type: string }
+        excerpt: { type: string }
+        body: { type: string }
+        coverImageUrl: { type: ["string", "null"] }
+        coverImageAlt: { type: ["string", "null"] }
+        authorName: { type: string }
+        category: { type: ["string", "null"] }
+        tags: { type: ["array", "null"], items: { type: string } }
+        seoTitle: { type: ["string", "null"] }
+        seoDescription: { type: ["string", "null"] }
+        readTimeMinutes: { type: ["number", "null"] }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string } }
+        status: { type: string, enum: [draft, published, archived] }
+        publishedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StaffProfile:
+      type: object
+      required: [id, email, role]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        email: { type: string, maxLength: 320 }
+        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+    StaffOrder:
+      type: object
+      required: [id, orderNumber, customerName, customerEmail, total, currency, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        orderNumber: { type: string }
+        customerName: { type: string }
+        customerEmail: { type: string, maxLength: 320 }
+        total: { type: string }
+        currency: { type: string }
+        status: { type: string }
+        atelierNotes: { type: ["string", "null"], maxLength: 2000 }
+        deliveryNotes: { type: ["string", "null"], maxLength: 2000 }
+        refundRequestStatus: { type: ["string", "null"], enum: [requested, approved, declined, null] }
+        refundRequestReason: { type: ["string", "null"], maxLength: 1000 }
+        refundDecisionNote: { type: ["string", "null"], maxLength: 1000 }
+        refundRequestedAt: { type: ["string", "null"], format: date-time }
+        refundReviewedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StaffOrderUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        status:
+          type: string
+          enum: [atelier_confirmation, in_production, ready, fulfilled, cancelled]
+        atelierNotes: { type: ["string", "null"], maxLength: 2000 }
+        deliveryNotes: { type: ["string", "null"], maxLength: 2000 }
+        refundRequestReason: { type: string, minLength: 8, maxLength: 1000 }
+        refundRequestDecision: { type: string, enum: [approved, declined] }
+        refundDecisionNote: { type: string, minLength: 8, maxLength: 1000 }
+    StaffEnquiryUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        status:
+          type: string
+          enum: [new, in_progress, resolved, closed]
+        handlingNotes: { type: ["string", "null"], maxLength: 2000 }
+    CommerceCustomerInput:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        email: { type: string, minLength: 3, maxLength: 320 }
+        phone: { type: string, minLength: 3, maxLength: 80 }
+    CommerceLineItemInput:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: string, minLength: 36, maxLength: 64 }
+        variantId: { type: string, minLength: 36, maxLength: 64 }
+        quantity: { type: number, minimum: 1, maximum: 100 }
+        displayName: { type: string, maxLength: 200 }
+        displaySlug: { type: string, maxLength: 160 }
+        selectedSize: { type: string, maxLength: 80 }
+    CommerceFulfillmentInput:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [pickup, delivery] }
+        locationId: { type: string, minLength: 36, maxLength: 64 }
+        address: { type: string, minLength: 1, maxLength: 1000 }
+    CommerceCheckoutInput:
+      type: object
+      required: [checkoutOperationId, customer, items, fulfillment]
+      properties:
+        checkoutOperationId: { type: string, minLength: 8, maxLength: 56, pattern: "^[A-Za-z0-9_.:-]+$" }
+        customer:
+          $ref: "#/components/schemas/CommerceCustomerInput"
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/CommerceLineItemInput"
+        fulfillment:
+          $ref: "#/components/schemas/CommerceFulfillmentInput"
+        notes: { type: string, maxLength: 1000 }
+    CommercePaymentSession:
+      type: object
+      required: [attemptId, checkoutUrl]
+      properties:
+        attemptId: { type: string, minLength: 36, maxLength: 36 }
+        checkoutUrl: { type: string, minLength: 8, maxLength: 2048, pattern: "^https://" }
+    CommercePaymentStatus:
+      type: object
+      required: [attemptId, status, paymentStatus, checkedAt]
+      properties:
+        attemptId: { type: string, minLength: 36, maxLength: 36 }
+        orderNumber: { type: string, maxLength: 120 }
+        status: { type: string, enum: [starting, payment_pending, paid, cancelled, refunded, fulfilled, failed] }
+        paymentStatus: { type: string, maxLength: 100 }
+        provider: { type: string, enum: [paystack, flutterwave] }
+        totalKobo: { type: number, minimum: 0 }
+        currency: { type: string, enum: [NGN] }
+        checkedAt: { type: string, format: date-time }
+    CommerceCatalog:
+      type: object
+      required: [products]
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommerceCatalogProduct"
+    CommerceCatalogProduct:
+      type: object
+      required: [id, name, description, images, amountKobo, inStock, variants]
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: ["string", "null"], maxLength: 10000 }
+        images:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 2048 }
+        amountKobo: { type: number, minimum: 0 }
+        inStock: { type: boolean }
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommerceCatalogVariant"
+    CommerceCatalogVariant:
+      type: object
+      required: [id, label]
+      properties:
+        id: { type: string, minLength: 36, maxLength: 36 }
+        label: { type: string, minLength: 1, maxLength: 160 }
+    CommerceLocations:
+      type: object
+      required: [locations]
+      properties:
+        locations:
+          type: array
+          items: { type: object, additionalProperties: true }
+    CommerceWebhookInput:
+      type: object
+      required: [id, event, apiVersion]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 200 }
+        event: { type: string, minLength: 1, maxLength: 100 }
+        apiVersion: { type: string, minLength: 1, maxLength: 50 }
+        data:
+          type: object
+          additionalProperties: true
+    CommerceWebhookReceipt:
+      type: object
+      required: [received]
+      properties:
+        received: { type: boolean }
+        duplicate: { type: boolean }
+    StaffOverview:
+      type: object
+      required: [ordersTotal, ordersInProduction, openEnquiries, storefrontEvents7d, paymentIsLive, from, to, generatedAt, freshnessMinutes, metrics]
+      properties:
+        ordersTotal: { type: number, minimum: 0 }
+        ordersInProduction: { type: number, minimum: 0 }
+        openEnquiries: { type: number, minimum: 0 }
+        storefrontEvents7d: { type: number, minimum: 0 }
+        paymentIsLive: { type: boolean }
+        from: { type: string }
+        to: { type: string }
+        generatedAt: { type: string, format: date-time }
+        freshnessMinutes: { type: number, minimum: 1 }
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffMetric"
+    StaffFunnel:
+      type: object
+      required: [periodDays, from, to, generatedAt, privacyNote, events, dropOffs]
+      properties:
+        periodDays: { type: number, minimum: 1 }
+        from: { type: string }
+        to: { type: string }
+        generatedAt: { type: string, format: date-time }
+        privacyNote: { type: string }
+        events:
+          type: array
+          items:
+            type: object
+            required: [eventName, count]
+            properties:
+              eventName:
+                type: string
+                enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
+              count: { type: number, minimum: 0 }
+        dropOffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunnelDropOff"
+    FunnelDropOff:
+      type: object
+      required: [fromEventName, toEventName, priorCount, currentCount, dropOffCount, dropOffRate]
+      properties:
+        fromEventName: { type: string }
+        toEventName: { type: string }
+        priorCount: { type: number, minimum: 0 }
+        currentCount: { type: number, minimum: 0 }
+        dropOffCount: { type: number, minimum: 0 }
+        dropOffRate: { type: ["number", "null"], minimum: 0, maximum: 1 }
+    AnalyticsQualityReport:
+      type: object
+      required: [status, checks, generatedAt]
+      properties:
+        status: { type: string, enum: [ok, review, issue] }
+        generatedAt: { type: string, format: date-time }
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsQualityCheck"
+    AnalyticsQualityCheck:
+      type: object
+      required: [check, status, detail, scope, nextAction]
+      properties:
+        check: { type: string }
+        status: { type: string, enum: [ok, review, issue] }
+        detail: { type: string }
+        scope: { type: string }
+        nextAction: { type: string }
+    StaffMetric:
+      type: object
+      required: [key, label, definition, value]
+      properties:
+        key: { type: string }
+        label: { type: string }
+        definition: { type: string }
+        value: { type: number, minimum: 0 }
+    RedirectResolution:
+      type: object
+      required: [fromPath, toPath, statusCode]
+      properties:
+        fromPath: { type: string }
+        toPath: { type: string }
+        statusCode: { type: number, enum: [301, 302, 307, 308] }
+    RedirectLookup:
+      type: object
+      required: [redirect]
+      properties:
+        redirect:
+          anyOf:
+            - $ref: "#/components/schemas/RedirectResolution"
+            - type: "null"
+    StaffPrivacyRequestInput:
+      type: object
+      required: [requestType, requesterEmail]
+      properties:
+        requestType: { type: string, enum: [access, deletion] }
+        requesterName: { type: ["string", "null"], maxLength: 120 }
+        requesterEmail: { type: string, maxLength: 320 }
+        verificationNote: { type: ["string", "null"], maxLength: 1000 }
+    StaffPrivacyRequestUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        status: { type: string, enum: [received, identity_verified, in_progress, completed, rejected] }
+        verificationNote: { type: ["string", "null"], maxLength: 1000 }
+        resolutionNote: { type: ["string", "null"], maxLength: 2000 }
+    StaffPrivacyRequest:
+      type: object
+      required: [id, requestType, requesterEmail, policyVersion, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        requestType: { type: string, enum: [access, deletion] }
+        requesterName: { type: ["string", "null"] }
+        requesterEmail: { type: string }
+        policyVersion: { type: string }
+        status: { type: string, enum: [received, identity_verified, in_progress, completed, rejected] }
+        verificationNote: { type: ["string", "null"] }
+        resolutionNote: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StaffNotificationAcknowledgement:
+      type: object
+      required: [acknowledged]
+      properties:
+        acknowledged: { type: boolean }
+    StaffNotification:
+      type: object
+      required: [id, severity, title, body, acknowledged, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        severity: { type: string, enum: [info, attention, urgent] }
+        title: { type: string }
+        body: { type: string }
+        acknowledged: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    StaffAuditEvent:
+      type: object
+      required: [id, action, entityType, metadata, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt: { type: string, format: date-time }
+    StaffExport:
+      type: object
+      required: [report, filename, generatedAt, privacyNote, columns, rows]
+      properties:
+        report: { type: string, enum: [operations_summary, analytics_summary] }
+        filename: { type: string }
+        generatedAt: { type: string, format: date-time }
+        privacyNote: { type: string }
+        columns:
+          type: array
+          items: { type: string }
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+

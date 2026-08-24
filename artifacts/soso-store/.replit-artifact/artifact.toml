@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "SOSO Africa Store"
+description = "A production-oriented, conversion-first bespoke menswear storefront for SOSO Africa. It offers responsive shopping, sizing guidance, atelier-confirmed made-to-order flows, structured SEO foundations, and a clean JusticeSure headless commerce boundary."
+version = "1.0.0"
+id = "artifacts/soso-store"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24036
+
+[services.development]
+run = "pnpm --filter @workspace/soso-store run dev"
+
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/soso-store", "run", "build" ]
+
+[services.production.run]
+args = [ "node", "artifacts/soso-store/scripts/serve-production.mjs" ]
+
+[services.production.run.env]
+PORT = "24036"
+
+[services.env]
+PORT = "24036"
+BASE_PATH = "/"

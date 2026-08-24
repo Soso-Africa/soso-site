@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Do not index authenticated, checkout, or admin flows
+Disallow: /staff
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /checkout
+
+# Sitemap location — replace SITE_URL with the production domain before launch
+# Sitemap: https://SITE_URL/sitemap.xml

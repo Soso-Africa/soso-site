@@ -1,0 +1,29 @@
+Feedback on Soso Africa Website – shopsoso.co 
+The verdict
+The redesign is a visual facelift, not a conversion fix. It looks cleaner and more premium than most Nigerian fashion sites, the photography is genuinely good, and the brand identity (gold mark, which I will describe as "Architect of the Modern Man", smiles) is strong. But almost none of the reasons a visitor fails to buy have been addressed. If you are getting hundreds of thousands of visitors and near-zero conversions like you told me, then, I don’t think this version will change that outcome much.
+What I think is actually broken (conversion-wise)
+1.	The homepage sells nothing above the fold. The first screen is two large images/video with no headline, no value proposition, and no call to action. A visitor sees a man in a hat and a fabric close-up, nothing tells them what this is, why it matters, or what to do next. Then the page goes into "About SOSO" and "Why Choose Us" before showing a single product. That's a brochure structure, not a store. So I would say, great page but not intended for your purpose, which here I would define as conversion. 
+2.	The product page is the biggest killer. I looked at "Vault" (https://shopsoso.co/product/soso-100/) , the one for ₦250,000 and below are my observation with that piece:
+•	Zero product description. No fabric, no fit notes, no styling context, no craftsmanship story. Just a name, a price, and a size dropdown.
+•	No size guide for a made-to-fit premium menswear, this alone will destroy conversion. Buyers won't gamble ₦250k on a guess.
+•	No delivery time, no return policy, no payment reassurance anywhere on the page.
+•	No reviews or social proof.
+•	The Add to Cart button is a flat gray that looks disabled, and half the page is empty white space.
+At this price point, a product page has to do the work of a personal shopper. This one does the work of a warehouse label.
+3. No trust infrastructure sitewide. I searched the homepage for return/refund/shipping/delivery language — nothing. Hundreds of thousands of visitors, mostly first-time, being asked to prepay ₦150k–₦500k with no visible returns policy, no delivery promise, no customer photos, no press, no testimonials. In Nigerian e-commerce especially, trust is the #1 conversion barrier — this site does nothing to earn it.
+4. Friction and clutter. Two overlapping chat widgets (bottom-left and bottom-right), a floating currency tab stack that sits over content, a search icon colliding with "PARTNER" in the nav, and category pages where a giant hero banner pushes every product below the fold. Product URLs are soso-100, soso-102 — bad for SEO and for shared links.
+5. Technical weight. It's WordPress/WooCommerce loading ~90 scripts per product page, 200KB+ HTML, images at 250–350KB each. On Nigerian mobile data — which is where most of his traffic almost certainly is — this will feel slow, and slow kills checkout completion. Cart page took ~2s server-side alone.
+6. No capture of the 99% who don't buy. The newsletter box is buried in the footer with a generic "receive our updates" pitch. With his traffic, an email/WhatsApp capture with a real incentive is potentially his biggest revenue lever, and it's absent.
+What you can honestly tell him
+You don't have to say anything negative — the facts speak: "The new site looks premium, but it's built to be admired, not to sell. The traffic is dying at three points: nothing above the fold asks for action, the product pages give a ₦250k buyer no information and no confidence, and there's no trust layer (reviews, returns, delivery, size guide) anywhere."
+If he wants to keep the current site, the highest-impact fixes his developer could do:
+1.	Rewrite product pages: description, fabric/fit, size guide, delivery timeline, returns policy, WhatsApp "ask about this piece" button, and a prominent branded Add to Cart.
+2.	Put a headline + CTA + featured products above the fold on the homepage.
+3.	Add trust signals everywhere: reviews, customer photos, clear policies.
+4.	One chat widget, remove the floating currency tabs, compress images.
+5.	Add an incentivized email/WhatsApp capture.
+Can I build something significantly better?
+Yes — and I'd say that even if there were no contract in it, because the gap isn't taste, it's architecture. A rebuilt store designed conversion-first (fast, mobile-first, story-driven product pages, trust layer baked in, WhatsApp-native buying flow, proper analytics so he can see where people drop off) is a fundamentally different machine from a restyled WooCommerce theme. With his traffic volume, even moving conversion from ~0% to 0.5–1% is a transformational revenue difference.
+The honest framing for him: the current redesign is a legitimate improvement in looks, and about 60% of the conversion problem could be patched on WordPress — but a purpose-built store would fix all of it and be measurably faster. Either path is defensible; the worst option is leaving the product pages and trust layer as they are.
+Want me to put together a quick conversion-first mockup of what his homepage and a product page should look like, so you have something concrete to show him alongside this feedback?
+

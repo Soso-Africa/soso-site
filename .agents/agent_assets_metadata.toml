@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "M19B0e8px3oqovYeSXi6m"
+uri = "file://00_robusting_soso_site.md"
+type = "text"
+title = "SOSO full site growth blueprint — updated"
+description = "Updated with premium conversion guardrails, content budgets, and high-upside enhancements that keep the storefront quiet and payment-focused."
+logical_id = "e56ed30a-087b-44c1-92e4-97cb668e6112"
+content_hash = "sha256:ff3e6467c68c011b2d7eabdff21ec1a3c656648491575bdc300c166bdccf1768"
+size = 35023
+mtime_ms = 1787238068202
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:96823c18-8b26-45bb-85e0-15fd4fe45c93/e56ed30a-087b-44c1-92e4-97cb668e6112/8339272a-0471-446f-9127-11ae83be2b7e"
+storage_version_token = "1787238074192698"
+content_type = "text/markdown"
