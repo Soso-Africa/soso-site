@@ -16,14 +16,19 @@ export default function Checkout() {
   const [message, setMessage] = useState("");
   const [stylistOpen, setStylistOpen] = useState(false);
 
+  const handleInvalid = (e: React.InvalidEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    trackStorefrontEvent("checkout_field_error", { fieldName: e.currentTarget.name });
+  };
+
   const startCheckout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-      setState("processing");
+    setState("processing");
     setMessage("");
     const form = new FormData(event.currentTarget);
     trackStorefrontEvent("checkout_started", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
     trackStorefrontEvent("checkout_form_completed", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
     trackStorefrontEvent("payment_clicked", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
+    trackStorefrontEvent("cta_clicked", { ctaLabel: "proceed_to_payment" });
 
     try {
         const result = await commerceGateway.createCheckoutSession({
@@ -82,16 +87,16 @@ export default function Checkout() {
               <div className="grid sm:grid-cols-2 gap-5">
                 <label className="text-sm">
                   Full name
-                  <input required name="name" autoComplete="name" className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                  <input required name="name" autoComplete="name" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
                 </label>
                 <label className="text-sm">
                   Phone number
-                  <input required name="phone" autoComplete="tel" inputMode="tel" className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                  <input required name="phone" autoComplete="tel" inputMode="tel" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
                 </label>
               </div>
               <label className="text-sm block">
                 Email
-                <input required type="email" name="email" autoComplete="email" className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                <input required type="email" name="email" autoComplete="email" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
               </label>
               <label className="text-sm block">
                 Delivery notes <span className="opacity-60">(optional)</span>

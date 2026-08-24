@@ -1,5 +1,6 @@
-import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  customFetch,
   getStaffExport,
   useAcknowledgeStaffNotification,
   useCreateStaffJournalPost,
@@ -35,20 +36,29 @@ import {
   Bell,
   Check,
   ChevronRight,
+  CircleCheck,
   ClipboardCheck,
   Download,
+  Eye,
   FileText,
+  Globe,
   Loader2,
   LockKeyhole,
   Mail,
   MessageSquare,
+  Monitor,
   Package,
   PenLine,
   Plus,
   Save,
   ShieldAlert,
   ShieldCheck,
+  Smartphone,
+  Tablet,
+  Trash2,
   Truck,
+  TriangleAlert,
+  Users,
 } from "lucide-react";
 
 type StaffWorkflowDisplayStatus = StaffOrderUpdateStatus | "paid";
@@ -183,6 +193,8 @@ export default function Staff() {
 
       {canManagePrivacy && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
       {(profile.role === "owner" || profile.role === "editor") && <JournalManagementSection />}
+      {(profile.role === "owner" || profile.role === "editor") && <FaqManagementSection />}
+      {(profile.role === "owner" || profile.role === "operations") && <RedirectsManagementSection />}
     </main>
   );
 }
@@ -256,9 +268,85 @@ function NotificationStrip({ notifications, loading, onAcknowledged }: { notific
   );
 }
 
+type AnalyticsMetrics = {
+  from: string; to: string; generatedAt: string; privacyNote: string;
+  uniqueVisitors: number; uniqueSessions: number;
+  topPages: { path: string; views: number }[];
+  topProducts: { slug: string; views: number }[];
+  deviceBreakdown: { deviceType: string; events: number }[];
+  scrollDepth: { depthPct: number; events: number }[];
+};
+type AnalyticsQuality = {
+  status: "ok" | "review" | "issue";
+  checks: { check: string; status: "ok" | "review" | "issue"; detail: string }[];
+  generatedAt: string;
+};
+
+function useStaffAnalyticsMetrics(range: { from: string; to: string }, enabled: boolean) {
+  const [data, setData] = useState<AnalyticsMetrics | null>(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    setLoading(true);
+    void customFetch<AnalyticsMetrics>(`/staff/analytics/metrics?from=${range.from}&to=${range.to}`)
+      .then((d: AnalyticsMetrics) => { if (!cancelled) setData(d); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [range.from, range.to, enabled]);
+  return { data, loading };
+}
+
+function useAnalyticsQuality(enabled: boolean) {
+  const [data, setData] = useState<AnalyticsQuality | null>(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    setLoading(true);
+    void customFetch<AnalyticsQuality>("/staff/analytics/quality")
+      .then((d: AnalyticsQuality) => { if (!cancelled) setData(d); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [enabled]);
+  return { data, loading };
+}
+
+const DEVICE_ICON: Record<string, React.ElementType> = {
+  mobile: Smartphone, tablet: Tablet, desktop: Monitor,
+};
+
+function QualityBadge({ quality }: { quality: AnalyticsQuality | null }) {
+  if (!quality) return null;
+  const icon = quality.status === "ok" ? <CircleCheck size={13} className="text-green-500" />
+    : quality.status === "review" ? <TriangleAlert size={13} className="text-amber-500" />
+    : <AlertCircle size={13} className="text-red-500" />;
+  const label = quality.status === "ok" ? "Data OK" : quality.status === "review" ? "Review signal" : "Data issue";
+  return (
+    <details className="border border-border bg-card">
+      <summary className="flex cursor-pointer items-center gap-2 p-3 text-xs font-semibold uppercase tracking-wider select-none hover:bg-muted/30">
+        {icon} {label}
+      </summary>
+      <div className="divide-y divide-border">
+        {quality.checks.map((c) => (
+          <div key={c.check} className="p-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.check.replaceAll("_", " ")}</p>
+            <p className="mt-1 text-sm">{c.detail}</p>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExported }: { funnel: StaffFunnel | undefined; auditEvents: StaffAuditEvent[] | undefined; loading: boolean; range: { from: string; to: string }; role: string; onExported: () => void }) {
   const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState("");
+  const metrics = useStaffAnalyticsMetrics(range, true);
+  const quality = useAnalyticsQuality(true);
+
   const download = async (report: "operations_summary" | "analytics_summary") => {
     setExporting(true);
     setNotice("");
@@ -279,19 +367,127 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
       setExporting(false);
     }
   };
+
+  const maxPageViews = Math.max(...(metrics.data?.topPages.map((p) => p.views) ?? [1]), 1);
+
   return (
     <section className="mt-12 border-t border-border pt-10">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs uppercase tracking-[0.2em] text-primary">Owner & analyst reporting</p><h2 className="mt-2 text-3xl soso-display">Privacy-safe storefront signal</h2><p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{funnel?.privacyNote ?? "Only consented, aggregate first-party data is used in this report."}</p></div>
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em] text-primary">Owner & analyst reporting</p>
+          <h2 className="mt-2 text-3xl soso-display">Privacy-safe storefront signal</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{funnel?.privacyNote ?? "Only consented, aggregate first-party data is used in this report."}</p>
+        </div>
         <div className="flex gap-2">
           <button type="button" disabled={exporting} onClick={() => void download("analytics_summary")} className="inline-flex min-h-11 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Download size={15} /> Analytics CSV</button>
           {role === "owner" && <button type="button" disabled={exporting} onClick={() => void download("operations_summary")} className="inline-flex min-h-11 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Download size={15} /> Operations CSV</button>}
         </div>
       </div>
       {notice && <p role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm text-foreground">{notice}</p>}
+
+      {/* Visitor summary cards */}
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { icon: Users, label: "Unique visitors", value: metrics.data?.uniqueVisitors },
+          { icon: Activity, label: "Unique sessions", value: metrics.data?.uniqueSessions },
+          { icon: Globe, label: "Top page views", value: metrics.data?.topPages[0] ? `${metrics.data.topPages[0].views} · ${metrics.data.topPages[0].path}` : undefined },
+          { icon: FileText, label: "Top product views", value: metrics.data?.topProducts[0] ? `${metrics.data.topProducts[0].views} · ${metrics.data.topProducts[0].slug}` : undefined },
+        ].map(({ icon: Icon, label, value }) => (
+          <div key={label} className="border border-border bg-card p-4">
+            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground"><Icon size={12} /> {label}</div>
+            <p className="mt-3 text-xl soso-display truncate">{metrics.loading ? "…" : (value ?? "—")}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+        {/* Event funnel */}
         <div className="border border-border bg-card">{loading || !funnel ? <LoadingRows /> : <><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consented event counts · {funnel.from} to {funnel.to}</div><div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3">{funnel.events.map((event) => <div key={event.eventName} className="p-4"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{event.eventName.replaceAll("_", " ")}</p><p className="mt-3 text-2xl soso-display">{event.count.toLocaleString()}</p></div>)}</div></>}</div>
-        <div className="border border-border bg-card"><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audit visibility</div>{loading ? <LoadingRows /> : !auditEvents?.length ? <Empty label="No audited operational actions in this period." /> : <div className="divide-y divide-border">{auditEvents.slice(0, 6).map((event) => <div key={event.id} className="p-4"><p className="text-sm font-medium">{event.action.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-muted-foreground">{event.entityType.replaceAll("_", " ")} · {format(new Date(event.createdAt), "d MMM, HH:mm")}</p></div>)}</div>}</div>
+        {/* Right column: quality + audit */}
+        <div className="flex flex-col gap-4">
+          <QualityBadge quality={quality.data} />
+          <div className="border border-border bg-card"><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audit visibility</div>{loading ? <LoadingRows /> : !auditEvents?.length ? <Empty label="No audited operational actions in this period." /> : <div className="divide-y divide-border">{auditEvents.slice(0, 5).map((event) => <div key={event.id} className="p-4"><p className="text-sm font-medium">{event.action.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-muted-foreground">{event.entityType.replaceAll("_", " ")} · {format(new Date(event.createdAt), "d MMM, HH:mm")}</p></div>)}</div>}</div>
+        </div>
+      </div>
+
+      {/* Top pages */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Top pages</div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.topPages.length ? <Empty label="No page view data yet." /> : (
+            <div className="divide-y divide-border">
+              {metrics.data.topPages.map((page) => (
+                <div key={page.path} className="flex items-center gap-3 p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate font-mono text-xs">{page.path}</p>
+                    <div className="mt-1 h-1 bg-muted overflow-hidden rounded-full">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${(page.views / maxPageViews) * 100}%` }} />
+                    </div>
+                  </div>
+                  <span className="text-sm font-semibold shrink-0">{page.views.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Top products viewed</div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.topProducts.length ? <Empty label="No product view data yet." /> : (
+            <div className="divide-y divide-border">
+              {metrics.data.topProducts.map((product) => {
+                const maxViews = Math.max(...metrics.data!.topProducts.map((p) => p.views), 1);
+                return (
+                  <div key={product.slug} className="flex items-center gap-3 p-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{product.slug}</p>
+                      <div className="mt-1 h-1 bg-muted overflow-hidden rounded-full">
+                        <div className="h-full bg-primary rounded-full" style={{ width: `${(product.views / maxViews) * 100}%` }} />
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold shrink-0">{product.views.toLocaleString()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Device breakdown + scroll depth */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Device breakdown</div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.deviceBreakdown.length ? <Empty label="No device data yet." /> : (
+            <div className="grid grid-cols-3 divide-x divide-border">
+              {metrics.data.deviceBreakdown.map((d) => {
+                const Icon = DEVICE_ICON[d.deviceType] ?? Monitor;
+                return (
+                  <div key={d.deviceType} className="p-4 text-center">
+                    <Icon size={20} className="mx-auto text-primary/60" />
+                    <p className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">{d.deviceType}</p>
+                    <p className="mt-1 text-xl soso-display">{d.events.toLocaleString()}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="border border-border bg-card">
+          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Scroll depth reached</div>
+          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.scrollDepth.length ? <Empty label="No scroll depth data yet." /> : (
+            <div className="grid grid-cols-4 divide-x divide-border">
+              {[25, 50, 75, 90].map((pct) => {
+                const row = metrics.data!.scrollDepth.find((s) => s.depthPct === pct);
+                return (
+                  <div key={pct} className="p-4 text-center">
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground">{pct}%</p>
+                    <p className="mt-2 text-xl soso-display">{row ? row.events.toLocaleString() : "0"}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -580,12 +776,204 @@ function JournalManagementSection() {
           <InputLabel label="Article body"><textarea required minLength={100} rows={10} value={article.body} onChange={(e) => setArticle({ ...article, body: e.target.value })} className="staff-input mt-1 resize-y" /></InputLabel>
 
           <div className="mt-4 flex items-center justify-between gap-3">
-            <p role="status" className="text-xs text-muted-foreground">{notice}</p>
+            <div className="flex items-center gap-3">
+              <p role="status" className="text-xs text-muted-foreground">{notice}</p>
+              {article.slug && (
+                <a href={`/journal/preview/${article.slug}`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 border border-border px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary transition-colors">
+                  <Eye size={14} /> Preview
+                </a>
+              )}
+            </div>
             <button disabled={create.isPending || update.isPending} className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50">
               <Save size={14} /> Save article
             </button>
           </div>
         </form>
+      </div>
+    </section>
+  );
+}
+
+type FaqRow = { id: string; question: string; answer: string; category: string | null; sortOrder: number; isPublished: boolean; createdAt: string; updatedAt: string };
+type RedirectRow = { id: string; fromPath: string; toPath: string; statusCode: number; createdAt: string };
+
+function useCrudFetch<T>(path: string, enabled: boolean) {
+  const [data, setData] = useState<T[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const load = useCallback(() => {
+    if (!enabled) return;
+    setLoading(true);
+    void customFetch<T[]>(path)
+      .then((d: T[]) => setData(d))
+      .catch((e: unknown) => setError(errorMessage(e, "Failed to load.")))
+      .finally(() => setLoading(false));
+  }, [path, enabled]);
+  useEffect(() => { load(); }, [load]);
+  return { data, loading, error, reload: load };
+}
+
+function FaqManagementSection() {
+  const { data: items, loading, reload } = useCrudFetch<FaqRow>("/staff/faq", true);
+  const [editing, setEditing] = useState<Partial<FaqRow> | null>(null);
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+    setSaving(true);
+    setNotice("");
+    try {
+      if (editing.id) {
+        await customFetch(`/staff/faq/${editing.id}`, { method: "PATCH", body: JSON.stringify(editing) });
+      } else {
+        await customFetch("/staff/faq", { method: "POST", body: JSON.stringify(editing) });
+      }
+      setNotice("Saved.");
+      setEditing(null);
+      reload();
+    } catch (err) {
+      setNotice(errorMessage(err, "Save failed."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const del = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await customFetch(`/staff/faq/${id}`, { method: "DELETE" });
+      reload();
+    } catch (err) {
+      setNotice(errorMessage(err, "Delete failed."));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <section className="mt-12 border-t border-border pt-10">
+      <SectionHeading icon={FileText} title="FAQ management" description="Manage the FAQ items shown on the public /faq page. Published items appear on site; draft items are hidden." />
+      {notice && <p role="status" className="mb-4 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-xs text-muted-foreground">{items?.length ?? 0} items</span>
+        <button type="button" onClick={() => setEditing({ isPublished: true, sortOrder: (items?.length ?? 0) * 10 })} className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary/90">
+          <Plus size={13} /> New FAQ item
+        </button>
+      </div>
+
+      {editing && (
+        <form onSubmit={(e) => void save(e)} className="mb-6 border border-primary/40 bg-primary/5 p-5 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{editing.id ? "Edit item" : "New item"}</p>
+          <InputLabel label="Question"><input required value={editing.question ?? ""} onChange={(e) => setEditing({ ...editing, question: e.target.value })} className="staff-input mt-1" /></InputLabel>
+          <InputLabel label="Answer"><textarea required rows={3} value={editing.answer ?? ""} onChange={(e) => setEditing({ ...editing, answer: e.target.value })} className="staff-input mt-1 resize-y" /></InputLabel>
+          <InputLabel label="Category"><input value={editing.category ?? ""} onChange={(e) => setEditing({ ...editing, category: e.target.value || null })} placeholder="e.g. Sizing, Ordering" className="staff-input mt-1" /></InputLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <InputLabel label="Sort order (ascending)"><input type="number" value={editing.sortOrder ?? 0} onChange={(e) => setEditing({ ...editing, sortOrder: Number(e.target.value) })} className="staff-input mt-1" /></InputLabel>
+            <InputLabel label="Status"><select value={editing.isPublished ? "published" : "draft"} onChange={(e) => setEditing({ ...editing, isPublished: e.target.value === "published" })} className="staff-input mt-1">
+              <option value="published">Published</option><option value="draft">Draft</option>
+            </select></InputLabel>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button disabled={saving} className="inline-flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={13} /> Save</button>
+            <button type="button" onClick={() => setEditing(null)} className="inline-flex min-h-10 items-center px-4 text-xs border border-border hover:border-primary">Cancel</button>
+          </div>
+        </form>
+      )}
+
+      <div className="border border-border bg-card">
+        {loading ? <LoadingRows /> : !items?.length ? <Empty label="No FAQ items yet. Add the first one above." /> : (
+          <div className="divide-y divide-border">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-start gap-4 p-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {item.category && <span className="text-[9px] uppercase tracking-wider border border-primary/30 px-2 py-0.5 text-primary/70">{item.category}</span>}
+                    <StatusBadge status={item.isPublished ? "published" : "draft"} />
+                    <span className="text-[10px] text-muted-foreground">#{item.sortOrder}</span>
+                  </div>
+                  <p className="mt-1 text-sm font-medium">{item.question}</p>
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.answer}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button type="button" onClick={() => setEditing(item)} className="inline-flex min-h-9 items-center gap-1 border border-border px-2 text-xs hover:border-primary"><PenLine size={12} /> Edit</button>
+                  <button type="button" disabled={deletingId === item.id} onClick={() => void del(item.id)} className="inline-flex min-h-9 items-center gap-1 border border-destructive/50 px-2 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"><Trash2 size={12} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RedirectsManagementSection() {
+  const { data: redirects, loading, reload } = useCrudFetch<RedirectRow>("/staff/redirects", true);
+  const [form, setForm] = useState({ fromPath: "", toPath: "", statusCode: 301 });
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setNotice("");
+    try {
+      await customFetch("/staff/redirects", { method: "POST", body: JSON.stringify(form) });
+      setNotice("Redirect saved.");
+      setForm({ fromPath: "", toPath: "", statusCode: 301 });
+      reload();
+    } catch (err) {
+      setNotice(errorMessage(err, "Save failed."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const del = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await customFetch(`/staff/redirects/${id}`, { method: "DELETE" });
+      reload();
+    } catch (err) {
+      setNotice(errorMessage(err, "Delete failed."));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <section className="mt-12 border-t border-border pt-10">
+      <SectionHeading icon={Globe} title="Redirect management" description="Define 301/302 URL redirects. These are stored in the database and can be exported for use with your CDN or hosting config. fromPath must start with /." />
+      {notice && <p role="status" className="mb-4 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
+      <form onSubmit={(e) => void save(e)} className="mb-6 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] items-end border border-border p-4">
+        <InputLabel label="From path"><input required value={form.fromPath} onChange={(e) => setForm({ ...form, fromPath: e.target.value })} placeholder="/old-url" className="staff-input mt-1" /></InputLabel>
+        <InputLabel label="To path / URL"><input required value={form.toPath} onChange={(e) => setForm({ ...form, toPath: e.target.value })} placeholder="/new-url" className="staff-input mt-1" /></InputLabel>
+        <InputLabel label="Code"><select value={form.statusCode} onChange={(e) => setForm({ ...form, statusCode: Number(e.target.value) })} className="staff-input mt-1">
+          <option value={301}>301 Permanent</option><option value={302}>302 Temporary</option><option value={307}>307 Temp (POST)</option><option value={308}>308 Perm (POST)</option>
+        </select></InputLabel>
+        <button disabled={saving} className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Plus size={13} /> Add</button>
+      </form>
+
+      <div className="border border-border bg-card">
+        {loading ? <LoadingRows /> : !redirects?.length ? <Empty label="No redirects configured yet." /> : (
+          <div className="divide-y divide-border">
+            {redirects.map((r) => (
+              <div key={r.id} className="flex items-center gap-4 px-4 py-3">
+                <div className="flex-1 min-w-0 grid sm:grid-cols-[1fr_auto_1fr_auto] gap-x-3 gap-y-0.5 items-center">
+                  <span className="text-sm font-mono truncate">{r.fromPath}</span>
+                  <ChevronRight size={14} className="text-muted-foreground hidden sm:block" />
+                  <span className="text-sm font-mono text-primary truncate">{r.toPath}</span>
+                  <span className="text-[10px] border border-border px-1.5 py-0.5 text-muted-foreground w-fit">{r.statusCode}</span>
+                </div>
+                <button type="button" disabled={deletingId === r.id} onClick={() => void del(r.id)} className="inline-flex min-h-9 items-center gap-1 border border-destructive/50 px-2 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50 shrink-0"><Trash2 size={12} /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

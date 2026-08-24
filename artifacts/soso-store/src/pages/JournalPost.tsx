@@ -70,7 +70,7 @@ export default function JournalPost() {
         noIndex={!canIndex}
         article={{
           publishedAt: post.publishedAt ?? undefined,
-          modifiedAt: undefined,
+          modifiedAt: post.updatedAt ?? undefined,
           authorName: post.authorName,
           imageUrl: seoImageUrl,
           tags: post.tags ?? undefined,
@@ -91,6 +91,12 @@ export default function JournalPost() {
             {post.category && <span>{post.category}</span>}
             {post.category && <span className="opacity-40">&bull;</span>}
             <span>{format(new Date(post.publishedAt), 'MMMM d, yyyy')}</span>
+            {post.updatedAt && Math.abs(new Date(post.updatedAt).getTime() - new Date(post.publishedAt).getTime()) > 86_400_000 && (
+              <>
+                <span className="opacity-40">&bull;</span>
+                <span>Updated {format(new Date(post.updatedAt), 'MMMM d, yyyy')}</span>
+              </>
+            )}
             <span className="opacity-40">&bull;</span>
             <span>By {post.authorName}</span>
             {post.readTimeMinutes && (

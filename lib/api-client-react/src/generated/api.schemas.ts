@@ -198,6 +198,7 @@ export type JournalPost = JournalPostSummary & ({
   relatedProductSlugs?: string[] | null;
   /** @nullable */
   relatedArticleSlugs?: string[] | null;
+  updatedAt: string;
 });
 
 export type StaffJournalPostInputStatus = typeof StaffJournalPostInputStatus[keyof typeof StaffJournalPostInputStatus];

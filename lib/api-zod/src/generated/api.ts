@@ -177,7 +177,8 @@ export const GetJournalPostResponse = zod.object({
   "seoTitle": zod.string().nullish(),
   "seoDescription": zod.string().nullish(),
   "relatedProductSlugs": zod.array(zod.string()).nullish(),
-  "relatedArticleSlugs": zod.array(zod.string()).nullish()
+  "relatedArticleSlugs": zod.array(zod.string()).nullish(),
+  "updatedAt": zod.coerce.date()
 }))
 
 

@@ -93,9 +93,16 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
     return;
   }
 
+  // Enrich with server-side country from Cloudflare or CDN headers (never from untrusted client input)
+  const country = (req.headers["cf-ipcountry"] as string | undefined)
+    ?? (req.headers["x-country"] as string | undefined);
+  const enrichedData = country
+    ? { ...parsed.data, properties: { ...(parsed.data.properties ?? {}), _country: country } }
+    : parsed.data;
+
   const [event] = await db
     .insert(analyticsEventsTable)
-    .values(parsed.data)
+    .values(enrichedData)
     .onConflictDoNothing({ target: analyticsEventsTable.eventId })
     .returning({ id: analyticsEventsTable.id });
 

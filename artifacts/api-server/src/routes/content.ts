@@ -103,7 +103,7 @@ router.get("/journal/:slug", async (req, res): Promise<void> => {
     return;
   }
 
-  res.json(GetJournalPostResponse.parse(post));
+  res.json(GetJournalPostResponse.parse({ ...post, updatedAt: post.updatedAt.toISOString() }));
 });
 
 export default router;

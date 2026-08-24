@@ -338,8 +338,8 @@ First screen targets:
 - 🟡 Open stylist enquiries (visible)
 - 🟡 Seven-day event count (consented, partial funnel only)
 - ⚫ Revenue and paid orders for today, seven days, 30 days
-- ⚫ Unique visitors and sessions
-- ⚫ Product views
+- 🟢 Unique visitors and sessions
+- 🟢 Product views
 - ⚫ Add-to-bag rate
 - ⚫ Checkout-start rate
 - ⚫ Payment-start rate
@@ -348,16 +348,16 @@ First screen targets:
 - ⚫ Checkout abandonment
 - ⚫ Average time from first visit to payment
 - ⚫ New versus returning visitors
-- ⚫ Top landing pages
-- ⚫ Top products
+- 🟢 Top landing pages
+- 🟢 Top products
 - ⚫ Top traffic sources/campaigns
-- ⚫ Device and location breakdowns
+- 🟢 Device and location breakdowns
 - 🔴 Orders awaiting delivery (pending live commerce)
 - 🔴 Refunds, cancellations, and payment failures (pending live commerce)
 
 Every metric needs:
 
-- ⚫ Date range selector
+- 🟢 Date range selector
 - ⚫ Comparison period
 - ⚫ Definition tooltip
 - ⚫ Data freshness timestamp
@@ -455,7 +455,7 @@ Event status by name:
 - 🟢 `page_view`
 - 🟢 `session_started`
 - 🟢 `product_viewed`
-- ⚫ `product_image_viewed`
+- 🟢 `product_image_viewed`
 - 🟢 `size_guide_opened`
 - 🟢 `size_selected`
 - 🟢 `stylist_inquiry_started`
@@ -463,7 +463,7 @@ Event status by name:
 - 🟢 `add_to_bag`
 - 🟢 `bag_opened`
 - 🟢 `checkout_started`
-- ⚫ `checkout_field_error`
+- 🟢 `checkout_field_error`
 - 🟢 `checkout_form_completed`
 - 🟢 `payment_clicked`
 - 🔴 `payment_session_created`
@@ -478,11 +478,11 @@ Event status by name:
 - 🔴 `delivery_completed`
 - 🟢 `consent_banner_viewed`
 - 🟢 `consent_updated`
-- ⚫ `marketing_opt_out`
+- 🟢 `marketing_opt_out`
 - 🟢 `blog_article_viewed`
 - 🟢 `faq_expanded`
 - 🟢 `scroll_depth_reached`
-- ⚫ `cta_clicked`
+- 🟢 `cta_clicked`
 
 ### 4.7 Analytics data quality
 
@@ -495,12 +495,12 @@ Automated quality checks:
 - ⚫ Impossible event order detection
 - 🔴 Payment success without a verified payment check
 - ⚫ Orders with no source attribution where attribution was expected
-- ⚫ Sudden event-volume spike detection
+- 🟢 Sudden event-volume spike detection
 - ⚫ Broken page paths check
 - ⚫ Bot traffic contamination detection
 - ⚫ Time values outside sane ranges check
 - 🟢 Consent-state violations (server-side gate before recording)
-- ⚫ Admin data-quality status indicator
+- 🟢 Admin data-quality status indicator
 
 ### 4.8 Exports and privacy
 
@@ -598,7 +598,7 @@ Guardrails (all enforced by absence until prerequisites met):
 - 🟡 `robots.txt` — exists; sitemap URL line requires production domain
 - 🟢 Clean product, collection, blog, and policy slugs
 - 🟢 404 handling
-- ⚫ Redirect management UI
+- 🟢 Redirect management UI
 - ⬜ `hreflang` (not needed until multiple language/locale versions exist)
 - ⚫ Fast mobile-first rendering (verified — no CWV monitoring yet)
 - ⚫ Core Web Vitals monitoring
@@ -818,11 +818,11 @@ Admin CMS capabilities:
 - 🔴 Production messaging
 - 🔴 Delivery regions
 - ⚫ Policy pages CMS
-- ⚫ FAQ content CMS
+- 🟢 FAQ content CMS
 - 🟢 Blog/Journal content (full CRUD with revision history)
 - ⚫ Homepage/editorial blocks CMS
 - ⚫ SEO metadata editor
-- ⚫ Redirects manager
+- 🟢 Redirects manager
 - ⚫ Structured-data fields editor
 - ⚫ Footer navigation editor
 - ⚫ Contact destinations editor

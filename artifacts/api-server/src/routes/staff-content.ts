@@ -11,10 +11,11 @@ import {
 import {
   auditLogsTable,
   db,
+  faqItemsTable,
   journalPostRevisionsTable,
   journalPostsTable,
 } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 
 const router: IRouter = Router();
@@ -199,5 +200,52 @@ router.patch(
     res.json(UpdateStaffJournalPostResponse.parse(post));
   },
 );
+
+// ── FAQ management ─────────────────────────────────────────────────────────
+
+router.get("/staff/faq", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
+  const rows = await db.select().from(faqItemsTable).orderBy(asc(faqItemsTable.sortOrder), asc(faqItemsTable.createdAt));
+  res.json(rows);
+});
+
+router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  const { question, answer, category, sortOrder, isPublished } = req.body as Record<string, unknown>;
+  if (typeof question !== "string" || !question.trim() || typeof answer !== "string" || !answer.trim()) {
+    res.status(400).json({ error: "question and answer are required" });
+    return;
+  }
+  const [row] = await db.insert(faqItemsTable).values({
+    question: question.trim(),
+    answer: answer.trim(),
+    category: typeof category === "string" && category.trim() ? category.trim() : null,
+    sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
+    isPublished: isPublished !== false,
+  }).returning();
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.created", entityType: "faq_item", entityId: row!.id, metadata: { question: row!.question } });
+  res.status(201).json(row);
+});
+
+router.patch("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  const { question, answer, category, sortOrder, isPublished } = req.body as Record<string, unknown>;
+  const updates: Partial<typeof faqItemsTable.$inferInsert> = {};
+  if (typeof question === "string" && question.trim()) updates.question = question.trim();
+  if (typeof answer === "string" && answer.trim()) updates.answer = answer.trim();
+  if (category !== undefined) updates.category = typeof category === "string" && category.trim() ? category.trim() : null;
+  if (typeof sortOrder === "number") updates.sortOrder = sortOrder;
+  if (typeof isPublished === "boolean") updates.isPublished = isPublished;
+  if (!Object.keys(updates).length) { res.status(400).json({ error: "No valid fields to update" }); return; }
+  updates.updatedAt = new Date();
+  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, req.params.id as string)).returning();
+  if (!row) { res.status(404).json({ error: "FAQ item not found" }); return; }
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.updated", entityType: "faq_item", entityId: row.id, metadata: {} });
+  res.json(row);
+});
+
+router.delete("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  const [row] = await db.delete(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).returning({ id: faqItemsTable.id });
+  if (!row) { res.status(404).json({ error: "FAQ item not found" }); return; }
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.deleted", entityType: "faq_item", entityId: row.id, metadata: {} });
+  res.status(204).send();
+});
 
 export default router;

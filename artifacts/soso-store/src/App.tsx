@@ -20,6 +20,7 @@ import ProductDetail from '@/pages/ProductDetail';
 import Checkout from '@/pages/Checkout';
 import Journal from '@/pages/Journal';
 import JournalPost from '@/pages/JournalPost';
+import JournalPreview from '@/pages/JournalPreview';
 import Policy from '@/pages/Policy';
 import PolicyHub from '@/pages/PolicyHub';
 import About from '@/pages/About';
@@ -42,6 +43,7 @@ function Router() {
         <Route path="/checkout" component={Checkout} />
         <Route path="/journal" component={Journal} />
         <Route path="/journal/:slug" component={JournalPost} />
+        <Route path="/journal/preview/:slug" component={JournalPreview} />
         <Route path="/about" component={About} />
         <Route path="/faq" component={FAQ} />
         <Route path="/collections/:slug">
@@ -111,7 +113,7 @@ function App() {
 
 function AppShell() {
   const [location] = useLocation();
-  const staffOrAuthSurface = location.startsWith("/staff") || location.startsWith("/sign-");
+  const staffOrAuthSurface = location.startsWith("/staff") || location.startsWith("/sign-") || location.startsWith("/journal/preview");
 
   return (
     <>

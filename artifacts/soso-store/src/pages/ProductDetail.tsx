@@ -57,6 +57,8 @@ export default function ProductDetail() {
       price: product.price,
       size: size
     });
+    trackStorefrontEvent("add_to_bag", { productSlug: product.slug, selectedSize: size ?? undefined });
+    trackStorefrontEvent("cta_clicked", { ctaLabel: "add_to_bag", productSlug: product.slug });
   };
 
   // 4 random products for Complete the look
@@ -91,7 +93,7 @@ export default function ProductDetail() {
             {gallery.map((g, i) => (
               <button
                 key={i}
-                onClick={() => setImg(i)}
+                onClick={() => { setImg(i); if (i !== img) trackStorefrontEvent("product_image_viewed", { productSlug: product.slug, imageIndex: i }); }}
                 className="w-20 overflow-hidden"
                 style={{ outline: i === img ? `2px solid hsl(var(--primary))` : "1px solid #d8cfba", outlineOffset: 2 }}
                 aria-label={g.label}
@@ -173,7 +175,7 @@ export default function ProductDetail() {
             </button>
             <button
               type="button"
-              onClick={() => setStylistOpen(true)}
+              onClick={() => { setStylistOpen(true); trackStorefrontEvent("cta_clicked", { ctaLabel: "ask_stylist", productSlug: product.slug }); }}
               className="w-full block text-center py-4 text-[13px] tracking-[0.2em] uppercase flex items-center justify-center gap-2 transition-colors duration-300 hover:bg-[#0f3d2e] hover:text-white"
               style={{ border: "1px solid #128C56", color: "#0f6b43" }}
             >

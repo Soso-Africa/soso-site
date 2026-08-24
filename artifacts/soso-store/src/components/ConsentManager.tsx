@@ -313,6 +313,24 @@ export function ConsentManager() {
           Allow measurement
         </button>
       </div>
+      <details className="mt-3 text-[10px] text-[#a09070]">
+        <summary className="cursor-pointer hover:text-[#c8b89a] select-none">Manage preference cookies</summary>
+        <div className="mt-2 border border-[#b8912f]/20 p-3 space-y-2">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked disabled readOnly className="accent-[#b8912f]" />
+            <span><strong>Necessary</strong> — bag, session, consent preference. Always active.</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={consent === "analytics" || consent === "marketing"}
+              onChange={(e) => void save(e.target.checked ? "analytics" : "essential_only")}
+              className="accent-[#b8912f]"
+            />
+            <span><strong>Measurement</strong> — anonymous page and product journey counts.</span>
+          </label>
+        </div>
+      </details>
       <p className="mt-3 text-[10px] text-[#a09070] leading-relaxed">
         You can change your choice at any time from the footer.{" "}
         <a href="/privacy" className="underline hover:text-[#f6f1e7]">

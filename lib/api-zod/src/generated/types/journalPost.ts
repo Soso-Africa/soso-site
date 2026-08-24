@@ -17,4 +17,5 @@ export type JournalPost = JournalPostSummary & ({
   relatedProductSlugs?: string[] | null;
   /** @nullable */
   relatedArticleSlugs?: string[] | null;
+  updatedAt: Date;
 });

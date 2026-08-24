@@ -288,6 +288,33 @@ export const rateLimitBucketsTable = pgTable(
   (table) => [index("soso_rate_limit_buckets_expires_idx").on(table.expiresAt)],
 );
 
+export const faqItemsTable = pgTable(
+  "soso_faq_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    question: text("question").notNull(),
+    answer: text("answer").notNull(),
+    category: text("category"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isPublished: boolean("is_published").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("soso_faq_items_sort_idx").on(table.sortOrder, table.isPublished)],
+);
+
+export const redirectsTable = pgTable(
+  "soso_redirects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromPath: text("from_path").notNull(),
+    toPath: text("to_path").notNull(),
+    statusCode: integer("status_code").notNull().default(301),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("soso_redirects_from_path_idx").on(table.fromPath)],
+);
+
 export const auditLogsTable = pgTable(
   "soso_audit_logs",
   {
@@ -313,6 +340,8 @@ export const insertJournalPostSchema = createInsertSchema(journalPostsTable).omi
 export const insertAnalyticsEventSchema = createInsertSchema(analyticsEventsTable).omit({ id: true, occurredAt: true });
 export const insertConsentRecordSchema = createInsertSchema(consentRecordsTable).omit({ id: true, createdAt: true });
 
+export type FaqItem = typeof faqItemsTable.$inferSelect;
+export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;

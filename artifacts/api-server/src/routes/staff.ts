@@ -29,12 +29,13 @@ import {
   auditLogsTable,
   customerEnquiriesTable,
   db,
+  redirectsTable,
   operationalNotificationAcknowledgementsTable,
   operationalNotificationsTable,
   ordersTable,
   privacyRequestsTable,
 } from "@workspace/db";
-import { and, count, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 
 const router: IRouter = Router();
@@ -519,6 +520,127 @@ router.patch("/staff/notifications/:id", async (req, res): Promise<void> => {
   }));
 });
 
+router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
+  const range = resolveDateRange(req.query);
+  if (!range) {
+    res.status(400).json({ error: "Use a valid from/to date range (YYYY-MM-DD)" });
+    return;
+  }
+
+  const consentFilter = inArray(analyticsEventsTable.consent, ["analytics", "marketing"]);
+  const dateFilter = and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end));
+
+  const [
+    visitorRows,
+    pageRows,
+    deviceRows,
+    scrollRows,
+    productRows,
+  ] = await Promise.all([
+    // Unique visitors + sessions
+    db
+      .select({
+        uniqueVisitors: sql<number>`COUNT(DISTINCT ${analyticsEventsTable.anonymousId})`,
+        uniqueSessions: sql<number>`COUNT(DISTINCT ${analyticsEventsTable.sessionId})`,
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter)),
+    // Top pages
+    db
+      .select({ path: analyticsEventsTable.path, views: sql<number>`COUNT(*)` })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter, eq(analyticsEventsTable.eventName, "page_view")))
+      .groupBy(analyticsEventsTable.path)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(10),
+    // Device breakdown
+    db
+      .select({ deviceType: analyticsEventsTable.deviceType, events: sql<number>`COUNT(*)` })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter))
+      .groupBy(analyticsEventsTable.deviceType)
+      .orderBy(sql`COUNT(*) DESC`),
+    // Scroll depth counts
+    db
+      .select({
+        depthPct: sql<string>`${analyticsEventsTable.properties}->>'depth_pct'`,
+        events: sql<number>`COUNT(*)`,
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter, eq(analyticsEventsTable.eventName, "scroll_depth_reached")))
+      .groupBy(sql`${analyticsEventsTable.properties}->>'depth_pct'`)
+      .orderBy(sql`(${analyticsEventsTable.properties}->>'depth_pct')::int ASC`),
+    // Top products
+    db
+      .select({
+        slug: sql<string>`${analyticsEventsTable.properties}->>'productSlug'`,
+        views: sql<number>`COUNT(*)`,
+      })
+      .from(analyticsEventsTable)
+      .where(and(dateFilter, consentFilter, eq(analyticsEventsTable.eventName, "product_view")))
+      .groupBy(sql`${analyticsEventsTable.properties}->>'productSlug'`)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(10),
+  ]);
+
+  res.json({
+    from: range.from,
+    to: range.to,
+    generatedAt: new Date(),
+    privacyNote: "Aggregate first-party data only. No visitor identifiers or personal data is included.",
+    uniqueVisitors: Number(visitorRows[0]?.uniqueVisitors ?? 0),
+    uniqueSessions: Number(visitorRows[0]?.uniqueSessions ?? 0),
+    topPages: pageRows.map((r) => ({ path: r.path ?? "(unknown)", views: Number(r.views) })),
+    topProducts: productRows.filter((r) => r.slug).map((r) => ({ slug: r.slug, views: Number(r.views) })),
+    deviceBreakdown: deviceRows.map((r) => ({ deviceType: r.deviceType ?? "unknown", events: Number(r.events) })),
+    scrollDepth: scrollRows.map((r) => ({ depthPct: Number(r.depthPct ?? 0), events: Number(r.events) })),
+  });
+});
+
+router.get("/staff/analytics/quality", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
+  // Check for data quality signals without any PII
+  const now = new Date();
+  const last24h = new Date(now.getTime() - 86_400_000);
+  const last7d = new Date(now.getTime() - 7 * 86_400_000);
+
+  const [recent, week] = await Promise.all([
+    db
+      .select({ value: count() })
+      .from(analyticsEventsTable)
+      .where(and(gte(analyticsEventsTable.occurredAt, last24h), inArray(analyticsEventsTable.consent, ["analytics", "marketing"]))),
+    db
+      .select({ value: count() })
+      .from(analyticsEventsTable)
+      .where(and(gte(analyticsEventsTable.occurredAt, last7d), inArray(analyticsEventsTable.consent, ["analytics", "marketing"]))),
+  ]);
+
+  const events24h = Number(recent[0]?.value ?? 0);
+  const events7d = Number(week[0]?.value ?? 0);
+  const avgDaily = events7d / 7;
+
+  const checks: { check: string; status: "ok" | "review" | "issue"; detail: string }[] = [];
+
+  // Spike check: today > 5x 7-day average
+  if (avgDaily > 0 && events24h > avgDaily * 5) {
+    checks.push({ check: "volume_spike", status: "review", detail: `Last 24 h events (${events24h}) are ${Math.round(events24h / avgDaily)}× the 7-day daily average (${Math.round(avgDaily)}).` });
+  } else {
+    checks.push({ check: "volume_spike", status: "ok", detail: `Event volume looks normal. Last 24 h: ${events24h}; 7-day daily avg: ${Math.round(avgDaily)}.` });
+  }
+
+  // Low-signal check: if 7d total < 10, data is thin
+  if (events7d < 10) {
+    checks.push({ check: "signal_volume", status: "review", detail: `Only ${events7d} consented events in the last 7 days — funnel data is not yet statistically meaningful.` });
+  } else {
+    checks.push({ check: "signal_volume", status: "ok", detail: `${events7d} consented events in the last 7 days.` });
+  }
+
+  const overallStatus = checks.some((c) => c.status === "issue") ? "issue"
+    : checks.some((c) => c.status === "review") ? "review"
+    : "ok";
+
+  res.json({ status: overallStatus, checks, generatedAt: now });
+});
+
 router.get("/staff/audit", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   if (!range) {
@@ -576,6 +698,34 @@ router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, 
     columns,
     rows: exportRows,
   }));
+});
+
+// ── Redirect management ────────────────────────────────────────────────────
+
+router.get("/staff/redirects", requireStaffRoles("owner", "operations"), async (_req, res): Promise<void> => {
+  const rows = await db.select().from(redirectsTable).orderBy(desc(redirectsTable.createdAt)).limit(200);
+  res.json(rows);
+});
+
+router.post("/staff/redirects", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
+  const { fromPath, toPath, statusCode } = req.body as Record<string, unknown>;
+  if (typeof fromPath !== "string" || !fromPath.startsWith("/") || typeof toPath !== "string" || !toPath.trim()) {
+    res.status(400).json({ error: "fromPath must start with / and toPath is required" });
+    return;
+  }
+  const code = typeof statusCode === "number" && [301, 302, 307, 308].includes(statusCode) ? statusCode : 301;
+  const [row] = await db.insert(redirectsTable).values({ fromPath: fromPath.trim(), toPath: toPath.trim(), statusCode: code })
+    .onConflictDoUpdate({ target: redirectsTable.fromPath, set: { toPath: toPath.trim(), statusCode: code } })
+    .returning();
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.upserted", entityType: "redirect", entityId: row!.id, metadata: { fromPath, toPath, statusCode: code } });
+  res.status(201).json(row);
+});
+
+router.delete("/staff/redirects/:id", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
+  const [row] = await db.delete(redirectsTable).where(eq(redirectsTable.id, req.params.id as string)).returning({ id: redirectsTable.id });
+  if (!row) { res.status(404).json({ error: "Redirect not found" }); return; }
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.deleted", entityType: "redirect", entityId: row.id, metadata: {} });
+  res.status(204).send();
 });
 
 export default router;

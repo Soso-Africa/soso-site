@@ -625,13 +625,14 @@ components:
       allOf:
         - $ref: "#/components/schemas/JournalPostSummary"
         - type: object
-          required: [body]
+          required: [body, updatedAt]
           properties:
             body: { type: string }
             seoTitle: { type: ["string", "null"] }
             seoDescription: { type: ["string", "null"] }
             relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
             relatedArticleSlugs: { type: ["array", "null"], items: { type: string } }
+            updatedAt: { type: string, format: date-time }
     StaffJournalPostInput:
       type: object
       required: [slug, title, excerpt, body, authorName, status]
