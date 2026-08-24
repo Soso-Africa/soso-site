@@ -6,6 +6,7 @@ import healthRouter from "./health";
 import paymentRouter from "./payment";
 import redirectsRouter from "./redirects";
 import sitemapRouter from "./sitemap";
+import staffAuthRouter from "./staff-auth";
 import staffContentRouter from "./staff-content";
 import staffRouter from "./staff";
 
@@ -18,6 +19,7 @@ router.use(faqRouter);
 router.use(paymentRouter);
 router.use(redirectsRouter);
 router.use(sitemapRouter);
+router.use(staffAuthRouter);
 router.use(staffRouter);
 router.use(staffContentRouter);
 

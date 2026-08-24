@@ -4,7 +4,6 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, useLocation, Router as WouterRouter, Redirect } from 'wouter';
-import { Show } from "@clerk/react";
 
 import { CartProvider } from '@/context/CartContext';
 import { Navbar } from '@/components/Navbar';
@@ -29,7 +28,6 @@ import About from '@/pages/About';
 import FAQ from '@/pages/FAQ';
 import CollectionPage from '@/pages/CollectionPage';
 import SignIn from '@/pages/SignIn';
-import SignUp from '@/pages/SignUp';
 import Staff from '@/pages/Staff';
 import NotFound from '@/pages/not-found';
 
@@ -61,24 +59,11 @@ function Router() {
         <Route path="/returns" component={ReturnsRedirect} />
         <Route path="/care" component={Policy} />
         <Route path="/sign-in/*?" component={SignIn} />
-        <Route path="/sign-up/*?" component={SignUp} />
-        <Route path="/staff" component={StaffGate} />
+        <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
+        <Route path="/staff" component={Staff} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>
-  );
-}
-
-function StaffGate() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Staff />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
   );
 }
 

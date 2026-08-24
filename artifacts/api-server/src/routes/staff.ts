@@ -51,6 +51,7 @@ import {
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
+import { newManagedStaffIdentity, setManagedStaffPassword } from "./staff-auth";
 import {
   buildAnalyticsQualityReport,
   QUALITY_EVENT_LIMIT,
@@ -198,25 +199,45 @@ router.get("/staff/access", requireStaffRoles("owner"), async (_req, res): Promi
 });
 
 router.post("/staff/access", requireStaffRoles("owner"), async (req, res): Promise<void> => {
-  const parsed = CreateStaffAccessBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Provide a Clerk user ID, email, and valid SOSO role." });
+  const email = normalizedEmail(req.body?.email);
+  const password = req.body?.password;
+  const role = req.body?.role;
+  if (!email || typeof password !== "string" || password.length < 12 || !["owner", "operations", "stylist", "editor", "analyst"].includes(role)) {
+    res.status(400).json({ error: "Provide an email, a strong temporary password, and a valid SOSO role." });
     return;
   }
-  const email = normalizedEmail(parsed.data.email);
-  const clerkUserId = parsed.data.clerkUserId.trim();
   const [existing] = await db.select({ id: staffUsersTable.id }).from(staffUsersTable)
-    .where(or(eq(staffUsersTable.clerkUserId, clerkUserId), eq(staffUsersTable.email, email))).limit(1);
+    .where(eq(staffUsersTable.email, email)).limit(1);
   if (existing) {
-    res.status(400).json({ error: "That Clerk user already has a staff mapping." });
+    res.status(400).json({ error: "That email address already has staff access." });
     return;
   }
-  const [created] = await db.insert(staffUsersTable).values({ clerkUserId, email, role: parsed.data.role, isActive: true }).returning();
+  const [created] = await db.insert(staffUsersTable).values({ clerkUserId: newManagedStaffIdentity(), email, role: role as StaffUser["role"], isActive: true }).returning();
+  await setManagedStaffPassword(created!.id, password);
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.created", entityType: "staff_user", entityId: created!.id,
-    metadata: auditMetadata({ email, role: parsed.data.role }),
+    metadata: auditMetadata({ email, role }),
   });
   res.status(201).json(CreateStaffAccessResponse.parse(created));
+});
+
+router.post("/staff/access/:id/password", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const password = req.body?.password;
+  if (typeof password !== "string" || password.length < 12) {
+    res.status(400).json({ error: "Use a temporary password with at least 12 characters." });
+    return;
+  }
+  const [target] = await db.select().from(staffUsersTable).where(eq(staffUsersTable.id, req.params.id)).limit(1);
+  if (!target) {
+    res.status(404).json({ error: "Staff account not found." });
+    return;
+  }
+  await setManagedStaffPassword(target.id, password);
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.password_reset", entityType: "staff_user", entityId: target.id,
+    metadata: auditMetadata({ email: target.email }),
+  });
+  res.status(204).end();
 });
 
 router.patch("/staff/access/:id", requireStaffRoles("owner"), async (req, res): Promise<void> => {

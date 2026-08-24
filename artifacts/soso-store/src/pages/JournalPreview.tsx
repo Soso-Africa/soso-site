@@ -8,7 +8,6 @@
 
 import React from "react";
 import { useRoute, Link } from "wouter";
-import { useAuth } from "@clerk/react";
 import { useListStaffJournalPosts } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { ArrowLeft, Clock, Eye, Tag } from "lucide-react";
@@ -16,26 +15,15 @@ import { Seo } from "@/components/Seo";
 
 export default function JournalPreview() {
   const [, params] = useRoute("/journal/preview/:slug");
-  const { isLoaded, isSignedIn } = useAuth();
-
   const { data: allPosts, isLoading, error } = useListStaffJournalPosts({
-    query: { queryKey: ["staff-journal-preview"], enabled: !!params?.slug && isSignedIn === true },
+    query: { queryKey: ["staff-journal-preview"], enabled: !!params?.slug },
   });
   const post = allPosts?.find((p) => p.slug === params?.slug);
 
-  if (!isLoaded || isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <span className="text-muted-foreground text-sm animate-pulse">Loading preview…</span>
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <div className="max-w-2xl mx-auto px-6 py-24 text-center">
-        <p className="soso-display text-3xl">Staff sign-in required</p>
-        <Link href="/sign-in" className="mt-6 inline-block text-sm text-primary underline underline-offset-4">Sign in to preview articles</Link>
       </div>
     );
   }

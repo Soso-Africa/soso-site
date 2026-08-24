@@ -1,10 +1,9 @@
-import { getAuth } from "@clerk/express";
 import type { NextFunction, Request, Response } from "express";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
- * Browser requests that carry a Clerk session cookie must come from the same
+ * Browser requests that carry a staff session cookie must come from the same
  * storefront origin. Unauthenticated public requests without an Origin header
  * remain available for rate-limited browser and future server integrations;
  * signed webhook routes must add their own signature verification.
@@ -17,7 +16,7 @@ export function requireSameOriginForWrites(req: Request, res: Response, next: Ne
 
   const origin = req.get("origin");
   if (!origin) {
-    if (getAuth(req).userId) {
+    if (req.staff) {
       res.status(403).json({ error: "Origin is required for authenticated write requests" });
       return;
     }

@@ -416,9 +416,6 @@ export const buildFaqCreateAuditMetadata = (row: typeof faqItemsTable.$inferSele
   snapshot: faqSnapshot(row),
   transition: { from: null, to: row.isPublished ? "published" : "draft" },
 });
-  const rows = await db.select().from(faqItemsTable).orderBy(asc(faqItemsTable.sortOrder), asc(faqItemsTable.createdAt));
-  res.json(rows);
-});
 
 router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
   const { question, answer, category, sortOrder, isPublished } = req.body as Record<string, unknown>;

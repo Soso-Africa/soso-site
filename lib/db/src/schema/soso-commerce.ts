@@ -86,6 +86,8 @@ export const staffUsersTable = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     clerkUserId: text("clerk_user_id").notNull(),
     email: text("email").notNull(),
+    passwordHash: text("password_hash"),
+    passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
     role: staffRoleEnum("role").notNull(),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -94,6 +96,23 @@ export const staffUsersTable = pgTable(
   (table) => [
     uniqueIndex("soso_staff_users_clerk_user_id_idx").on(table.clerkUserId),
     uniqueIndex("soso_staff_users_email_idx").on(table.email),
+  ],
+);
+
+export const staffSessionsTable = pgTable(
+  "soso_staff_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    staffUserId: uuid("staff_user_id").notNull().references(() => staffUsersTable.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("soso_staff_sessions_token_idx").on(table.tokenHash),
+    index("soso_staff_sessions_staff_expiry_idx").on(table.staffUserId, table.expiresAt),
   ],
 );
 
@@ -476,6 +495,7 @@ export const auditLogsTable = pgTable(
 );
 
 export const insertStaffUserSchema = createInsertSchema(staffUsersTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStaffSessionSchema = createInsertSchema(staffSessionsTable).omit({ id: true, createdAt: true, lastSeenAt: true, revokedAt: true });
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItemsTable).omit({ id: true, createdAt: true });
 export const insertCustomerEnquirySchema = createInsertSchema(customerEnquiriesTable).omit({ id: true, createdAt: true, updatedAt: true });
@@ -494,6 +514,7 @@ export type PolicyDocument = typeof policyDocumentsTable.$inferSelect;
 export type SiteContent = typeof siteContentTable.$inferSelect;
 export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
+export type StaffSession = typeof staffSessionsTable.$inferSelect;
 export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;
 export type CommerceCheckoutAttempt = typeof commerceCheckoutAttemptsTable.$inferSelect;
