@@ -20,6 +20,7 @@ import {
 } from "@workspace/db";
 import { asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
+import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 
 const router: IRouter = Router();
 
@@ -67,8 +68,10 @@ router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (r
     res.status(400).json({ error: "Primary CTA must link to a local storefront path" });
     return;
   }
+  const [current] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+  const next = saveSiteDraft(current, draft, req.staff!.clerkUserId);
   const [row] = await db.insert(siteContentTable).values({
-    key: "site", draft, updatedByClerkUserId: req.staff!.clerkUserId,
+    key: next.key, draft: next.draft, updatedByClerkUserId: next.updatedByClerkUserId,
   }).onConflictDoUpdate({
     target: siteContentTable.key,
     set: { draft, draftUpdatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId },
@@ -84,13 +87,13 @@ router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (r
 router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
   const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
-  const now = new Date();
+  const { row: published, audit } = publishSiteDraft(existing, req.staff!.clerkUserId);
   const [row] = await db.update(siteContentTable).set({
-    published: existing.draft, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
+    published: published.published, publishedAt: published.publishedAt, publishedByClerkUserId: published.publishedByClerkUserId,
   }).where(eq(siteContentTable.key, "site")).returning();
   await db.insert(auditLogsTable).values({
-    actorClerkUserId: req.staff!.clerkUserId, action: "site_content.published",
-    entityType: "site_content", entityId: "site", metadata: { publishedAt: now.toISOString() },
+    actorClerkUserId: audit.actorClerkUserId, action: audit.action,
+    entityType: audit.entityType, entityId: audit.entityId, metadata: audit.metadata,
   });
   res.json(row);
 });
@@ -176,6 +179,11 @@ router.post(
     const parsed = CreateStaffJournalPostBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Please complete the article details" });
+      return;
+    }
+    const params = UpdateStaffJournalPostParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid article reference" });
       return;
     }
 

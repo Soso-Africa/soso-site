@@ -21,6 +21,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
+import { publicSiteContent } from "./site-content-policy";
 
 const router: IRouter = Router();
 const ENQUIRY_RATE_WINDOW_MS = 60_000;
@@ -138,7 +139,7 @@ router.get("/journal", async (_req, res): Promise<void> => {
 router.get("/content/site", async (_req, res): Promise<void> => {
   const [row] = await db.select({ content: siteContentTable.published })
     .from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
-  res.json({ content: row?.content ?? {} });
+  res.json(publicSiteContent(row ? { published: row.content } : undefined));
 });
 
 router.get("/journal/:slug", async (req, res): Promise<void> => {
