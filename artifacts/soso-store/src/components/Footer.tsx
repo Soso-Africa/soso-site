@@ -63,6 +63,7 @@ export function Footer() {
           <button type="button" onClick={openPrivacyChoices} className="soso-link">Cookie choices</button>
           <Link href="/terms" className="soso-link">Terms</Link>
           <Link href="/faq" className="soso-link">FAQs</Link>
+           <Link href="/staff" className="soso-link">Staff portal</Link>
           <span>Prices are shown in Nigerian Naira (₦). Atelier making details are confirmed after payment.</span>
         </div>
       </div>

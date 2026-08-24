@@ -28,19 +28,7 @@ const router: IRouter = Router();
 router.use("/staff", requireStaff);
 
 router.get("/staff/content/site", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
-  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
-
-const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
-  ...row,
-  effectiveAt: row.effectiveAt?.toISOString() ?? null,
-  reviewedAt: row.reviewedAt?.toISOString() ?? null,
-  approvedAt: row.approvedAt?.toISOString() ?? null,
-  publishedAt: row.publishedAt?.toISOString() ?? null,
-});
-
-  const policyId = req.params.id as string;
-
-  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
+  const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   res.json(row ?? {
     key: "site",
     draft: {},
@@ -81,19 +69,12 @@ router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (r
     res.status(400).json({ error: "Primary CTA must link to a local storefront path" });
     return;
   }
-  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
-
-const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
-  ...row,
-  effectiveAt: row.effectiveAt?.toISOString() ?? null,
-  reviewedAt: row.reviewedAt?.toISOString() ?? null,
-  approvedAt: row.approvedAt?.toISOString() ?? null,
-  publishedAt: row.publishedAt?.toISOString() ?? null,
-});
-
-  const policyId = req.params.id as string;
-
-  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
+  const [row] = await db.insert(siteContentTable).values({
+    key: "site", draft, updatedByClerkUserId: req.staff!.clerkUserId,
+  }).onConflictDoUpdate({
+    target: siteContentTable.key,
+    set: { draft, draftUpdatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId },
+  }).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
     entityType: "site_content", entityId: "site",
@@ -106,19 +87,9 @@ router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"),
   const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
   const now = new Date();
-  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
-
-const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
-  ...row,
-  effectiveAt: row.effectiveAt?.toISOString() ?? null,
-  reviewedAt: row.reviewedAt?.toISOString() ?? null,
-  approvedAt: row.approvedAt?.toISOString() ?? null,
-  publishedAt: row.publishedAt?.toISOString() ?? null,
-});
-
-  const policyId = req.params.id as string;
-
-  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
+  const [row] = await db.update(siteContentTable).set({
+    published: existing.draft, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
+  }).where(eq(siteContentTable.key, "site")).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "site_content.published",
     entityType: "site_content", entityId: "site", metadata: { publishedAt: now.toISOString() },
@@ -510,12 +481,3 @@ router.get("/staff/policies/:id/revisions", requireStaffRoles("owner", "editor")
 });
 
 export default router;
-
-  const current = (await db.select().from(policyDocumentsTable).where(eq(policyDocumentsTable.id, req.params.id as string)).limit(1))[0];
-
-  const { slug, title, summary, sections } = req.body as Record<string, unknown>;
-
-  const existing = await db.select({ version: policyDocumentsTable.version }).from(policyDocumentsTable)
-    .where(eq(policyDocumentsTable.slug, slug as string)).orderBy(desc(policyDocumentsTable.version)).limit(1);
-
-  const { title, summary, sections } = req.body as Record<string, unknown>;
