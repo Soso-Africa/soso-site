@@ -14,3 +14,9 @@ For Vercel, keep the function entrypoint in compiled JavaScript/ESM rather than 
 **Why:** Vercel can apply NodeNext-style TypeScript resolution to function source independently of the workspace's bundler-mode TypeScript settings, which rejects otherwise valid extensionless workspace imports.
 
 **How to apply:** Build the Express app bundle during the root Vercel build, then have the `/api` function import that compiled handler. Preserve the normal API listener bundle for Replit development.
+
+For a Vite static output plus Express API on Vercel, route every API depth explicitly through a fixed JavaScript function and restore the captured path before calling Express.
+
+**Why:** In this deployment shape, Vercel matched a bracketed catch-all function for one API segment but returned its own 404 for nested paths, preventing Clerk proxy and staff endpoints from reaching Express.
+
+**How to apply:** Keep the compiled Express bundle, use a fixed `/api` function entry, and add the Vercel route mapping before the filesystem and SPA fallback routes. Confirm a nested unauthenticated API request reaches Express with its expected 401/404 rather than a Vercel 404.
