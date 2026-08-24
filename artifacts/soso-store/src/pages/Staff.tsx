@@ -937,7 +937,7 @@ function useCrudFetch<T>(path: string, enabled: boolean) {
   const load = useCallback(() => {
     if (!enabled) return;
     setLoading(true);
-    void customFetch<T[]>(path)
+    void customFetch<T[]>(`/api${path}`)
       .then((d: T[]) => setData(d))
       .catch((e: unknown) => setError(errorMessage(e, "Failed to load.")))
       .finally(() => setLoading(false));
@@ -960,9 +960,9 @@ function FaqManagementSection() {
     setNotice("");
     try {
       if (editing.id) {
-        await customFetch(`/staff/faq/${editing.id}`, { method: "PATCH", body: JSON.stringify(editing) });
+        await customFetch(`/api/staff/faq/${editing.id}`, { method: "PATCH", body: JSON.stringify(editing) });
       } else {
-        await customFetch("/staff/faq", { method: "POST", body: JSON.stringify(editing) });
+        await customFetch("/api/staff/faq", { method: "POST", body: JSON.stringify(editing) });
       }
       setNotice("Saved.");
       setEditing(null);
@@ -977,7 +977,7 @@ function FaqManagementSection() {
   const del = async (id: string) => {
     setDeletingId(id);
     try {
-      await customFetch(`/staff/faq/${id}`, { method: "DELETE" });
+      await customFetch(`/api/staff/faq/${id}`, { method: "DELETE" });
       reload();
     } catch (err) {
       setNotice(errorMessage(err, "Delete failed."));
@@ -1055,7 +1055,7 @@ function RedirectsManagementSection() {
     setSaving(true);
     setNotice("");
     try {
-      await customFetch("/staff/redirects", { method: "POST", body: JSON.stringify(form) });
+      await customFetch("/api/staff/redirects", { method: "POST", body: JSON.stringify(form) });
       setNotice("Redirect saved.");
       setForm({ fromPath: "", toPath: "", statusCode: 301 });
       reload();
@@ -1069,7 +1069,7 @@ function RedirectsManagementSection() {
   const del = async (id: string) => {
     setDeletingId(id);
     try {
-      await customFetch(`/staff/redirects/${id}`, { method: "DELETE" });
+      await customFetch(`/api/staff/redirects/${id}`, { method: "DELETE" });
       reload();
     } catch (err) {
       setNotice(errorMessage(err, "Delete failed."));
