@@ -10,6 +10,12 @@ import {
   GetStaffFunnelResponse,
   GetStaffOverviewResponse,
   GetStaffProfileResponse,
+  ListStaffAccessResponse,
+  CreateStaffAccessBody,
+  CreateStaffAccessResponse,
+  UpdateStaffAccessBody,
+  UpdateStaffAccessParams,
+  UpdateStaffAccessResponse,
   ListStaffAuditEventsResponse,
   ListStaffEnquiriesResponse,
   ListStaffNotificationsResponse,
@@ -39,6 +45,7 @@ import {
   ordersTable,
   privacyRequestsTable,
   privacyAccessPackagesTable,
+  staffUsersTable,
 } from "@workspace/db";
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
@@ -152,6 +159,66 @@ router.get("/staff/me", (req, res): void => {
       role: req.staff!.role,
     }),
   );
+});
+
+router.get("/staff/access", requireStaffRoles("owner"), async (_req, res): Promise<void> => {
+  const mappings = await db.select().from(staffUsersTable).orderBy(desc(staffUsersTable.isActive), desc(staffUsersTable.updatedAt));
+  res.json(ListStaffAccessResponse.parse(mappings));
+});
+
+router.post("/staff/access", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const parsed = CreateStaffAccessBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Provide a Clerk user ID, email, and valid SOSO role." });
+    return;
+  }
+  const email = normalizedEmail(parsed.data.email);
+  const clerkUserId = parsed.data.clerkUserId.trim();
+  const [existing] = await db.select({ id: staffUsersTable.id }).from(staffUsersTable)
+    .where(or(eq(staffUsersTable.clerkUserId, clerkUserId), eq(staffUsersTable.email, email))).limit(1);
+  if (existing) {
+    res.status(400).json({ error: "That Clerk user already has a staff mapping." });
+    return;
+  }
+  const [created] = await db.insert(staffUsersTable).values({ clerkUserId, email, role: parsed.data.role, isActive: true }).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.created", entityType: "staff_user", entityId: created!.id,
+    metadata: auditMetadata({ email, role: parsed.data.role }),
+  });
+  res.status(201).json(CreateStaffAccessResponse.parse(created));
+});
+
+router.patch("/staff/access/:id", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const params = UpdateStaffAccessParams.safeParse(req.params);
+  const parsed = UpdateStaffAccessBody.safeParse(req.body);
+  if (!params.success || !parsed.success || (parsed.data.role === undefined && parsed.data.isActive === undefined)) {
+    res.status(400).json({ error: "Provide a role or active status." });
+    return;
+  }
+  const [target] = await db.select().from(staffUsersTable).where(eq(staffUsersTable.id, params.data.id)).limit(1);
+  if (!target) {
+    res.status(404).json({ error: "Staff mapping not found." });
+    return;
+  }
+  if (target.role === "owner" && target.isActive && (parsed.data.isActive === false || parsed.data.role !== undefined && parsed.data.role !== "owner")) {
+    const [{ value: ownerCount }] = await db.select({ value: count() }).from(staffUsersTable)
+      .where(and(eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true)));
+    if (Number(ownerCount) <= 1) {
+      res.status(400).json({ error: "The final active owner cannot be removed or changed." });
+      return;
+    }
+  }
+  const updates = {
+    ...(parsed.data.role !== undefined ? { role: parsed.data.role } : {}),
+    ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+    updatedAt: new Date(),
+  };
+  const [updated] = await db.update(staffUsersTable).set(updates).where(eq(staffUsersTable.id, target.id)).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.updated", entityType: "staff_user", entityId: target.id,
+    metadata: auditMetadata({ email: target.email, beforeRole: target.role, afterRole: updated!.role, beforeActive: target.isActive, afterActive: updated!.isActive }),
+  });
+  res.json(UpdateStaffAccessResponse.parse(updated));
 });
 
 router.get("/staff/overview", async (req, res): Promise<void> => {

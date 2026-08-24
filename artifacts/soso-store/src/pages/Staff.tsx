@@ -9,6 +9,7 @@ import {
   type AnalyticsQualityReport,
   useGetStaffOverview,
   useGetStaffProfile,
+  useListStaffAccess,
   useListStaffAuditEvents,
   useListStaffEnquiries,
   useListStaffJournalPosts,
@@ -205,8 +206,40 @@ export default function Staff() {
       {(profile.role === "owner" || profile.role === "editor") && <SiteContentManagementSection />}
       {(profile.role === "owner" || profile.role === "editor") && <FaqManagementSection />}
       {(profile.role === "owner" || profile.role === "operations") && <RedirectsManagementSection />}
+      {profile.role === "owner" && <StaffAccessSection />}
     </main>
   );
+}
+
+function StaffAccessSection() {
+  const access = useListStaffAccess({ query: { queryKey: ["staff-access"], refetchInterval: 60_000 } });
+  const [clerkUserId, setClerkUserId] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"owner" | "operations" | "stylist" | "editor" | "analyst">("operations");
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); setSaving(true);
+    try {
+      await customFetch("/api/staff/access", { method: "POST", body: JSON.stringify({ clerkUserId, email, role }), headers: { "content-type": "application/json" } });
+      setClerkUserId(""); setEmail(""); setNotice("Staff access added."); void access.refetch();
+    } catch (error) { setNotice(errorMessage(error, "Staff access could not be added.")); } finally { setSaving(false); }
+  };
+  const update = async (id: string, data: { role?: string; isActive?: boolean }) => {
+    try { await customFetch(`/api/staff/access/${id}`, { method: "PATCH", body: JSON.stringify(data), headers: { "content-type": "application/json" } }); setNotice("Staff access updated."); void access.refetch(); }
+    catch (error) { setNotice(errorMessage(error, "Staff access could not be updated.")); }
+  };
+  return <section className="mt-12 border-t border-border pt-10">
+    <SectionHeading icon={Users} title="Staff access" description="Owners can assign roles to existing Clerk users, review inactive mappings, and deactivate access. Every change is recorded." />
+    <form onSubmit={submit} className="grid gap-3 border border-border bg-card p-5 md:grid-cols-[1fr_1fr_0.7fr_auto] md:items-end">
+      <InputLabel label="Clerk user ID"><input required value={clerkUserId} onChange={(e) => setClerkUserId(e.target.value)} className="staff-input mt-1" placeholder="user_…" /></InputLabel>
+      <InputLabel label="Email"><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="staff-input mt-1" /></InputLabel>
+      <InputLabel label="Role"><select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="staff-input mt-1">{["owner", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select></InputLabel>
+      <button disabled={saving} className="inline-flex min-h-10 items-center justify-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Plus size={14} /> Add access</button>
+    </form>
+    {notice && <p role="status" className="mt-3 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
+    <div className="mt-5 border border-border bg-card">{access.isLoading ? <LoadingRows /> : !access.data?.length ? <Empty label="No staff mappings yet." /> : <div className="divide-y divide-border">{access.data.map((member) => <div key={member.id} className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="font-medium">{member.email}</p><p className="mt-1 text-xs text-muted-foreground">{member.clerkUserId} · added {format(new Date(member.createdAt), "d MMM yyyy")}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${member.isActive ? "border-green-500/30 text-green-600" : "border-border text-muted-foreground"}`}>{member.isActive ? "Active" : "Inactive"}</span><select value={member.role} onChange={(e) => void update(member.id, { role: e.target.value })} className="staff-input w-auto" aria-label={`Role for ${member.email}`}>{["owner", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select><button type="button" onClick={() => void update(member.id, { isActive: !member.isActive })} className="border border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider hover:border-primary">{member.isActive ? "Deactivate" : "Reactivate"}</button></div></div>)}</div>}</div>
+  </section>;
 }
 
 type EditableSiteContent = Record<string, string>;

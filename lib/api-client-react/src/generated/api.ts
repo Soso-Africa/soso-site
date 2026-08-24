@@ -47,6 +47,9 @@ import type {
   PrivacyRequestAcknowledgement,
   PrivacyRequestInput,
   RedirectLookup,
+  StaffAccessInput,
+  StaffAccessMapping,
+  StaffAccessUpdate,
   StaffAuditEvent,
   StaffEnquiryUpdate,
   StaffExport,
@@ -1220,6 +1223,226 @@ export function useGetStaffProfile<TData = Awaited<ReturnType<typeof getStaffPro
 
 
 
+
+export const getListStaffAccessUrl = () => {
+
+
+
+
+  return `/api/staff/access`
+}
+
+/**
+ * @summary List active and inactive staff access mappings
+ */
+export const listStaffAccess = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessMapping[]> => {
+
+  return customFetch<StaffAccessMapping[]>(getListStaffAccessUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffAccessQueryKey = () => {
+    return [
+    `/api/staff/access`
+    ] as const;
+    }
+
+
+export const getListStaffAccessQueryOptions = <TData = Awaited<ReturnType<typeof listStaffAccess>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffAccessQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffAccess>>> = ({ signal }) => listStaffAccess({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffAccessQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffAccess>>>
+export type ListStaffAccessQueryError = ErrorType<void>
+
+
+/**
+ * @summary List active and inactive staff access mappings
+ */
+
+export function useListStaffAccess<TData = Awaited<ReturnType<typeof listStaffAccess>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffAccessQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffAccessUrl = () => {
+
+
+
+
+  return `/api/staff/access`
+}
+
+/**
+ * @summary Assign an SOSO role to an existing Clerk user
+ */
+export const createStaffAccess = async (staffAccessInput: StaffAccessInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessMapping> => {
+
+  return customFetch<StaffAccessMapping>(getCreateStaffAccessUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffAccessInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffAccessMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffAccess>>, TError,{data: BodyType<StaffAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffAccess>>, TError,{data: BodyType<StaffAccessInput>}, TContext> => {
+
+const mutationKey = ['createStaffAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffAccess>>, {data: BodyType<StaffAccessInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffAccess(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffAccessMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffAccess>>>
+    export type CreateStaffAccessMutationBody = BodyType<StaffAccessInput>
+    export type CreateStaffAccessMutationError = ErrorType<void>
+
+    /**
+ * @summary Assign an SOSO role to an existing Clerk user
+ */
+export const useCreateStaffAccess = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffAccess>>, TError,{data: BodyType<StaffAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffAccess>>,
+        TError,
+        {data: BodyType<StaffAccessInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffAccessMutationOptions(options));
+    }
+
+export const getUpdateStaffAccessUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/access/${id}`
+}
+
+/**
+ * @summary Change a staff role or deactivate staff access
+ */
+export const updateStaffAccess = async (id: string,
+    staffAccessUpdate: StaffAccessUpdate, options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessMapping> => {
+
+  return customFetch<StaffAccessMapping>(getUpdateStaffAccessUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffAccessUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffAccessMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffAccess>>, TError,{id: string;data: BodyType<StaffAccessUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffAccess>>, TError,{id: string;data: BodyType<StaffAccessUpdate>}, TContext> => {
+
+const mutationKey = ['updateStaffAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffAccess>>, {id: string;data: BodyType<StaffAccessUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStaffAccess(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffAccessMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffAccess>>>
+    export type UpdateStaffAccessMutationBody = BodyType<StaffAccessUpdate>
+    export type UpdateStaffAccessMutationError = ErrorType<void>
+
+    /**
+ * @summary Change a staff role or deactivate staff access
+ */
+export const useUpdateStaffAccess = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffAccess>>, TError,{id: string;data: BodyType<StaffAccessUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffAccess>>,
+        TError,
+        {id: string;data: BodyType<StaffAccessUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffAccessMutationOptions(options));
+    }
 
 export const getGetStaffOverviewUrl = (params?: GetStaffOverviewParams,) => {
   const normalizedParams = new URLSearchParams();

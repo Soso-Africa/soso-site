@@ -304,6 +304,72 @@ paths:
           description: Authentication required
         "403":
           description: Staff access required
+  /staff/access:
+    get:
+      operationId: listStaffAccess
+      tags: [staff]
+      summary: List active and inactive staff access mappings
+      responses:
+        "200":
+          description: Staff access mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAccessMapping"
+        "403":
+          description: Owner access required
+    post:
+      operationId: createStaffAccess
+      tags: [staff]
+      summary: Assign an SOSO role to an existing Clerk user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffAccessInput"
+      responses:
+        "201":
+          description: Staff access mapping created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessMapping"
+        "400":
+          description: Invalid or duplicate mapping
+        "403":
+          description: Owner access required
+  /staff/access/{id}:
+    patch:
+      operationId: updateStaffAccess
+      tags: [staff]
+      summary: Change a staff role or deactivate staff access
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffAccessUpdate"
+      responses:
+        "200":
+          description: Staff access mapping updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessMapping"
+        "400":
+          description: Invalid update or final owner protection
+        "403":
+          description: Owner access required
+        "404":
+          description: Mapping not found
   /staff/overview:
     get:
       operationId: getStaffOverview
@@ -937,6 +1003,30 @@ components:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         email: { type: string, maxLength: 320 }
         role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+    StaffAccessInput:
+      type: object
+      required: [clerkUserId, email, role]
+      properties:
+        clerkUserId: { type: string, minLength: 1, maxLength: 128 }
+        email: { type: string, maxLength: 320 }
+        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+    StaffAccessUpdate:
+      type: object
+      properties:
+        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+        isActive: { type: boolean }
+      minProperties: 1
+    StaffAccessMapping:
+      type: object
+      required: [id, clerkUserId, email, role, isActive, createdAt, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        clerkUserId: { type: string }
+        email: { type: string, maxLength: 320 }
+        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     StaffOrder:
       type: object
       required: [id, orderNumber, customerName, customerEmail, total, currency, status, createdAt, updatedAt]

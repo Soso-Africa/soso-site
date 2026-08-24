@@ -457,6 +457,88 @@ export const GetStaffProfileResponse = zod.object({
 
 
 /**
+ * @summary List active and inactive staff access mappings
+ */
+export const listStaffAccessResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const listStaffAccessResponseEmailMax = 320;
+
+
+
+export const ListStaffAccessResponseItem = zod.object({
+  "id": zod.string().regex(listStaffAccessResponseIdRegExp),
+  "clerkUserId": zod.string(),
+  "email": zod.string().max(listStaffAccessResponseEmailMax),
+  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListStaffAccessResponse = zod.array(ListStaffAccessResponseItem)
+
+
+/**
+ * @summary Assign an SOSO role to an existing Clerk user
+ */
+export const createStaffAccessBodyClerkUserIdMax = 128;
+
+export const createStaffAccessBodyEmailMax = 320;
+
+
+
+export const CreateStaffAccessBody = zod.object({
+  "clerkUserId": zod.string().min(1).max(createStaffAccessBodyClerkUserIdMax),
+  "email": zod.string().max(createStaffAccessBodyEmailMax),
+  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst'])
+})
+
+export const createStaffAccessResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const createStaffAccessResponseEmailMax = 320;
+
+
+
+export const CreateStaffAccessResponse = zod.object({
+  "id": zod.string().regex(createStaffAccessResponseIdRegExp),
+  "clerkUserId": zod.string(),
+  "email": zod.string().max(createStaffAccessResponseEmailMax),
+  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Change a staff role or deactivate staff access
+ */
+export const updateStaffAccessPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffAccessParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffAccessPathIdRegExp)
+})
+
+export const UpdateStaffAccessBody = zod.object({
+  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']).optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const updateStaffAccessResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const updateStaffAccessResponseEmailMax = 320;
+
+
+
+export const UpdateStaffAccessResponse = zod.object({
+  "id": zod.string().regex(updateStaffAccessResponseIdRegExp),
+  "clerkUserId": zod.string(),
+  "email": zod.string().max(updateStaffAccessResponseEmailMax),
+  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']),
+  "isActive": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Get operational and funnel overview
  */
 export const getStaffOverviewQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');

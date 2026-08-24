@@ -515,6 +515,67 @@ export interface StaffProfile {
   role: StaffProfileRole;
 }
 
+export type StaffAccessInputRole = typeof StaffAccessInputRole[keyof typeof StaffAccessInputRole];
+
+
+export const StaffAccessInputRole = {
+  owner: 'owner',
+  operations: 'operations',
+  stylist: 'stylist',
+  editor: 'editor',
+  analyst: 'analyst',
+} as const;
+
+export interface StaffAccessInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  clerkUserId: string;
+  /** @maxLength 320 */
+  email: string;
+  role: StaffAccessInputRole;
+}
+
+export type StaffAccessUpdateRole = typeof StaffAccessUpdateRole[keyof typeof StaffAccessUpdateRole];
+
+
+export const StaffAccessUpdateRole = {
+  owner: 'owner',
+  operations: 'operations',
+  stylist: 'stylist',
+  editor: 'editor',
+  analyst: 'analyst',
+} as const;
+
+export interface StaffAccessUpdate {
+  role?: StaffAccessUpdateRole;
+  isActive?: boolean;
+}
+
+export type StaffAccessMappingRole = typeof StaffAccessMappingRole[keyof typeof StaffAccessMappingRole];
+
+
+export const StaffAccessMappingRole = {
+  owner: 'owner',
+  operations: 'operations',
+  stylist: 'stylist',
+  editor: 'editor',
+  analyst: 'analyst',
+} as const;
+
+export interface StaffAccessMapping {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  clerkUserId: string;
+  /** @maxLength 320 */
+  email: string;
+  role: StaffAccessMappingRole;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
  * @nullable
  */
