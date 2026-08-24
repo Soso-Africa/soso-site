@@ -205,6 +205,7 @@ export default function Staff() {
       {(profile.role === "owner" || profile.role === "editor") && <JournalManagementSection />}
       {(profile.role === "owner" || profile.role === "editor") && <SiteContentManagementSection />}
       {(profile.role === "owner" || profile.role === "editor") && <FaqManagementSection />}
+      {(profile.role === "owner" || profile.role === "editor") && <PolicyManagementSection role={profile.role} />}
       {(profile.role === "owner" || profile.role === "operations") && <RedirectsManagementSection />}
       {profile.role === "owner" && <StaffAccessSection />}
     </main>
@@ -1155,6 +1156,61 @@ function FaqManagementSection() {
   );
 }
 
+function PolicyManagementSection({ role }: { role: string }) {
+  type PolicyRow = {
+    id: string; slug: string; title: string; summary: string;
+    sections: unknown[]; version: number; status: string; effectiveAt: string | null;
+    reviewedAt: string | null; approvedAt: string | null;
+  };
+  const { data: policies, loading, reload } = useCrudFetch<PolicyRow>("/staff/policies", true);
+  const [editing, setEditing] = useState<Partial<PolicyRow> | null>(null);
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editing) return;
+    setSaving(true); setNotice("");
+    try {
+      const sections = typeof editing.sections === "string" ? JSON.parse(editing.sections) : editing.sections;
+      const body = { ...editing, sections };
+      if (editing.id) await customFetch(`/api/staff/policies/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      else await customFetch("/api/staff/policies", { method: "POST", body: JSON.stringify(body) });
+      setEditing(null); setNotice("Policy draft saved."); reload();
+    } catch (error) { setNotice(errorMessage(error, "Policy could not be saved. Check the sections JSON.")); }
+    finally { setSaving(false); }
+  };
+  const action = async (id: string, name: "review" | "approve" | "publish") => {
+    try {
+      const body = name === "publish" ? { effectiveAt: window.prompt("Effective date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10)) } : undefined;
+      await customFetch(`/api/staff/policies/${id}/${name}`, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+      setNotice(`Policy ${name}d.`); reload();
+    } catch (error) { setNotice(errorMessage(error, `Policy could not be ${name}d.`)); }
+  };
+  return <section className="mt-12 border-t border-border pt-10">
+    <SectionHeading icon={FileText} title="Policy governance" description="Draft, review, approve and explicitly publish immutable policy versions. Public pages use only effective published versions." />
+    {notice && <p role="status" className="mb-4 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
+    <div className="flex items-center justify-between mb-4"><span className="text-xs text-muted-foreground">{policies?.length ?? 0} versions</span>
+      <button type="button" onClick={() => setEditing({ slug: "privacy", title: "", summary: "", sections: [], status: "draft" })} className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground"><Plus size={13} /> New policy version</button>
+    </div>
+    {editing && <form onSubmit={(event) => void save(event)} className="mb-6 space-y-3 border border-primary/40 bg-primary/5 p-5">
+      <InputLabel label="Slug"><input required value={editing.slug ?? ""} onChange={(e) => setEditing({ ...editing, slug: e.target.value })} placeholder="privacy, terms, care" className="staff-input mt-1" /></InputLabel>
+      <InputLabel label="Title"><input required value={editing.title ?? ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} className="staff-input mt-1" /></InputLabel>
+      <InputLabel label="Summary"><input required value={editing.summary ?? ""} onChange={(e) => setEditing({ ...editing, summary: e.target.value })} className="staff-input mt-1" /></InputLabel>
+      <InputLabel label="Sections (JSON array of { id, heading, paragraphs?, bullets? })"><textarea required rows={8} value={typeof editing.sections === "string" ? editing.sections : JSON.stringify(editing.sections ?? [], null, 2)} onChange={(e) => setEditing({ ...editing, sections: e.target.value as unknown as unknown[] })} className="staff-input mt-1 font-mono text-xs" /></InputLabel>
+      <div className="flex gap-2"><button disabled={saving} className="inline-flex min-h-10 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground"><Save size={13} className="mr-2" /> Save draft</button><button type="button" onClick={() => setEditing(null)} className="border border-border px-4 text-xs">Cancel</button></div>
+    </form>}
+    {loading ? <LoadingRows /> : <div className="divide-y divide-border border border-border bg-card">
+      {!policies?.length && <Empty label="No database policy versions yet. Existing bundled drafts remain public and noindex until approved." />}
+      {policies?.map((policy) => <div key={policy.id} className="flex flex-wrap items-center gap-3 p-4">
+        <div className="min-w-0 flex-1"><p className="text-sm font-medium">{policy.title} <span className="text-xs text-muted-foreground">v{policy.version} · {policy.slug}</span></p><StatusBadge status={policy.status} /></div>
+        {policy.status !== "published" && <button type="button" onClick={() => setEditing(policy)} className="border border-border px-2 py-2 text-xs">Edit</button>}
+        {policy.status === "draft" && <button type="button" onClick={() => void action(policy.id, "review")} className="border border-border px-2 py-2 text-xs">Submit for review</button>}
+        {policy.status === "review" && role === "owner" && <button type="button" onClick={() => void action(policy.id, "approve")} className="border border-primary px-2 py-2 text-xs text-primary">Approve</button>}
+        {policy.status === "approved" && role === "owner" && <button type="button" onClick={() => void action(policy.id, "publish")} className="bg-primary px-2 py-2 text-xs text-primary-foreground">Publish</button>}
+      </div>)}
+    </div>}
+  </section>;
+}
 function RedirectsManagementSection() {
   const { data: redirects, loading, reload } = useCrudFetch<RedirectRow>("/staff/redirects", true);
   const [form, setForm] = useState({ fromPath: "", toPath: "", statusCode: 301 });

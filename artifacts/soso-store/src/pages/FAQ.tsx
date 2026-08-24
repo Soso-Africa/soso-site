@@ -1,18 +1,32 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { absoluteUrl, indexingEnabled, siteUrl } from "@/lib/seo";
-import { faqItems, faqCategories } from "@/data/faq";
+import { faqItems } from "@/data/faq";
+import type { FaqItem } from "@/data/faq";
+import { customFetch } from "@workspace/api-client-react";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 
 export default function FAQ() {
   const [open, setOpen] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("All");
+  const [liveItems, setLiveItems] = useState<FaqItem[] | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void customFetch<FaqItem[]>("/api/faq")
+      .then((items) => { if (active && items.length) setLiveItems(items); })
+      .catch(() => { /* the reviewed bundled copy remains visible if the API is unavailable */ });
+    return () => { active = false; };
+  }, []);
+
+  const items = liveItems ?? faqItems;
+  const categories = useMemo(() => [...new Set(items.map((f) => f.category))], [items]);
 
   const visible =
     activeCategory === "All"
-      ? faqItems
-      : faqItems.filter((f) => f.category === activeCategory);
+      ? items
+      : items.filter((f) => f.category === activeCategory);
 
   const toggle = (id: string) => {
     const next = open === id ? null : id;
@@ -27,7 +41,7 @@ export default function FAQ() {
       ? {
           "@context": "https://schema.org",
           "@type": "FAQPage",
-          mainEntity: faqItems.map((item) => ({
+          mainEntity: items.map((item) => ({
             "@type": "Question",
             name: item.question,
             acceptedAnswer: {
@@ -61,7 +75,7 @@ export default function FAQ() {
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
         {/* Category filter */}
         <div className="flex flex-wrap gap-2 mb-10">
-          {["All", ...faqCategories].map((cat) => (
+          {["All", ...categories].map((cat) => (
             <button
               key={cat}
               type="button"

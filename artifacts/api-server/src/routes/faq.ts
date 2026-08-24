@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { faqItemsTable, db } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { faqItemsTable, policyDocumentsTable, db } from "@workspace/db";
+import { eq, asc, and, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -33,6 +33,18 @@ router.get("/faq", async (_req, res): Promise<void> => {
     // fall through to static
   }
   res.json(STATIC_FAQ_ITEMS);
+});
+
+// Public policy responses only expose an explicitly published, effective version.
+router.get("/policies/:slug", async (req, res): Promise<void> => {
+  const [row] = await db.select().from(policyDocumentsTable)
+    .where(and(eq(policyDocumentsTable.slug, req.params.slug), eq(policyDocumentsTable.status, "published")))
+    .orderBy(desc(policyDocumentsTable.version)).limit(1);
+  if (!row || !row.effectiveAt || row.effectiveAt > new Date()) {
+    res.status(404).json({ error: "No effective policy is published" });
+    return;
+  }
+  res.json({ slug: row.slug, title: row.title, summary: row.summary, sections: row.sections, version: row.version, effectiveAt: row.effectiveAt });
 });
 
 export default router;

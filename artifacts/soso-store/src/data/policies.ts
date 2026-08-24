@@ -6,8 +6,10 @@ export type PolicySection = {
 };
 
 export type PolicyDocument = {
+  slug?: string;
+  version?: number;
   title: string;
-  eyebrow: string;
+  eyebrow?: string;
   summary: string;
   sections: PolicySection[];
 };

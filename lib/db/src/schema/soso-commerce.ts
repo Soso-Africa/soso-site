@@ -410,6 +410,32 @@ export const faqItemsTable = pgTable(
   (table) => [index("soso_faq_items_sort_idx").on(table.sortOrder, table.isPublished)],
 );
 
+export const policyDocumentsTable = pgTable(
+  "soso_policy_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    sections: jsonb("sections").notNull(),
+    version: integer("version").notNull().default(1),
+    status: text("status").notNull().default("draft"),
+    reviewedByClerkUserId: text("reviewed_by_clerk_user_id"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    approvedByClerkUserId: text("approved_by_clerk_user_id"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    effectiveAt: timestamp("effective_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("soso_policy_documents_slug_status_idx").on(table.slug, table.status),
+    uniqueIndex("soso_policy_documents_slug_version_idx").on(table.slug, table.version),
+  ],
+);
+
 export const siteContentTable = pgTable(
   "soso_site_content",
   {
@@ -463,6 +489,8 @@ export const insertCommerceCheckoutAttemptSchema = createInsertSchema(commerceCh
 export const insertCommerceWebhookEventSchema = createInsertSchema(commerceWebhookEventsTable).omit({ createdAt: true, updatedAt: true, completedAt: true });
 
 export type FaqItem = typeof faqItemsTable.$inferSelect;
+
+export type PolicyDocument = typeof policyDocumentsTable.$inferSelect;
 export type SiteContent = typeof siteContentTable.$inferSelect;
 export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
@@ -482,3 +510,17 @@ export type ConsentRecord = typeof consentRecordsTable.$inferSelect;
 export type InsertStaffUser = z.infer<typeof insertStaffUserSchema>;
 export type InsertCommerceCheckoutAttempt = z.infer<typeof insertCommerceCheckoutAttemptSchema>;
 export type InsertCommerceWebhookEvent = z.infer<typeof insertCommerceWebhookEventSchema>;
+
+export type PolicyDocumentRevision = typeof policyDocumentRevisionsTable.$inferSelect;
+
+export const policyDocumentRevisionsTable = pgTable(
+  "soso_policy_document_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    policyDocumentId: uuid("policy_document_id").notNull().references(() => policyDocumentsTable.id, { onDelete: "cascade" }),
+    snapshot: jsonb("snapshot").notNull(),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("soso_policy_revisions_document_created_idx").on(table.policyDocumentId, table.createdAt)],
+);

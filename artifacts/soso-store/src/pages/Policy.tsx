@@ -1,13 +1,26 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { useCreatePrivacyRequest } from "@workspace/api-client-react";
+import { customFetch, useCreatePrivacyRequest } from "@workspace/api-client-react";
 import { Seo } from "@/components/Seo";
-import { policies } from "@/data/policies";
+import { policies, type PolicyDocument } from "@/data/policies";
 import { policiesApproved } from "@/lib/seo";
 
 export default function Policy() {
   const [location] = useLocation();
-  const page = policies[location] ?? policies["/privacy"];
+  const fallback = policies[location] ?? policies["/privacy"];
+  const [page, setPage] = useState(fallback);
+  const [version, setVersion] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const slug = location.replace(/^\//, "");
+    void customFetch<PolicyDocument>(`/api/policies/${slug}`)
+      .then((published) => {
+        if (active) { setPage(published); setVersion(published.version ?? null); }
+      })
+      .catch(() => { if (active) { setPage(fallback); setVersion(null); } });
+    return () => { active = false; };
+  }, [location]);
 
   return (
     <section className="min-h-[70vh] px-6 py-20 md:px-12 md:py-28">
@@ -19,15 +32,14 @@ export default function Policy() {
       />
       <div className="mx-auto max-w-3xl border-y border-[#b8912f]/30 py-12">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#b8912f]">
-          {page.eyebrow}
+          {page.eyebrow ?? "Customer policy · approved version"}
         </p>
         <h1 className="soso-display mt-5 text-4xl leading-tight md:text-6xl">{page.title}</h1>
         <p className="mt-7 max-w-2xl text-base leading-8 text-[#d8ceb9] md:text-lg">
           {page.summary}
         </p>
         <div className="mt-8 border border-[#b8912f]/50 bg-[#b8912f]/10 px-6 py-5 text-sm leading-7 text-[#f6f1e7]">
-          <strong className="font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">Working draft — not effective</strong>
-          <p className="mt-2">This draft is provided for SOSO’s legal and business review. It must be approved and completed before SOSO relies on it as a final notice or binding policy.</p>
+          {version ? <><strong className="font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">Approved policy · version {version}</strong><p className="mt-2">This is the current effective version approved for publication.</p></> : <><strong className="font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">Working draft — not effective</strong><p className="mt-2">This draft is provided for SOSO’s legal and business review. It must be approved and completed before SOSO relies on it as a final notice or binding policy.</p></>}
         </div>
         <div className="mt-12 space-y-10">
           {page.sections.map((section) => (

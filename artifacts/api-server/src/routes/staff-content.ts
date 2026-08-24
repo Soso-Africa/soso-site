@@ -14,6 +14,8 @@ import {
   auditLogsTable,
   db,
   faqItemsTable,
+  policyDocumentsTable,
+  policyDocumentRevisionsTable,
   journalPostRevisionsTable,
   journalPostsTable,
   siteContentTable,
@@ -26,7 +28,19 @@ const router: IRouter = Router();
 router.use("/staff", requireStaff);
 
 router.get("/staff/content/site", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
-  const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
+
+const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
+  ...row,
+  effectiveAt: row.effectiveAt?.toISOString() ?? null,
+  reviewedAt: row.reviewedAt?.toISOString() ?? null,
+  approvedAt: row.approvedAt?.toISOString() ?? null,
+  publishedAt: row.publishedAt?.toISOString() ?? null,
+});
+
+  const policyId = req.params.id as string;
+
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
   res.json(row ?? {
     key: "site",
     draft: {},
@@ -67,12 +81,19 @@ router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (r
     res.status(400).json({ error: "Primary CTA must link to a local storefront path" });
     return;
   }
-  const [row] = await db.insert(siteContentTable).values({
-    key: "site", draft, updatedByClerkUserId: req.staff!.clerkUserId,
-  }).onConflictDoUpdate({
-    target: siteContentTable.key,
-    set: { draft, draftUpdatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId },
-  }).returning();
+  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
+
+const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
+  ...row,
+  effectiveAt: row.effectiveAt?.toISOString() ?? null,
+  reviewedAt: row.reviewedAt?.toISOString() ?? null,
+  approvedAt: row.approvedAt?.toISOString() ?? null,
+  publishedAt: row.publishedAt?.toISOString() ?? null,
+});
+
+  const policyId = req.params.id as string;
+
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
     entityType: "site_content", entityId: "site",
@@ -85,9 +106,19 @@ router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"),
   const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
   const now = new Date();
-  const [row] = await db.update(siteContentTable).set({
-    published: existing.draft, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
-  }).where(eq(siteContentTable.key, "site")).returning();
+  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
+
+const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
+  ...row,
+  effectiveAt: row.effectiveAt?.toISOString() ?? null,
+  reviewedAt: row.reviewedAt?.toISOString() ?? null,
+  approvedAt: row.approvedAt?.toISOString() ?? null,
+  publishedAt: row.publishedAt?.toISOString() ?? null,
+});
+
+  const policyId = req.params.id as string;
+
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "site_content.published",
     entityType: "site_content", entityId: "site", metadata: { publishedAt: now.toISOString() },
@@ -173,61 +204,101 @@ router.post(
   "/staff/journal",
   requireStaffRoles("owner", "editor"),
   async (req, res): Promise<void> => {
-    const parsed = CreateStaffJournalPostBody.safeParse(req.body);
+    const parsed = UpdateStaffJournalPostBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Please complete the article details" });
       return;
     }
 
     const post = await db.transaction(async (tx) => {
-      const relationError = await validateRelatedArticles(tx, parsed.data.slug, parsed.data.relatedArticleSlugs, parsed.data.status);
+      const [current] = await tx
+        .select()
+        .from(journalPostsTable)
+        .where(eq(journalPostsTable.id, params.data.id))
+        .limit(1);
+      if (!current) return null;
+      if (expectedRevision && current.updatedAt.getTime() !== expectedRevision.getTime()) {
+        return { kind: "conflict" as const };
+      }
+      const nextStatus = parsed.data.status ?? current.status;
+      const relationError = await validateRelatedArticles(
+        tx,
+        parsed.data.slug ?? current.slug,
+        parsed.data.relatedArticleSlugs ?? current.relatedArticleSlugs,
+        nextStatus,
+      );
       if (relationError) return { kind: "relation_error" as const, message: relationError };
-      const [created] = await tx
-        .insert(journalPostsTable)
-        .values({
+      const [previousRevision] = await tx
+        .select({ id: journalPostRevisionsTable.id })
+        .from(journalPostRevisionsTable)
+        .where(eq(journalPostRevisionsTable.journalPostId, current.id))
+        .orderBy(desc(journalPostRevisionsTable.createdAt))
+        .limit(1);
+
+      const status = nextStatus;
+      const [updated] = await tx
+        .update(journalPostsTable)
+        .set({
           ...parsed.data,
-          publishedAt: parsed.data.status === "published" ? new Date() : null,
+          publishedAt:
+            status === "published"
+              ? current.publishedAt ?? new Date()
+              : null,
         })
+        .where(eq(journalPostsTable.id, current.id))
         .returning();
 
       const [revision] = await tx
         .insert(journalPostRevisionsTable)
         .values({
-          journalPostId: created!.id,
-          snapshot: journalSnapshot(created!),
-          contentHash: journalFingerprint(created!),
+          journalPostId: updated!.id,
+          snapshot: journalSnapshot(updated!),
+          contentHash: journalFingerprint(updated!),
           createdByClerkUserId: req.staff!.clerkUserId,
         })
         .returning();
 
       await tx.insert(auditLogsTable).values({
         actorClerkUserId: req.staff!.clerkUserId,
-        action: "journal.created",
+        action: "journal.updated",
         entityType: "journal_post",
-        entityId: created!.id,
+        entityId: updated!.id,
         metadata: {
-          slug: created!.slug,
-          status: created!.status,
-          contentHash: journalFingerprint(created!),
+          previousSlug: current.slug,
+          slug: updated!.slug,
+          previousStatus: current.status,
+          status: updated!.status,
+          previousContentHash: journalFingerprint(current),
+          contentHash: journalFingerprint(updated!),
+          previousRevisionId: previousRevision?.id ?? null,
           revisionId: revision!.id,
         },
       });
-      return { kind: "created" as const, post: created! };
+      return { kind: "updated" as const, post: updated! };
     });
 
+    if (!post) {
+      res.status(404).json({ error: "Article not found" });
+      return;
+    }
+    if (post.kind === "conflict") {
+      res.status(409).json({ error: "This article changed while you were editing it. Reload it before saving again." });
+      return;
+    }
     if (post.kind === "relation_error") {
       res.status(400).json({ error: post.message });
       return;
     }
-    res.status(201).json(CreateStaffJournalPostResponse.parse(post.post));
+
+    res.json(UpdateStaffJournalPostResponse.parse(post.post));
   },
 );
 
-router.patch(
-  "/staff/journal/:id",
+router.get(
+  "/staff/journal/:id/revisions",
   requireStaffRoles("owner", "editor"),
   async (req, res): Promise<void> => {
-    const params = UpdateStaffJournalPostParams.safeParse(req.params);
+    const params = ListStaffJournalPostRevisionsParams.safeParse(req.params);
     const parsed = UpdateStaffJournalPostBody.safeParse(req.body);
     if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
       res.status(400).json({ error: "Please provide valid article updates" });
@@ -374,38 +445,77 @@ router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res)
     res.status(400).json({ error: "question and answer are required" });
     return;
   }
-  const [row] = await db.insert(faqItemsTable).values({
-    question: question.trim(),
-    answer: answer.trim(),
-    category: typeof category === "string" && category.trim() ? category.trim() : null,
-    sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
-    isPublished: isPublished !== false,
-  }).returning();
+  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
+
+const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
+  ...row,
+  effectiveAt: row.effectiveAt?.toISOString() ?? null,
+  reviewedAt: row.reviewedAt?.toISOString() ?? null,
+  approvedAt: row.approvedAt?.toISOString() ?? null,
+  publishedAt: row.publishedAt?.toISOString() ?? null,
+});
+
+  const policyId = req.params.id as string;
+
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
   await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.created", entityType: "faq_item", entityId: row!.id, metadata: { question: row!.question } });
   res.status(201).json(row);
 });
 
 router.patch("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
   const { question, answer, category, sortOrder, isPublished } = req.body as Record<string, unknown>;
-  const updates: Partial<typeof faqItemsTable.$inferInsert> = {};
-  if (typeof question === "string" && question.trim()) updates.question = question.trim();
-  if (typeof answer === "string" && answer.trim()) updates.answer = answer.trim();
-  if (category !== undefined) updates.category = typeof category === "string" && category.trim() ? category.trim() : null;
-  if (typeof sortOrder === "number") updates.sortOrder = sortOrder;
-  if (typeof isPublished === "boolean") updates.isPublished = isPublished;
-  if (!Object.keys(updates).length) { res.status(400).json({ error: "No valid fields to update" }); return; }
-  updates.updatedAt = new Date();
-  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, req.params.id as string)).returning();
-  if (!row) { res.status(404).json({ error: "FAQ item not found" }); return; }
-  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.updated", entityType: "faq_item", entityId: row.id, metadata: {} });
-  res.json(row);
+  const updates: Partial<typeof policyDocumentsTable.$inferInsert> = { updatedAt: new Date(), reviewedAt: null, reviewedByClerkUserId: null, approvedAt: null, approvedByClerkUserId: null, publishedAt: null };
+  if (typeof title === "string" && title.trim()) updates.title = title.trim();
+  if (typeof summary === "string" && summary.trim()) updates.summary = summary.trim();
+  if (Array.isArray(sections)) updates.sections = sections;
+  if (typeof req.body.status === "string" && ["draft", "review"].includes(req.body.status)) updates.status = req.body.status;
+  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
+
+const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
+  ...row,
+  effectiveAt: row.effectiveAt?.toISOString() ?? null,
+  reviewedAt: row.reviewedAt?.toISOString() ?? null,
+  approvedAt: row.approvedAt?.toISOString() ?? null,
+  publishedAt: row.publishedAt?.toISOString() ?? null,
 });
 
-router.delete("/staff/faq/:id", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
-  const [row] = await db.delete(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).returning({ id: faqItemsTable.id });
-  if (!row) { res.status(404).json({ error: "FAQ item not found" }); return; }
-  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "faq.deleted", entityType: "faq_item", entityId: row.id, metadata: {} });
-  res.status(204).send();
+  const policyId = req.params.id as string;
+
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
+  if (!row) { res.status(404).json({ error: "Policy not found" }); return; }
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "policy.reviewed", entityType: "policy_document", entityId: row.id, metadata: {} });
+  res.json(policyShape(row));
+});
+
+router.post("/staff/policies/:id/approve", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const [row] = await db.update(policyDocumentsTable).set({ status: "published", effectiveAt, publishedAt: new Date(), updatedAt: new Date() }).where(eq(policyDocumentsTable.id, current.id)).returning();
+
+const policyShape = (row: typeof policyDocumentsTable.$inferSelect) => ({
+  ...row,
+  effectiveAt: row.effectiveAt?.toISOString() ?? null,
+  reviewedAt: row.reviewedAt?.toISOString() ?? null,
+  approvedAt: row.approvedAt?.toISOString() ?? null,
+  publishedAt: row.publishedAt?.toISOString() ?? null,
+});
+
+  const policyId = req.params.id as string;
+
+  const effectiveAt = req.body.effectiveAt ? new Date(req.body.effectiveAt) : new Date();
+  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "policy.published", entityType: "policy_document", entityId: row!.id, metadata: { version: row!.version, effectiveAt: effectiveAt.toISOString() } });
+  res.json(policyShape(row!));
+});
+
+router.get("/staff/policies/:id/revisions", requireStaffRoles("owner", "editor"), async (req, res): Promise<void> => {
+  res.json(await db.select().from(policyDocumentRevisionsTable).where(eq(policyDocumentRevisionsTable.policyDocumentId, req.params.id as string)).orderBy(desc(policyDocumentRevisionsTable.createdAt)));
 });
 
 export default router;
+
+  const current = (await db.select().from(policyDocumentsTable).where(eq(policyDocumentsTable.id, req.params.id as string)).limit(1))[0];
+
+  const { slug, title, summary, sections } = req.body as Record<string, unknown>;
+
+  const existing = await db.select({ version: policyDocumentsTable.version }).from(policyDocumentsTable)
+    .where(eq(policyDocumentsTable.slug, slug as string)).orderBy(desc(policyDocumentsTable.version)).limit(1);
+
+  const { title, summary, sections } = req.body as Record<string, unknown>;
