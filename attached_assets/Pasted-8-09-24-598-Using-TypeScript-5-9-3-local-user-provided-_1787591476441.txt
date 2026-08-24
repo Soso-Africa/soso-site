@@ -1,0 +1,43 @@
+8:09:24.598 
+Using TypeScript 5.9.3 (local user-provided)
+18:09:25.680 
+Error: artifacts/api-server/src/app.ts(5,20): error TS2834: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Consider adding an extension to the import path.
+18:09:25.681 
+artifacts/api-server/src/app.ts(6,24): error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './lib/logger.js'?
+18:09:25.681 
+artifacts/api-server/src/app.ts(7,44): error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './middlewares/sameOriginWrite.js'?
+18:09:25.682 
+artifacts/api-server/src/app.ts(12,8): error TS2835: Relative import paths need explicit file extensions in ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'. Did you mean './middlewares/clerkProxyMiddleware.js'?
+18:09:25.682 
+artifacts/api-server/src/app.ts(16,5): error TS2339: Property 'set' does not exist on type 'Express'.
+18:09:25.682 
+artifacts/api-server/src/app.ts(17,5): error TS2339: Property 'use' does not exist on type 'Express'.
+18:09:25.683 
+artifacts/api-server/src/app.ts(18,3): error TS2349: This expression is not callable.
+18:09:25.683 
+  Type 'typeof import("/vercel/path0/artifacts/api-server/node_modules/pino-http/index")' has no call signatures.
+18:09:25.683 
+artifacts/api-server/src/app.ts(21,11): error TS7006: Parameter 'req' implicitly has an 'any' type.
+18:09:25.683 
+artifacts/api-server/src/app.ts(28,11): error TS7006: Parameter 'res' implicitly has an 'any' type.
+18:09:25.683 
+artifacts/api-server/src/app.ts(36,5): error TS2339: Property 'use' does not exist on type 'Express'.
+18:09:25.683 
+artifacts/api-server/src/app.ts(37,5): error TS2339: Property 'use' does not exist on type 'Express'.
+18:09:25.684 
+artifacts/api-server/src/app.ts(38,10): error TS7006: Parameter 'req' implicitly has an 'any' type.
+18:09:25.684 
+artifacts/api-server/src/app.ts(38,15): error TS7006: Parameter '_res' implicitly has an 'any' type.
+18:09:25.684 
+artifacts/api-server/src/app.ts(38,21): error TS7006: Parameter 'buffer' implicitly has an 'any' type.
+18:09:25.684 
+artifacts/api-server/src/app.ts(42,5): error TS2339: Property 'use' does not exist on type 'Express'.
+18:09:25.684 
+artifacts/api-server/src/app.ts(43,5): error TS2339: Property 'use' does not exist on type 'Express'.
+18:09:25.684 
+artifacts/api-server/src/app.ts(44,20): error TS7006: Parameter 'req' implicitly has an 'any' type.
+18:09:25.684 
+artifacts/api-server/src/app.ts(51,5): error TS2339: Property 'use' does not exist on type 'Express'.
+18:09:25.684 
+artifacts/api-server/src/app.ts(53,5): error TS2339: Property 'use' does not exist on type 'Express'.
+18:09:25.684 
