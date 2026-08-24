@@ -32,7 +32,9 @@ const VISITOR_KEY = "soso-visitor-id";
 const SESSION_KEY = "soso-session-id";
 const SESSION_FIRED_KEY = "soso-session-started-fired";
 const SCROLL_DEPTHS_KEY = "soso-scroll-depths";
+const ATTRIBUTION_KEY = "soso-first-touch-attribution";
 const EVENT_VERSION = 1;
+const MAX_ATTRIBUTION_VALUE_LENGTH = 120;
 
 function apiUrl(path: string): string {
   const configuredBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
@@ -62,6 +64,50 @@ function readConsent(): ConsentState | null {
     : null;
 }
 
+type Attribution = {
+  source?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+};
+
+function capturedAttribution(): Attribution {
+  const params = new URLSearchParams(window.location.search);
+  const value = (name: string) => params.get(name)?.trim().slice(0, MAX_ATTRIBUTION_VALUE_LENGTH) || undefined;
+  return {
+    source: value("utm_source"),
+    utmMedium: value("utm_medium"),
+    utmCampaign: value("utm_campaign"),
+  };
+}
+
+function savedAttribution(): Attribution | null {
+  const saved = sessionStorage.getItem(ATTRIBUTION_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved) as Attribution;
+      if (typeof parsed.source === "string" || typeof parsed.utmMedium === "string" || typeof parsed.utmCampaign === "string") {
+        return parsed;
+      }
+    } catch {
+      sessionStorage.removeItem(ATTRIBUTION_KEY);
+    }
+  }
+  return null;
+}
+
+function persistFirstTouchAttribution(captured: Attribution): Attribution {
+  const existing = savedAttribution();
+  if (existing) return existing;
+  if (captured.source || captured.utmMedium || captured.utmCampaign) {
+    sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(captured));
+  }
+  return captured;
+}
+
+function firstTouchAttribution(): Attribution {
+  return savedAttribution() ?? persistFirstTouchAttribution(capturedAttribution());
+}
+
 type SendEventOptions = {
   keepalive?: boolean;
   path?: string;
@@ -73,7 +119,7 @@ function sendEvent(
   properties?: Record<string, unknown>,
   options?: SendEventOptions,
 ) {
-  const params = new URLSearchParams(window.location.search);
+  const attribution = firstTouchAttribution();
   void fetch(apiUrl("/analytics/events"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -85,9 +131,9 @@ function sendEvent(
       eventName,
       path: options?.path ?? window.location.pathname,
       referrer: document.referrer || undefined,
-      source: params.get("utm_source") || undefined,
-      utmMedium: params.get("utm_medium") || undefined,
-      utmCampaign: params.get("utm_campaign") || undefined,
+      source: attribution.source,
+      utmMedium: attribution.utmMedium,
+      utmCampaign: attribution.utmCampaign,
       deviceType: window.innerWidth < 768 ? "mobile" : window.innerWidth < 1100 ? "tablet" : "desktop",
       consent,
       properties,
@@ -173,13 +219,14 @@ function useActiveTimeHeartbeat(consent: ConsentState | null, enabled: boolean, 
   }, [consent, enabled, pathname]);
 }
 
-/** Scroll-depth tracker: fires at 25 / 50 / 75 / 90% once per page. */
-function useScrollDepth(consent: ConsentState | null) {
+/** Scroll-depth tracker: fires at 25 / 50 / 75 / 90% once per public page. */
+function useScrollDepth(consent: ConsentState | null, pathname: string) {
   useEffect(() => {
     if (consent !== "analytics" && consent !== "marketing") return;
 
+    const storageKey = `${SCROLL_DEPTHS_KEY}:${pathname}`;
     const firedDepths = new Set<number>(
-      JSON.parse(sessionStorage.getItem(SCROLL_DEPTHS_KEY) ?? "[]") as number[],
+      JSON.parse(sessionStorage.getItem(storageKey) ?? "[]") as number[],
     );
     const thresholds = [25, 50, 75, 90];
 
@@ -191,7 +238,7 @@ function useScrollDepth(consent: ConsentState | null) {
       for (const t of thresholds) {
         if (pct >= t && !firedDepths.has(t)) {
           firedDepths.add(t);
-          sessionStorage.setItem(SCROLL_DEPTHS_KEY, JSON.stringify([...firedDepths]));
+          sessionStorage.setItem(storageKey, JSON.stringify([...firedDepths]));
           trackStorefrontEvent("scroll_depth_reached", { depth_pct: t, path: window.location.pathname });
         }
       }
@@ -199,7 +246,7 @@ function useScrollDepth(consent: ConsentState | null) {
 
     window.addEventListener("scroll", check, { passive: true });
     return () => window.removeEventListener("scroll", check);
-  }, [consent]);
+  }, [consent, pathname]);
 }
 
 export function ConsentManager() {
@@ -207,11 +254,15 @@ export function ConsentManager() {
   const [visible, setVisible] = useState(false);
   const [pathname] = useLocation();
   const bannerViewedRef = useRef(false);
+  const landingAttributionRef = useRef<Attribution | null>(null);
 
   useEffect(() => {
     const saved = readConsent();
     setConsent(saved);
     setVisible(!saved);
+    // Keep the landing campaign in memory only. It becomes session storage
+    // only after the visitor has affirmatively chosen measurement.
+    landingAttributionRef.current = capturedAttribution();
   }, []);
 
   // Fire consent_banner_viewed once when banner appears
@@ -266,7 +317,7 @@ export function ConsentManager() {
   useActiveTimeHeartbeat(consent, true, pathname);
 
   // Scroll depth
-  useScrollDepth(consent);
+  useScrollDepth(consent, pathname);
 
   const save = async (state: ConsentState) => {
     const previousConsent = readConsent();
@@ -303,6 +354,7 @@ export function ConsentManager() {
       });
       if (!response.ok) throw new Error("Consent could not be recorded");
       localStorage.setItem(CONSENT_KEY, state);
+      persistFirstTouchAttribution(landingAttributionRef.current ?? capturedAttribution());
       setConsent(state);
       // Fire consent_updated if changing an existing preference
       if (previousConsent && previousConsent !== state) {

@@ -378,6 +378,54 @@ export interface StaffJournalPostUpdate {
   status?: StaffJournalPostUpdateStatus;
 }
 
+export type StaffJournalPostSnapshotStatus = typeof StaffJournalPostSnapshotStatus[keyof typeof StaffJournalPostSnapshotStatus];
+
+
+export const StaffJournalPostSnapshotStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface StaffJournalPostSnapshot {
+  slug: string;
+  title: string;
+  excerpt: string;
+  body: string;
+  /** @nullable */
+  coverImageUrl?: string | null;
+  /** @nullable */
+  coverImageAlt?: string | null;
+  authorName: string;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
+  tags?: string[] | null;
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  /** @nullable */
+  readTimeMinutes?: number | null;
+  /** @nullable */
+  relatedProductSlugs?: string[] | null;
+  /** @nullable */
+  relatedArticleSlugs?: string[] | null;
+  status: StaffJournalPostSnapshotStatus;
+  /** @nullable */
+  publishedAt?: string | null;
+}
+
+export interface StaffJournalPostRevision {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  journalPostId: string;
+  snapshot: StaffJournalPostSnapshot;
+  contentHash: string;
+  createdAt: string;
+}
+
 export type StaffJournalPostStatus = typeof StaffJournalPostStatus[keyof typeof StaffJournalPostStatus];
 
 
@@ -615,6 +663,23 @@ export type StaffFunnelEventsItem = {
   count: number;
 };
 
+export interface FunnelDropOff {
+  fromEventName: string;
+  toEventName: string;
+  /** @minimum 0 */
+  priorCount: number;
+  /** @minimum 0 */
+  currentCount: number;
+  /** @minimum 0 */
+  dropOffCount: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
+  dropOffRate: number | null;
+}
+
 export interface StaffFunnel {
   /** @minimum 1 */
   periodDays: number;
@@ -623,6 +688,7 @@ export interface StaffFunnel {
   generatedAt: string;
   privacyNote: string;
   events: StaffFunnelEventsItem[];
+  dropOffs: FunnelDropOff[];
 }
 
 export type AnalyticsQualityReportStatus = typeof AnalyticsQualityReportStatus[keyof typeof AnalyticsQualityReportStatus];
@@ -906,5 +972,7 @@ export type GetStaffExportReport = typeof GetStaffExportReport[keyof typeof GetS
 export const GetStaffExportReport = {
   operations_summary: 'operations_summary',
   analytics_summary: 'analytics_summary',
+  campaign_aggregate: 'campaign_aggregate',
+  content_seo_aggregate: 'content_seo_aggregate',
 } as const;
 

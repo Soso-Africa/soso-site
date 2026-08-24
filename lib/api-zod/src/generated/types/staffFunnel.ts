@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { FunnelDropOff } from './funnelDropOff';
 import type { StaffFunnelEventsItem } from './staffFunnelEventsItem';
 
 export interface StaffFunnel {
@@ -15,4 +16,5 @@ export interface StaffFunnel {
   generatedAt: Date;
   privacyNote: string;
   events: StaffFunnelEventsItem[];
+  dropOffs: FunnelDropOff[];
 }

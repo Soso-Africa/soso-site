@@ -428,7 +428,7 @@ Dashboard must distinguish:
 
 ### 4.6 Analytics event specification
 
-> 🟡 **Implementation status — PARTIAL.** The event envelope is versioned with `event_id`, `event_version`, anonymous/session IDs, occurred time, path/referrer, UTM source/medium/campaign, device class, consent, and properties. Core implemented events are listed below.
+> 🟡 **Implementation status — PARTIAL.** The event envelope is versioned with `event_id`, `event_version`, anonymous/session IDs, occurred time, path/referrer, UTM source/medium/campaign, device class, consent, server-side country enrichment, and properties. Public pathname validation is forward-compatible: new public storefront pages record normally without a duplicate API route list, while malformed and staff/auth paths are rejected. Page views, active time, and scroll-depth thresholds are route-aware, so a later page in the same session retains its own engagement signals. Core implemented events are listed below.
 
 Event schema fields (all implemented):
 
@@ -445,7 +445,7 @@ Event schema fields (all implemented):
 - 🟢 `utm_medium`
 - 🟢 `utm_campaign`
 - 🟢 `device_class`
-- ⚫ `country` (IP-derived — not yet enriched)
+- 🟢 `country` (server-side IP/CDN-derived enrichment)
 - 🟢 `product_slug` where relevant
 - 🔴 `order_id` (only on allowed commerce events; blocked until live orders)
 - 🟢 `properties`
@@ -454,14 +454,14 @@ Event status by name:
 
 - 🟢 `page_view`
 - 🟢 `session_started`
-- 🟢 `product_viewed`
+- 🟢 `product_view`
 - 🟢 `product_image_viewed`
 - 🟢 `size_guide_opened`
 - 🟢 `size_selected`
 - 🟢 `stylist_inquiry_started`
 - 🟢 `stylist_inquiry_completed`
 - 🟢 `add_to_bag`
-- 🟢 `bag_opened`
+- 🟢 `cart_opened`
 - 🟢 `checkout_started`
 - 🟢 `checkout_field_error`
 - 🟢 `checkout_form_completed`
@@ -486,7 +486,7 @@ Event status by name:
 
 ### 4.7 Analytics data quality
 
-> 🟡 **Implementation status — PARTIAL.** Required event IDs, generated IDs on the storefront, unique event-ID storage, consent verification, input validation, database-backed rate limits, timestamp/path rejection, and an owner/analyst aggregate quality panel are **IMPLEMENTED**. Duplicate replay is accepted as a no-op. Journey-order, attribution completeness, burst automation, broken-path, timestamp, and volume checks are available without exposing visitor identifiers. Payment-success verification remains **BLOCKED — verified payment/webhook integration**.
+> 🟡 **Implementation status — PARTIAL.** Required event IDs, generated IDs on the storefront, unique event-ID storage, consent verification, input validation, database-backed rate limits, timestamp/path rejection, and an owner/analyst aggregate quality panel are **IMPLEMENTED**. Duplicate replay is accepted as a no-op. Journey-order, attribution completeness, burst automation, malformed/private-path, timestamp, and volume checks are available without exposing visitor identifiers. New public storefront paths are accepted without a second API route allowlist. Payment-success verification remains **BLOCKED — verified payment/webhook integration**.
 
 Automated quality checks:
 
@@ -496,7 +496,7 @@ Automated quality checks:
 - 🔴 Payment success without a verified payment check
 - 🟢 Orders with no source attribution where attribution was expected
 - 🟢 Sudden event-volume spike detection
-- 🟢 Broken page paths check
+- 🟢 Malformed/private page paths check (forward-compatible with new public pages)
 - 🟢 Bot traffic contamination detection
 - 🟢 Time values outside sane ranges check
 - 🟢 Consent-state violations (server-side gate before recording)
@@ -504,18 +504,18 @@ Automated quality checks:
 
 ### 4.8 Exports and privacy
 
-> 🟡 **Implementation status — PARTIAL.** Role restrictions and audit-log storage foundations exist; payment-card data and provider secrets are not persisted. Aggregated CSV, order/campaign/content exports, access/deletion request workflow, approved retention schedule, and audit display are **NOT STARTED** pending SOSO's final privacy/retention/export policy.
+> 🟡 **Implementation status — PARTIAL.** Role restrictions, audit-log storage, and the no-card-data boundary are in place. Owner/analyst aggregate analytics, campaign, and content/SEO CSV exports plus owner-only aggregate operations CSV are **IMPLEMENTED**. First-touch UTM attribution is retained only after affirmative consent so campaign activity remains attributable across a shopper session. A staff privacy access/deletion request workflow and staff audit view are **IMPLEMENTED**; no identifiable customer-order export is offered. The approved retention schedule remains **BLOCKED — legal review**.
 
 - 🟢 Role restrictions on data access
 - 🟢 Audit-log storage foundation
 - 🟢 No payment-card data persisted
-- ⚫ CSV export for aggregated reports
-- ⚫ Order export with role restrictions
-- ⚫ Campaign performance export
-- ⚫ Content/SEO performance export
-- ⚫ Data deletion/access request workflow
+- 🟢 CSV export for aggregated reports
+- 🟢 Aggregate operations export with owner restriction (no identifiable customer-order export)
+- 🟢 Campaign performance export (aggregate consented event rows only)
+- 🟢 Content/SEO performance export (aggregate consented content-event rows only)
+- 🟢 Data deletion/access request workflow
 - 🔴 Approved retention schedule (pending legal review)
-- ⚫ Audit log display in admin UI
+- 🟢 Audit log display in admin UI
 
 ---
 
@@ -692,7 +692,7 @@ Content format:
 
 ### 8.1 Required blog functionality
 
-> 🟡 **Implementation status:** draft/published/archived state, author, slug, excerpt, body, optional cover URL, public published-only visibility, and revision history are **IMPLEMENTED**. Category, tags, explicit hero alt text, SEO title/description fields, related products, related articles, reading time, sitemap inclusion, social image (via og:image), and Article JSON-LD are **IMPLEMENTED** this session. Staff preview mode, visible updated date on the article page, and revision-view UI in the staff portal remain **NOT STARTED**.
+> 🟡 **Implementation status:** draft/published/archived state, author, slug, excerpt, body, optional cover URL, public published-only visibility, and immutable revision history are **IMPLEMENTED**. Category, tags, explicit hero alt text, SEO title/description fields, related products, related articles, reading time, sitemap inclusion, social image (via og:image), and Article JSON-LD are **IMPLEMENTED**. Staff-only preview mode (with no-index protection and a visible status banner), the visible updated date on public articles, and an owner/editor revision-history view are **IMPLEMENTED**.
 
 - 🟢 Draft, published, and archived states
 - ⬜ Scheduled state (not applicable — publish immediately or keep draft)
@@ -707,8 +707,8 @@ Content format:
 - 🟢 Related products
 - 🟢 Related articles
 - 🟢 Reading time
-- ⚫ Updated date displayed on article page (field exists in DB; not in public API type yet)
-- ⚫ Preview mode (staff `/journal/preview/:slug` route)
+- 🟢 Updated date displayed on article page (public API and article metadata)
+- 🟢 Preview mode (staff `/journal/preview/:slug` route, authenticated and no-indexed)
 - 🟢 Social image (via `og:image` wired to cover image or default)
 - 🟢 Sitemap inclusion (dynamic `/api/sitemap.xml` endpoint)
 - 🟢 Article JSON-LD
@@ -913,26 +913,26 @@ Security requirements:
 
 ## 13. Reporting cadence
 
-> 🟡 **Implementation status — PARTIAL.** Owner/analyst staff can view seven-day consented event counts; owner/operations can see basic order/enquiry signals. Saved daily/weekly/monthly reports, payment/production/delivery metrics, funnel rates, completion timing, campaign analytics, and cohort/CAC reporting are **NOT STARTED** or **BLOCKED — live commerce, campaigns, and operational data**. CAC is **NOT APPLICABLE** until approved ad-spend data is connected.
+> 🟡 **Implementation status — PARTIAL.** Owner/analyst staff can view seven-day consented event counts, aggregate funnel signals, data-quality status, and download aggregate analytics, campaign, and content/SEO CSV reports; owner/operations can see basic order/enquiry signals. Saved daily/weekly/monthly reports, payment/production/delivery metrics, dashboard funnel rates, completion timing, campaign outcomes, and cohort/CAC reporting are **NOT STARTED** or **BLOCKED — live commerce, campaigns, and operational data**. CAC is **NOT APPLICABLE** until approved ad-spend data is connected.
 
 ### Daily
 
-- 🟡 Visitors (raw event counts, no unique-visitor dashboard)
+- 🟢 Visitors and sessions (consented aggregate counts only)
 - 🔴 Paid orders
 - 🔴 Payment failures
 - ⚫ Checkout conversion rate
-- ⚫ Top products
+- 🟢 Top products viewed (consented aggregate counts)
 - 🟡 Open customer/stylist enquiries (visible in staff portal)
 - 🟡 Orders awaiting atelier action (visible in staff portal)
 
 ### Weekly
 
-- ⚫ Acquisition source performance
-- ⚫ Product conversion by device
-- ⚫ Funnel drop-off
+- 🟢 Acquisition source performance (aggregate campaign CSV)
+- 🟡 Product and device engagement (separate aggregate views; no product-by-device conversion table)
+- 🟢 Funnel stage counts and stage-to-stage drop-off rates (aggregate event counts, not person-level conversion)
 - ⚫ Median completion time
 - ⚫ Campaign retargeting performance
-- ⚫ Blog traffic and assisted conversions
+- 🟡 Blog/content traffic (aggregate content/SEO CSV); assisted-conversion claims require an approved attribution definition
 - 🔴 Refunds and cancellations
 
 ### Monthly
@@ -943,13 +943,13 @@ Security requirements:
 - ⚫ First-touch versus last-touch attribution
 - 🔴 Production lead time
 - 🔴 Delivery performance
-- ⚫ Policy/support issues affecting conversion
+- 🟡 Support queue is available; aggregate policy/support-to-conversion reporting is not yet defined
 
 ---
 
 ## 14. Build phases
 
-> 🟡 **Implementation status:** Phase 0 is **BLOCKED — the exact external inputs listed in section 16**. Phase 1 is **PARTIAL foundation / BLOCKED activation**: persistence and safe gateway boundary exist, but hosted payment/webhooks are disabled. Phase 2 is **PARTIAL**: trust, draft policies, product explanations, and persisted enquiries exist; final policies/reviews/order tracking need inputs. Phase 3 is **PARTIAL**: consent and replay-safe first-party events exist; dashboards/time measurements/legal configurations are incomplete. Phase 4 is **PARTIAL**: real auth, RBAC, staff signals, Journal workflow exist; full operations/exports/privacy tools/notifications do not. Phase 5 is **PARTIAL**: Journal/route SEO foundations, Article JSON-LD, dynamic sitemap, collection pages, and AEO content exist; full structured-data breadth, authoritative editorial, Search Console, and CWV monitoring do not. Phase 6 is **NOT STARTED / BLOCKED — legal consent, approved ad providers, live payment state, and campaign operations**.
+> 🟡 **Implementation status:** Phase 0 is **BLOCKED — the exact external inputs listed in section 16**. Phase 1 is **PARTIAL foundation / BLOCKED activation**: persistence and safe gateway boundary exist, but hosted payment/webhooks are disabled. Phase 2 is **PARTIAL**: trust, draft policies, product explanations, and persisted enquiries exist; final policies/reviews/order tracking need inputs. Phase 3 is **PARTIAL**: consented first-party events, route-aware engagement, attribution persistence, replay safety, and aggregate data-quality reporting exist; legal configuration and richer dashboard measurements are incomplete. Phase 4 is **PARTIAL**: real auth, RBAC, staff signals, Journal workflow/history, aggregate exports, privacy-request workflow, and audit visibility exist; full live-commerce operations and notification tooling do not. Phase 5 is **PARTIAL**: Journal/route SEO foundations, Article JSON-LD, dynamic sitemap, collection pages, and AEO content exist; full structured-data breadth, authoritative editorial, Search Console, and CWV monitoring do not. Phase 6 is **NOT STARTED / BLOCKED — legal consent, approved ad providers, live payment state, and campaign operations**.
 
 ### Phase 0 — Decisions and contracts
 

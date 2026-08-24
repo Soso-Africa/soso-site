@@ -5,6 +5,7 @@ import {
   RecordAnalyticsEventResponse,
   RecordConsentBody,
   RecordConsentResponse,
+  isTrackableStorefrontPath,
 } from "@workspace/api-zod";
 import {
   analyticsEventsTable,
@@ -23,7 +24,6 @@ const MAX_CONSENT_PER_IP_WINDOW = 40;
 const MAX_CONSENT_PER_ANONYMOUS_WINDOW = 6;
 const MAX_EVENT_FUTURE_MS = 5 * 60_000;
 const MAX_EVENT_AGE_MS = 31 * 24 * 60 * 60_000;
-const publicStorefrontPath = /^\/(?:|shop|checkout|journal|about|faq|policies|privacy|cookies|terms|delivery-returns|delivery|returns|care|product\/[a-z0-9-]+|journal\/[a-z0-9-]+|collections\/[a-z0-9-]+)$/i;
 
 async function consumeRateLimit(scope: string, identifier: string, limit: number): Promise<boolean> {
   const now = new Date();
@@ -67,8 +67,8 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!publicStorefrontPath.test(parsed.data.path)) {
-    res.status(400).json({ error: "Analytics event path is not a recognized storefront route" });
+  if (!isTrackableStorefrontPath(parsed.data.path)) {
+    res.status(400).json({ error: "Analytics event path is not a valid public storefront pathname" });
     return;
   }
 

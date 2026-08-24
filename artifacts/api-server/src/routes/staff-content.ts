@@ -3,6 +3,8 @@ import { createHash } from "node:crypto";
 import {
   CreateStaffJournalPostBody,
   CreateStaffJournalPostResponse,
+  ListStaffJournalPostRevisionsParams,
+  ListStaffJournalPostRevisionsResponse,
   ListStaffJournalPostsResponse,
   UpdateStaffJournalPostBody,
   UpdateStaffJournalPostParams,
@@ -198,6 +200,43 @@ router.patch(
     }
 
     res.json(UpdateStaffJournalPostResponse.parse(post));
+  },
+);
+
+router.get(
+  "/staff/journal/:id/revisions",
+  requireStaffRoles("owner", "editor"),
+  async (req, res): Promise<void> => {
+    const params = ListStaffJournalPostRevisionsParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid article reference" });
+      return;
+    }
+
+    const [post] = await db
+      .select({ id: journalPostsTable.id })
+      .from(journalPostsTable)
+      .where(eq(journalPostsTable.id, params.data.id))
+      .limit(1);
+    if (!post) {
+      res.status(404).json({ error: "Article not found" });
+      return;
+    }
+
+    const revisions = await db
+      .select({
+        id: journalPostRevisionsTable.id,
+        journalPostId: journalPostRevisionsTable.journalPostId,
+        snapshot: journalPostRevisionsTable.snapshot,
+        contentHash: journalPostRevisionsTable.contentHash,
+        createdAt: journalPostRevisionsTable.createdAt,
+      })
+      .from(journalPostRevisionsTable)
+      .where(eq(journalPostRevisionsTable.journalPostId, post.id))
+      .orderBy(desc(journalPostRevisionsTable.createdAt))
+      .limit(100);
+
+    res.json(ListStaffJournalPostRevisionsResponse.parse(revisions));
   },
 );
 

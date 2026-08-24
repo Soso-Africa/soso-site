@@ -424,7 +424,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [operations_summary, analytics_summary]
+            enum: [operations_summary, analytics_summary, campaign_aggregate, content_seo_aggregate]
         - $ref: "#/components/parameters/StaffDateFrom"
         - $ref: "#/components/parameters/StaffDateTo"
       responses:
@@ -497,6 +497,26 @@ paths:
                 $ref: "#/components/schemas/StaffJournalPost"
         "400":
           description: Invalid update
+        "403":
+          description: Editor or owner access required
+        "404":
+          description: Article not found
+  /staff/journal/{id}/revisions:
+    get:
+      operationId: listStaffJournalPostRevisions
+      tags: [staff]
+      summary: List immutable revision snapshots for a Journal article
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      responses:
+        "200":
+          description: Journal revision history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffJournalPostRevision"
         "403":
           description: Editor or owner access required
         "404":
@@ -706,6 +726,36 @@ components:
         relatedProductSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
         relatedArticleSlugs: { type: ["array", "null"], items: { type: string, maxLength: 160 }, maxItems: 6 }
         status: { type: string, enum: [draft, published, archived] }
+    StaffJournalPostSnapshot:
+      type: object
+      required: [slug, title, excerpt, body, authorName, status]
+      properties:
+        slug: { type: string }
+        title: { type: string }
+        excerpt: { type: string }
+        body: { type: string }
+        coverImageUrl: { type: ["string", "null"] }
+        coverImageAlt: { type: ["string", "null"] }
+        authorName: { type: string }
+        category: { type: ["string", "null"] }
+        tags: { type: ["array", "null"], items: { type: string } }
+        seoTitle: { type: ["string", "null"] }
+        seoDescription: { type: ["string", "null"] }
+        readTimeMinutes: { type: ["number", "null"] }
+        relatedProductSlugs: { type: ["array", "null"], items: { type: string } }
+        relatedArticleSlugs: { type: ["array", "null"], items: { type: string } }
+        status: { type: string, enum: [draft, published, archived] }
+        publishedAt: { type: ["string", "null"], format: date-time }
+    StaffJournalPostRevision:
+      type: object
+      required: [id, journalPostId, snapshot, contentHash, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        journalPostId: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        snapshot:
+          $ref: "#/components/schemas/StaffJournalPostSnapshot"
+        contentHash: { type: string }
+        createdAt: { type: string, format: date-time }
     StaffJournalPost:
       type: object
       required: [id, slug, title, excerpt, body, authorName, status, createdAt, updatedAt]
@@ -795,7 +845,7 @@ components:
             $ref: "#/components/schemas/StaffMetric"
     StaffFunnel:
       type: object
-      required: [periodDays, from, to, generatedAt, privacyNote, events]
+      required: [periodDays, from, to, generatedAt, privacyNote, events, dropOffs]
       properties:
         periodDays: { type: number, minimum: 1 }
         from: { type: string }
@@ -812,6 +862,20 @@ components:
                 type: string
                 enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
               count: { type: number, minimum: 0 }
+        dropOffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunnelDropOff"
+    FunnelDropOff:
+      type: object
+      required: [fromEventName, toEventName, priorCount, currentCount, dropOffCount, dropOffRate]
+      properties:
+        fromEventName: { type: string }
+        toEventName: { type: string }
+        priorCount: { type: number, minimum: 0 }
+        currentCount: { type: number, minimum: 0 }
+        dropOffCount: { type: number, minimum: 0 }
+        dropOffRate: { type: ["number", "null"], minimum: 0, maximum: 1 }
     AnalyticsQualityReport:
       type: object
       required: [status, checks, generatedAt]

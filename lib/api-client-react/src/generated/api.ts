@@ -44,6 +44,7 @@ import type {
   StaffFunnel,
   StaffJournalPost,
   StaffJournalPostInput,
+  StaffJournalPostRevision,
   StaffJournalPostUpdate,
   StaffNotification,
   StaffNotificationAcknowledgement,
@@ -154,13 +155,6 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getRecordAnalyticsEventUrl = () => {
 
 
@@ -444,13 +438,6 @@ export function useListJournalPosts<TData = Awaited<ReturnType<typeof listJourna
 
   return withQueryKey(query, queryOptions.queryKey);
 }
-
-
-
-
-
-
-
 export const getGetJournalPostUrl = (slug: string,) => {
 
 
@@ -2072,4 +2059,75 @@ export const useUpdateStaffJournalPost = <TError = ErrorType<void>,
       > => {
       return useMutation(getUpdateStaffJournalPostMutationOptions(options));
     }
+
+export const getListStaffJournalPostRevisionsUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/journal/${id}/revisions`
+}
+
+/**
+ * @summary List immutable revision snapshots for a Journal article
+ */
+export const listStaffJournalPostRevisions = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<StaffJournalPostRevision[]> => {
+
+  return customFetch<StaffJournalPostRevision[]>(getListStaffJournalPostRevisionsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffJournalPostRevisionsQueryKey = (id: string,) => {
+    return [
+    `/api/staff/journal/${id}/revisions`
+    ] as const;
+    }
+
+
+export const getListStaffJournalPostRevisionsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffJournalPostRevisions>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffJournalPostRevisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffJournalPostRevisionsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffJournalPostRevisions>>> = ({ signal }) => listStaffJournalPostRevisions(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffJournalPostRevisions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffJournalPostRevisionsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffJournalPostRevisions>>>
+export type ListStaffJournalPostRevisionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List immutable revision snapshots for a Journal article
+ */
+
+export function useListStaffJournalPostRevisions<TData = Awaited<ReturnType<typeof listStaffJournalPostRevisions>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffJournalPostRevisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffJournalPostRevisionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 

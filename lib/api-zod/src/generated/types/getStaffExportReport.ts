@@ -12,4 +12,6 @@ export type GetStaffExportReport = typeof GetStaffExportReport[keyof typeof GetS
 export const GetStaffExportReport = {
   operations_summary: 'operations_summary',
   analytics_summary: 'analytics_summary',
+  campaign_aggregate: 'campaign_aggregate',
+  content_seo_aggregate: 'content_seo_aggregate',
 } as const;

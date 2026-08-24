@@ -58,7 +58,8 @@ const orderStatuses = [
 const activeOrderStatuses = ["paid", "atelier_confirmation", "in_production", "ready"] as const;
 const measurementConsents = ["analytics", "marketing"] as const;
 const qualityEventLimit = 10_000;
-const publicStorefrontPathPattern = "^/(|shop|checkout|journal|about|faq|policies|privacy|cookies|terms|delivery-returns|delivery|returns|care|product/[a-z0-9-]+|journal/[a-z0-9-]+|collections/[a-z0-9-]+)$";
+// Keep this SQL policy aligned with isTrackableStorefrontPath in api-zod.
+const invalidStorefrontPathPattern = "(^//)|(^/(staff|sign-in|sign-up)(/|$))|(^/journal/preview(/|$))|[?#[:space:][:cntrl:]\\\\]";
 
 const orderTransitions: Record<(typeof orderStatuses)[number], readonly (typeof orderStatuses)[number][]> = {
   payment_pending: [],
@@ -206,6 +207,19 @@ router.get(
       .groupBy(analyticsEventsTable.eventName);
     const values = new Map(counts.map((row) => [row.eventName, Number(row.value)]));
     const periodDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000));
+    const events = eventNames.map((eventName) => ({ eventName, count: values.get(eventName) ?? 0 }));
+    const dropOffs = events.slice(1).map((event, index) => {
+      const prior = events[index]!;
+      const dropOffCount = Math.max(0, prior.count - event.count);
+      return {
+        fromEventName: prior.eventName,
+        toEventName: event.eventName,
+        priorCount: prior.count,
+        currentCount: event.count,
+        dropOffCount,
+        dropOffRate: prior.count > 0 ? dropOffCount / prior.count : null,
+      };
+    });
 
     res.json(
       GetStaffFunnelResponse.parse({
@@ -214,7 +228,8 @@ router.get(
         to: range.to,
         generatedAt: new Date(),
         privacyNote: "Aggregated first-party counts only. No visitor, contact, or order-level data is included.",
-        events: eventNames.map((eventName) => ({ eventName, count: values.get(eventName) ?? 0 })),
+        events,
+        dropOffs,
       }),
     );
   },
@@ -624,7 +639,7 @@ router.get("/staff/analytics/quality", requireStaffRoles("owner", "analyst"), as
       .where(and(
         gte(analyticsEventsTable.occurredAt, last7d),
         inArray(analyticsEventsTable.consent, measurementConsents),
-        sql`${analyticsEventsTable.path} !~* ${publicStorefrontPathPattern}`,
+        sql`${analyticsEventsTable.path} ~* ${invalidStorefrontPathPattern}`,
       )),
     db
       .select({ value: count() })
@@ -692,8 +707,8 @@ router.get("/staff/analytics/quality", requireStaffRoles("owner", "analyst"), as
 
   const invalidPathCount = Number(invalidPaths[0]?.value ?? 0);
   checks.push(invalidPathCount
-    ? { check: "storefront_paths", status: "issue", detail: `${invalidPathCount} stored event${invalidPathCount === 1 ? "" : "s"} used a path outside the recognized storefront route set.`, scope: "Consented events in the last seven days.", nextAction: "Inspect the originating release before using affected path reports." }
-    : { check: "storefront_paths", status: "ok", detail: "All recent consented events use recognized storefront paths.", scope: "Consented events in the last seven days.", nextAction: "No action needed." });
+    ? { check: "storefront_paths", status: "issue", detail: `${invalidPathCount} stored event${invalidPathCount === 1 ? "" : "s"} used a malformed path or a private storefront surface.`, scope: "Consented events in the last seven days.", nextAction: "Inspect the originating release before using affected path reports." }
+    : { check: "storefront_paths", status: "ok", detail: "All recent consented events use valid public storefront pathnames, including newly launched pages.", scope: "Consented events in the last seven days.", nextAction: "No action needed." });
 
   const attributionCount = Number(incompleteAttribution[0]?.value ?? 0);
   checks.push(attributionCount
@@ -757,7 +772,7 @@ router.get("/staff/audit", requireStaffRoles("owner", "analyst"), async (req, re
 router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   const report = req.query.report;
-  if (!range || (report !== "operations_summary" && report !== "analytics_summary")) {
+  if (!range || (report !== "operations_summary" && report !== "analytics_summary" && report !== "campaign_aggregate" && report !== "content_seo_aggregate")) {
     res.status(400).json({ error: "Use a valid report and from/to date range" });
     return;
   }
@@ -766,18 +781,78 @@ router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, 
     return;
   }
 
-  const rows = report === "operations_summary"
+  const analyticsFilter = and(
+    gte(analyticsEventsTable.occurredAt, range.start),
+    lte(analyticsEventsTable.occurredAt, range.end),
+    inArray(analyticsEventsTable.consent, measurementConsents),
+  );
+  const summaryRows = report === "operations_summary"
     ? await db
       .select({ status: ordersTable.status, orders: count() })
       .from(ordersTable)
       .where(and(gte(ordersTable.createdAt, range.start), lte(ordersTable.createdAt, range.end)))
       .groupBy(ordersTable.status)
-    : await db
+    : report === "analytics_summary"
+      ? await db
       .select({ eventName: analyticsEventsTable.eventName, events: count() })
       .from(analyticsEventsTable)
-      .where(and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end), inArray(analyticsEventsTable.consent, ["analytics", "marketing"])))
-      .groupBy(analyticsEventsTable.eventName);
-  const columns = report === "operations_summary" ? ["status", "orders"] : ["eventName", "events"];
+      .where(analyticsFilter)
+      .groupBy(analyticsEventsTable.eventName)
+      : [];
+  const campaignRows = report === "campaign_aggregate"
+    ? await db
+      .select({
+        date: sql<string>`to_char(date_trunc('day', ${analyticsEventsTable.occurredAt}), 'YYYY-MM-DD')`,
+        source: sql<string>`coalesce(nullif(${analyticsEventsTable.source}, ''), '(none)')`,
+        utmMedium: sql<string>`coalesce(nullif(${analyticsEventsTable.utmMedium}, ''), '(none)')`,
+        utmCampaign: sql<string>`coalesce(nullif(${analyticsEventsTable.utmCampaign}, ''), '(none)')`,
+        deviceType: sql<string>`coalesce(${analyticsEventsTable.deviceType}, 'unknown')`,
+        eventName: analyticsEventsTable.eventName,
+        events: count(),
+      })
+      .from(analyticsEventsTable)
+      .where(analyticsFilter)
+      .groupBy(
+        sql`date_trunc('day', ${analyticsEventsTable.occurredAt})`,
+        analyticsEventsTable.source,
+        analyticsEventsTable.utmMedium,
+        analyticsEventsTable.utmCampaign,
+        analyticsEventsTable.deviceType,
+        analyticsEventsTable.eventName,
+      )
+      .orderBy(sql`date_trunc('day', ${analyticsEventsTable.occurredAt})`, analyticsEventsTable.source)
+    : [];
+  const contentRows = report === "content_seo_aggregate"
+    ? await db
+      .select({
+        date: sql<string>`to_char(date_trunc('day', ${analyticsEventsTable.occurredAt}), 'YYYY-MM-DD')`,
+        path: analyticsEventsTable.path,
+        eventName: analyticsEventsTable.eventName,
+        deviceType: sql<string>`coalesce(${analyticsEventsTable.deviceType}, 'unknown')`,
+        events: count(),
+      })
+      .from(analyticsEventsTable)
+      .where(and(
+        analyticsFilter,
+        inArray(analyticsEventsTable.eventName, ["page_view", "blog_article_viewed", "faq_expanded", "scroll_depth_reached", "cta_clicked"]),
+        sql`${analyticsEventsTable.path} !~* ${invalidStorefrontPathPattern}`,
+      ))
+      .groupBy(
+        sql`date_trunc('day', ${analyticsEventsTable.occurredAt})`,
+        analyticsEventsTable.path,
+        analyticsEventsTable.eventName,
+        analyticsEventsTable.deviceType,
+      )
+      .orderBy(sql`date_trunc('day', ${analyticsEventsTable.occurredAt})`, analyticsEventsTable.path)
+    : [];
+  const columns = report === "operations_summary"
+    ? ["status", "orders"]
+    : report === "analytics_summary"
+      ? ["eventName", "events"]
+      : report === "campaign_aggregate"
+        ? ["date", "source", "utmMedium", "utmCampaign", "deviceType", "eventName", "events"]
+        : ["date", "path", "eventName", "deviceType", "events"];
+  const rows = report === "campaign_aggregate" ? campaignRows : report === "content_seo_aggregate" ? contentRows : summaryRows;
   const exportRows = rows.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, typeof value === "bigint" ? Number(value) : value])));
   const filename = `soso-${report}-${range.from}-to-${range.to}.csv`;
 
@@ -792,7 +867,7 @@ router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, 
     report,
     filename,
     generatedAt: new Date(),
-    privacyNote: "This controlled export contains aggregate operational data only and excludes names, email addresses, phone numbers, payment references, and visitor identifiers.",
+    privacyNote: "This controlled export contains aggregate consented data only and excludes names, email addresses, phone numbers, payment references, visitor identifiers, session identifiers, and arbitrary event properties.",
     columns,
     rows: exportRows,
   }));

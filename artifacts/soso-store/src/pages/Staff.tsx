@@ -12,6 +12,7 @@ import {
   useListStaffAuditEvents,
   useListStaffEnquiries,
   useListStaffJournalPosts,
+  useListStaffJournalPostRevisions,
   useListStaffNotifications,
   useListStaffOrders,
   useListStaffPrivacyRequests,
@@ -43,6 +44,7 @@ import {
   Eye,
   FileText,
   Globe,
+  History,
   Info,
   Loader2,
   LockKeyhole,
@@ -348,7 +350,7 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
   const metrics = useStaffAnalyticsMetrics(range, true);
   const quality = useAnalyticsQuality(true);
 
-  const download = async (report: "operations_summary" | "analytics_summary") => {
+  const download = async (report: "operations_summary" | "analytics_summary" | "campaign_aggregate" | "content_seo_aggregate") => {
     setExporting(true);
     setNotice("");
     try {
@@ -381,6 +383,8 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
         </div>
         <div className="flex gap-2">
           <button type="button" disabled={exporting} onClick={() => void download("analytics_summary")} className="inline-flex min-h-11 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Download size={15} /> Analytics CSV</button>
+          <button type="button" disabled={exporting} onClick={() => void download("campaign_aggregate")} className="inline-flex min-h-11 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Download size={15} /> Campaign CSV</button>
+          <button type="button" disabled={exporting} onClick={() => void download("content_seo_aggregate")} className="inline-flex min-h-11 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Download size={15} /> Content &amp; SEO CSV</button>
           {role === "owner" && <button type="button" disabled={exporting} onClick={() => void download("operations_summary")} className="inline-flex min-h-11 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Download size={15} /> Operations CSV</button>}
         </div>
       </div>
@@ -403,7 +407,7 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
         {/* Event funnel */}
-        <div className="border border-border bg-card">{loading || !funnel ? <LoadingRows /> : <><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consented event counts · {funnel.from} to {funnel.to}</div><div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3">{funnel.events.map((event) => <div key={event.eventName} className="p-4"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{event.eventName.replaceAll("_", " ")}</p><p className="mt-3 text-2xl soso-display">{event.count.toLocaleString()}</p></div>)}</div></>}</div>
+        <div className="border border-border bg-card">{loading || !funnel ? <LoadingRows /> : <><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consented event counts · {funnel.from} to {funnel.to}</div><div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3">{funnel.events.map((event) => <div key={event.eventName} className="p-4"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{event.eventName.replaceAll("_", " ")}</p><p className="mt-3 text-2xl soso-display">{event.count.toLocaleString()}</p></div>)}</div><div className="border-t border-border p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Stage-to-stage event drop-off</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Rates compare aggregate event counts, not unique shoppers or completed payments.</p><div className="mt-3 space-y-2">{funnel.dropOffs.map((drop) => <div key={`${drop.fromEventName}-${drop.toEventName}`} className="flex items-center justify-between gap-3 text-xs"><span className="min-w-0 truncate">{drop.fromEventName.replaceAll("_", " ")} → {drop.toEventName.replaceAll("_", " ")}</span><span className="shrink-0 font-medium">{drop.dropOffRate === null ? "No baseline" : `${Math.round(drop.dropOffRate * 100)}%`} <span className="text-muted-foreground">({drop.dropOffCount.toLocaleString()} fewer)</span></span></div>)}</div></div></>}</div>
         {/* Right column: quality + audit */}
         <div className="flex flex-col gap-4">
           <QualityBadge quality={quality.data} />
@@ -662,6 +666,9 @@ function JournalManagementSection() {
   const [article, setArticle] = useState<StaffJournalPostInput>(emptyArticle);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const { data: revisions, isLoading: revisionsLoading, isError: revisionsError } = useListStaffJournalPostRevisions(editingId ?? "", {
+    query: { queryKey: ["staff-journal-revisions", editingId], enabled: Boolean(editingId) },
+  });
   const save = async (event: FormEvent) => { event.preventDefault(); try { if (editingId) { await update.mutateAsync({ id: editingId, data: article }); } else { const result = await create.mutateAsync({ data: article }); setEditingId(result.id); } setNotice("Article saved."); void refetch(); } catch (error) { setNotice(errorMessage(error, "Article could not be saved.")); } };
   const edit = (post: StaffJournalPost) => {
     setEditingId(post.id);
@@ -789,6 +796,37 @@ function JournalManagementSection() {
               <Save size={14} /> Save article
             </button>
           </div>
+          {editingId && (
+            <section className="mt-6 border-t border-border pt-5" aria-labelledby="journal-revision-history">
+              <div className="flex items-center gap-2">
+                <History size={15} className="text-primary" />
+                <h3 id="journal-revision-history" className="text-xs font-semibold uppercase tracking-wider">Revision history</h3>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Immutable snapshots, newest first. Restoring a previous version remains a deliberate manual edit.</p>
+              {revisionsLoading && <p className="mt-3 text-xs text-muted-foreground">Loading revision history…</p>}
+              {revisionsError && <p className="mt-3 text-xs text-destructive">Revision history could not be loaded.</p>}
+              {!revisionsLoading && !revisionsError && !revisions?.length && <p className="mt-3 text-xs text-muted-foreground">No revision snapshots are available for this article.</p>}
+              <div className="mt-3 space-y-2">
+                {revisions?.map((revision, index) => (
+                  <details key={revision.id} className="border border-border/70 p-3">
+                    <summary className="cursor-pointer list-none">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium">{index === 0 ? "Current saved revision" : `Revision ${revisions.length - index}`}</span>
+                        <time className="text-[10px] uppercase tracking-wider text-muted-foreground">{format(new Date(revision.createdAt), "d MMM yyyy, HH:mm")}</time>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{revision.snapshot.status} · {revision.snapshot.title}</p>
+                    </summary>
+                    <div className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+                      <p><span className="font-medium text-foreground">Slug:</span> {revision.snapshot.slug}</p>
+                      <p className="mt-1"><span className="font-medium text-foreground">Excerpt:</span> {revision.snapshot.excerpt}</p>
+                      <p className="mt-1"><span className="font-medium text-foreground">Body:</span> {revision.snapshot.body.length.toLocaleString()} characters</p>
+                      <p className="mt-2 font-mono text-[10px] break-all text-muted-foreground">Fingerprint: {revision.contentHash}</p>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </section>
+          )}
         </form>
       </div>
     </section>

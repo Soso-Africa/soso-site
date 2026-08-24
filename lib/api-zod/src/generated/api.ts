@@ -335,6 +335,15 @@ export const GetStaffFunnelQueryParams = zod.object({
 
 export const getStaffFunnelResponseEventsItemCountMin = 0;
 
+export const getStaffFunnelResponseDropOffsItemPriorCountMin = 0;
+
+export const getStaffFunnelResponseDropOffsItemCurrentCountMin = 0;
+
+export const getStaffFunnelResponseDropOffsItemDropOffCountMin = 0;
+
+export const getStaffFunnelResponseDropOffsItemDropOffRateMin = 0;
+export const getStaffFunnelResponseDropOffsItemDropOffRateMax = 1;
+
 
 
 export const GetStaffFunnelResponse = zod.object({
@@ -346,6 +355,14 @@ export const GetStaffFunnelResponse = zod.object({
   "events": zod.array(zod.object({
   "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
   "count": zod.number().min(getStaffFunnelResponseEventsItemCountMin)
+})),
+  "dropOffs": zod.array(zod.object({
+  "fromEventName": zod.string(),
+  "toEventName": zod.string(),
+  "priorCount": zod.number().min(getStaffFunnelResponseDropOffsItemPriorCountMin),
+  "currentCount": zod.number().min(getStaffFunnelResponseDropOffsItemCurrentCountMin),
+  "dropOffCount": zod.number().min(getStaffFunnelResponseDropOffsItemDropOffCountMin),
+  "dropOffRate": zod.number().min(getStaffFunnelResponseDropOffsItemDropOffRateMin).max(getStaffFunnelResponseDropOffsItemDropOffRateMax).nullable()
 }))
 })
 
@@ -660,7 +677,7 @@ export const getStaffExportQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{
 
 
 export const GetStaffExportQueryParams = zod.object({
-  "report": zod.enum(['operations_summary', 'analytics_summary']),
+  "report": zod.enum(['operations_summary', 'analytics_summary', 'campaign_aggregate', 'content_seo_aggregate']),
   "from": zod.coerce.string().regex(getStaffExportQueryFromRegExp).optional(),
   "to": zod.coerce.string().regex(getStaffExportQueryToRegExp).optional()
 })
@@ -890,5 +907,46 @@ export const UpdateStaffJournalPostResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * @summary List immutable revision snapshots for a Journal article
+ */
+export const listStaffJournalPostRevisionsPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffJournalPostRevisionsParams = zod.object({
+  "id": zod.coerce.string().regex(listStaffJournalPostRevisionsPathIdRegExp)
+})
+
+export const listStaffJournalPostRevisionsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const listStaffJournalPostRevisionsResponseJournalPostIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffJournalPostRevisionsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffJournalPostRevisionsResponseIdRegExp),
+  "journalPostId": zod.string().regex(listStaffJournalPostRevisionsResponseJournalPostIdRegExp),
+  "snapshot": zod.object({
+  "slug": zod.string(),
+  "title": zod.string(),
+  "excerpt": zod.string(),
+  "body": zod.string(),
+  "coverImageUrl": zod.string().nullish(),
+  "coverImageAlt": zod.string().nullish(),
+  "authorName": zod.string(),
+  "category": zod.string().nullish(),
+  "tags": zod.array(zod.string()).nullish(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "readTimeMinutes": zod.number().nullish(),
+  "relatedProductSlugs": zod.array(zod.string()).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string()).nullish(),
+  "status": zod.enum(['draft', 'published', 'archived']),
+  "publishedAt": zod.coerce.date().nullish()
+}),
+  "contentHash": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListStaffJournalPostRevisionsResponse = zod.array(ListStaffJournalPostRevisionsResponseItem)
 
 
