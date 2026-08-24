@@ -37,6 +37,7 @@ import {
   Activity,
   AlertCircle,
   Bell,
+  BarChart3,
   Check,
   ChevronRight,
   CircleCheck,
@@ -49,7 +50,9 @@ import {
   Info,
   Loader2,
   LockKeyhole,
+  LayoutDashboard,
   Mail,
+  Menu,
   MessageSquare,
   Monitor,
   Package,
@@ -65,6 +68,7 @@ import {
   Truck,
   TriangleAlert,
   Users,
+  X,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExperimentLog } from "@/components/ExperimentLog";
@@ -109,9 +113,18 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "site" | "faq" | "policies" | "redirects" | "analytics" | "staff";
+type StaffNavGroup = {
+  label: string;
+  items: { id: StaffTab; label: string; icon: React.ElementType }[];
+};
+const staffNavItem = (id: StaffTab, label: string, icon: React.ElementType) => ({ id, label, icon });
+
 export default function Staff() {
   const { data: profile, isLoading: profileLoading, isError: profileError } = useGetStaffProfile();
   const [range, setRange] = useState(() => dateRangeFor(7));
+  const [activeTab, setActiveTabState] = useState<StaffTab>("overview");
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
   // Stylists can view orders (read-only) so they can answer delivery queries.
   const canViewOrders = canManageOrders || profile?.role === "stylist";
@@ -127,12 +140,56 @@ export default function Staff() {
   const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications"], enabled: Boolean(profile), refetchInterval: 45_000 } });
   const audit = useListStaffAuditEvents(range, { query: { queryKey: ["staff-audit", range.from, range.to], enabled: canSeeAnalytics, refetchInterval: 60_000 } });
 
+  const availableTabs = new Set<StaffTab>(["overview"]);
+  if (canViewOrders) availableTabs.add("orders");
+  if (canManageEnquiries) availableTabs.add("enquiries");
+  if (canManagePrivacy) availableTabs.add("privacy");
+  if (profile?.role === "owner" || profile?.role === "editor") {
+    availableTabs.add("journal"); availableTabs.add("site"); availableTabs.add("faq"); availableTabs.add("policies");
+  }
+  if (profile?.role === "owner" || profile?.role === "operations") availableTabs.add("redirects");
+  if (canSeeAnalytics) availableTabs.add("analytics");
+  if (profile?.role === "owner") availableTabs.add("staff");
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const tab = window.location.hash.replace("#", "") as StaffTab;
+      if (availableTabs.has(tab)) setActiveTabState(tab);
+    };
+    window.addEventListener("hashchange", syncFromHash);
+    syncFromHash();
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, [profile?.role]);
+
   if (profileLoading) {
     return <LoadingScreen />;
   }
   if (profileError || !profile) {
     return <AccessRestricted />;
   }
+  const setActiveTab = (tab: StaffTab) => {
+    setActiveTabState(tab);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${tab}`);
+    setMobileNavigationOpen(false);
+  };
+
+  const navigation: StaffNavGroup[] = [
+    { label: "Workspace", items: [staffNavItem("overview", "Overview", LayoutDashboard)] },
+    { label: "Atelier", items: [
+      ...(canViewOrders ? [staffNavItem("orders", "Orders", Package)] : []),
+      ...(canManageEnquiries ? [staffNavItem("enquiries", "Enquiries", MessageSquare)] : []),
+    ] },
+    { label: "Customer care", items: canManagePrivacy ? [staffNavItem("privacy", "Privacy requests", LockKeyhole)] : [] },
+    { label: "Editorial", items: (profile.role === "owner" || profile.role === "editor") ? [
+      staffNavItem("journal", "Journal", PenLine), staffNavItem("site", "Site content", Globe), staffNavItem("faq", "FAQs", FileText),
+    ] : [] },
+    { label: "Governance", items: [
+      ...((profile.role === "owner" || profile.role === "editor") ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
+      ...((profile.role === "owner" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
+    ] },
+    { label: "Intelligence", items: canSeeAnalytics ? [staffNavItem("analytics", "Analytics", BarChart3)] : [] },
+    { label: "Administration", items: profile.role === "owner" ? [staffNavItem("staff", "Staff access", Users)] : [] },
+  ].filter((group) => group.items.length);
 
   const refreshOperations = () => {
     const refreshes: Promise<unknown>[] = [overview.refetch(), notifications.refetch()];
@@ -143,74 +200,61 @@ export default function Staff() {
     void Promise.all(refreshes);
   };
 
-  return (
-    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <header className="border-b border-border pb-8">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-primary">SOSO internal</p>
-            <h1 className="mt-2 text-4xl soso-display text-foreground">Atelier operations</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-              <span className="bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">{profile.role}</span>
-              <span className="text-muted-foreground">{profile.email}</span>
-            </div>
-          </div>
-          <DateRangeControl range={range} onChange={setRange} />
-        </div>
-      </header>
-
-      <section className="mt-7 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <Activity className="mt-0.5 shrink-0 text-primary" size={18} />
-          <p className="text-sm text-muted-foreground">
-            {overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${format(new Date(overview.data.generatedAt), "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}
-          </p>
-        </div>
-        <span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span>
-      </section>
-
-      <NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} />
-      <RoleCapabilityBanner role={profile.role} />
-      <Pulse overview={overview.data} loading={overview.isLoading} />
-
-      {canSeeAnalytics && (
-        <>
-          <AnalyticsSection
-            funnel={funnel.data}
-            auditEvents={audit.data}
-            loading={funnel.isLoading || audit.isLoading}
-            range={range}
-            role={profile.role}
-            onExported={() => void audit.refetch()}
-          />
-          <ExperimentLog />
-        </>
-      )}
-
-      {(canViewOrders || canManageEnquiries) && (
-        <section className="mt-12 grid gap-8 xl:grid-cols-2">
-          {canViewOrders && (
-            <OrdersSection
-              orders={orders.data}
-              loading={orders.isLoading}
-              canRefund={profile.role === "owner"}
-              onChanged={refreshOperations}
-              readOnly={!canManageOrders}
-            />
-          )}
-          {canManageEnquiries && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
-        </section>
-      )}
-
-      {canManagePrivacy && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
-      {(profile.role === "owner" || profile.role === "editor") && <JournalManagementSection />}
-      {(profile.role === "owner" || profile.role === "editor") && <SiteContentManagementSection />}
-      {(profile.role === "owner" || profile.role === "editor") && <FaqManagementSection />}
-      {(profile.role === "owner" || profile.role === "editor") && <PolicyManagementSection role={profile.role} />}
-      {(profile.role === "owner" || profile.role === "operations") && <RedirectsManagementSection />}
-      {profile.role === "owner" && <StaffAccessSection />}
-    </main>
+  const activeNavigation = navigation.flatMap((group) => group.items).find((item) => item.id === activeTab);
+  const sidebar = (
+    <nav aria-label="Staff workspace navigation" className="h-full overflow-y-auto bg-[#15110d] p-4">
+      <div className="border-b border-border pb-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">SOSO internal</p>
+        <p className="mt-2 text-xl soso-display">Atelier workspace</p>
+        <p className="mt-3 truncate text-xs text-muted-foreground">{profile.email}</p>
+        <span className="mt-2 inline-block bg-primary/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-primary">{profile.role}</span>
+      </div>
+      <div className="mt-5 space-y-5">
+        {navigation.map((group) => <div key={group.label}>
+          <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.19em] text-muted-foreground">{group.label}</p>
+          <div className="space-y-1">{group.items.map((item) => {
+            const Icon = item.icon;
+            const selected = item.id === activeTab;
+            return <button key={item.id} type="button" onClick={() => setActiveTab(item.id)} aria-current={selected ? "page" : undefined} className={`flex min-h-10 w-full items-center gap-3 border-l-2 px-3 text-left text-xs font-medium transition-colors ${selected ? "border-primary bg-primary/10 text-foreground" : "border-transparent text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}>
+              <Icon size={15} className={selected ? "text-primary" : ""} />{item.label}
+            </button>;
+          })}</div>
+        </div>)}
+      </div>
+    </nav>
   );
+
+  return <main className="min-h-screen bg-[#100e0b]">
+    <div className="mx-auto max-w-[1600px] lg:grid lg:grid-cols-[252px_minmax(0,1fr)]">
+      <aside className="sticky top-0 hidden h-screen border-r border-border lg:block">{sidebar}</aside>
+      {mobileNavigationOpen && <div className="fixed inset-0 z-50 bg-black/60 lg:hidden" onClick={() => setMobileNavigationOpen(false)}>
+        <aside className="relative h-full w-[280px] border-r border-border shadow-2xl" onClick={(event) => event.stopPropagation()}>
+          <button type="button" onClick={() => setMobileNavigationOpen(false)} className="absolute right-3 top-3 z-10 inline-flex min-h-9 min-w-9 items-center justify-center border border-border bg-background" aria-label="Close staff navigation"><X size={16} /></button>
+          {sidebar}
+        </aside>
+      </div>}
+      <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setMobileNavigationOpen(true)} className="inline-flex min-h-10 min-w-10 items-center justify-center border border-border lg:hidden" aria-label="Open staff navigation"><Menu size={18} /></button>
+            <div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">{activeNavigation?.label ?? "Workspace"}</p><h1 className="mt-1 text-3xl soso-display">{activeNavigation?.label ?? "Overview"}</h1></div>
+          </div>
+          {["overview", "orders", "analytics"].includes(activeTab) && <DateRangeControl range={range} onChange={setRange} />}
+        </header>
+        {activeTab === "overview" && <><section className="mt-6 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Activity className="mt-0.5 shrink-0 text-primary" size={18} /><p className="text-sm text-muted-foreground">{overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${format(new Date(overview.data.generatedAt), "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}</p></div><span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span></section><NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} /><RoleCapabilityBanner role={profile.role} /><Pulse overview={overview.data} loading={overview.isLoading} /></>}
+        {activeTab === "orders" && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} readOnly={!canManageOrders} />}
+        {activeTab === "enquiries" && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
+        {activeTab === "privacy" && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
+        {activeTab === "journal" && <JournalManagementSection />}
+        {activeTab === "site" && <SiteContentManagementSection />}
+        {activeTab === "faq" && <FaqManagementSection />}
+        {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
+        {activeTab === "redirects" && <RedirectsManagementSection />}
+        {activeTab === "analytics" && <><AnalyticsSection funnel={funnel.data} auditEvents={audit.data} loading={funnel.isLoading || audit.isLoading} range={range} role={profile.role} onExported={() => void audit.refetch()} /><ExperimentLog /></>}
+        {activeTab === "staff" && <StaffAccessSection />}
+      </section>
+    </div>
+  </main>;
 }
 
 function StaffAccessSection() {
