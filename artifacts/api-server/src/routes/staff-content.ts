@@ -27,7 +27,7 @@ const router: IRouter = Router();
 router.use("/staff", requireStaff);
 
 router.get("/staff/content/site", requireStaffRoles("owner", "editor"), async (_req, res): Promise<void> => {
-  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
+  const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   res.json(row ?? {
     key: "site",
     draft: {},
@@ -68,9 +68,12 @@ router.put("/staff/content/site", requireStaffRoles("owner", "editor"), async (r
     res.status(400).json({ error: "Primary CTA must link to a local storefront path" });
     return;
   }
-  const [current] = await db.select().from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
+  const [current] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   const next = saveSiteDraft(current, draft, req.staff!.clerkUserId);
-  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
+  const [row] = await db.insert(siteContentTable).values(next).onConflictDoUpdate({
+    target: siteContentTable.key,
+    set: next,
+  }).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
     entityType: "site_content", entityId: "site",
@@ -83,7 +86,7 @@ router.post("/staff/content/site/publish", requireStaffRoles("owner", "editor"),
   const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
   const { row: published, audit } = publishSiteDraft(existing, req.staff!.clerkUserId);
-  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
+  const [row] = await db.update(siteContentTable).set(published).where(eq(siteContentTable.key, "site")).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: audit.actorClerkUserId, action: audit.action,
     entityType: audit.entityType, entityId: audit.entityId, metadata: audit.metadata,
@@ -179,6 +182,7 @@ router.post(
       res.status(400).json({ error: "Invalid article reference" });
       return;
     }
+    const expectedRevision = req.body?.expectedRevision ? new Date(req.body.expectedRevision) : null;
 
     const post = await db.transaction(async (tx) => {
       const [current] = await tx
@@ -423,7 +427,13 @@ router.post("/staff/faq", requireStaffRoles("owner", "editor"), async (req, res)
     res.status(400).json({ error: "question and answer are required" });
     return;
   }
-  const [row] = await db.update(faqItemsTable).set(updates).where(eq(faqItemsTable.id, current.id)).returning();
+  const [row] = await db.insert(faqItemsTable).values({
+    question: question.trim(),
+    answer: answer.trim(),
+    category: typeof category === "string" && category.trim() ? category.trim() : null,
+    sortOrder: typeof sortOrder === "number" ? sortOrder : 0,
+    isPublished: typeof isPublished === "boolean" ? isPublished : false,
+  }).returning();
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId,
     action: "faq.created",

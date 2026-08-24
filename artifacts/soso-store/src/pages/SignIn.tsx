@@ -6,12 +6,17 @@ export default function SignInPage() {
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [setupToken, setSetupToken] = useState("");
+  const [initialSetup, setInitialSetup] = useState(false);
   const [notice, setNotice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setSubmitting(true); setNotice("");
     try {
-      await customFetch("/api/staff-auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+      await customFetch(initialSetup ? "/api/staff-auth/bootstrap" : "/api/staff-auth/login", {
+        method: "POST",
+        body: JSON.stringify(initialSetup ? { email, password, token: setupToken } : { email, password }),
+      });
       navigate("/staff", { replace: true });
     } catch { setNotice("The email address or password is incorrect."); }
     finally { setSubmitting(false); }
@@ -34,10 +39,12 @@ export default function SignInPage() {
 
         <form onSubmit={submit} className="w-full border border-border/60 bg-card p-6 shadow-2xl">
           <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Staff email<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="staff-input mt-2" autoComplete="email" /></label>
-          <label className="mt-5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Password<input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="staff-input mt-2" autoComplete="current-password" /></label>
+          {initialSetup && <label className="mt-5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">One-time setup token<input required type="password" value={setupToken} onChange={(event) => setSetupToken(event.target.value)} className="staff-input mt-2" autoComplete="off" /></label>}
+          <label className="mt-5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">{initialSetup ? "Create owner password" : "Password"}<input required minLength={initialSetup ? 12 : undefined} type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="staff-input mt-2" autoComplete={initialSetup ? "new-password" : "current-password"} /></label>
           {notice && <p role="alert" className="mt-4 text-sm text-destructive">{notice}</p>}
-          <button disabled={submitting} className="mt-6 min-h-12 w-full bg-primary text-xs font-semibold uppercase tracking-widest text-primary-foreground disabled:opacity-50">{submitting ? "Signing in…" : "Sign in"}</button>
-          <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">Access is issued by a SOSO owner. Contact an owner if you need an account or password reset.</p>
+          <button disabled={submitting} className="mt-6 min-h-12 w-full bg-primary text-xs font-semibold uppercase tracking-widest text-primary-foreground disabled:opacity-50">{submitting ? "Signing in…" : initialSetup ? "Create owner account" : "Sign in"}</button>
+          <button type="button" onClick={() => { setInitialSetup(!initialSetup); setNotice(""); }} className="mt-4 w-full text-xs text-primary underline underline-offset-4">{initialSetup ? "Back to staff sign in" : "First SOSO owner setup"}</button>
+          <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{initialSetup ? "Use this once only, with the setup token stored in Replit Secrets." : "Access is issued by a SOSO owner. Contact an owner if you need an account or password reset."}</p>
         </form>
       </div>
     </div>

@@ -227,7 +227,8 @@ router.post("/staff/access/:id/password", requireStaffRoles("owner"), async (req
     res.status(400).json({ error: "Use a temporary password with at least 12 characters." });
     return;
   }
-  const [target] = await db.select().from(staffUsersTable).where(eq(staffUsersTable.id, req.params.id)).limit(1);
+  const staffId = typeof req.params.id === "string" ? req.params.id : "";
+  const [target] = await db.select().from(staffUsersTable).where(eq(staffUsersTable.id, staffId)).limit(1);
   if (!target) {
     res.status(404).json({ error: "Staff account not found." });
     return;
