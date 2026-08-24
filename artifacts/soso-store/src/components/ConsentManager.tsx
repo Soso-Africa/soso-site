@@ -5,6 +5,7 @@ type ConsentState = "essential_only" | "analytics" | "marketing";
 export type StorefrontEventName =
   | "page_view"
   | "session_started"
+  | "active_time_heartbeat"
   | "product_view"
   | "product_image_viewed"
   | "size_guide_opened"
@@ -61,10 +62,16 @@ function readConsent(): ConsentState | null {
     : null;
 }
 
+type SendEventOptions = {
+  keepalive?: boolean;
+  path?: string;
+};
+
 function sendEvent(
   consent: Exclude<ConsentState, "essential_only">,
   eventName: StorefrontEventName,
   properties?: Record<string, unknown>,
+  options?: SendEventOptions,
 ) {
   const params = new URLSearchParams(window.location.search);
   void fetch(apiUrl("/analytics/events"), {
@@ -76,7 +83,7 @@ function sendEvent(
       anonymousId: visitorId(),
       sessionId: sessionId(),
       eventName,
-      path: window.location.pathname,
+      path: options?.path ?? window.location.pathname,
       referrer: document.referrer || undefined,
       source: params.get("utm_source") || undefined,
       utmMedium: params.get("utm_medium") || undefined,
@@ -86,6 +93,7 @@ function sendEvent(
       properties,
       occurredAt: new Date().toISOString(),
     }),
+    keepalive: options?.keepalive,
   }).catch(() => {
     // Measurement must never interrupt browsing or checkout.
   });
@@ -108,35 +116,61 @@ export function openPrivacyChoices() {
   window.dispatchEvent(new Event("soso:open-privacy-choices"));
 }
 
-/** Active-time heartbeat: tracks visible time on page. */
-function useActiveTimeHeartbeat(consent: ConsentState | null, enabled: boolean) {
+/** Records consented, visible time in bounded increments for the current page. */
+function useActiveTimeHeartbeat(consent: ConsentState | null, enabled: boolean, pathname: string) {
   const visibleSinceRef = useRef<number | null>(null);
   const accumulatedRef = useRef(0);
+  const reportedRef = useRef(0);
 
   useEffect(() => {
     if (!enabled || (consent !== "analytics" && consent !== "marketing")) return;
+    const heartbeatMs = 60_000;
+    const minimumReportMs = 15_000;
+
+    const activeMs = () => accumulatedRef.current + (
+      visibleSinceRef.current === null ? 0 : performance.now() - visibleSinceRef.current
+    );
+    const report = (keepalive = false) => {
+      const totalMs = activeMs();
+      const newMs = totalMs - reportedRef.current;
+      if (newMs < minimumReportMs) return;
+      reportedRef.current = totalMs;
+      sendEvent(consent, "active_time_heartbeat", {
+        active_seconds: Math.round(totalMs / 1000),
+        interval_seconds: Math.round(newMs / 1000),
+      }, { keepalive, path: pathname });
+    };
 
     const onVisible = () => {
-      visibleSinceRef.current = performance.now();
+      if (visibleSinceRef.current === null) visibleSinceRef.current = performance.now();
     };
     const onHidden = () => {
       if (visibleSinceRef.current !== null) {
         accumulatedRef.current += performance.now() - visibleSinceRef.current;
         visibleSinceRef.current = null;
       }
+      report(true);
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) onHidden();
+      else onVisible();
     };
 
     if (!document.hidden) visibleSinceRef.current = performance.now();
 
-    document.addEventListener("visibilitychange", () => {
-      document.hidden ? onHidden() : onVisible();
-    });
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", onHidden);
+    const heartbeat = window.setInterval(report, heartbeatMs);
 
     return () => {
       onHidden();
+      window.clearInterval(heartbeat);
+      window.removeEventListener("pagehide", onHidden);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       accumulatedRef.current = 0;
+      reportedRef.current = 0;
     };
-  }, [consent, enabled]);
+  }, [consent, enabled, pathname]);
 }
 
 /** Scroll-depth tracker: fires at 25 / 50 / 75 / 90% once per page. */
@@ -229,7 +263,7 @@ export function ConsentManager() {
   }, []);
 
   // Active-time heartbeat
-  useActiveTimeHeartbeat(consent, true);
+  useActiveTimeHeartbeat(consent, true, pathname);
 
   // Scroll depth
   useScrollDepth(consent);

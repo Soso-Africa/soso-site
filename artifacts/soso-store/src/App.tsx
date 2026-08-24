@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -13,6 +13,7 @@ import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { CartDrawer } from '@/components/CartDrawer';
 import { ConsentManager } from '@/components/ConsentManager';
 import { Seo } from '@/components/Seo';
+import { getRedirect } from '@workspace/api-client-react';
 
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
@@ -128,7 +129,7 @@ function AppShell() {
           />
         )}
         <main id="main-content" className="flex-1" tabIndex={-1}>
-          <Router />
+          <RedirectGuard><Router /></RedirectGuard>
         </main>
         {!staffOrAuthSurface && <Footer />}
       </div>
@@ -141,6 +142,37 @@ function AppShell() {
       )}
     </>
   );
+}
+
+function RedirectGuard({ children }: { children: ReactNode }) {
+  const [location, navigate] = useLocation();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setChecking(true);
+    void getRedirect({ path: location })
+      .then((redirect) => {
+        if (cancelled) return;
+        if (
+          redirect.toPath !== location
+          && redirect.toPath.startsWith("/")
+          && !redirect.toPath.startsWith("//")
+        ) {
+          navigate(redirect.toPath, { replace: true });
+        }
+      })
+      .catch(() => {
+        // A missing redirect is expected for almost every storefront route.
+      })
+      .finally(() => {
+        if (!cancelled) setChecking(false);
+      });
+    return () => { cancelled = true; };
+  }, [location, navigate]);
+
+  if (checking) return <div className="min-h-[45vh]" aria-busy="true" />;
+  return <>{children}</>;
 }
 
 export default App;

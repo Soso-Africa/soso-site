@@ -42,6 +42,7 @@ import {
   Eye,
   FileText,
   Globe,
+  Info,
   Loader2,
   LockKeyhole,
   Mail,
@@ -60,6 +61,7 @@ import {
   TriangleAlert,
   Users,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type StaffWorkflowDisplayStatus = StaffOrderUpdateStatus | "paid";
 
@@ -229,13 +231,13 @@ function Pulse({ overview, loading }: { overview: StaffOverview | undefined; loa
   if (loading || !overview) return <div className="mt-8 h-44 animate-pulse border border-border bg-muted/20" />;
   return (
     <section className="mt-8">
-      <div className="mb-4 flex items-center gap-2"><Activity size={18} className="text-primary" /><h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-foreground">Daily pulse</h2></div>
+      <div className="mb-4 flex flex-wrap items-center gap-2"><Activity size={18} className="text-primary" /><h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-foreground">Daily pulse</h2><span className="text-xs text-muted-foreground">For the selected reporting range.</span></div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {overview.metrics.map((metric) => (
           <article key={metric.key} className="border border-border bg-card p-5">
-            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{metric.label}</p>
+            <div className="flex items-center gap-1.5"><p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{metric.label}</p><Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Definition for ${metric.label}`} className="text-muted-foreground hover:text-primary"><Info size={13} /></button></TooltipTrigger><TooltipContent className="max-w-xs leading-relaxed">{metric.definition}</TooltipContent></Tooltip></div>
             <p className="mt-4 text-4xl soso-display text-foreground">{metric.value.toLocaleString()}</p>
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{metric.definition}</p>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Select the info icon for the metric definition.</p>
           </article>
         ))}
       </div>

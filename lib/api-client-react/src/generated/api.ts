@@ -27,6 +27,7 @@ import type {
   Enquiry,
   EnquiryInput,
   FaqItem,
+  GetRedirectParams,
   GetStaffExportParams,
   GetStaffFunnelParams,
   GetStaffOverviewParams,
@@ -35,6 +36,7 @@ import type {
   JournalPostSummary,
   ListStaffAuditEventsParams,
   ListStaffOrdersParams,
+  RedirectResolution,
   StaffAuditEvent,
   StaffEnquiryUpdate,
   StaffExport,
@@ -590,6 +592,90 @@ export function useListFaqItems<TData = Awaited<ReturnType<typeof listFaqItems>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListFaqItemsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetRedirectUrl = (params: GetRedirectParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/redirects?${stringifiedParams}` : `/api/redirects`
+}
+
+/**
+ * @summary Resolve a configured internal URL redirect
+ */
+export const getRedirect = async (params: GetRedirectParams, options?: Parameters<typeof customFetch>[1]): Promise<RedirectResolution> => {
+
+  return customFetch<RedirectResolution>(getGetRedirectUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRedirectQueryKey = (params?: GetRedirectParams,) => {
+    return [
+    `/api/redirects`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetRedirectQueryOptions = <TData = Awaited<ReturnType<typeof getRedirect>>, TError = ErrorType<void>>(params: GetRedirectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRedirect>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRedirectQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRedirect>>> = ({ signal }) => getRedirect(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRedirect>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRedirectQueryResult = NonNullable<Awaited<ReturnType<typeof getRedirect>>>
+export type GetRedirectQueryError = ErrorType<void>
+
+
+/**
+ * @summary Resolve a configured internal URL redirect
+ */
+
+export function useGetRedirect<TData = Awaited<ReturnType<typeof getRedirect>>, TError = ErrorType<void>>(
+ params: GetRedirectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRedirect>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRedirectQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

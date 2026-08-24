@@ -19,6 +19,7 @@ export type AnalyticsEventInputEventName = typeof AnalyticsEventInputEventName[k
 export const AnalyticsEventInputEventName = {
   page_view: 'page_view',
   session_started: 'session_started',
+  active_time_heartbeat: 'active_time_heartbeat',
   product_view: 'product_view',
   product_image_viewed: 'product_image_viewed',
   size_guide_opened: 'size_guide_opened',
@@ -585,6 +586,7 @@ export type StaffFunnelEventsItemEventName = typeof StaffFunnelEventsItemEventNa
 export const StaffFunnelEventsItemEventName = {
   page_view: 'page_view',
   session_started: 'session_started',
+  active_time_heartbeat: 'active_time_heartbeat',
   product_view: 'product_view',
   product_image_viewed: 'product_image_viewed',
   size_guide_opened: 'size_guide_opened',
@@ -621,6 +623,22 @@ export interface StaffFunnel {
   generatedAt: string;
   privacyNote: string;
   events: StaffFunnelEventsItem[];
+}
+
+export type RedirectResolutionStatusCode = typeof RedirectResolutionStatusCode[keyof typeof RedirectResolutionStatusCode];
+
+
+export const RedirectResolutionStatusCode = {
+  NUMBER_301: 301,
+  NUMBER_302: 302,
+  NUMBER_307: 307,
+  NUMBER_308: 308,
+} as const;
+
+export interface RedirectResolution {
+  fromPath: string;
+  toPath: string;
+  statusCode: RedirectResolutionStatusCode;
 }
 
 export type StaffPrivacyRequestInputRequestType = typeof StaffPrivacyRequestInputRequestType[keyof typeof StaffPrivacyRequestInputRequestType];
@@ -767,6 +785,13 @@ export interface StaffExport {
 export type StaffDateFromParameter = string;
 
 export type StaffDateToParameter = string;
+
+export type GetRedirectParams = {
+/**
+ * @maxLength 512
+ */
+path: string;
+};
 
 export type GetStaffOverviewParams = {
 /**

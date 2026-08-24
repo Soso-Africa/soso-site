@@ -412,10 +412,10 @@ Dashboard must distinguish:
 
 ### 4.5 Time spent and completion time
 
-> ⚫ **Implementation status — NOT STARTED.** There is no active-time heartbeat model (beyond the scroll/session signals), idle/visibility model, percentile reporting, bot/internal exclusion system, or order-to-atelier/production timing pipeline.
+> 🟡 **Implementation status — PARTIAL.** Consent-gated active-time heartbeats now measure visible time in bounded increments. Journey-time analysis, percentile reporting, bot/internal exclusion, and order-to-atelier/production timing remain **NOT STARTED** or **BLOCKED — verified payment workflow**.
 
 - 🟢 Session started event captured (once per session)
-- ⚫ Active time on page (visibilitychange + bounded heartbeat)
+- 🟢 Active time on page (visibilitychange + bounded heartbeat)
 - ⚫ Time from landing to first product view
 - ⚫ Time from product view to add to bag
 - ⚫ Time from add to bag to checkout

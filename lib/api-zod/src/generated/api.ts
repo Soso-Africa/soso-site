@@ -47,7 +47,7 @@ export const RecordAnalyticsEventBody = zod.object({
   "eventVersion": zod.number().min(1),
   "anonymousId": zod.string().min(recordAnalyticsEventBodyAnonymousIdMin).max(recordAnalyticsEventBodyAnonymousIdMax),
   "sessionId": zod.string().min(recordAnalyticsEventBodySessionIdMin).max(recordAnalyticsEventBodySessionIdMax),
-  "eventName": zod.enum(['page_view', 'session_started', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
+  "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
   "path": zod.string().max(recordAnalyticsEventBodyPathMax),
   "referrer": zod.string().max(recordAnalyticsEventBodyReferrerMax).optional(),
   "source": zod.string().max(recordAnalyticsEventBodySourceMax).optional(),
@@ -195,6 +195,24 @@ export const ListFaqItemsResponse = zod.array(ListFaqItemsResponseItem)
 
 
 /**
+ * @summary Resolve a configured internal URL redirect
+ */
+export const getRedirectQueryPathMax = 512;
+
+
+
+export const GetRedirectQueryParams = zod.object({
+  "path": zod.coerce.string().max(getRedirectQueryPathMax)
+})
+
+export const GetRedirectResponse = zod.object({
+  "fromPath": zod.string(),
+  "toPath": zod.string(),
+  "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+})
+
+
+/**
  * @summary Get the authenticated staff member's role
  */
 export const getStaffProfileResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -324,7 +342,7 @@ export const GetStaffFunnelResponse = zod.object({
   "generatedAt": zod.coerce.date(),
   "privacyNote": zod.string(),
   "events": zod.array(zod.object({
-  "eventName": zod.enum(['page_view', 'session_started', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
+  "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
   "count": zod.number().min(getStaffFunnelResponseEventsItemCountMin)
 }))
 })

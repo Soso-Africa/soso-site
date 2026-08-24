@@ -130,6 +130,27 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/FaqItem"
+  /redirects:
+    get:
+      operationId: getRedirect
+      tags: [storefront]
+      summary: Resolve a configured internal URL redirect
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        "200":
+          description: Matching internal redirect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RedirectResolution"
+        "404":
+          description: No redirect configured for this path
   /staff/me:
     get:
       operationId: getStaffProfile
@@ -522,7 +543,7 @@ components:
           maxLength: 128
         eventName:
           type: string
-          enum: [page_view, session_started, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
+          enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
         path:
           type: string
           maxLength: 512
@@ -775,7 +796,7 @@ components:
             properties:
               eventName:
                 type: string
-                enum: [page_view, session_started, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
+                enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
               count: { type: number, minimum: 0 }
     StaffMetric:
       type: object
@@ -785,6 +806,13 @@ components:
         label: { type: string }
         definition: { type: string }
         value: { type: number, minimum: 0 }
+    RedirectResolution:
+      type: object
+      required: [fromPath, toPath, statusCode]
+      properties:
+        fromPath: { type: string }
+        toPath: { type: string }
+        statusCode: { type: number, enum: [301, 302, 307, 308] }
     StaffPrivacyRequestInput:
       type: object
       required: [requestType, requesterEmail]

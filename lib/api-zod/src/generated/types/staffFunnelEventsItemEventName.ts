@@ -12,6 +12,7 @@ export type StaffFunnelEventsItemEventName = typeof StaffFunnelEventsItemEventNa
 export const StaffFunnelEventsItemEventName = {
   page_view: 'page_view',
   session_started: 'session_started',
+  active_time_heartbeat: 'active_time_heartbeat',
   product_view: 'product_view',
   product_image_viewed: 'product_image_viewed',
   size_guide_opened: 'size_guide_opened',

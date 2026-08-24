@@ -709,8 +709,15 @@ router.get("/staff/redirects", requireStaffRoles("owner", "operations"), async (
 
 router.post("/staff/redirects", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
   const { fromPath, toPath, statusCode } = req.body as Record<string, unknown>;
-  if (typeof fromPath !== "string" || !fromPath.startsWith("/") || typeof toPath !== "string" || !toPath.trim()) {
-    res.status(400).json({ error: "fromPath must start with / and toPath is required" });
+  if (
+    typeof fromPath !== "string"
+    || !fromPath.startsWith("/")
+    || fromPath.startsWith("//")
+    || typeof toPath !== "string"
+    || !toPath.startsWith("/")
+    || toPath.startsWith("//")
+  ) {
+    res.status(400).json({ error: "fromPath and toPath must be internal paths beginning with /" });
     return;
   }
   const code = typeof statusCode === "number" && [301, 302, 307, 308].includes(statusCode) ? statusCode : 301;
