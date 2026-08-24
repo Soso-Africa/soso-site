@@ -314,11 +314,11 @@ Every product page should include:
 
 ## 4. Admin portal
 
-> 🟡 **Implementation status — PARTIAL.** `/staff` is protected by real Clerk authentication and database-backed SOSO staff roles. Owner/operations can read orders; owner/operations/stylist can read enquiries; owner/editor can manage Journal; owner/analyst can see aggregated funnel counts. Full payment, production, export, privacy-request, notification, and operational-management tooling remains incomplete or blocked by live commerce.
+> 🟡 **Implementation status — PARTIAL.** `/staff` is protected by real Clerk authentication and database-backed SOSO staff roles. The portal now exposes role-specific boundaries for owner, operations, stylist/support, analyst, and editor, with server-side authorization for each sensitive route. Order workflow, enquiries, privacy procedures, aggregate reporting, CMS, redirects, notifications, and audit records are locally implemented. Live payment/JusticeSure, real production fulfilment, named shift coverage, and live-day sign-off remain **BLOCKED — provider activation and SOSO roster/operations approval**. See `docs/soso-live-atelier-role-checklist.md`.
 
 ### 4.1 Admin roles
 
-> 🟡 **Implementation status:** owner, operations, stylist/support, editor, and analyst roles with server-side route restrictions are **IMPLEMENTED**. Dedicated marketing role is represented by restricted editor/analyst capabilities. No role receives payment credentials. Staff activation and real user assignment are **BLOCKED — SOSO staff roster and permission approval**.
+> 🟡 **Implementation status:** owner, operations, stylist/support, editor, and analyst roles with server-side route restrictions are **IMPLEMENTED**. The live-day checklist records each role's allowed work, prohibited actions, and handoff boundaries. Dedicated marketing role is represented by restricted editor/analyst capabilities. No role receives payment credentials. Staff activation, named shift coverage, and real user assignment remain **BLOCKED — SOSO staff roster and permission approval**.
 
 - 🟢 Owner: full business, financial, content, analytics, and staff access
 - 🟢 Operations/atelier: paid orders, customer details, production status, enquiry management

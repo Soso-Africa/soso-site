@@ -178,11 +178,15 @@ router.get("/staff/overview", async (req, res): Promise<void> => {
       .where(and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end), inArray(analyticsEventsTable.consent, ["analytics", "marketing"]))),
   ]);
 
-    const values = new Map(counts.map((row) => [row.eventName, Number(row.value)]));
+  const values = {
+    ordersTotal: Number(orders?.value ?? 0),
+    ordersInProduction: Number(inProduction?.value ?? 0),
+    openEnquiries: Number(enquiries?.value ?? 0),
+    storefrontEvents7d: Number(events?.value ?? 0),
+  };
 
   res.json(
     GetStaffOverviewResponse.parse({
-      ...values,
       paymentIsLive: false,
       from: range.from,
       to: range.to,
@@ -224,12 +228,10 @@ router.get(
       .groupBy(analyticsEventsTable.eventName);
     const values = new Map(counts.map((row) => [row.eventName, Number(row.value)]));
     const periodDays = Math.max(1, Math.round((range.end.getTime() - range.start.getTime()) / 86_400_000));
-  const events = await db
-    .select({ id: auditLogsTable.id, action: auditLogsTable.action, entityType: auditLogsTable.entityType, entityId: auditLogsTable.entityId, metadata: auditLogsTable.metadata, createdAt: auditLogsTable.createdAt })
-    .from(auditLogsTable)
-    .where(and(gte(auditLogsTable.createdAt, range.start), lte(auditLogsTable.createdAt, range.end)))
-    .orderBy(desc(auditLogsTable.createdAt))
-    .limit(100);
+    const events = eventNames.map((eventName) => ({
+      eventName,
+      count: values.get(eventName) ?? 0,
+    }));
     const dropOffs = events.slice(1).map((event, index) => {
       const prior = events[index]!;
       const dropOffCount = Math.max(0, prior.count - event.count);
@@ -281,99 +283,59 @@ router.get("/staff/orders", requireStaffRoles("owner", "operations", "stylist"),
 });
 
 router.patch("/staff/orders/:id", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
-  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
-  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
+  const params = UpdateStaffOrderParams.safeParse(req.params);
+  const parsed = UpdateStaffOrderBody.safeParse(req.body);
   if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
-    res.status(400).json({ error: "Provide a valid privacy request update" });
+    res.status(400).json({ error: "Provide a valid order update" });
     return;
   }
-
-  const result = await db.transaction(async (tx) => {
-    const [request] = await tx.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
-    if (!request) return { kind: "missing" as const };
-    if (request.requestType !== "access") return { kind: "wrong_type" as const };
-    if ((request.status !== "identity_verified" && request.status !== "in_progress" && request.status !== "completed") || !hasRecordedIdentityVerification(request)) return { kind: "unverified" as const };
-
-    const [existing] = await tx.select().from(privacyAccessPackagesTable)
-      .where(eq(privacyAccessPackagesTable.privacyRequestId, request.id)).limit(1);
-    if (existing && !existing.downloadedAt && existing.expiresAt > new Date()) return { kind: "existing" as const, package: existing };
-
-    const email = normalizedEmail(request.requesterEmail);
-    const orders = await tx.select({
-      id: ordersTable.id, orderNumber: ordersTable.orderNumber, customerName: ordersTable.customerName,
-      customerEmail: ordersTable.customerEmail, customerPhone: ordersTable.customerPhone, currency: ordersTable.currency,
-      subtotal: ordersTable.subtotal, total: ordersTable.total, status: ordersTable.status, source: ordersTable.source,
-      atelierNotes: ordersTable.atelierNotes, deliveryNotes: ordersTable.deliveryNotes, createdAt: ordersTable.createdAt, updatedAt: ordersTable.updatedAt,
-    }).from(ordersTable).where(sql`lower(${ordersTable.customerEmail}) = ${email}`);
-    const orderItems = orders.length ? await tx.select({
-      orderId: orderItemsTable.orderId, productSlug: orderItemsTable.productSlug, productName: orderItemsTable.productName,
-      selectedSize: orderItemsTable.selectedSize, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
-    }).from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
-    const enquiries = await tx.select({
-      name: customerEnquiriesTable.name, email: customerEnquiriesTable.email, phone: customerEnquiriesTable.phone,
-      productSlug: customerEnquiriesTable.productSlug, message: customerEnquiriesTable.message, status: customerEnquiriesTable.status,
-      createdAt: customerEnquiriesTable.createdAt, updatedAt: customerEnquiriesTable.updatedAt,
-    }).from(customerEnquiriesTable).where(sql`lower(${customerEnquiriesTable.email}) = ${email}`);
-    const checkoutAttempts = await tx.select({
-      customerName: commerceCheckoutAttemptsTable.customerName, customerEmail: commerceCheckoutAttemptsTable.customerEmail,
-      customerPhone: commerceCheckoutAttemptsTable.customerPhone, items: commerceCheckoutAttemptsTable.items,
-      fulfillment: commerceCheckoutAttemptsTable.fulfillment, status: commerceCheckoutAttemptsTable.status,
-      createdAt: commerceCheckoutAttemptsTable.createdAt, updatedAt: commerceCheckoutAttemptsTable.updatedAt,
-    }).from(commerceCheckoutAttemptsTable).where(sql`lower(${commerceCheckoutAttemptsTable.customerEmail}) = ${email}`);
-    const payload = {
-      format: "soso-subject-access-package-v1",
-      generatedAt: new Date().toISOString(),
-      requesterEmail: email,
-      scope: {
-        included: ["orders", "order_items", "customer_enquiries", "checkout_attempts"],
-        excluded: [
-          "payment card data, payment-provider references, ownership or idempotency tokens",
-          "staff-only audit and operational records",
-          "anonymous analytics and consent records, which are not linked to an identified requester",
-        ],
-      },
-      data: { orders, orderItems, enquiries, checkoutAttempts },
-    };
-    const rowCounts = { orders: orders.length, orderItems: orderItems.length, enquiries: enquiries.length, checkoutAttempts: checkoutAttempts.length };
-    const nextPackage = {
-      packageHash: privacyPackageHash(payload), payload, rowCounts,
-      createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    };
-    const [packageRecord] = existing
-      ? await tx.update(privacyAccessPackagesTable).set({
-        ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null,
-      }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()
-      : await tx.insert(privacyAccessPackagesTable).values({ privacyRequestId: request.id, ...nextPackage }).returning();
-    if (!packageRecord) return { kind: "conflict" as const };
-
-    const [updated] = await tx.update(privacyRequestsTable)
-      .set({ status: request.status === "identity_verified" ? "in_progress" : request.status })
-      .where(eq(privacyRequestsTable.id, request.id)).returning();
-    await tx.insert(auditLogsTable).values({
-      actorClerkUserId: req.staff!.clerkUserId, action: existing ? "privacy_request.access_package_reissued" : "privacy_request.access_package_generated",
-      entityType: "privacy_request", entityId: request.id,
-      metadata: auditMetadata({ packageId: packageRecord.id, packageHash: packageRecord.packageHash, rowCounts: packageRecord.rowCounts, expiresAt: packageRecord.expiresAt.toISOString(), requestStatus: updated?.status ?? request.status }),
-    });
-    return { kind: existing ? "reissued" as const : "created" as const, package: packageRecord };
-  });
-
-  if (result.kind === "missing") {
+  const [order] = await db.select().from(ordersTable).where(eq(ordersTable.id, params.data.id)).limit(1);
+  if (!order) {
     res.status(404).json({ error: "Order not found" });
     return;
   }
-  if (result.kind === "forbidden_refund") {
-    res.status(403).json({ error: "Only an owner can review an internal refund request" });
+  if (parsed.data.status && !orderTransitions[order.status].includes(parsed.data.status)) {
+    res.status(400).json({ error: "That order status transition is not allowed" });
     return;
   }
-  if (result.kind === "transition" || result.kind === "refund_action" || result.kind === "refund_pending" || result.kind === "refund_decision") {
-    res.status(400).json({ error: result.kind === "transition" ? "That order status transition is not allowed" : result.kind === "refund_action" ? "Request or review a refund in separate actions" : result.kind === "refund_pending" ? "An active internal refund request is already recorded" : "An owner can only review a pending refund request with a decision note" });
+  if (parsed.data.refundRequestDecision) {
+    if (req.staff!.role !== "owner") {
+      res.status(403).json({ error: "Only an owner can review an internal refund request" });
+      return;
+    }
+    if (order.refundRequestStatus !== "requested" || !parsed.data.refundDecisionNote) {
+      res.status(400).json({ error: "An owner can only review a pending refund request with a decision note" });
+      return;
+    }
+  } else if (parsed.data.refundRequestReason) {
+    if (order.refundRequestStatus) {
+      res.status(400).json({ error: "An active internal refund request is already recorded" });
+      return;
+    }
+  } else if (parsed.data.refundDecisionNote) {
+    res.status(400).json({ error: "Request or review a refund in separate actions" });
     return;
   }
-  if (result.kind === "conflict") {
-    res.status(409).json({ error: "This order changed while you were editing it. Refresh the queue and try again." });
-    return;
-  }
-  res.json(UpdateStaffOrderResponse.parse(orderView(result.order)));
+  const now = new Date();
+  const [updated] = await db.update(ordersTable).set({
+    ...(parsed.data.status ? { status: parsed.data.status } : {}),
+    ...(parsed.data.atelierNotes !== undefined ? { atelierNotes: parsed.data.atelierNotes ?? null } : {}),
+    ...(parsed.data.deliveryNotes !== undefined ? { deliveryNotes: parsed.data.deliveryNotes ?? null } : {}),
+    ...(parsed.data.refundRequestReason ? { refundRequestStatus: "requested", refundRequestReason: parsed.data.refundRequestReason, refundRequestedAt: now } : {}),
+    ...(parsed.data.refundRequestDecision ? {
+      refundRequestStatus: parsed.data.refundRequestDecision,
+      refundDecisionNote: parsed.data.refundDecisionNote!,
+      refundReviewedAt: now,
+    } : {}),
+  }).where(eq(ordersTable.id, order.id)).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId,
+    action: "order.updated",
+    entityType: "order",
+    entityId: order.id,
+    metadata: auditMetadata({ status: updated!.status, refundDecision: parsed.data.refundRequestDecision ?? null }),
+  });
+  res.json(UpdateStaffOrderResponse.parse(orderView(updated!)));
 });
 
 router.get("/staff/enquiries", requireStaffRoles("owner", "operations", "stylist"), async (_req, res): Promise<void> => {
@@ -382,8 +344,8 @@ router.get("/staff/enquiries", requireStaffRoles("owner", "operations", "stylist
 });
 
 router.patch("/staff/enquiries/:id", requireStaffRoles("owner", "operations", "stylist"), async (req, res): Promise<void> => {
-  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
-  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
+  const params = UpdateStaffEnquiryParams.safeParse(req.params);
+  const parsed = UpdateStaffEnquiryBody.safeParse(req.body);
   if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
     res.status(400).json({ error: "Provide a valid enquiry update" });
     return;
@@ -413,7 +375,7 @@ router.get("/staff/privacy-requests", requireStaffRoles("owner", "operations"), 
 });
 
 router.post("/staff/privacy-requests", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
-  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
+  const parsed = CreateStaffPrivacyRequestBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Provide a valid privacy request" });
     return;
@@ -441,93 +403,59 @@ router.post("/staff/privacy-requests", requireStaffRoles("owner", "operations"),
 });
 
 router.patch("/staff/privacy-requests/:id", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
-  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
-  const parsed = AcknowledgeStaffNotificationBody.safeParse(req.body);
+  const params = UpdateStaffPrivacyRequestParams.safeParse(req.params);
+  const parsed = UpdateStaffPrivacyRequestBody.safeParse(req.body);
   if (!params.success || !parsed.success || Object.keys(parsed.data).length === 0) {
     res.status(400).json({ error: "Provide a valid privacy request update" });
     return;
   }
-
-  const result = await db.transaction(async (tx) => {
-    const [request] = await tx.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
-    if (!request) return { kind: "missing" as const };
-    if (request.requestType !== "access") return { kind: "wrong_type" as const };
-    if ((request.status !== "identity_verified" && request.status !== "in_progress" && request.status !== "completed") || !hasRecordedIdentityVerification(request)) return { kind: "unverified" as const };
-
-    const [existing] = await tx.select().from(privacyAccessPackagesTable)
-      .where(eq(privacyAccessPackagesTable.privacyRequestId, request.id)).limit(1);
-    if (existing && !existing.downloadedAt && existing.expiresAt > new Date()) return { kind: "existing" as const, package: existing };
-
-    const email = normalizedEmail(request.requesterEmail);
-    const orders = await tx.select({
-      id: ordersTable.id, orderNumber: ordersTable.orderNumber, customerName: ordersTable.customerName,
-      customerEmail: ordersTable.customerEmail, customerPhone: ordersTable.customerPhone, currency: ordersTable.currency,
-      subtotal: ordersTable.subtotal, total: ordersTable.total, status: ordersTable.status, source: ordersTable.source,
-      atelierNotes: ordersTable.atelierNotes, deliveryNotes: ordersTable.deliveryNotes, createdAt: ordersTable.createdAt, updatedAt: ordersTable.updatedAt,
-    }).from(ordersTable).where(sql`lower(${ordersTable.customerEmail}) = ${email}`);
-    const orderItems = orders.length ? await tx.select({
-      orderId: orderItemsTable.orderId, productSlug: orderItemsTable.productSlug, productName: orderItemsTable.productName,
-      selectedSize: orderItemsTable.selectedSize, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
-    }).from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
-    const enquiries = await tx.select({
-      name: customerEnquiriesTable.name, email: customerEnquiriesTable.email, phone: customerEnquiriesTable.phone,
-      productSlug: customerEnquiriesTable.productSlug, message: customerEnquiriesTable.message, status: customerEnquiriesTable.status,
-      createdAt: customerEnquiriesTable.createdAt, updatedAt: customerEnquiriesTable.updatedAt,
-    }).from(customerEnquiriesTable).where(sql`lower(${customerEnquiriesTable.email}) = ${email}`);
-    const checkoutAttempts = await tx.select({
-      customerName: commerceCheckoutAttemptsTable.customerName, customerEmail: commerceCheckoutAttemptsTable.customerEmail,
-      customerPhone: commerceCheckoutAttemptsTable.customerPhone, items: commerceCheckoutAttemptsTable.items,
-      fulfillment: commerceCheckoutAttemptsTable.fulfillment, status: commerceCheckoutAttemptsTable.status,
-      createdAt: commerceCheckoutAttemptsTable.createdAt, updatedAt: commerceCheckoutAttemptsTable.updatedAt,
-    }).from(commerceCheckoutAttemptsTable).where(sql`lower(${commerceCheckoutAttemptsTable.customerEmail}) = ${email}`);
-    const payload = {
-      format: "soso-subject-access-package-v1",
-      generatedAt: new Date().toISOString(),
-      requesterEmail: email,
-      scope: {
-        included: ["orders", "order_items", "customer_enquiries", "checkout_attempts"],
-        excluded: [
-          "payment card data, payment-provider references, ownership or idempotency tokens",
-          "staff-only audit and operational records",
-          "anonymous analytics and consent records, which are not linked to an identified requester",
-        ],
-      },
-      data: { orders, orderItems, enquiries, checkoutAttempts },
-    };
-    const rowCounts = { orders: orders.length, orderItems: orderItems.length, enquiries: enquiries.length, checkoutAttempts: checkoutAttempts.length };
-    const nextPackage = {
-      packageHash: privacyPackageHash(payload), payload, rowCounts,
-      createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    };
-    const [packageRecord] = existing
-      ? await tx.update(privacyAccessPackagesTable).set({
-        ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null,
-      }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()
-      : await tx.insert(privacyAccessPackagesTable).values({ privacyRequestId: request.id, ...nextPackage }).returning();
-    if (!packageRecord) return { kind: "conflict" as const };
-
-    const [updated] = await tx.update(privacyRequestsTable)
-      .set({ status: request.status === "identity_verified" ? "in_progress" : request.status })
-      .where(eq(privacyRequestsTable.id, request.id)).returning();
-    await tx.insert(auditLogsTable).values({
-      actorClerkUserId: req.staff!.clerkUserId, action: existing ? "privacy_request.access_package_reissued" : "privacy_request.access_package_generated",
-      entityType: "privacy_request", entityId: request.id,
-      metadata: auditMetadata({ packageId: packageRecord.id, packageHash: packageRecord.packageHash, rowCounts: packageRecord.rowCounts, expiresAt: packageRecord.expiresAt.toISOString(), requestStatus: updated?.status ?? request.status }),
-    });
-    return { kind: existing ? "reissued" as const : "created" as const, package: packageRecord };
+  const [request] = await db.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
+  if (!request) {
+    res.status(404).json({ error: "Privacy request not found" });
+    return;
+  }
+  if (parsed.data.status && !privacyTransitions[request.status].includes(parsed.data.status)) {
+    res.status(400).json({ error: "That privacy request transition is not allowed" });
+    return;
+  }
+  const verifiesIdentity = parsed.data.status === "identity_verified";
+  const closesRequest = parsed.data.status === "completed" || parsed.data.status === "rejected";
+  if ((verifiesIdentity || closesRequest) && req.staff!.role !== "owner") {
+    res.status(403).json({ error: "Only an owner can verify identity or close a privacy request" });
+    return;
+  }
+  if (verifiesIdentity && !parsed.data.verificationNote?.trim()) {
+    res.status(400).json({ error: "Record identity-verification evidence before marking a request verified" });
+    return;
+  }
+  if (closesRequest && !parsed.data.resolutionNote?.trim()) {
+    res.status(400).json({ error: "Record a resolution note before closing a privacy request" });
+    return;
+  }
+  if (request.requestType === "deletion" && parsed.data.status === "completed") {
+    res.status(409).json({ error: "Deletion completion is blocked until SOSO approves retention and deletion procedures" });
+    return;
+  }
+  const now = new Date();
+  const [updated] = await db.update(privacyRequestsTable).set({
+    ...(parsed.data.status ? { status: parsed.data.status } : {}),
+    ...(parsed.data.verificationNote !== undefined ? { verificationNote: parsed.data.verificationNote ?? null } : {}),
+    ...(parsed.data.resolutionNote !== undefined ? { resolutionNote: parsed.data.resolutionNote ?? null } : {}),
+    ...(verifiesIdentity ? { verifiedAt: now, verifiedByClerkUserId: req.staff!.clerkUserId } : {}),
+    ...(parsed.data.status === "completed" ? { completedAt: now } : {}),
+  }).where(eq(privacyRequestsTable.id, request.id)).returning();
+  await db.insert(auditLogsTable).values({
+    actorClerkUserId: req.staff!.clerkUserId,
+    action: "privacy_request.updated",
+    entityType: "privacy_request",
+    entityId: request.id,
+    metadata: auditMetadata({ status: updated!.status, verified: verifiesIdentity, completed: parsed.data.status === "completed" }),
   });
-  if (result.kind === "missing") { res.status(404).json({ error: "Privacy request not found" }); return; }
-  if (result.kind === "wrong_type") { res.status(400).json({ error: "Only a verified access request can receive an access package" }); return; }
-  if (result.kind === "unverified") { res.status(400).json({ error: "Verify the requester before generating an access package" }); return; }
-  if (result.kind === "conflict") { res.status(409).json({ error: "An access package is already being generated; refresh and try again" }); return; }
-  res.status(result.kind === "created" || result.kind === "reissued" ? 201 : 200).json({
-    packageId: result.package.id, expiresAt: result.package.expiresAt, downloadedAt: result.package.downloadedAt,
-    rowCounts: result.package.rowCounts, downloadPath: `/api/staff/privacy-access-packages/${result.package.id}/download`,
-  });
+  res.json(UpdateStaffPrivacyRequestResponse.parse(updated!));
 });
 
-router.get("/staff/privacy-access-packages/:id/download", requireStaffRoles("owner"), async (req, res): Promise<void> => {
-  const params = AcknowledgeStaffNotificationParams.safeParse(req.params);
+router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("owner"), async (req, res): Promise<void> => {
+  const params = UpdateStaffPrivacyRequestParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "Invalid privacy request reference" });
     return;
@@ -536,7 +464,7 @@ router.get("/staff/privacy-access-packages/:id/download", requireStaffRoles("own
     const [request] = await tx.select().from(privacyRequestsTable).where(eq(privacyRequestsTable.id, params.data.id)).limit(1);
     if (!request) return { kind: "missing" as const };
     if (request.requestType !== "access") return { kind: "wrong_type" as const };
-    if ((request.status !== "identity_verified" && request.status !== "in_progress" && request.status !== "completed") || !hasRecordedIdentityVerification(request)) return { kind: "unverified" as const };
+    if (!hasRecordedIdentityVerification(request)) return { kind: "unverified" as const };
 
     const [existing] = await tx.select().from(privacyAccessPackagesTable)
       .where(eq(privacyAccessPackagesTable.privacyRequestId, request.id)).limit(1);
@@ -570,43 +498,33 @@ router.get("/staff/privacy-access-packages/:id/download", requireStaffRoles("own
       requesterEmail: email,
       scope: {
         included: ["orders", "order_items", "customer_enquiries", "checkout_attempts"],
-        excluded: [
-          "payment card data, payment-provider references, ownership or idempotency tokens",
-          "staff-only audit and operational records",
-          "anonymous analytics and consent records, which are not linked to an identified requester",
-        ],
+        excluded: ["payment card data, payment-provider references, ownership or idempotency tokens", "staff-only audit and operational records", "anonymous analytics and consent records, which are not linked to an identified requester"],
       },
       data: { orders, orderItems, enquiries, checkoutAttempts },
     };
     const rowCounts = { orders: orders.length, orderItems: orderItems.length, enquiries: enquiries.length, checkoutAttempts: checkoutAttempts.length };
-    const nextPackage = {
-      packageHash: privacyPackageHash(payload), payload, rowCounts,
-      createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    };
+    const nextPackage = { packageHash: privacyPackageHash(payload), payload, rowCounts, createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) };
     const [packageRecord] = existing
-      ? await tx.update(privacyAccessPackagesTable).set({
-        ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null,
-      }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()
+      ? await tx.update(privacyAccessPackagesTable).set({ ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()
       : await tx.insert(privacyAccessPackagesTable).values({ privacyRequestId: request.id, ...nextPackage }).returning();
-    if (!packageRecord) return { kind: "conflict" as const };
-
-    const [updated] = await tx.update(privacyRequestsTable)
-      .set({ status: request.status === "identity_verified" ? "in_progress" : request.status })
-      .where(eq(privacyRequestsTable.id, request.id)).returning();
     await tx.insert(auditLogsTable).values({
-      actorClerkUserId: req.staff!.clerkUserId, action: existing ? "privacy_request.access_package_reissued" : "privacy_request.access_package_generated",
-      entityType: "privacy_request", entityId: request.id,
-      metadata: auditMetadata({ packageId: packageRecord.id, packageHash: packageRecord.packageHash, rowCounts: packageRecord.rowCounts, expiresAt: packageRecord.expiresAt.toISOString(), requestStatus: updated?.status ?? request.status }),
+      actorClerkUserId: req.staff!.clerkUserId,
+      action: existing ? "privacy_request.access_package_reissued" : "privacy_request.access_package_generated",
+      entityType: "privacy_request",
+      entityId: request.id,
+      metadata: auditMetadata({ packageId: packageRecord!.id, packageHash: packageRecord!.packageHash, rowCounts: packageRecord!.rowCounts, expiresAt: packageRecord!.expiresAt.toISOString() }),
     });
-    return { kind: existing ? "reissued" as const : "created" as const, package: packageRecord };
+    return { kind: existing ? "reissued" as const : "created" as const, package: packageRecord! };
   });
   if (result.kind === "missing") { res.status(404).json({ error: "Privacy request not found" }); return; }
   if (result.kind === "wrong_type") { res.status(400).json({ error: "Only a verified access request can receive an access package" }); return; }
   if (result.kind === "unverified") { res.status(400).json({ error: "Verify the requester before generating an access package" }); return; }
-  if (result.kind === "conflict") { res.status(409).json({ error: "An access package is already being generated; refresh and try again" }); return; }
   res.status(result.kind === "created" || result.kind === "reissued" ? 201 : 200).json({
-    packageId: result.package.id, expiresAt: result.package.expiresAt, downloadedAt: result.package.downloadedAt,
-    rowCounts: result.package.rowCounts, downloadPath: `/api/staff/privacy-access-packages/${result.package.id}/download`,
+    packageId: result.package.id,
+    expiresAt: result.package.expiresAt,
+    downloadedAt: result.package.downloadedAt,
+    rowCounts: result.package.rowCounts,
+    downloadPath: `/api/staff/privacy-access-packages/${result.package.id}/download`,
   });
 });
 

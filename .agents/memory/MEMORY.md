@@ -9,3 +9,4 @@
 - [Consent-aware event lifecycle](consent-aware-event-lifecycle.md) — key page views to the affirmative-consent grant and pathname, and retain a memory fallback when browser session storage is unavailable.
 - [Controlled privacy access packages](controlled-privacy-access-packages.md) — verified requests get a bounded, short-lived one-time export; deletion stays blocked without approved rules.
 - [Shared storefront analytics paths](shared-storefront-analytics-paths.md) — keep public-route validation as one deny-list policy usable by both JavaScript ingestion and PostgreSQL staff checks.
+- [API Zod library rebuild](api-zod-library-rebuild.md) — rebuild composite library declarations with the root TypeScript project command before checking API consumers.

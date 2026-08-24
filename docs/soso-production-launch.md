@@ -99,6 +99,10 @@ Run Lighthouse or an equivalent real-device test on the published production dom
 
 ## Operations procedures
 
+### Live atelier-day roles
+
+Before any live atelier day, use [the staff role checklist](./soso-live-atelier-role-checklist.md) to confirm the active owner, operations lead, stylist/support contact, analyst, and editor have the minimum role needed for their shift and no broader access. This is a local permission and handoff guide, not evidence that SOSO has approved a roster or activated payment/fulfilment.
+
 ### Incident and payment-failure response
 
 1. Name an incident lead, customer-support owner, technical owner, and decision-maker before publishing.

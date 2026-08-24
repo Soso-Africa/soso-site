@@ -742,7 +742,7 @@ function PrivacyRow({ request, role, onChanged }: { request: StaffPrivacyRequest
   return (
     <article className="p-5">
       <div className="flex flex-col justify-between gap-2 sm:flex-row"><div><p className="text-sm font-medium capitalize">{request.requestType} request</p><p className="mt-1 text-xs text-muted-foreground">{request.requesterName || "Requester"} · {request.requesterEmail}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">Policy version: {request.policyVersion}</p></div><StatusBadge status={request.status} /></div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Procedure status<select value={status} disabled={locked} onChange={(event) => setStatus(event.target.value as typeof status)} className="staff-input mt-1"><option value="received">Received</option><option value="identity_verified">Identity verified</option><option value="in_progress">In progress</option>{owner && request.requestType !== "deletion" && <option value="completed">Completed</option>}{owner && <option value="rejected">Rejected</option>}</select></label><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Verification note<textarea disabled={locked} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Procedure status<select value={status} disabled={locked} onChange={(event) => setStatus(event.target.value as typeof status)} className="staff-input mt-1"><option value="received">Received</option>{owner && <option value="identity_verified">Identity verified</option>}<option value="in_progress">In progress</option>{owner && request.requestType !== "deletion" && <option value="completed">Completed</option>}{owner && <option value="rejected">Rejected</option>}</select></label><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Verification note<textarea disabled={locked || !owner} value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label></div>
       {request.requestType === "deletion" && <p className="mt-3 border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-relaxed text-muted-foreground">Deletion remains blocked: an approved retention policy and deletion procedure have not been supplied. Record verification and escalate; do not mark this request complete.</p>}
       {owner && <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Resolution note (required for complete/reject)<textarea disabled={locked} value={resolutionNote} onChange={(event) => setResolutionNote(event.target.value)} rows={2} className="staff-input mt-1 resize-y" /></label>}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-xs text-muted-foreground">{locked ? "This terminal privacy record is locked." : notice}</p><div className="flex flex-wrap gap-2">{canCreatePackage && <button type="button" disabled={packaging} onClick={() => void generatePackage()} className="inline-flex min-h-10 items-center gap-2 border border-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary hover:bg-primary/5 disabled:opacity-50"><Download size={14} /> {packaging ? "Preparing…" : "Generate access package"}</button>}<button type="button" disabled={locked || update.isPending} onClick={async () => { try { await update.mutateAsync({ id: request.id, data: { status, verificationNote: verificationNote || null, ...(owner ? { resolutionNote: resolutionNote || null } : {}) } }); setNotice("Privacy request updated."); onChanged(); } catch (error) { setNotice(errorMessage(error, "This request could not be updated.")); } }} className="inline-flex min-h-10 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Save size={14} /> Save procedure step</button></div></div>
@@ -1113,12 +1113,21 @@ function RedirectsManagementSection() {
 }
 
 const ROLE_CAPABILITIES: Record<string, { summary: string; actions: string[] }> = {
+  owner: {
+    summary: "You hold the sensitive-decision and escalation boundary for the atelier day.",
+    actions: [
+      "Oversee order workflow, operational handoffs, and internal refund decisions",
+      "Approve verified privacy access-package generation and one-time downloads",
+      "Review aggregate reporting and audit visibility without treating intent events as paid orders",
+      "Confirm on-duty role assignments and escalate provider, payment, security, or policy incidents",
+    ],
+  },
   operations: {
     summary: "You manage the atelier's order queue, customer enquiries, and privacy requests.",
     actions: [
       "Move paid orders through the production workflow — atelier confirmation → in production → ready → fulfilled",
       "Handle customer support enquiries and log internal handling notes",
-      "Log, verify, and process privacy access and deletion requests",
+      "Log and progress privacy requests; escalate identity verification and closure to the owner",
       "Escalate refund requests to the owner for review",
     ],
   },
@@ -1150,7 +1159,7 @@ const ROLE_CAPABILITIES: Record<string, { summary: string; actions: string[] }> 
 
 function RoleCapabilityBanner({ role }: { role: string }) {
   const cap = ROLE_CAPABILITIES[role];
-  if (!cap) return null; // owner sees everything — no banner needed
+  if (!cap) return null;
   return (
     <div className="mt-5 border border-border/60 bg-muted/10 p-4 sm:flex sm:gap-6">
       <div className="shrink-0">

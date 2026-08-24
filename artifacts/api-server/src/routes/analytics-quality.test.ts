@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isPrivateStorefrontPath, RecordAnalyticsEventBody } from "@workspace/api-zod";
+import {
+  INVALID_STOREFRONT_PATH_PATTERN,
+  isPrivateStorefrontPath,
+  isTrackableStorefrontPath,
+  RecordAnalyticsEventBody,
+} from "@workspace/api-zod";
 import {
   buildAnalyticsQualityReport,
   type AnalyticsQualityFixture,
