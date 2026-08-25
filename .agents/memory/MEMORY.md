@@ -15,3 +15,4 @@
 - [External Vercel preview verification](external-vercel-preview-verification.md) — validate Clerk proxy attribution and every required schema table on the actual Vercel preview, not only local.
 - [Platform document schema upgrades](platform-document-schema-upgrades.md) — fill newly required fields into existing documents without replacing merchant edits or reviving unpublished content.
 - [PostgreSQL cursor precision](postgres-cursor-precision.md) — resolve time-ordered cursor boundaries from exact database timestamps, not JavaScript Date values.
+- [Staff access serialization](staff-access-serialization.md) — serialize owner-affecting access mutations and revalidate the acting owner inside the same database transaction.

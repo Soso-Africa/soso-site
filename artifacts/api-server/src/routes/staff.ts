@@ -68,6 +68,17 @@ type StaffAccessChange = {
   isActive?: boolean;
 };
 
+type StaffAccessTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function withStaffAccessMutationLock<T>(
+  mutation: (tx: StaffAccessTransaction) => Promise<T>,
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('soso-staff-access-mutation-v1'))`);
+    return mutation(tx);
+  });
+}
+
 export function isFinalActiveOwnerChangeBlocked(
   target: Pick<StaffUser, "role" | "isActive">,
   change: StaffAccessChange,
@@ -275,30 +286,55 @@ router.patch("/staff/access/:id", requireStaffRoles("owner"), async (req, res): 
     res.status(400).json({ error: "Provide a role or active status." });
     return;
   }
-  const [target] = await db.select().from(staffUsersTable).where(eq(staffUsersTable.id, params.data.id)).limit(1);
-  if (!target) {
+  const result = await withStaffAccessMutationLock(async (tx) => {
+    const [actor] = await tx.select({
+      role: staffUsersTable.role,
+      isActive: staffUsersTable.isActive,
+    }).from(staffUsersTable).where(eq(staffUsersTable.id, req.staff!.id)).limit(1);
+    if (!actor || actor.role !== "owner" || !actor.isActive) {
+      return { kind: "forbidden" as const };
+    }
+
+    const [target] = await tx.select().from(staffUsersTable).where(eq(staffUsersTable.id, params.data.id)).limit(1);
+    if (!target) {
+      return { kind: "missing" as const };
+    }
+    if (target.role === "owner" && target.isActive) {
+      const [{ value: ownerCount }] = await tx.select({ value: count() }).from(staffUsersTable)
+        .where(and(eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true)));
+      if (isFinalActiveOwnerChangeBlocked(target, parsed.data, Number(ownerCount))) {
+        return { kind: "final_owner" as const };
+      }
+    }
+    const updates = {
+      ...(parsed.data.role !== undefined ? { role: parsed.data.role } : {}),
+      ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+      updatedAt: new Date(),
+    };
+    const [updated] = await tx.update(staffUsersTable).set(updates).where(eq(staffUsersTable.id, target.id)).returning();
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId,
+      action: "staff_access.updated",
+      entityType: "staff_user",
+      entityId: target.id,
+      metadata: staffAccessAuditMetadata(target, updated!),
+    });
+    return { kind: "updated" as const, staff: updated! };
+  });
+
+  if (result.kind === "forbidden") {
+    res.status(403).json({ error: "Your staff role no longer permits access changes." });
+    return;
+  }
+  if (result.kind === "missing") {
     res.status(404).json({ error: "Staff mapping not found." });
     return;
   }
-  if (target.role === "owner" && target.isActive) {
-    const [{ value: ownerCount }] = await db.select({ value: count() }).from(staffUsersTable)
-      .where(and(eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true)));
-    if (isFinalActiveOwnerChangeBlocked(target, parsed.data, Number(ownerCount))) {
-      res.status(400).json({ error: "The final active owner cannot be removed or changed." });
-      return;
-    }
+  if (result.kind === "final_owner") {
+    res.status(400).json({ error: "The final active owner cannot be removed or changed." });
+    return;
   }
-  const updates = {
-    ...(parsed.data.role !== undefined ? { role: parsed.data.role } : {}),
-    ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
-    updatedAt: new Date(),
-  };
-  const [updated] = await db.update(staffUsersTable).set(updates).where(eq(staffUsersTable.id, target.id)).returning();
-  await db.insert(auditLogsTable).values({
-    actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.updated", entityType: "staff_user", entityId: target.id,
-    metadata: staffAccessAuditMetadata(target, updated!),
-  });
-  res.json(UpdateStaffAccessResponse.parse(updated));
+  res.json(UpdateStaffAccessResponse.parse(result.staff));
 });
 
 router.get("/staff/overview", async (req, res): Promise<void> => {
