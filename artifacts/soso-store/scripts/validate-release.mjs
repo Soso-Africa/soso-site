@@ -11,6 +11,7 @@ assert.match(index, /<meta[^>]+name="viewport"/i);
 assert.match(index, /<script[^>]+src="\/assets\/[^"]+"/i);
 assert.doesNotMatch(index, /localhost:\d+|127\.0\.0\.1:\d+/i);
 const robots = await readFile(resolve(out, "robots.txt"), "utf8");
+const journalApproved = process.env.VITE_SOSO_JOURNAL_APPROVED === "true";
 const sitemap = resolve(out, "sitemap.xml");
 let publicBuild = true;
 try { await access(sitemap); } catch { publicBuild = false; }
@@ -24,10 +25,24 @@ if (!publicBuild) {
   const map = await readFile(sitemap, "utf8");
   assert.match(map, /<loc>https:\/\/shopsoso\.co\//);
   assert.match(map, /<lastmod>[^<]+<\/lastmod>/);
-  for (const [file, type] of [["feed.xml", /<rss/], ["atom.xml", /<feed/], ["feed.json", /"version": "https:\/\/jsonfeed\.org/], ["llms.txt", /# SOSO Africa/]]) {
+  const expectedDiscoveryFiles = journalApproved
+    ? [["feed.xml", /<rss/], ["atom.xml", /<feed/], ["feed.json", /"version": "https:\/\/jsonfeed\.org/], ["llms.txt", /# SOSO Africa/]]
+    : [["llms.txt", /# SOSO Africa/]];
+  for (const [file, type] of expectedDiscoveryFiles) {
     const body = await readFile(resolve(out, file), "utf8"); assert.match(body, type, `${file} is malformed.`);
   }
+  if (!journalApproved) {
+    for (const file of ["feed.xml", "atom.xml", "feed.json"]) {
+      await assert.rejects(access(resolve(out, file)), undefined, `${file} must not exist while Journal approval is disabled.`);
+    }
+  }
   const manifest = JSON.parse(await readFile(resolve(out, "seo-manifest.json"), "utf8"));
+  if (!journalApproved) {
+    assert.deepEqual(manifest.journalEntries, [], "Journal manifest entries must be empty while approval is disabled.");
+    assert.ok(manifest.routes.every((route) => !route.path.startsWith("/journal")), "Journal routes must be absent while approval is disabled.");
+    assert.doesNotMatch(map, /<loc>https:\/\/shopsoso\.co\/journal(?:\/|<)/);
+    assert.doesNotMatch(await readFile(resolve(out, "llms.txt"), "utf8"), /^## Journal$/m);
+  }
   for (const route of manifest.routes) {
     const file = route.path === "/" ? "index.html" : `${route.path.slice(1)}.html`;
     await access(resolve(out, file));

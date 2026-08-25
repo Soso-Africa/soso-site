@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate:seo": "node scripts/validate-seo-production.mjs",
     "validate:performance": "node scripts/validate-performance.mjs",
-    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run build && node scripts/validate-release.mjs",
+    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run build && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs"
   },
   "devDependencies": {

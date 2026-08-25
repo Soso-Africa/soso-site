@@ -65,18 +65,19 @@ const builtShell = await readFile(resolve(out, "index.html"), "utf8");
 const hydrationAsset = builtShell.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/i)?.[1];
 if (!hydrationAsset) throw new Error("Vite build output is missing its hydration client asset.");
 await clearPrerenders();
+await Promise.all(generated.map((file) => rm(resolve(out, file), { recursive: true, force: true })));
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
 let platform = {};
 let articles = [];
 try {
   const [content, journal] = await Promise.all([
     pool.query("select published, published_at as \"publishedAt\" from soso_site_content where key = 'platform' and published_at is not null limit 1"),
-    pool.query(`select slug, title, excerpt, body, seo_title as "seoTitle", seo_description as "seoDescription",
+    journalApproved ? pool.query(`select slug, title, excerpt, body, seo_title as "seoTitle", seo_description as "seoDescription",
       author_name as "authorName", category, tags, read_time_minutes as "readTimeMinutes",
       related_product_slugs as "relatedProductSlugs", related_article_slugs as "relatedArticleSlugs",
       cover_image_url as "coverImageUrl", cover_image_alt as "coverImageAlt",
       published_at as "publishedAt", updated_at as "updatedAt"
-      from soso_journal_posts where status = 'published' and published_at is not null order by published_at desc`),
+      from soso_journal_posts where status = 'published' and published_at is not null order by published_at desc`) : Promise.resolve({ rows: [] }),
   ]);
   platform = content.rows[0]?.published || {};
   articles = journal.rows.map((row) => ({
@@ -178,9 +179,14 @@ if (journalApproved) for (const article of articles) {
 await writeFile(robotsPath, `User-agent: *\nAllow: /\nDisallow: /checkout\nDisallow: /staff\nDisallow: /sign-in\nDisallow: /sign-up\nSitemap: ${siteUrl}/sitemap.xml\n`);
 await writeFile(resolve(out, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${routes.map((r) => `  <url><loc>${xml(absolute(r.path))}</loc><lastmod>${iso(r.lastmod)}</lastmod></url>`).join("\n")}\n</urlset>\n`);
 const feedItems = articles.map((a) => ({ id: absolute(`/journal/${a.slug}`), url: absolute(`/journal/${a.slug}`), title: a.title, content_text: a.bodyText || a.excerpt, summary: a.description, date_published: a.publishedAt, date_modified: a.updatedAt, authors: [{ name: a.authorName }] }));
-await writeFile(resolve(out, "feed.json"), `${JSON.stringify({ version: "https://jsonfeed.org/version/1.1", title: "SOSO Africa Journal", home_page_url: siteUrl, feed_url: absolute("/feed.json"), items: feedItems }, null, 2)}\n`);
-await writeFile(resolve(out, "feed.xml"), `<?xml version="1.0"?><rss version="2.0"><channel><title>SOSO Africa Journal</title><link>${xml(siteUrl)}</link><description>SOSO Africa Journal</description>${feedItems.map((x) => `<item><title>${xml(x.title)}</title><link>${xml(x.url)}</link><guid>${xml(x.id)}</guid><pubDate>${new Date(x.date_published).toUTCString()}</pubDate><description>${xml(x.summary)}</description></item>`).join("")}</channel></rss>\n`);
-await writeFile(resolve(out, "atom.xml"), `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>SOSO Africa Journal</title><id>${xml(siteUrl)}</id><updated>${now}</updated>${feedItems.map((x) => `<entry><title>${xml(x.title)}</title><id>${xml(x.id)}</id><link href="${xml(x.url)}"/><updated>${x.date_modified}</updated><summary>${xml(x.summary)}</summary></entry>`).join("")}</feed>\n`);
-await writeFile(resolve(out, "llms.txt"), `# SOSO Africa\n\n${staticPages.map((p) => `- [${p.h1}](${absolute(p.path)}): ${p.description}`).join("\n")}\n\n## Journal\n${articles.map((a) => `- [${a.title}](${absolute(`/journal/${a.slug}`)}): ${a.excerpt}`).join("\n")}\n`);
+if (journalApproved) {
+  await writeFile(resolve(out, "feed.json"), `${JSON.stringify({ version: "https://jsonfeed.org/version/1.1", title: "SOSO Africa Journal", home_page_url: siteUrl, feed_url: absolute("/feed.json"), items: feedItems }, null, 2)}\n`);
+  await writeFile(resolve(out, "feed.xml"), `<?xml version="1.0"?><rss version="2.0"><channel><title>SOSO Africa Journal</title><link>${xml(siteUrl)}</link><description>SOSO Africa Journal</description>${feedItems.map((x) => `<item><title>${xml(x.title)}</title><link>${xml(x.url)}</link><guid>${xml(x.id)}</guid><pubDate>${new Date(x.date_published).toUTCString()}</pubDate><description>${xml(x.summary)}</description></item>`).join("")}</channel></rss>\n`);
+  await writeFile(resolve(out, "atom.xml"), `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>SOSO Africa Journal</title><id>${xml(siteUrl)}</id><updated>${now}</updated>${feedItems.map((x) => `<entry><title>${xml(x.title)}</title><id>${xml(x.id)}</id><link href="${xml(x.url)}"/><updated>${x.date_modified}</updated><summary>${xml(x.summary)}</summary></entry>`).join("")}</feed>\n`);
+}
+const journalLlms = journalApproved && articles.length
+  ? `\n\n## Journal\n${articles.map((a) => `- [${a.title}](${absolute(`/journal/${a.slug}`)}): ${a.excerpt}`).join("\n")}`
+  : "";
+await writeFile(resolve(out, "llms.txt"), `# SOSO Africa\n\n${staticPages.map((p) => `- [${p.h1}](${absolute(p.path)}): ${p.description}`).join("\n")}${journalLlms}\n`);
 await writeFile(resolve(out, "seo-manifest.json"), `${JSON.stringify({ canonicalOrigin: siteUrl, routes, products, journalEntries: articles }, null, 2)}\n`);
 process.stdout.write(`Crawlable SEO assets generated for ${siteUrl}.\n`);
