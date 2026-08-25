@@ -9,6 +9,7 @@ import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { editorialOrigin, trackStorefrontEvent } from "@/components/ConsentManager";
 import { catalogApproved } from "@/lib/seo";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
+import { ProductCard } from "@/components/ProductCard";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
@@ -58,7 +59,9 @@ export default function ProductDetail() {
     return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platform.data?.content.site.platformState} />;
   }
 
-  const gallery = product.images?.length ? product.images.map((image) => ({ src: image.src, label: image.alt })) : [{ src: product.img, label: product.name }];
+  const gallery = product.images?.length
+    ? product.images.map((image) => ({ src: image.src, label: image.alt, provenance: image.provenance }))
+    : [{ src: product.img, label: product.name, provenance: null }];
   const productCopy = platformContent!.productCopy;
   const supportCopy = platformContent!.supportCopy;
   const sizeGuide = platformContent!.sizeGuide;
@@ -66,7 +69,7 @@ export default function ProductDetail() {
   const needSize = size === null;
 
   const handleAddToCart = () => {
-    if (needSize) return;
+    if (needSize || product.fulfilmentState === "unavailable") return;
     addItem({
       slug: product.slug,
       name: product.name,
@@ -105,7 +108,7 @@ export default function ProductDetail() {
           }}
         >
           <div className="relative overflow-hidden imgzoom" style={{ background: "hsl(var(--background))" }}>
-            <img src={gallery[img].src} alt={product.name} className="w-full aspect-[2/3] object-cover" />
+            <img src={gallery[img].src} alt={gallery[img].label} className="w-full aspect-[2/3] object-cover" />
             <div className="absolute top-4 left-4 text-[10px] tracking-[0.25em] uppercase px-3 py-1.5" style={{ background: "rgba(18,17,16,.75)", color: "hsl(var(--primary))", backdropFilter: "blur(4px)" }}>
               {product.tag}
             </div>
@@ -123,6 +126,9 @@ export default function ProductDetail() {
               </button>
             ))}
           </div>
+          {gallery[img].provenance && <p className="mt-3 text-[10px] uppercase tracking-wider opacity-55">
+            Image: {gallery[img].provenance.credit || gallery[img].provenance.source}
+          </p>}
         </div>
 
         {/* Buy panel */}
@@ -137,62 +143,141 @@ export default function ProductDetail() {
           <h1 className="soso-display text-5xl md:text-6xl font-light leading-[1.02]">{product.name}</h1>
           <p className="soso-display text-lg mt-2 opacity-70 italic">{product.note}</p>
 
-          <div className="flex items-center gap-4 mt-5">
-            <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
-            <span className="text-sm opacity-80">{productCopy.madeToOrderLabel}</span>
+          {/* Availability / Price */}
+          <div className="flex flex-col gap-2 mt-5">
+            <div className="flex items-center gap-4">
+              <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
+              {product.fulfilmentState === "ready_now" && (
+                <span className="text-[10px] uppercase tracking-widest text-green-600/90 font-bold border border-green-600/20 px-2 py-1" data-testid="status-ready-now">Ready Now</span>
+              )}
+            </div>
+            {product.fulfilmentState === "unavailable" ? (
+                <p className="text-red-500 font-medium text-sm mt-1" data-testid="text-unavailable">{product.unavailableMessage || productCopy.unavailableLabel}</p>
+            ) : (
+                <div className="text-sm opacity-80" data-testid="text-dispatch">
+                  <p><span className="font-semibold">{productCopy.dispatchLabel}:</span> {product.dispatchMessage}</p>
+                  <p className="mt-1 text-xs opacity-70">{productCopy.dispatchNotDeliveryMessage}</p>
+                </div>
+            )}
           </div>
 
           <p className="mt-6 text-[15px] leading-relaxed opacity-85 max-w-md">
             {product.description}
           </p>
+          <dl className="mt-6 grid grid-cols-3 gap-px border border-[#d8cfba] bg-[#d8cfba] text-sm">
+            {[
+              [productCopy.colourLabel, product.colour],
+              [productCopy.fabricLabel, product.fabric],
+              [productCopy.fitLabel, product.fit],
+            ].map(([label, value]) => <div key={label} className="bg-[#EFE8DA] p-3">
+              <dt className="text-[10px] uppercase tracking-wider opacity-55">{label}</dt>
+              <dd className="mt-1 font-medium">{value}</dd>
+            </div>)}
+          </dl>
 
-          {/* Size */}
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.sizeSelectorLabel}</span>
-              <button onClick={() => { setGuideOpen(true); trackStorefrontEvent("size_guide_opened", { productSlug: product.slug }); }} className="text-[12px] underline underline-offset-4 hover:opacity-70" style={{ color: "hsl(var(--primary))" }}>
-                {productCopy.sizePrompt}
-              </button>
+          {/* Sizing / Purchase Options */}
+          {product.fulfilmentState !== "unavailable" && (
+            <div className="mt-8 space-y-8">
+              {product.standardEligible && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.sizeSelectorLabel}</span>
+                    <button onClick={() => { setGuideOpen(true); trackStorefrontEvent("size_guide_opened", { productSlug: product.slug }); }} className="text-[12px] underline underline-offset-4 hover:opacity-70" style={{ color: "hsl(var(--primary))" }}>
+                      {productCopy.sizePrompt}
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {product.standardSizes?.map((s) => {
+                      const isReadyNow = product.readyNowSizes?.includes(s);
+                      return (
+                        <button
+                          type="button"
+                          key={s}
+                          onClick={() => {
+                            setSize(s);
+                            trackStorefrontEvent("size_selected", { productSlug: product.slug, selectedSize: s });
+                          }}
+                          className="px-5 py-2.5 text-sm tracking-wide transition-all duration-300 relative"
+                          aria-pressed={size === s}
+                           aria-label={`${s} — ${isReadyNow ? productCopy.readyNowLabel : productCopy.madeImmediatelyLabel}`}
+                          style={
+                            size === s
+                              ? { background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: `1px solid hsl(var(--background))` }
+                              : { background: "transparent", color: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }
+                          }
+                          data-testid={`button-size-${s}`}
+                        >
+                          {s}
+                          <span className={`ml-2 text-[9px] uppercase tracking-wider ${isReadyNow ? "text-green-600" : "opacity-60"}`}>
+                            {isReadyNow ? productCopy.readyNowLabel : productCopy.madeImmediatelyLabel}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[12px] mt-2 opacity-60">
+                    {productCopy.standardSizeHelp}
+                  </p>
+                  {size && size !== "Custom" && <p role="status" className="mt-2 text-xs font-medium" data-testid="status-selected-standard-fulfilment">
+                    {product.readyNowSizes.includes(size) ? productCopy.readyNowLabel : productCopy.madeImmediatelyLabel}
+                    {" · "}{product.dispatchMessage}
+                  </p>}
+                </div>
+              )}
+              {!product.standardEligible && <p className="border border-black/10 p-4 text-sm opacity-65">{productCopy.standardUnavailableMessage}</p>}
+
+              {product.customEligible && (
+                <div className="pt-5 border-t border-black/10 dark:border-white/10">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[12px] tracking-[0.2em] uppercase font-medium">Custom</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSize("Custom");
+                      trackStorefrontEvent("size_selected", { productSlug: product.slug, selectedSize: "Custom" });
+                    }}
+                    className="w-full px-5 py-3.5 text-sm tracking-wide transition-all duration-300 border text-left flex justify-between items-center"
+                    aria-pressed={size === "Custom"}
+                    style={
+                      size === "Custom"
+                        ? { background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: `1px solid hsl(var(--background))` }
+                        : { background: "transparent", color: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }
+                    }
+                    data-testid="button-size-custom"
+                  >
+                    <span>Custom atelier sizing</span>
+                    {size === "Custom" && <span className="text-[10px] uppercase tracking-widest">Selected</span>}
+                  </button>
+                  <p className="text-[12px] mt-2 opacity-60">
+                    {productCopy.customSizeHelp}
+                  </p>
+                  {size === "Custom" && <p role="status" className="mt-2 text-xs font-medium" data-testid="status-selected-custom-fulfilment">
+                    {productCopy.madeImmediatelyLabel} · {product.dispatchMessage}
+                  </p>}
+                </div>
+              )}
+              {!product.customEligible && <p className="border border-black/10 p-4 text-sm opacity-65">{productCopy.customUnavailableMessage}</p>}
             </div>
-            <div className="flex flex-wrap gap-2">
-              {product.sizes.map((s) => (
-                <button
-                  type="button"
-                  key={s}
-                  onClick={() => {
-                    setSize(s);
-                    trackStorefrontEvent("size_selected", { productSlug: product.slug, selectedSize: s });
-                  }}
-                  className="px-5 py-2.5 text-sm tracking-wide transition-all duration-300"
-                  aria-pressed={size === s}
-                  style={
-                    size === s
-                      ? { background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: `1px solid hsl(var(--background))` }
-                      : { background: "transparent", color: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }
-                  }
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <p className="text-[12px] mt-2 opacity-60">
-              {size === "Custom"
-                ? productCopy.customSizeHelp
-                : productCopy.standardSizeHelp}
-            </p>
-          </div>
+          )}
 
           {/* CTAs */}
-          <div className="mt-7 space-y-3">
+          <div className="mt-8 space-y-3">
             <button
               onClick={handleAddToCart}
-              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 ${!needSize ? "hover:-translate-y-px" : "cursor-not-allowed"}`}
+              disabled={needSize || product.fulfilmentState === "unavailable"}
+              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 ${!needSize && product.fulfilmentState !== "unavailable" ? "hover:-translate-y-px" : "cursor-not-allowed opacity-50"}`}
               style={{
-                background: needSize ? "#2a2723" : "hsl(var(--primary))",
-                color: needSize ? "#F7F3EB" : "hsl(var(--primary-foreground))",
+                background: needSize || product.fulfilmentState === "unavailable" ? "#2a2723" : "hsl(var(--primary))",
+                color: needSize || product.fulfilmentState === "unavailable" ? "#F7F3EB" : "hsl(var(--primary-foreground))",
               }}
+              data-testid="button-add-to-cart"
             >
-              {needSize ? productCopy.sizeRequiredLabel : `${productCopy.addToBagLabel} — ${naira(product.price)}`}
+              {product.fulfilmentState === "unavailable"
+                ? productCopy.unavailableLabel
+                : needSize
+                  ? productCopy.sizeRequiredLabel
+                  : `${productCopy.addToBagLabel} — ${naira(product.price)}`}
             </button>
             <button
               type="button"
@@ -281,20 +366,14 @@ export default function ProductDetail() {
       </section>
 
       {/* ————— COMPLETE THE LOOK ————— */}
-      <section className="max-w-[1280px] mx-auto px-6 md:px-12 pb-24">
+      <section className="max-w-[1440px] mx-auto px-6 md:px-12 pb-24">
         <Reveal>
           <h2 className="soso-display text-4xl font-light mb-10">{productCopy.relatedHeading}</h2>
         </Reveal>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {look.map((p, i) => (
             <Reveal key={p.name} delay={i * 90}>
-              <Link href={`/product/${p.slug}`} className="cursor-pointer group block">
-                <div className="overflow-hidden imgzoom" style={{ background: "hsl(var(--background))" }}>
-                  <img src={p.img} alt={p.name} className="w-full aspect-[3/4] object-cover" />
-                </div>
-                <p className="soso-display mt-3 text-lg group-hover:underline underline-offset-4 group-hover:text-[hsl(var(--primary))] transition-colors">{p.name}</p>
-                <p className="text-sm opacity-70">{naira(p.price)}</p>
-              </Link>
+              <ProductCard product={p} testIdPrefix="related" />
             </Reveal>
           ))}
         </div>
@@ -311,21 +390,23 @@ export default function ProductDetail() {
         </div>
         <button 
           onClick={handleAddToCart}
-          className="px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all" 
-          style={{ background: needSize ? "#2a2723" : "hsl(var(--primary))", color: needSize ? "#fff" : "hsl(var(--primary-foreground))" }}
+          disabled={needSize || product.fulfilmentState === "unavailable"}
+          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all ${needSize || product.fulfilmentState === "unavailable" ? "opacity-50 cursor-not-allowed" : ""}`}
+          style={{ background: needSize || product.fulfilmentState === "unavailable" ? "#2a2723" : "hsl(var(--primary))", color: needSize || product.fulfilmentState === "unavailable" ? "#fff" : "hsl(var(--primary-foreground))" }}
+          data-testid="button-mobile-add-to-cart"
         >
-          {needSize ? productCopy.mobileSizeRequiredLabel : productCopy.addToBagLabel}
+          {product.fulfilmentState === "unavailable" ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : productCopy.addToBagLabel}
         </button>
       </div>
 
       {/* Size guide modal */}
       {guideOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" style={{ background: "rgba(18,17,16,.7)" }} onClick={() => setGuideOpen(false)}>
-          <div className="max-w-lg w-full p-8 relative" style={{ background: "#F7F3EB" }} onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-labelledby="size-guide-title" className="max-w-lg w-full p-8 relative" style={{ background: "#F7F3EB" }} onClick={(e) => e.stopPropagation()}>
             <button className="absolute top-4 right-5 text-2xl opacity-60 hover:opacity-100" onClick={() => setGuideOpen(false)} aria-label={productCopy.sizeGuideCloseLabel}>
               ×
             </button>
-            <h3 className="soso-display text-3xl font-light">{sizeGuide.title}</h3>
+            <h3 id="size-guide-title" className="soso-display text-3xl font-light">{sizeGuide.title}</h3>
             <p className="text-sm opacity-70 mt-2">{sizeGuide.intro}</p>
             <table className="w-full mt-6 text-sm">
               <thead>

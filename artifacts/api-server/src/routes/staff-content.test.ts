@@ -19,6 +19,7 @@ import {
 import publicContentRouter, { createFaqReadHandler } from "./faq";
 import {
   DEFAULT_PLATFORM_CONTENT,
+  isProductUnavailable,
   mergePlatformContentDefaults,
   PlatformContentSchema,
   platformContentHash,
@@ -230,6 +231,85 @@ test("platform content includes complete public shell, journal, checkout, and pr
   assert.ok(pages.notFound.cta.href);
 });
 
+test("hybrid catalogue defaults expose governed discovery, eligibility, fulfilment, and provenance", () => {
+  const product = DEFAULT_PLATFORM_CONTENT.products[0]!;
+  assert.ok(product.colour);
+  assert.ok(product.fabric);
+  assert.ok(product.fit);
+  assert.ok(product.searchableTerms.length > 0);
+  assert.equal(typeof product.merchandising.isNew, "boolean");
+  assert.equal(product.standardEligible, true);
+  assert.equal(product.customEligible, true);
+  assert.ok(product.standardSizes.length > 0);
+  assert.deepEqual(product.readyNowSizes, []);
+  assert.equal(product.fulfilmentState, "made_immediately");
+  assert.equal(product.dispatchMessage, "Dispatch within five days");
+  assert.match(DEFAULT_PLATFORM_CONTENT.productCopy.dispatchNotDeliveryMessage, /not a guarantee of delivery within five days/i);
+  assert.ok(product.images.every((item) => item.provenance.source && item.provenance.rights));
+});
+
+test("only explicit unavailable fulfilment state makes a catalogue product unavailable", () => {
+  assert.equal(isProductUnavailable({ fulfilmentState: "made_immediately" }), false);
+  assert.equal(isProductUnavailable({ fulfilmentState: "ready_now" }), false);
+  assert.equal(isProductUnavailable({ fulfilmentState: "unavailable" }), true);
+
+  const makeableWithNoReadyStock = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  makeableWithNoReadyStock.products[0]!.readyNowSizes = [];
+  makeableWithNoReadyStock.products[0]!.fulfilmentState = "made_immediately";
+  assert.equal(PlatformContentSchema.safeParse(makeableWithNoReadyStock).success, true);
+});
+
+test("hybrid catalogue schema validates honest explicit fulfilment combinations", () => {
+  const readyNowWithoutSizes = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  readyNowWithoutSizes.products[0]!.fulfilmentState = "ready_now";
+  readyNowWithoutSizes.products[0]!.readyNowSizes = [];
+  assert.equal(PlatformContentSchema.safeParse(readyNowWithoutSizes).success, false);
+
+  const trulyUnavailable = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  trulyUnavailable.products[0]!.fulfilmentState = "unavailable";
+  assert.equal(PlatformContentSchema.safeParse(trulyUnavailable).success, true);
+  trulyUnavailable.products[0]!.unavailableMessage = "This piece is not currently available.";
+  assert.equal(PlatformContentSchema.safeParse(trulyUnavailable).success, true);
+
+  const makeableWithoutPurchaseRoute = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  makeableWithoutPurchaseRoute.products[0]!.standardEligible = false;
+  makeableWithoutPurchaseRoute.products[0]!.standardSizes = [];
+  makeableWithoutPurchaseRoute.products[0]!.customEligible = false;
+  assert.equal(PlatformContentSchema.safeParse(makeableWithoutPurchaseRoute).success, false);
+
+  const customInStandardSizes = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  customInStandardSizes.products[0]!.standardSizes.push("Custom");
+  assert.equal(PlatformContentSchema.safeParse(customInStandardSizes).success, false);
+
+  const incompleteCommerceMapping = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  incompleteCommerceMapping.products[0]!.commerceProductId = "0efebec6-2687-4d2f-9350-f67282534d30";
+  incompleteCommerceMapping.products[0]!.commerceVariantIds = {
+    S: "a725a2f5-5cdd-46e7-a36d-c0c5beef6a31",
+  };
+  assert.equal(PlatformContentSchema.safeParse(incompleteCommerceMapping).success, false);
+
+  incompleteCommerceMapping.products[0]!.standardSizes = ["S"];
+  incompleteCommerceMapping.products[0]!.commerceVariantIds.Custom = "618626e6-f359-4167-853c-2370df34c686";
+  assert.equal(PlatformContentSchema.safeParse(incompleteCommerceMapping).success, true);
+});
+
+test("known bespoke-only defaults upgrade to hybrid copy without replacing merchant edits", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.site.announcement = "Fit guidance if you need it · Atelier details confirmed after payment";
+  legacy.homepage.hero.eyebrow = "Bespoke Menswear · Abuja, Nigeria";
+  legacy.pages.shop.title = "The Collection";
+  legacy.pages.about.whatWeMake.paragraphs[1] = "Every piece is made to order. Nothing in the collection is taken from a production rack. When you order from SOSO, your garment is made for you.";
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.site.announcement, DEFAULT_PLATFORM_CONTENT.site.announcement);
+  assert.equal(upgraded.homepage.hero.eyebrow, DEFAULT_PLATFORM_CONTENT.homepage.hero.eyebrow);
+  assert.equal(upgraded.pages.shop.title, DEFAULT_PLATFORM_CONTENT.pages.shop.title);
+  assert.equal(upgraded.pages.about.whatWeMake.paragraphs[1], DEFAULT_PLATFORM_CONTENT.pages.about.whatWeMake.paragraphs[1]);
+
+  legacy.pages.shop.title = "Merchant seasonal edit";
+  const preserved = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(preserved.pages.shop.title, "Merchant seasonal edit");
+});
+
 test("platform schema upgrades fill missing fields without replacing edited content", () => {
   const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
   legacy.site.announcement = "A merchant-edited announcement";
@@ -245,6 +325,18 @@ test("platform schema upgrades fill missing fields without replacing edited cont
   delete legacy.productCopy.sizeGuideCloseLabel;
   delete legacy.site.consent;
   delete legacy.pages.checkout;
+  legacy.products[0].colour = "Merchant-edited midnight black";
+  delete legacy.products[0].fabric;
+  delete legacy.products[0].fit;
+  delete legacy.products[0].searchableTerms;
+  delete legacy.products[0].merchandising;
+  delete legacy.products[0].standardEligible;
+  delete legacy.products[0].customEligible;
+  delete legacy.products[0].standardSizes;
+  delete legacy.products[0].readyNowSizes;
+  delete legacy.products[0].fulfilmentState;
+  delete legacy.products[0].dispatchMessage;
+  delete legacy.products[0].images[0].provenance;
 
   const upgraded = mergePlatformContentDefaults(legacy);
   const parsed = PlatformContentSchema.safeParse(upgraded);
@@ -262,6 +354,12 @@ test("platform schema upgrades fill missing fields without replacing edited cont
     assert.equal(parsed.data.pages.faq.listAriaLabel, DEFAULT_PLATFORM_CONTENT.pages.faq.listAriaLabel);
     assert.equal(parsed.data.productCopy.detailImageAltSuffix, DEFAULT_PLATFORM_CONTENT.productCopy.detailImageAltSuffix);
     assert.equal(parsed.data.productCopy.sizeGuideCloseLabel, DEFAULT_PLATFORM_CONTENT.productCopy.sizeGuideCloseLabel);
+    assert.equal(parsed.data.products[0]!.colour, "Merchant-edited midnight black");
+    assert.equal(parsed.data.products[0]!.fabric, "Atelier-selected fabric");
+    assert.equal(parsed.data.products[0]!.fulfilmentState, "made_immediately");
+    assert.deepEqual(parsed.data.products[0]!.readyNowSizes, []);
+    assert.equal(parsed.data.products[0]!.dispatchMessage, "Dispatch within five days");
+    assert.equal(parsed.data.products[0]!.images[0]!.provenance.source, "SOSO Africa supplied asset");
   }
 });
 

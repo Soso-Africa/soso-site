@@ -1,89 +1,321 @@
-import React, { useState } from "react";
-import { Link } from "wouter";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "wouter";
+import { Filter, Search, X } from "lucide-react";
+import { Drawer } from "vaul";
 import { Reveal } from "@/components/Reveal";
-import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
+import { ProductCard } from "@/components/ProductCard";
+import { trackStorefrontEvent } from "@/components/ConsentManager";
 import { catalogApproved } from "@/lib/seo";
+import { filterAndSortProducts } from "@/lib/catalog";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 
+const all = "__all";
+
+function numberParam(value: string | null): number | null {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 export default function Shop() {
-  const [activeFilter, setActiveFilter] = useState("__all");
   const platform = usePlatformContent();
   const platformStateCopy = platform.data?.content.site.platformState;
-  if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
-  const { products: sourceProducts } = platform.data.content;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const sourceProducts = platform.data?.content.products ?? [];
+  const activeCategory = searchParams.get("category") || all;
+  const activeSort = searchParams.get("sort") || "featured";
+  const searchQuery = searchParams.get("q") || "";
+  const activeFulfilment = searchParams.get("fulfilment") || all;
+  const activeSize = searchParams.get("size") || all;
+  const activeColour = searchParams.get("colour") || all;
+  const minPrice = numberParam(searchParams.get("minPrice"));
+  const maxPrice = numberParam(searchParams.get("maxPrice"));
+
+  const categories = useMemo(
+    () => [all, ...Array.from(new Set(sourceProducts.map((product) => product.category)))],
+    [sourceProducts],
+  );
+  const colours = useMemo(
+    () => [all, ...Array.from(new Set(sourceProducts.map((product) => product.colour)))],
+    [sourceProducts],
+  );
+  const sizes = useMemo(() => {
+    const standardSizes = sourceProducts.flatMap((product) => product.standardSizes);
+    return [all, ...Array.from(new Set(standardSizes)), "Custom"];
+  }, [sourceProducts]);
+  const filteredProducts = useMemo(() => filterAndSortProducts(sourceProducts, {
+    category: activeCategory,
+    fulfillment: activeFulfilment,
+    size: activeSize,
+    colour: activeColour,
+    minPrice,
+    maxPrice,
+    searchQuery,
+    sort: activeSort,
+  }), [
+    sourceProducts,
+    activeCategory,
+    activeFulfilment,
+    activeSize,
+    activeColour,
+    minPrice,
+    maxPrice,
+    searchQuery,
+    activeSort,
+  ]);
+
+  const updateParams = (updates: Record<string, string | null>, analyticsLabel?: string) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null || value === all || value === "") next.delete(key);
+      else next.set(key, value);
+    }
+    setSearchParams(next, { replace: true });
+    if (analyticsLabel) {
+      trackStorefrontEvent("cta_clicked", { ctaLabel: analyticsLabel });
+    }
+  };
+
+  const resetFilters = () => updateParams({
+    q: null,
+    category: null,
+    fulfilment: null,
+    size: null,
+    colour: null,
+    minPrice: null,
+    maxPrice: null,
+    sort: null,
+  }, "catalogue_filters_reset");
+  const hasRefinements = Boolean(
+    searchQuery
+    || activeCategory !== all
+    || activeFulfilment !== all
+    || activeSize !== all
+    || activeColour !== all
+    || minPrice != null
+    || maxPrice != null
+    || activeSort !== "featured",
+  );
+
+  if (!platform.data) {
+    return <PlatformContentState
+      loading={platform.isLoading}
+      error={platform.isError}
+      copy={platformStateCopy}
+    />;
+  }
   const copy = platform.data.content.pages.shop;
-  const filters = ["__all", ...Array.from(new Set(sourceProducts.map((product) => product.category)))];
-  const filteredProducts = activeFilter === "__all"
-    ? sourceProducts
-    : sourceProducts.filter(p => p.category === activeFilter);
 
-  return (
-    <div className="flex flex-col pt-10">
-      <Seo
-        title={copy.seo.title}
-        description={copy.seo.description}
-        path="/shop"
-        noIndex={!catalogApproved}
-      />
-      <div className="max-w-7xl mx-auto w-full px-6 lg:px-12 flex-1">
-        <Reveal>
-          <div className="text-center mb-16">
-            <p className="text-[11px] tracking-[0.3em] uppercase text-primary">{copy.eyebrow}</p>
-            <h1 className="mt-3 soso-display text-4xl md:text-5xl font-light text-white">{copy.title}</h1>
-            <p className="mt-4 text-[14px]" style={{ color: "hsl(var(--secondary))" }}>{copy.intro}</p>
-          </div>
-        </Reveal>
+  const fulfilmentOptions = [
+    { value: all, label: copy.allFilterLabel },
+    { value: "ready_now", label: copy.readyNowLabel },
+    { value: "made_immediately", label: copy.madeImmediatelyLabel },
+    { value: "unavailable", label: copy.unavailableLabel },
+  ];
+  const sortOptions = [
+    { value: "featured", label: "Featured" },
+    { value: "newest", label: "New arrivals" },
+    { value: "price_asc", label: "Price: low to high" },
+    { value: "price_desc", label: "Price: high to low" },
+  ];
 
-        {/* Filter Bar */}
-        <Reveal delay={100}>
-          <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4 mb-16">
-            {filters.map((f) => (
-              <button
-                key={f}
-                onClick={() => setActiveFilter(f)}
-                aria-pressed={activeFilter === f}
-                className={`px-5 py-2 text-[11px] tracking-[0.2em] uppercase transition-all duration-300 ${
-                  activeFilter === f 
-                    ? "bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-bold"
-                    : "bg-transparent text-[hsl(var(--secondary))] border border-[rgba(246,241,231,0.2)] hover:border-[hsl(var(--primary))]"
-                }`}
-              >
-                {f === "__all" ? copy.allFilterLabel : f}
-              </button>
-            ))}
-          </div>
-        </Reveal>
-
-        {/* Product Grid */}
-        {filteredProducts.length === 0 && <p role="status" className="mb-8 text-center text-sm text-[hsl(var(--secondary))]">{copy.emptyMessage}</p>}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-14 pb-24">
-          {filteredProducts.map((p, i) => (
-            <Reveal key={p.name} delay={(i % 3) * 120}>
-              <Link href={`/product/${p.slug}`} className="soso-card group block cursor-pointer">
-                <div className="relative overflow-hidden" style={{ aspectRatio: "3/4", backgroundColor: "#1a1712" }}>
-                  <img src={p.img} alt={p.name} className="w-full h-full object-cover object-top" />
-                  <span className="absolute top-4 left-4 text-[10px] tracking-[0.2em] uppercase px-3 py-1.5 font-semibold" style={{ backgroundColor: "rgba(16,14,11,0.85)", color: "hsl(var(--primary))", border: `1px solid rgba(184,145,47,0.4)` }}>
-                    {p.tag}
-                  </span>
-                  <div className="soso-cta-row absolute inset-x-4 bottom-4 flex gap-2">
-                    <div className="soso-btn-gold flex-1 flex items-center justify-center text-[11px] tracking-[0.15em] uppercase py-3 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
-                       {copy.productCtaLabel}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-5 flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="soso-display text-[19px] text-white group-hover:text-[hsl(var(--primary))] transition-colors">{p.name}</h3>
-                    <p className="text-[12px] mt-1" style={{ color: "hsl(var(--secondary))" }}>{p.note}</p>
-                  </div>
-                  <p className="text-[15px] font-semibold whitespace-nowrap" style={{ color: "hsl(var(--primary))" }}>{naira(p.price)}</p>
-                </div>
-              </Link>
-            </Reveal>
-          ))}
-        </div>
-      </div>
+  const RefinementFields = ({ mobile = false }: { mobile?: boolean }) => (
+    <div className={mobile ? "space-y-7" : "grid grid-cols-2 gap-4 xl:grid-cols-4"}>
+      <label className="text-[10px] uppercase tracking-[0.2em] text-secondary/70">
+        Size
+        <select
+          value={activeSize}
+          onChange={(event) => updateParams({ size: event.target.value }, "catalogue_size_filter")}
+          className="mt-2 w-full border border-white/10 bg-[#1a1712] px-3 py-3 text-xs normal-case tracking-normal text-white"
+          data-testid={mobile ? "select-size-mobile" : "select-size"}
+        >
+          {sizes.map((size) => <option key={size} value={size}>{size === all ? copy.allFilterLabel : size}</option>)}
+        </select>
+      </label>
+      <label className="text-[10px] uppercase tracking-[0.2em] text-secondary/70">
+        Colour
+        <select
+          value={activeColour}
+          onChange={(event) => updateParams({ colour: event.target.value }, "catalogue_colour_filter")}
+          className="mt-2 w-full border border-white/10 bg-[#1a1712] px-3 py-3 text-xs normal-case tracking-normal text-white"
+          data-testid={mobile ? "select-colour-mobile" : "select-colour"}
+        >
+          {colours.map((colour) => <option key={colour} value={colour}>{colour === all ? copy.allFilterLabel : colour}</option>)}
+        </select>
+      </label>
+      <label className="text-[10px] uppercase tracking-[0.2em] text-secondary/70">
+        Minimum price (₦)
+        <input
+          type="number"
+          min="0"
+          step="1000"
+          value={minPrice ?? ""}
+          onChange={(event) => updateParams({ minPrice: event.target.value })}
+          onBlur={() => minPrice != null && trackStorefrontEvent("cta_clicked", { ctaLabel: "catalogue_min_price_filter" })}
+          className="mt-2 w-full border border-white/10 bg-[#1a1712] px-3 py-3 text-xs normal-case tracking-normal text-white"
+          data-testid={mobile ? "input-min-price-mobile" : "input-min-price"}
+        />
+      </label>
+      <label className="text-[10px] uppercase tracking-[0.2em] text-secondary/70">
+        Maximum price (₦)
+        <input
+          type="number"
+          min="0"
+          step="1000"
+          value={maxPrice ?? ""}
+          onChange={(event) => updateParams({ maxPrice: event.target.value })}
+          onBlur={() => maxPrice != null && trackStorefrontEvent("cta_clicked", { ctaLabel: "catalogue_max_price_filter" })}
+          className="mt-2 w-full border border-white/10 bg-[#1a1712] px-3 py-3 text-xs normal-case tracking-normal text-white"
+          data-testid={mobile ? "input-max-price-mobile" : "input-max-price"}
+        />
+      </label>
     </div>
   );
+
+  return <div className="flex flex-col pt-10">
+    <Seo title={copy.seo.title} description={copy.seo.description} path="/shop" noIndex={!catalogApproved} />
+    <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 sm:px-6 lg:px-12">
+      <Reveal>
+        <header className="mb-10 text-center md:mb-14">
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{copy.eyebrow}</p>
+          <h1 className="mt-3 text-4xl font-light text-white soso-display md:text-5xl">{copy.title}</h1>
+          <p className="mx-auto mt-4 max-w-xl text-sm text-secondary">{copy.intro}</p>
+        </header>
+      </Reveal>
+
+      <section aria-label="Catalogue controls" className="mb-10 border-y border-white/10 py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative min-w-0 flex-1 lg:max-w-md">
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/70" />
+            <label className="sr-only" htmlFor="catalogue-search">{copy.searchLabel}</label>
+            <input
+              id="catalogue-search"
+              type="search"
+              placeholder={copy.searchPlaceholder}
+              value={searchQuery}
+              onChange={(event) => updateParams({ q: event.target.value })}
+              onBlur={() => searchQuery && trackStorefrontEvent("cta_clicked", { ctaLabel: "catalogue_search" })}
+              className="w-full border border-white/10 bg-[#1a1712] py-3 pl-10 pr-10 text-sm text-white outline-none transition-colors focus:border-primary"
+              data-testid="input-search"
+            />
+            {searchQuery && <button
+              type="button"
+              onClick={() => updateParams({ q: null }, "catalogue_search_cleared")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary hover:text-primary"
+              aria-label="Clear catalogue search"
+              data-testid="button-clear-search"
+            ><X className="h-4 w-4" /></button>}
+          </div>
+          <div className="flex gap-3">
+            <label className="sr-only" htmlFor="catalogue-sort">Sort products</label>
+            <select
+              id="catalogue-sort"
+              value={activeSort}
+              onChange={(event) => updateParams({ sort: event.target.value }, "catalogue_sort")}
+              className="min-w-48 border border-white/10 bg-[#1a1712] px-4 py-3 text-[11px] uppercase tracking-[0.15em] text-white"
+              data-testid="select-sort"
+            >
+              {sortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={() => setMobileFiltersOpen(true)}
+              className="inline-flex items-center gap-2 border border-white/10 bg-[#1a1712] px-4 py-3 text-[11px] uppercase tracking-wider lg:hidden"
+              data-testid="button-open-filters"
+            ><Filter className="h-4 w-4 text-primary" /> Refine {hasRefinements && <span className="h-2 w-2 rounded-full bg-primary" />}</button>
+          </div>
+        </div>
+
+        <div className="mt-5 hidden space-y-5 lg:block">
+          <div className="flex flex-wrap gap-2">
+            {categories.map((category) => <button
+              key={category}
+              type="button"
+              onClick={() => updateParams({ category }, "catalogue_category_filter")}
+              aria-pressed={activeCategory === category}
+              className={`border px-4 py-2 text-[11px] uppercase tracking-[0.16em] ${activeCategory === category ? "border-primary bg-primary text-primary-foreground" : "border-white/10 text-secondary hover:border-primary"}`}
+              data-testid={`button-category-${category}`}
+            >{category === all ? copy.allFilterLabel : category}</button>)}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {fulfilmentOptions.map((option) => <button
+              key={option.value}
+              type="button"
+              onClick={() => updateParams({ fulfilment: option.value }, "catalogue_fulfilment_filter")}
+              aria-pressed={activeFulfilment === option.value}
+              className={`border px-4 py-2 text-[11px] uppercase tracking-[0.16em] ${activeFulfilment === option.value ? "border-primary bg-primary text-primary-foreground" : "border-white/10 text-secondary hover:border-primary"}`}
+              data-testid={`button-fulfilment-${option.value}`}
+            >{option.label}</button>)}
+          </div>
+          <RefinementFields />
+        </div>
+      </section>
+
+      <div className="mb-6 flex items-center justify-between gap-4 text-xs text-secondary">
+        <p role="status" data-testid="status-result-count">{filteredProducts.length} {filteredProducts.length === 1 ? "piece" : "pieces"}</p>
+        {hasRefinements && <button
+          type="button"
+          onClick={resetFilters}
+          className="uppercase tracking-widest text-primary underline-offset-4 hover:underline"
+          data-testid="button-reset-filters"
+        >Reset all</button>}
+      </div>
+
+      {filteredProducts.length === 0 ? <div className="border border-white/5 bg-white/5 py-24 text-center">
+        <p role="status" className="text-sm uppercase tracking-widest text-secondary" data-testid="text-empty-message">
+          {hasRefinements ? copy.noSearchResultsMessage : copy.emptyMessage}
+        </p>
+        <button type="button" onClick={resetFilters} className="mt-5 text-[11px] uppercase tracking-widest text-primary hover:underline">
+          Reset filters
+        </button>
+      </div> : <div className="grid grid-cols-1 gap-x-6 gap-y-12 pb-24 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {filteredProducts.map((product, index) => <Reveal key={product.slug} delay={(index % 4) * 80}>
+          <ProductCard product={product} ctaLabel={copy.productCtaLabel} />
+        </Reveal>)}
+      </div>}
+    </main>
+
+    <Drawer.Root open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+      <Drawer.Portal>
+        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
+        <Drawer.Content className="fixed inset-x-0 bottom-0 z-50 flex max-h-[88vh] flex-col border-t border-primary/20 bg-background">
+          <div className="flex items-center justify-between border-b border-white/10 p-4">
+            <Drawer.Title className="text-sm font-semibold uppercase tracking-widest text-primary">Refine products</Drawer.Title>
+            <Drawer.Close className="p-2 text-secondary" aria-label="Close product filters"><X className="h-5 w-5" /></Drawer.Close>
+          </div>
+          <div className="flex-1 space-y-8 overflow-y-auto p-6">
+            <fieldset>
+              <legend className="mb-3 text-[10px] uppercase tracking-[0.2em] text-secondary/70">Category</legend>
+              <div className="flex flex-wrap gap-2">{categories.map((category) => <button
+                key={category}
+                type="button"
+                onClick={() => updateParams({ category }, "catalogue_category_filter")}
+                aria-pressed={activeCategory === category}
+                className={`border px-3 py-2 text-[11px] uppercase tracking-wider ${activeCategory === category ? "border-primary text-primary" : "border-white/10 text-secondary"}`}
+              >{category === all ? copy.allFilterLabel : category}</button>)}</div>
+            </fieldset>
+            <fieldset>
+              <legend className="mb-3 text-[10px] uppercase tracking-[0.2em] text-secondary/70">Fulfilment</legend>
+              <div className="grid grid-cols-2 gap-2">{fulfilmentOptions.map((option) => <button
+                key={option.value}
+                type="button"
+                onClick={() => updateParams({ fulfilment: option.value }, "catalogue_fulfilment_filter")}
+                aria-pressed={activeFulfilment === option.value}
+                className={`border px-3 py-3 text-[11px] uppercase tracking-wider ${activeFulfilment === option.value ? "border-primary bg-primary text-primary-foreground" : "border-white/10 text-secondary"}`}
+              >{option.label}</button>)}</div>
+            </fieldset>
+            <RefinementFields mobile />
+          </div>
+          <div className="flex gap-3 border-t border-white/10 p-4">
+            <button type="button" onClick={resetFilters} className="flex-1 border border-white/20 px-4 py-4 text-xs uppercase tracking-widest text-secondary">Reset</button>
+            <button type="button" onClick={() => setMobileFiltersOpen(false)} className="flex-1 bg-primary px-4 py-4 text-xs font-bold uppercase tracking-widest text-primary-foreground">
+              View {filteredProducts.length} {filteredProducts.length === 1 ? "piece" : "pieces"}
+            </button>
+          </div>
+        </Drawer.Content>
+      </Drawer.Portal>
+    </Drawer.Root>
+  </div>;
 }

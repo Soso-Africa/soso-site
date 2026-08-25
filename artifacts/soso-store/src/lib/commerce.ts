@@ -1,6 +1,8 @@
 import type { CartItem } from "@/context/CartContext";
 import type { CatalogProduct } from "@/data/platformContent";
 
+const runtimeEnv = import.meta.env as Record<string, string | undefined> | undefined;
+
 export type CommerceMode = "catalog-preview" | "justicesure-headless";
 
 export type CheckoutRequest = {
@@ -50,7 +52,7 @@ function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-function toCatalogProduct(value: unknown): CatalogProduct {
+export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
   const product = record(value);
   const price = product?.amountKobo;
   const images = product?.images;
@@ -63,6 +65,7 @@ function toCatalogProduct(value: unknown): CatalogProduct {
     || !Array.isArray(images)
     || !images.every((image) => typeof image === "string")
     || !Array.isArray(variants)
+    || variants.length === 0
   ) {
     throw new CommerceConfigurationError("catalogue_incomplete");
   }
@@ -73,13 +76,16 @@ function toCatalogProduct(value: unknown): CatalogProduct {
     if (!variant || typeof variant.id !== "string" || typeof variant.label !== "string") {
       throw new CommerceConfigurationError("catalogue_invalid_variant");
     }
-    const baseLabel = variant.label.trim() || `Option ${index + 1}`;
+    const providedLabel = variant.label.trim() || `Option ${index + 1}`;
+    const baseLabel = providedLabel.toLocaleLowerCase() === "custom" ? "Custom" : providedLabel;
     const label = labels.has(baseLabel) ? `${baseLabel} (${index + 1})` : baseLabel;
     labels.add(label);
     commerceVariantIds[label] = variant.id;
   }
   const slugBase = product.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "product";
   const sizes = Object.keys(commerceVariantIds);
+  const standardSizes = sizes.filter((label) => label.toLocaleLowerCase() !== "custom");
+  const customLabel = sizes.find((label) => label.toLocaleLowerCase() === "custom");
   return {
     slug: `${slugBase}-${product.id.slice(0, 8)}`,
     name: product.name,
@@ -89,9 +95,21 @@ function toCatalogProduct(value: unknown): CatalogProduct {
     note: product.inStock === false ? "Currently unavailable for secure checkout" : "Live price and availability",
     category: "Online collection",
     description: typeof product.description === "string" ? product.description : "Published through JusticeSure.",
-    sizes: sizes.length > 0 ? sizes : ["Standard"],
+    sizes,
     commerceProductId: product.id,
-    ...(sizes.length > 0 ? { commerceVariantIds } : {}),
+    commerceVariantIds,
+    colour: "Not specified",
+    fabric: "Not specified",
+    fit: "Standard",
+    searchableTerms: [],
+    merchandising: { isNew: false, sortPriority: 0 },
+    standardEligible: standardSizes.length > 0,
+    customEligible: Boolean(customLabel),
+    standardSizes,
+    readyNowSizes: [],
+    fulfilmentState: product.inStock === false ? "unavailable" : "made_immediately",
+    dispatchMessage: "Standard fulfillment",
+    unavailableMessage: "Currently unavailable for secure checkout",
   };
 }
 
@@ -99,7 +117,7 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
   readonly mode = "justicesure-headless" as const;
 
   private async catalogue(): Promise<CatalogProduct[]> {
-    const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+    const apiBase = runtimeEnv?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
     const response = await fetch(`${apiBase}/api/payment/catalog`, { credentials: "include" });
     if (!response.ok) {
       throw new CommerceConfigurationError("catalogue_unavailable");
@@ -108,7 +126,7 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
     if (!Array.isArray(payload.products)) {
       throw new CommerceConfigurationError("catalogue_invalid_response");
     }
-    return payload.products.map(toCatalogProduct);
+    return payload.products.map(projectCommerceCatalogProduct);
   }
 
   async listProducts(): Promise<CatalogProduct[]> {
@@ -126,7 +144,7 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
       );
     }
     const operationKey = checkoutOperationKey(request);
-    const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+    const apiBase = runtimeEnv?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
     const response = await fetch(`${apiBase}/api/payment/initiate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -202,7 +220,7 @@ export function pendingPaymentAttempt(): string | null {
 }
 
 export const commerceMode: CommerceMode =
-  import.meta.env.VITE_COMMERCE_MODE === "justicesure-headless"
+  runtimeEnv?.VITE_COMMERCE_MODE === "justicesure-headless"
     ? "justicesure-headless"
     : "catalog-preview";
 

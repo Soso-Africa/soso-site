@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Seo } from "@/components/Seo";
 import { catalogApproved, siteUrl, absoluteUrl } from "@/lib/seo";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
+import { ProductCard } from "@/components/ProductCard";
 
 export default function CollectionPage({ slug }: { slug: string }) {
   const platform = usePlatformContent();
@@ -16,7 +17,9 @@ export default function CollectionPage({ slug }: { slug: string }) {
       <Link href={platform.data.content.pages.shop.collectionNotFoundCta.href} className="text-primary hover:underline text-sm uppercase tracking-widest">{platform.data.content.pages.shop.collectionNotFoundCta.label}</Link>
     </div></main>;
   }
-  const pieces = products.filter((product) => product.category === meta.category);
+  const pieces = products
+    .filter((product) => product.category === meta.category)
+    .sort((a, b) => b.merchandising.sortPriority - a.merchandising.sortPriority);
   const schema = siteUrl && catalogApproved ? {
     "@context": "https://schema.org", "@type": "CollectionPage", name: meta.h1,
     description: meta.seo.description, url: absoluteUrl(`/collections/${meta.slug}`),
@@ -31,15 +34,8 @@ export default function CollectionPage({ slug }: { slug: string }) {
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
       {!pieces.length ? <p className="text-center py-24 text-muted-foreground uppercase tracking-widest text-sm">{platform.data.content.pages.shop.collectionEmptyMessage}</p> :
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">{pieces.map((product) =>
-          <Link key={product.slug} href={`/product/${product.slug}`} className="group block">
-            <article><div className="aspect-[3/4] overflow-hidden bg-muted mb-5 relative">
-              <img src={product.img} alt={product.name} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" loading="lazy" />
-              <span className="absolute top-4 left-4 text-[10px] uppercase tracking-[0.2em] px-2 py-1 bg-background/90">{product.tag}</span>
-            </div><p className="text-xs uppercase tracking-[0.2em] text-primary mb-1">{product.category}</p>
-            <h2 className="soso-display text-xl mb-1 group-hover:text-primary">{product.name}</h2>
-            <p className="text-muted-foreground text-sm mb-3">{product.note}</p>
-            <p>₦{product.price.toLocaleString("en-NG")}</p></article>
-          </Link>)}</div>}
+          <ProductCard key={product.slug} product={product} testIdPrefix="collection" />
+        )}</div>}
       <div className="mt-16 text-center pt-10 border-t border-border/50 flex flex-wrap gap-4 justify-center">
         {collections.filter((item) => item.slug !== slug).map((item) =>
           <Link key={item.slug} href={`/collections/${item.slug}`} className="text-[11px] uppercase tracking-[0.2em] px-5 py-3 border border-border">{item.label}</Link>)}

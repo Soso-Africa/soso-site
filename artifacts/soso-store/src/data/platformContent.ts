@@ -8,7 +8,11 @@ export type CatalogProduct = {
   slug: string;
   name: string;
   img: string;
-  images?: { src: string; alt: string }[];
+  images?: {
+    src: string;
+    alt: string;
+    provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
+  }[];
   price: number;
   tag: string;
   note: string;
@@ -19,6 +23,18 @@ export type CatalogProduct = {
   relatedProductSlugs?: string[];
   commerceProductId?: string;
   commerceVariantIds?: Record<string, string>;
+  colour: string;
+  fabric: string;
+  fit: string;
+  searchableTerms: string[];
+  merchandising: { isNew: boolean; label?: string; sortPriority: number };
+  standardEligible: boolean;
+  customEligible: boolean;
+  standardSizes: string[];
+  readyNowSizes: string[];
+  fulfilmentState: "ready_now" | "made_immediately" | "unavailable";
+  dispatchMessage: string;
+  unavailableMessage?: string;
 };
 export type PlatformCollection = {
   slug: string;
@@ -73,7 +89,13 @@ export type PlatformContent = {
     finalCta: { eyebrow: string; title: string; body: string; primaryCta: ContentLink; stylistCtaLabel: string; note: string };
   };
   pages: {
-    shop: { seo: SeoCopy; eyebrow: string; title: string; intro: string; allFilterLabel: string; emptyMessage: string; productCtaLabel: string; collectionNotFoundTitle: string; collectionNotFoundCta: ContentLink; collectionEmptyMessage: string; allCollectionsLabel: string };
+    shop: {
+      seo: SeoCopy; eyebrow: string; title: string; intro: string; allFilterLabel: string;
+      emptyMessage: string; productCtaLabel: string; collectionNotFoundTitle: string;
+      collectionNotFoundCta: ContentLink; collectionEmptyMessage: string; allCollectionsLabel: string;
+      searchLabel: string; searchPlaceholder: string; noSearchResultsMessage: string;
+      newLabel: string; readyNowLabel: string; madeImmediatelyLabel: string; unavailableLabel: string;
+    };
     faq: {
       seo: SeoCopy; eyebrow: string; title: string; intro: string; helpText: string; listAriaLabel: string;
       allFilterLabel: string; shopCta: ContentLink; policiesCta: ContentLink;
@@ -118,6 +140,16 @@ export type PlatformContent = {
     sizePrompt: string;
     customSizeHelp: string;
     standardSizeHelp: string;
+    colourLabel: string;
+    fabricLabel: string;
+    fitLabel: string;
+    readyNowLabel: string;
+    madeImmediatelyLabel: string;
+    unavailableLabel: string;
+    dispatchLabel: string;
+    dispatchNotDeliveryMessage: string;
+    standardUnavailableMessage: string;
+    customUnavailableMessage: string;
     sizeRequiredLabel: string;
     mobileSizeRequiredLabel: string;
     addToBagLabel: string;

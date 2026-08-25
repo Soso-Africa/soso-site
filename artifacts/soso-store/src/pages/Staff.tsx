@@ -478,6 +478,15 @@ function PlatformContentManagementSection() {
     </div>
     <div className="border border-border bg-card p-5">
       <div className="flex flex-wrap gap-2">{platformSections.map((item) => <button key={item.id} type="button" onClick={() => selectSection(item.id)} className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${section === item.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{item.label}</button>)}</div>
+      {section === "catalogue" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
+        <p className="font-semibold text-primary">Hybrid catalogue publishing checks</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+          <li>Set colour, fabric, fit, searchableTerms, merchandising priority, and Standard/Custom eligibility for every piece.</li>
+          <li>Use readyNowSizes only for Standard sizes physically ready now. An empty list stays purchasable when fulfilmentState is made_immediately.</li>
+          <li>Use unavailable only when SOSO genuinely cannot fulfil the piece, and keep dispatchMessage about dispatch rather than delivery.</li>
+          <li>Keep image alt text and provenance with every product image.</li>
+        </ul>
+      </div>}
       <div className="mt-5 border border-border bg-muted/20 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 border border-border px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary">
