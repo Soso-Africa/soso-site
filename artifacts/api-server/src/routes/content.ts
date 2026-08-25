@@ -17,17 +17,11 @@ import {
   operationalNotificationsTable,
   privacyRequestsTable,
   rateLimitBucketsTable,
-<<<<<<< HEAD
   siteContentTable,
 } from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { publicSiteContent } from "./site-content-policy";
-=======
-} from "@workspace/db";
-import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
-import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
->>>>>>> github/main
 
 const router: IRouter = Router();
 const ENQUIRY_RATE_WINDOW_MS = 60_000;
@@ -142,15 +136,12 @@ router.get("/journal", async (_req, res): Promise<void> => {
   res.json(ListJournalPostsResponse.parse(posts));
 });
 
-<<<<<<< HEAD
 router.get("/content/site", async (_req, res): Promise<void> => {
   const [row] = await db.select({ content: siteContentTable.published })
     .from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
   res.json(publicSiteContent(row ? { published: row.content } : undefined));
 });
 
-=======
->>>>>>> github/main
 router.get("/journal/:slug", async (req, res): Promise<void> => {
   const params = GetJournalPostParams.safeParse(req.params);
   if (!params.success) {

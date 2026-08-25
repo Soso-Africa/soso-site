@@ -9,10 +9,7 @@ import {
   type AnalyticsQualityReport,
   useGetStaffOverview,
   useGetStaffProfile,
-<<<<<<< HEAD
   useListStaffAccess,
-=======
->>>>>>> github/main
   useListStaffAuditEvents,
   useListStaffEnquiries,
   useListStaffJournalPosts,
@@ -40,10 +37,7 @@ import {
   Activity,
   AlertCircle,
   Bell,
-<<<<<<< HEAD
   BarChart3,
-=======
->>>>>>> github/main
   Check,
   ChevronRight,
   CircleCheck,
@@ -56,13 +50,9 @@ import {
   Info,
   Loader2,
   LockKeyhole,
-<<<<<<< HEAD
   LayoutDashboard,
   Mail,
   Menu,
-=======
-  Mail,
->>>>>>> github/main
   MessageSquare,
   Monitor,
   Package,
@@ -71,20 +61,14 @@ import {
   Save,
   ShieldAlert,
   ShieldCheck,
-<<<<<<< HEAD
   KeyRound,
-=======
->>>>>>> github/main
   Smartphone,
   Tablet,
   Trash2,
   Truck,
   TriangleAlert,
   Users,
-<<<<<<< HEAD
   X,
-=======
->>>>>>> github/main
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExperimentLog } from "@/components/ExperimentLog";
@@ -129,7 +113,6 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-<<<<<<< HEAD
 type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "site" | "faq" | "policies" | "redirects" | "analytics" | "staff";
 type StaffNavGroup = {
   label: string;
@@ -142,11 +125,6 @@ export default function Staff() {
   const [range, setRange] = useState(() => dateRangeFor(7));
   const [activeTab, setActiveTabState] = useState<StaffTab>("overview");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
-=======
-export default function Staff() {
-  const { data: profile, isLoading: profileLoading, isError: profileError } = useGetStaffProfile();
-  const [range, setRange] = useState(() => dateRangeFor(7));
->>>>>>> github/main
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
   // Stylists can view orders (read-only) so they can answer delivery queries.
   const canViewOrders = canManageOrders || profile?.role === "stylist";
@@ -162,7 +140,6 @@ export default function Staff() {
   const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications"], enabled: Boolean(profile), refetchInterval: 45_000 } });
   const audit = useListStaffAuditEvents(range, { query: { queryKey: ["staff-audit", range.from, range.to], enabled: canSeeAnalytics, refetchInterval: 60_000 } });
 
-<<<<<<< HEAD
   const availableTabs = new Set<StaffTab>(["overview"]);
   if (canViewOrders) availableTabs.add("orders");
   if (canManageEnquiries) availableTabs.add("enquiries");
@@ -184,15 +161,12 @@ export default function Staff() {
     return () => window.removeEventListener("hashchange", syncFromHash);
   }, [profile?.role]);
 
-=======
->>>>>>> github/main
   if (profileLoading) {
     return <LoadingScreen />;
   }
   if (profileError || !profile) {
     return <AccessRestricted />;
   }
-<<<<<<< HEAD
   const setActiveTab = (tab: StaffTab) => {
     setActiveTabState(tab);
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${tab}`);
@@ -216,8 +190,6 @@ export default function Staff() {
     { label: "Intelligence", items: canSeeAnalytics ? [staffNavItem("analytics", "Analytics", BarChart3)] : [] },
     { label: "Administration", items: profile.role === "owner" ? [staffNavItem("staff", "Staff access", Users)] : [] },
   ].filter((group) => group.items.length);
-=======
->>>>>>> github/main
 
   const refreshOperations = () => {
     const refreshes: Promise<unknown>[] = [overview.refetch(), notifications.refetch()];
@@ -228,7 +200,6 @@ export default function Staff() {
     void Promise.all(refreshes);
   };
 
-<<<<<<< HEAD
   const activeNavigation = navigation.flatMap((group) => group.items).find((item) => item.id === activeTab);
   const sidebar = (
     <nav aria-label="Staff workspace navigation" className="h-full overflow-y-auto bg-[#15110d] p-4">
@@ -404,72 +375,6 @@ function SiteContentManagementSection() {
         </div>
       </form>
     </section>
-=======
-  return (
-    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-      <header className="border-b border-border pb-8">
-        <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-primary">SOSO internal</p>
-            <h1 className="mt-2 text-4xl soso-display text-foreground">Atelier operations</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-              <span className="bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">{profile.role}</span>
-              <span className="text-muted-foreground">{profile.email}</span>
-            </div>
-          </div>
-          <DateRangeControl range={range} onChange={setRange} />
-        </div>
-      </header>
-
-      <section className="mt-7 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <Activity className="mt-0.5 shrink-0 text-primary" size={18} />
-          <p className="text-sm text-muted-foreground">
-            {overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${format(new Date(overview.data.generatedAt), "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}
-          </p>
-        </div>
-        <span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span>
-      </section>
-
-      <NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} />
-      <RoleCapabilityBanner role={profile.role} />
-      <Pulse overview={overview.data} loading={overview.isLoading} />
-
-      {canSeeAnalytics && (
-        <>
-          <AnalyticsSection
-            funnel={funnel.data}
-            auditEvents={audit.data}
-            loading={funnel.isLoading || audit.isLoading}
-            range={range}
-            role={profile.role}
-            onExported={() => void audit.refetch()}
-          />
-          <ExperimentLog />
-        </>
-      )}
-
-      {(canViewOrders || canManageEnquiries) && (
-        <section className="mt-12 grid gap-8 xl:grid-cols-2">
-          {canViewOrders && (
-            <OrdersSection
-              orders={orders.data}
-              loading={orders.isLoading}
-              canRefund={profile.role === "owner"}
-              onChanged={refreshOperations}
-              readOnly={!canManageOrders}
-            />
-          )}
-          {canManageEnquiries && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
-        </section>
-      )}
-
-      {canManagePrivacy && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
-      {(profile.role === "owner" || profile.role === "editor") && <JournalManagementSection />}
-      {(profile.role === "owner" || profile.role === "editor") && <FaqManagementSection />}
-      {(profile.role === "owner" || profile.role === "operations") && <RedirectsManagementSection />}
-    </main>
->>>>>>> github/main
   );
 }
 
@@ -1193,10 +1098,7 @@ function JournalManagementSection() {
 }
 
 type FaqRow = { id: string; question: string; answer: string; category: string | null; sortOrder: number; isPublished: boolean; createdAt: string; updatedAt: string };
-<<<<<<< HEAD
 type FaqHistoryEvent = { id: string; actorClerkUserId: string; action: string; metadata: { snapshot?: FaqRow; previousSnapshot?: FaqRow; transition?: { from: string | null; to: string } }; createdAt: string };
-=======
->>>>>>> github/main
 type RedirectRow = { id: string; fromPath: string; toPath: string; statusCode: number; createdAt: string };
 
 function useCrudFetch<T>(path: string, enabled: boolean) {
@@ -1218,13 +1120,10 @@ function useCrudFetch<T>(path: string, enabled: boolean) {
 function FaqManagementSection() {
   const { data: items, loading, reload } = useCrudFetch<FaqRow>("/staff/faq", true);
   const [editing, setEditing] = useState<Partial<FaqRow> | null>(null);
-<<<<<<< HEAD
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [history, setHistory] = useState<FaqHistoryEvent[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
-=======
->>>>>>> github/main
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1262,7 +1161,6 @@ function FaqManagementSection() {
     }
   };
 
-<<<<<<< HEAD
   const showHistory = async (id: string) => {
     if (historyId === id) { setHistoryId(null); return; }
     setHistoryId(id); setHistory(null); setHistoryError(""); setHistoryLoading(true);
@@ -1275,8 +1173,6 @@ function FaqManagementSection() {
     }
   };
 
-=======
->>>>>>> github/main
   return (
     <section className="mt-12 border-t border-border pt-10">
       <SectionHeading icon={FileText} title="FAQ management" description="Manage the FAQ items shown on the public /faq page. Published items appear on site; draft items are hidden." />
@@ -1311,12 +1207,8 @@ function FaqManagementSection() {
         {loading ? <LoadingRows /> : !items?.length ? <Empty label="No FAQ items yet. Add the first one above." /> : (
           <div className="divide-y divide-border">
             {items.map((item) => (
-<<<<<<< HEAD
               <React.Fragment key={item.id}>
               <div className="flex items-start gap-4 p-4">
-=======
-              <div key={item.id} className="flex items-start gap-4 p-4">
->>>>>>> github/main
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     {item.category && <span className="text-[9px] uppercase tracking-wider border border-primary/30 px-2 py-0.5 text-primary/70">{item.category}</span>}
@@ -1327,15 +1219,11 @@ function FaqManagementSection() {
                   <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{item.answer}</p>
                 </div>
                 <div className="flex gap-2 shrink-0">
-<<<<<<< HEAD
                   <button type="button" onClick={() => void showHistory(item.id)} aria-expanded={historyId === item.id} className="inline-flex min-h-9 items-center gap-1 border border-border px-2 text-xs hover:border-primary"><History size={12} /> {historyId === item.id ? "Hide history" : "History"}</button>
-=======
->>>>>>> github/main
                   <button type="button" onClick={() => setEditing(item)} className="inline-flex min-h-9 items-center gap-1 border border-border px-2 text-xs hover:border-primary"><PenLine size={12} /> Edit</button>
                   <button type="button" disabled={deletingId === item.id} onClick={() => void del(item.id)} className="inline-flex min-h-9 items-center gap-1 border border-destructive/50 px-2 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"><Trash2 size={12} /></button>
                 </div>
               </div>
-<<<<<<< HEAD
               {historyId === item.id && <div className="border-t border-border bg-muted/20 px-4 py-4 sm:pl-8">
                 <p className="text-xs font-semibold uppercase tracking-wider text-primary">Change history</p>
                 <p className="mt-1 text-xs text-muted-foreground">Read-only audit records. Previous snapshots are shown for review; they cannot be restored here.</p>
@@ -1363,8 +1251,6 @@ function FaqManagementSection() {
                 </div>
               </div>}
               </React.Fragment>
-=======
->>>>>>> github/main
             ))}
           </div>
         )}
@@ -1373,7 +1259,6 @@ function FaqManagementSection() {
   );
 }
 
-<<<<<<< HEAD
 function PolicyManagementSection({ role }: { role: string }) {
   type PolicyRow = {
     id: string; slug: string; title: string; summary: string;
@@ -1429,8 +1314,6 @@ function PolicyManagementSection({ role }: { role: string }) {
     </div>}
   </section>;
 }
-=======
->>>>>>> github/main
 function RedirectsManagementSection() {
   const { data: redirects, loading, reload } = useCrudFetch<RedirectRow>("/staff/redirects", true);
   const [form, setForm] = useState({ fromPath: "", toPath: "", statusCode: 301 });
@@ -1585,8 +1468,4 @@ function Empty({ label }: { label: string }) {
 function StatusBadge({ status }: { status: string }) {
   const tone = status === "completed" || status === "fulfilled" || status === "resolved" ? "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400" : status === "refunded" || status === "rejected" || status === "cancelled" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-primary/20 bg-primary/5 text-primary";
   return <span className={`border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${tone}`}>{status.replaceAll("_", " ")}</span>;
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> github/main

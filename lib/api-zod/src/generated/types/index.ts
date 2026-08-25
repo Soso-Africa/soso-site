@@ -58,15 +58,12 @@ export * from './privacyRequestInputRequestType';
 export * from './redirectLookup';
 export * from './redirectResolution';
 export * from './redirectResolutionStatusCode';
-<<<<<<< HEAD
 export * from './staffAccessInput';
 export * from './staffAccessInputRole';
 export * from './staffAccessMapping';
 export * from './staffAccessMappingRole';
 export * from './staffAccessUpdate';
 export * from './staffAccessUpdateRole';
-=======
->>>>>>> github/main
 export * from './staffAuditEvent';
 export * from './staffAuditEventMetadata';
 export * from './staffDateFromParameter';

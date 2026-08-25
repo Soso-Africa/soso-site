@@ -141,7 +141,6 @@
 .soso-btn-gold:hover { background-color: #D4B45A !important; transform: translateY(-1px); }
 .soso-btn-ghost:hover { background-color: rgba(246,241,231,0.08); }
 .soso-link:hover { color: #D4B45A; }
-<<<<<<< HEAD
 
 /* Staff workspace controls: keep editable surfaces distinct from the ink canvas. */
 .staff-input {
@@ -186,8 +185,6 @@ textarea.staff-input {
   line-height: 1.55;
 }
 
-=======
->>>>>>> github/main
 @keyframes soso-marquee { from { transform: translateX(0);} to { transform: translateX(-50%);} }
 .soso-marquee { animation: soso-marquee 30s linear infinite; }
 html { scroll-behavior: smooth; }

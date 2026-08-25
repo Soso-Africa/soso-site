@@ -1,15 +1,9 @@
 import type { NextFunction, Request, Response } from "express";
-<<<<<<< HEAD
 import { createHash } from "node:crypto";
 import { db, staffSessionsTable, staffUsersTable, type StaffUser } from "@workspace/db";
 import { and, eq, gt, isNull } from "drizzle-orm";
 
 export const STAFF_SESSION_COOKIE = "soso_staff_session";
-=======
-import { getAuth } from "@clerk/express";
-import { db, staffUsersTable, type StaffUser } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
->>>>>>> github/main
 
 declare global {
   namespace Express {
@@ -24,7 +18,6 @@ export async function requireStaff(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-<<<<<<< HEAD
   if (!req.staff) {
     res.status(401).json({ error: "Authentication required" });
     return;
@@ -47,27 +40,6 @@ export async function loadStaffSession(req: Request, _res: Response, next: NextF
     req.staff = session.staff;
     void db.update(staffSessionsTable).set({ lastSeenAt: new Date() }).where(eq(staffSessionsTable.tokenHash, tokenHash));
   }
-=======
-  const { userId } = getAuth(req);
-  if (!userId) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
-
-  const [staff] = await db
-    .select()
-    .from(staffUsersTable)
-    .where(and(eq(staffUsersTable.clerkUserId, userId), eq(staffUsersTable.isActive, true)))
-    .limit(1);
-
-  if (!staff) {
-    req.log.warn({ clerkUserId: userId }, "Denied staff route for unassigned user");
-    res.status(403).json({ error: "Staff access has not been assigned to this account" });
-    return;
-  }
-
-  req.staff = staff;
->>>>>>> github/main
   next();
 }
 

@@ -1,16 +1,11 @@
 import React from "react";
 import { Link } from "wouter";
 import { openPrivacyChoices } from "./ConsentManager";
-<<<<<<< HEAD
 import { resolvedSiteContent, useSiteContent } from "@/data/siteContent";
 
 export function Footer() {
   const { data: siteData } = useSiteContent();
   const site = resolvedSiteContent(siteData?.content);
-=======
-
-export function Footer() {
->>>>>>> github/main
   return (
     <footer className="px-6 lg:px-12 py-14" style={{ borderTop: `1px solid rgba(184,145,47,0.2)` }}>
       <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-10">
@@ -19,21 +14,12 @@ export function Footer() {
             <img src="/images/soso/logo.png" alt="SOSO Africa" className="h-9 mb-4 cursor-pointer" />
           </Link>
           <p className="text-[13px] max-w-sm leading-relaxed mb-6" style={{ color: "hsl(var(--secondary))" }}>
-<<<<<<< HEAD
             {site.footerDescription}
-=======
-            Bespoke menswear house, Abuja. Kaftans, agbadas, dashikis and shirting —
-            made to order for the individual.
->>>>>>> github/main
           </p>
           {/* Social links — update with real handles when available */}
           <div className="flex gap-4">
             <a
-<<<<<<< HEAD
               href={site.instagramUrl}
-=======
-              href="https://instagram.com/sosoafrica"
->>>>>>> github/main
               target="_blank"
               rel="noopener noreferrer"
               aria-label="SOSO Africa on Instagram"
@@ -42,10 +28,7 @@ export function Footer() {
             >
               Instagram
             </a>
-<<<<<<< HEAD
             {site.contactEmail && <a href={`mailto:${site.contactEmail}`} className="text-[11px] uppercase tracking-[0.2em] soso-link" style={{ color: "hsl(var(--primary))" }}>{site.contactEmail}</a>}
-=======
->>>>>>> github/main
           </div>
         </div>
         <div>
@@ -80,10 +63,7 @@ export function Footer() {
           <button type="button" onClick={openPrivacyChoices} className="soso-link">Cookie choices</button>
           <Link href="/terms" className="soso-link">Terms</Link>
           <Link href="/faq" className="soso-link">FAQs</Link>
-<<<<<<< HEAD
            <Link href="/staff" className="soso-link">Staff portal</Link>
-=======
->>>>>>> github/main
           <span>Prices are shown in Nigerian Naira (₦). Atelier making details are confirmed after payment.</span>
         </div>
       </div>

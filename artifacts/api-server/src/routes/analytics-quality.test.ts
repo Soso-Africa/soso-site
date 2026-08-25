@@ -5,26 +5,19 @@ import {
   isPrivateStorefrontPath,
   isTrackableStorefrontPath,
   RecordAnalyticsEventBody,
-<<<<<<< HEAD
   CreateStaffAccessBody,
   UpdateStaffAccessBody,
 } from "@workspace/api-zod";
 import { requireStaffRoles } from "../middlewares/staff";
-=======
-} from "@workspace/api-zod";
->>>>>>> github/main
 import {
   buildAnalyticsQualityReport,
   type AnalyticsQualityFixture,
 } from "./analytics-quality";
 import { validateAnalyticsEvent } from "./analytics-validation";
-<<<<<<< HEAD
 import {
   isFinalActiveOwnerChangeBlocked,
   staffAccessAuditMetadata,
 } from "./staff";
-=======
->>>>>>> github/main
 
 const now = new Date("2026-08-24T12:00:00.000Z");
 const baseFixture: AnalyticsQualityFixture = {
@@ -48,7 +41,6 @@ function checkStatuses(fixture: Partial<AnalyticsQualityFixture>) {
   return new Map(report.checks.map((check) => [check.check, check.status]));
 }
 
-<<<<<<< HEAD
 test("staff access administration is owner-only", () => {
   const denied = requireStaffRoles("owner");
   let status: number | undefined;
@@ -109,8 +101,6 @@ test("successful staff access changes produce complete audit metadata", () => {
   );
 });
 
-=======
->>>>>>> github/main
 test("accepts current and newly launched public storefront paths", () => {
   for (const path of [
     "/",

@@ -86,11 +86,8 @@ export const staffUsersTable = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     clerkUserId: text("clerk_user_id").notNull(),
     email: text("email").notNull(),
-<<<<<<< HEAD
     passwordHash: text("password_hash"),
     passwordChangedAt: timestamp("password_changed_at", { withTimezone: true }),
-=======
->>>>>>> github/main
     role: staffRoleEnum("role").notNull(),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -102,7 +99,6 @@ export const staffUsersTable = pgTable(
   ],
 );
 
-<<<<<<< HEAD
 export const staffSessionsTable = pgTable(
   "soso_staff_sessions",
   {
@@ -120,8 +116,6 @@ export const staffSessionsTable = pgTable(
   ],
 );
 
-=======
->>>>>>> github/main
 export const ordersTable = pgTable(
   "soso_orders",
   {
@@ -435,7 +429,6 @@ export const faqItemsTable = pgTable(
   (table) => [index("soso_faq_items_sort_idx").on(table.sortOrder, table.isPublished)],
 );
 
-<<<<<<< HEAD
 export const policyDocumentsTable = pgTable(
   "soso_policy_documents",
   {
@@ -475,8 +468,6 @@ export const siteContentTable = pgTable(
   },
 );
 
-=======
->>>>>>> github/main
 export const redirectsTable = pgTable(
   "soso_redirects",
   {
@@ -504,10 +495,7 @@ export const auditLogsTable = pgTable(
 );
 
 export const insertStaffUserSchema = createInsertSchema(staffUsersTable).omit({ id: true, createdAt: true, updatedAt: true });
-<<<<<<< HEAD
 export const insertStaffSessionSchema = createInsertSchema(staffSessionsTable).omit({ id: true, createdAt: true, lastSeenAt: true, revokedAt: true });
-=======
->>>>>>> github/main
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItemsTable).omit({ id: true, createdAt: true });
 export const insertCustomerEnquirySchema = createInsertSchema(customerEnquiriesTable).omit({ id: true, createdAt: true, updatedAt: true });
@@ -521,17 +509,12 @@ export const insertCommerceCheckoutAttemptSchema = createInsertSchema(commerceCh
 export const insertCommerceWebhookEventSchema = createInsertSchema(commerceWebhookEventsTable).omit({ createdAt: true, updatedAt: true, completedAt: true });
 
 export type FaqItem = typeof faqItemsTable.$inferSelect;
-<<<<<<< HEAD
 
 export type PolicyDocument = typeof policyDocumentsTable.$inferSelect;
 export type SiteContent = typeof siteContentTable.$inferSelect;
 export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type StaffSession = typeof staffSessionsTable.$inferSelect;
-=======
-export type Redirect = typeof redirectsTable.$inferSelect;
-export type StaffUser = typeof staffUsersTable.$inferSelect;
->>>>>>> github/main
 export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;
 export type CommerceCheckoutAttempt = typeof commerceCheckoutAttemptsTable.$inferSelect;
@@ -547,7 +530,6 @@ export type AnalyticsEvent = typeof analyticsEventsTable.$inferSelect;
 export type ConsentRecord = typeof consentRecordsTable.$inferSelect;
 export type InsertStaffUser = z.infer<typeof insertStaffUserSchema>;
 export type InsertCommerceCheckoutAttempt = z.infer<typeof insertCommerceCheckoutAttemptSchema>;
-<<<<<<< HEAD
 export type InsertCommerceWebhookEvent = z.infer<typeof insertCommerceWebhookEventSchema>;
 
 export type PolicyDocumentRevision = typeof policyDocumentRevisionsTable.$inferSelect;
@@ -563,6 +545,3 @@ export const policyDocumentRevisionsTable = pgTable(
   },
   (table) => [index("soso_policy_revisions_document_created_idx").on(table.policyDocumentId, table.createdAt)],
 );
-=======
-export type InsertCommerceWebhookEvent = z.infer<typeof insertCommerceWebhookEventSchema>;
->>>>>>> github/main

@@ -4,10 +4,6 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, useLocation, Router as WouterRouter, Redirect } from 'wouter';
-<<<<<<< HEAD
-=======
-import { Show } from "@clerk/react";
->>>>>>> github/main
 
 import { CartProvider } from '@/context/CartContext';
 import { Navbar } from '@/components/Navbar';
@@ -17,10 +13,7 @@ import { CartDrawer } from '@/components/CartDrawer';
 import { ConsentManager } from '@/components/ConsentManager';
 import { Seo } from '@/components/Seo';
 import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
-<<<<<<< HEAD
 import { customFetch } from '@workspace/api-client-react';
-=======
->>>>>>> github/main
 
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
@@ -36,10 +29,6 @@ import About from '@/pages/About';
 import FAQ from '@/pages/FAQ';
 import CollectionPage from '@/pages/CollectionPage';
 import SignIn from '@/pages/SignIn';
-<<<<<<< HEAD
-=======
-import SignUp from '@/pages/SignUp';
->>>>>>> github/main
 import Staff from '@/pages/Staff';
 import NotFound from '@/pages/not-found';
 
@@ -71,11 +60,7 @@ function Router() {
         <Route path="/returns" component={ReturnsRedirect} />
         <Route path="/care" component={Policy} />
         <Route path="/sign-in/*?" component={SignIn} />
-<<<<<<< HEAD
         <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
-=======
-        <Route path="/sign-up/*?" component={SignUp} />
->>>>>>> github/main
         <Route path="/staff" component={StaffGate} />
         <Route component={NotFound} />
       </Switch>
@@ -83,7 +68,6 @@ function Router() {
   );
 }
 
-<<<<<<< HEAD
 function CookieRedirect() {
   return <Redirect to="/privacy#cookies" />;
 }
@@ -101,23 +85,6 @@ function StaffGate() {
   }, []);
   if (!ready) return <div className="flex min-h-[45vh] items-center justify-center text-sm text-muted-foreground">Checking staff access…</div>;
   return signedIn ? <Staff /> : <Redirect to="/sign-in" />;
-=======
-function StaffGate() {
-  return (
-    <>
-      <Show when="signed-in">
-        <Staff />
-      </Show>
-      <Show when="signed-out">
-        <Redirect to="/sign-in" />
-      </Show>
-    </>
-  );
-}
-
-function CookieRedirect() {
-  return <Redirect to="/privacy#cookies" />;
->>>>>>> github/main
 }
 
 function DeliveryRedirect() {

@@ -6,21 +6,13 @@
   "scripts": {
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
-<<<<<<< HEAD
     "pretest": "pnpm run build",
-=======
->>>>>>> github/main
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test": "pnpm --dir ../../scripts exec tsx --test ../artifacts/api-server/src/**/*.test.ts",
     "verify:privacy-access-packages": "pnpm --dir ../../scripts exec tsx ../artifacts/api-server/scripts/verify-privacy-access-packages.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-<<<<<<< HEAD
-=======
-    "@clerk/express": "^2.1.59",
-    "@clerk/shared": "^4.29.2",
->>>>>>> github/main
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "cookie-parser": "^1.4.7",

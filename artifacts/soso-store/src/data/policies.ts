@@ -6,15 +6,10 @@ export type PolicySection = {
 };
 
 export type PolicyDocument = {
-<<<<<<< HEAD
   slug?: string;
   version?: number;
   title: string;
   eyebrow?: string;
-=======
-  title: string;
-  eyebrow: string;
->>>>>>> github/main
   summary: string;
   sections: PolicySection[];
 };

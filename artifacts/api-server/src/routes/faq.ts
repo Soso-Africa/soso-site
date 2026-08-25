@@ -1,11 +1,6 @@
 import { Router, type IRouter } from "express";
-<<<<<<< HEAD
 import { faqItemsTable, policyDocumentsTable, db } from "@workspace/db";
 import { eq, asc, and, desc } from "drizzle-orm";
-=======
-import { faqItemsTable, db } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
->>>>>>> github/main
 
 const router: IRouter = Router();
 
@@ -40,7 +35,6 @@ router.get("/faq", async (_req, res): Promise<void> => {
   res.json(STATIC_FAQ_ITEMS);
 });
 
-<<<<<<< HEAD
 // Public policy responses only expose an explicitly published, effective version.
 router.get("/policies/:slug", async (req, res): Promise<void> => {
   const [row] = await db.select().from(policyDocumentsTable)
@@ -53,6 +47,4 @@ router.get("/policies/:slug", async (req, res): Promise<void> => {
   res.json({ slug: row.slug, title: row.title, summary: row.summary, sections: row.sections, version: row.version, effectiveAt: row.effectiveAt });
 });
 
-=======
->>>>>>> github/main
 export default router;

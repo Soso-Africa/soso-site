@@ -1,17 +1,4 @@
 User-agent: *
-<<<<<<< HEAD
 Disallow: /
 
 # Indexing stays disabled until the approved domain and launch inputs are configured.
-=======
-Allow: /
-
-# Do not index authenticated, checkout, or admin flows
-Disallow: /staff
-Disallow: /sign-in
-Disallow: /sign-up
-Disallow: /checkout
-
-# Sitemap location — replace SITE_URL with the production domain before launch
-# Sitemap: https://SITE_URL/sitemap.xml
->>>>>>> github/main

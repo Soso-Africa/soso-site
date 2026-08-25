@@ -515,7 +515,6 @@ export interface StaffProfile {
   role: StaffProfileRole;
 }
 
-<<<<<<< HEAD
 export type StaffAccessInputRole = typeof StaffAccessInputRole[keyof typeof StaffAccessInputRole];
 
 
@@ -577,8 +576,6 @@ export interface StaffAccessMapping {
   updatedAt: string;
 }
 
-=======
->>>>>>> github/main
 /**
  * @nullable
  */

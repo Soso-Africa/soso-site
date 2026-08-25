@@ -304,7 +304,6 @@ paths:
           description: Authentication required
         "403":
           description: Staff access required
-<<<<<<< HEAD
   /staff/access:
     get:
       operationId: listStaffAccess
@@ -371,8 +370,6 @@ paths:
           description: Owner access required
         "404":
           description: Mapping not found
-=======
->>>>>>> github/main
   /staff/overview:
     get:
       operationId: getStaffOverview
@@ -1006,7 +1003,6 @@ components:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         email: { type: string, maxLength: 320 }
         role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
-<<<<<<< HEAD
     StaffAccessInput:
       type: object
       required: [clerkUserId, email, role]
@@ -1031,8 +1027,6 @@ components:
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-=======
->>>>>>> github/main
     StaffOrder:
       type: object
       required: [id, orderNumber, customerName, customerEmail, total, currency, status, createdAt, updatedAt]

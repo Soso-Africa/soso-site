@@ -174,7 +174,7 @@ test("staff login, bootstrap guard, status, logout, reset, disable, and session 
       method: "POST",
       body: { token: process.env.STAFF_BOOTSTRAP_TOKEN, email, password },
     });
-    assert.equal(secondBootstrap.status, 403);
+    assert.equal(secondBootstrap.status, 409);
     assert.equal(secondBootstrap.cookie, undefined);
 
     const status = await request(running.baseUrl, "/api/staff-auth/status", { cookie: bootstrap.cookie });
