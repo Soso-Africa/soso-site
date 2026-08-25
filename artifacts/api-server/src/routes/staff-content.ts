@@ -27,7 +27,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { ensurePlatformContent, platformContentHash, PlatformContentSchema } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
-import { validateProductMediaAssets } from "../lib/product-media-validation";
+import { validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
 
@@ -429,6 +429,13 @@ router.post(
       res.status(400).json({ error: "Please complete the article details" });
       return;
     }
+    if (parsed.data.coverImageUrl) {
+      const coverIssue = await validateManagedImageAsset(parsed.data.coverImageUrl);
+      if (coverIssue) {
+        res.status(400).json({ error: coverIssue });
+        return;
+      }
+    }
     const result = await db.transaction(async (tx) => {
       const relationError = await validateRelatedArticles(
         tx,
@@ -496,6 +503,13 @@ router.patch(
         return { kind: "conflict" as const };
       }
       const nextStatus = parsed.data.status ?? current.status;
+      const nextCoverImageUrl = parsed.data.coverImageUrl === undefined
+        ? current.coverImageUrl
+        : parsed.data.coverImageUrl;
+      if (nextCoverImageUrl) {
+        const coverIssue = await validateManagedImageAsset(nextCoverImageUrl);
+        if (coverIssue) return { kind: "cover_error" as const, message: coverIssue };
+      }
       const relationError = await validateRelatedArticles(
         tx,
         parsed.data.slug ?? current.slug,
@@ -561,6 +575,10 @@ router.patch(
       return;
     }
     if (post.kind === "relation_error") {
+      res.status(400).json({ error: post.message });
+      return;
+    }
+    if (post.kind === "cover_error") {
       res.status(400).json({ error: post.message });
       return;
     }

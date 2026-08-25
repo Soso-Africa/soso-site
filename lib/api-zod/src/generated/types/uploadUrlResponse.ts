@@ -5,10 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { UploadUrlResponseUploadFields } from './uploadUrlResponseUploadFields';
+import type { UploadUrlResponseUploadMethod } from './uploadUrlResponseUploadMethod';
 
 export interface UploadUrlResponse {
   /** @minLength 1 */
   uploadURL: string;
+  uploadMethod: UploadUrlResponseUploadMethod;
+  uploadFields: UploadUrlResponseUploadFields;
   /** @pattern ^/api/storage/objects/uploads/ */
   objectPath: string;
 }

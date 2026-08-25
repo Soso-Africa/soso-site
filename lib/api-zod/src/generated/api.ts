@@ -2570,7 +2570,27 @@ export const requestUploadUrlResponseObjectPathRegExp = new RegExp('^/api/storag
 
 export const RequestUploadUrlResponse = zod.object({
   "uploadURL": zod.string().min(1),
+  "uploadMethod": zod.enum(['POST']),
+  "uploadFields": zod.record(zod.string(), zod.string()),
   "objectPath": zod.string().regex(requestUploadUrlResponseObjectPathRegExp)
+})
+
+
+/**
+ * @summary Verify a completed Cloudinary upload before it can be persisted
+ */
+export const finalizeStorageUploadBodyObjectPathRegExp = new RegExp('^/api/storage/objects/uploads');
+
+
+export const FinalizeStorageUploadBody = zod.object({
+  "objectPath": zod.string().regex(finalizeStorageUploadBodyObjectPathRegExp)
+})
+
+export const finalizeStorageUploadResponseObjectPathRegExp = new RegExp('^/api/storage/objects/uploads');
+
+
+export const FinalizeStorageUploadResponse = zod.object({
+  "objectPath": zod.string().regex(finalizeStorageUploadResponseObjectPathRegExp)
 })
 
 

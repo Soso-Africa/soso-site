@@ -48,6 +48,31 @@ export const inspectProductMedia: ProductMediaInspector = async (path) => (
   await inspectStoredHeroMedia(path) ?? await inspectBundledProductImage(path)
 );
 
+export async function validateManagedImageAsset(
+  path: string,
+  inspect: ProductMediaInspector = inspectProductMedia,
+): Promise<string | null> {
+  try {
+    const inspected = await inspect(path);
+    if (!inspected) return "Image must be a verified bundled or SOSO Cloudinary asset";
+    const expectedType = mediaMimeTypeForPath(path);
+    if (!Number.isSafeInteger(inspected.size) || inspected.size < 1 || inspected.size > MAX_UPLOADED_IMAGE_BYTES) {
+      return `Image exceeds its ${MAX_UPLOADED_IMAGE_BYTES} byte publishing budget`;
+    }
+    if (
+      !expectedType
+      || !IMAGE_MEDIA_TYPES.has(expectedType)
+      || inspected.contentType !== expectedType
+      || inspected.declaredContentType !== expectedType
+    ) {
+      return "Image bytes, MIME type, and configured file extension must match";
+    }
+    return null;
+  } catch {
+    return "Stored image could not be verified";
+  }
+}
+
 export async function validateProductMediaAssets(
   content: PlatformContent,
   inspect: ProductMediaInspector = inspectProductMedia,
@@ -61,28 +86,9 @@ export async function validateProductMediaAssets(
 
   const results = await Promise.all([...uniqueAssets.entries()].map(async ([path, location]) => {
     const issuePath = ["products", location.productIndex, "images", location.imageIndex, "src"];
-    try {
-      const inspected = await inspect(path);
-      if (!inspected) {
-        return [{ path: issuePath, message: "Product image must be a verified bundled or SOSO App Storage asset" }];
-      }
-      const expectedType = mediaMimeTypeForPath(path);
-      const issues: ProductMediaValidationIssue[] = [];
-      if (!Number.isSafeInteger(inspected.size) || inspected.size < 1 || inspected.size > MAX_UPLOADED_IMAGE_BYTES) {
-        issues.push({ path: issuePath, message: `Product image exceeds its ${MAX_UPLOADED_IMAGE_BYTES} byte publishing budget` });
-      }
-      if (
-        !expectedType
-        || !IMAGE_MEDIA_TYPES.has(expectedType)
-        || inspected.contentType !== expectedType
-        || inspected.declaredContentType !== expectedType
-      ) {
-        issues.push({ path: issuePath, message: "Product image bytes, MIME type, and configured file extension must match" });
-      }
-      return issues;
-    } catch {
-      return [{ path: issuePath, message: "Stored product image could not be verified" }];
-    }
+    const issue = await validateManagedImageAsset(path, inspect);
+    const productIssue = issue ? `${issue.slice(0, 1).toLowerCase()}${issue.slice(1)}` : null;
+    return productIssue ? [{ path: issuePath, message: `Product ${productIssue}` }] : [];
   }));
 
   return results.flat();

@@ -1,9 +1,6 @@
-import type { File } from "@google-cloud/storage";
 import type { PlatformContent } from "./platform-content";
-import { ObjectStorageService } from "./objectStorage";
+import { CloudinaryStorageService } from "./cloudinary-storage";
 import {
-  detectMediaContentType,
-  isAnimatedImage,
   MAX_HERO_POSTER_BYTES,
   MAX_HERO_VIDEO_BYTES,
   mediaMimeTypeForPath,
@@ -18,39 +15,16 @@ export type HeroMediaInspection = {
 export type HeroMediaInspector = (path: string) => Promise<HeroMediaInspection | null>;
 export type HeroMediaValidationIssue = { path: string[]; message: string };
 
-const storage = new ObjectStorageService();
-
-async function inspectFile(file: File, path: string): Promise<HeroMediaInspection> {
-  const [metadata] = await file.getMetadata();
-  const size = Number(metadata.size);
-  const expectedType = mediaMimeTypeForPath(path);
-  const readBytes = expectedType?.startsWith("image/")
-    ? Math.min(size, MAX_HERO_POSTER_BYTES + 1)
-    : Math.min(size, 65_536);
-  const chunks: Buffer[] = [];
-  for await (const chunk of file.createReadStream({ start: 0, end: Math.max(readBytes - 1, 0) })) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  const bytes = Buffer.concat(chunks);
-  const contentType = detectMediaContentType(bytes) ?? "";
-  return {
-    contentType,
-    declaredContentType: metadata.contentType,
-    size,
-    animated: contentType.startsWith("image/") && isAnimatedImage(bytes, contentType),
-  };
-}
+const storage = new CloudinaryStorageService();
 
 export const inspectStoredHeroMedia: HeroMediaInspector = async (path) => {
   const uploadedPrefix = "/api/storage/objects/";
   if (path.startsWith(uploadedPrefix)) {
-    return inspectFile(await storage.getUploadedObject(path.slice(uploadedPrefix.length)), path);
+    return storage.inspectUploadedMedia(path.slice(uploadedPrefix.length));
   }
   const publicPrefix = "/api/storage/public-objects/";
   if (path.startsWith(publicPrefix)) {
-    const file = await storage.findPublicObject(path.slice(publicPrefix.length));
-    if (!file) throw new Error("Object not found");
-    return inspectFile(file, path);
+    return storage.inspectPublicMedia(path.slice(publicPrefix.length));
   }
   return null;
 };

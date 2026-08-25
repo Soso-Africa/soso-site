@@ -89,6 +89,34 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ExperimentLog } from "@/components/ExperimentLog";
 import type { PlatformContent } from "@/data/platformContent";
 
+type SignedMediaUpload = {
+  uploadURL: string;
+  uploadMethod: "POST";
+  uploadFields: Record<string, string>;
+  objectPath: string;
+};
+
+async function uploadStaffMedia(file: File): Promise<string> {
+  const signed = await customFetch<SignedMediaUpload>("/api/storage/uploads/request-url", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+    responseType: "json",
+  });
+  const form = new FormData();
+  Object.entries(signed.uploadFields).forEach(([key, value]) => form.append(key, value));
+  form.append("file", file);
+  const uploaded = await fetch(signed.uploadURL, { method: signed.uploadMethod, body: form });
+  if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
+  const finalized = await customFetch<{ objectPath: string }>("/api/storage/uploads/finalize", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ objectPath: signed.objectPath }),
+    responseType: "json",
+  });
+  return finalized.objectPath;
+}
+
 type StaffWorkflowDisplayStatus = StaffOrderUpdateStatus | "paid";
 
 const nextOrderStatuses: Record<StaffWorkflowDisplayStatus, StaffOrderUpdateStatus[]> = {
@@ -440,20 +468,8 @@ function PlatformContentManagementSection() {
     setUploadingMedia(true);
     setUploadedObjectPath("");
     try {
-      const signed = await customFetch<{ uploadURL: string; objectPath: string }>("/api/storage/uploads/request-url", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-        responseType: "json",
-      });
-      const uploaded = await fetch(signed.uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
-      setUploadedObjectPath(signed.objectPath);
-      setStatus("Media uploaded. Copy or insert its durable path, then save the document.");
+      setUploadedObjectPath(await uploadStaffMedia(file));
+      setStatus("Media uploaded to Cloudinary. Copy or insert its durable path, then save the document.");
     } catch (error) {
       setStatus(errorMessage(error, "Media could not be uploaded."));
     } finally {
@@ -524,7 +540,7 @@ function PlatformContentManagementSection() {
           <li>Add product-specific composition, care, delivery, and returns copy when the piece needs guidance beyond the shared defaults.</li>
           <li>Use readyNowSizes only for Standard sizes physically ready now. An empty list stays purchasable when fulfilmentState is made_immediately.</li>
           <li>Use unavailable only when SOSO genuinely cannot fulfil the piece, and keep dispatchMessage about dispatch rather than delivery.</li>
-          <li>Keep image alt text and provenance with every approved primary or alternate image, include the primary img in images, and use only verified bundled or SOSO App Storage image paths.</li>
+          <li>Keep image alt text and provenance with every approved primary or alternate image, include the primary img in images, and use only verified bundled or SOSO Cloudinary image paths.</li>
           <li>Configure relatedProductSlugs with unique published product slugs only; do not reference the same piece.</li>
           <li>When commerceProductId is present, map every eligible Standard size and Custom choice to its current commerce variant ID. Never map unavailable or ineligible choices.</li>
         </ul>
@@ -1433,20 +1449,9 @@ function JournalManagementSection() {
   const uploadCover = async (file: File) => {
     setUploadingCover(true);
     try {
-      const signed = await customFetch<{ uploadURL: string; objectPath: string }>("/api/storage/uploads/request-url", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-        responseType: "json",
-      });
-      const uploaded = await fetch(signed.uploadURL, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!uploaded.ok) throw new Error(`Image upload failed (${uploaded.status}).`);
-      setArticle((current) => ({ ...current, coverImageUrl: signed.objectPath }));
-      setNotice("Cover image uploaded to App Storage.");
+      const objectPath = await uploadStaffMedia(file);
+      setArticle((current) => ({ ...current, coverImageUrl: objectPath }));
+      setNotice("Cover image uploaded to Cloudinary.");
     } catch (error) {
       setNotice(errorMessage(error, "Cover image could not be uploaded."));
     } finally {
@@ -1456,7 +1461,7 @@ function JournalManagementSection() {
 
   return (
     <section className="mt-12 border-t border-border pt-10">
-      <SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, archive, and revise approved editorial. Cover images are stored durably in SOSO App Storage." />
+      <SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, archive, and revise approved editorial. Cover images are stored durably in SOSO Cloudinary." />
       <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         {/* Article list */}
         <div className="border border-border bg-card">

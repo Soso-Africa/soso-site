@@ -32,9 +32,30 @@ export interface UploadUrlRequest {
   contentType: UploadUrlRequestContentType;
 }
 
+export type UploadUrlResponseUploadMethod = typeof UploadUrlResponseUploadMethod[keyof typeof UploadUrlResponseUploadMethod];
+
+
+export const UploadUrlResponseUploadMethod = {
+  POST: 'POST',
+} as const;
+
+export type UploadUrlResponseUploadFields = {[key: string]: string};
+
 export interface UploadUrlResponse {
   /** @minLength 1 */
   uploadURL: string;
+  uploadMethod: UploadUrlResponseUploadMethod;
+  uploadFields: UploadUrlResponseUploadFields;
+  /** @pattern ^/api/storage/objects/uploads/ */
+  objectPath: string;
+}
+
+export interface FinalizeUploadRequest {
+  /** @pattern ^/api/storage/objects/uploads/ */
+  objectPath: string;
+}
+
+export interface FinalizeUploadResponse {
   /** @pattern ^/api/storage/objects/uploads/ */
   objectPath: string;
 }

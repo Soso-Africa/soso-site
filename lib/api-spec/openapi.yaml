@@ -1175,7 +1175,7 @@ paths:
             schema: { $ref: "#/components/schemas/UploadUrlRequest" }
       responses:
         "200":
-          description: Signed upload URL and durable browser path
+          description: Signed Cloudinary upload authorization and durable browser path
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UploadUrlResponse" }
@@ -1183,6 +1183,25 @@ paths:
         "401": { description: "Staff authentication required" }
         "403": { description: "Editorial staff role required" }
         "500": { description: "Upload URL could not be created" }
+  /storage/uploads/finalize:
+    post:
+      operationId: finalizeStorageUpload
+      tags: [storage]
+      summary: Verify a completed Cloudinary upload before it can be persisted
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FinalizeUploadRequest" }
+      responses:
+        "200":
+          description: Verified durable media path
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FinalizeUploadResponse" }
+        "400": { description: "Upload is missing or failed publishing checks" }
+        "401": { description: "Staff authentication required" }
+        "403": { description: "Editorial staff role required" }
   /storage/objects/{objectPath}:
     get:
       operationId: getStorageObject
@@ -1269,9 +1288,31 @@ components:
     UploadUrlResponse:
       type: object
       additionalProperties: false
-      required: [uploadURL, objectPath]
+      required: [uploadURL, uploadMethod, uploadFields, objectPath]
       properties:
         uploadURL: { type: string, minLength: 1 }
+        uploadMethod:
+          type: string
+          enum: [POST]
+        uploadFields:
+          type: object
+          additionalProperties: { type: string }
+        objectPath:
+          type: string
+          pattern: "^/api/storage/objects/uploads/"
+    FinalizeUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [objectPath]
+      properties:
+        objectPath:
+          type: string
+          pattern: "^/api/storage/objects/uploads/"
+    FinalizeUploadResponse:
+      type: object
+      additionalProperties: false
+      required: [objectPath]
+      properties:
         objectPath:
           type: string
           pattern: "^/api/storage/objects/uploads/"

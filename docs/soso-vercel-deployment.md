@@ -71,7 +71,11 @@ Do not paste the connection string into chat, source control, or a `VITE_*` vari
 | --- | --- |
 | `PRIVACY_POLICY_VERSION` | Labels recorded privacy-request policy versions. |
 | `LOG_LEVEL` | Server log verbosity; use `info` unless troubleshooting. |
-| `VITE_CLOUDINARY_UPLOAD_PRESET` | Public Cloudinary upload preset for approved staff image-upload flows. |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud identifier used by the server to authorize and resolve staff media. |
+| `CLOUDINARY_API_KEY` | Sensitive Cloudinary API key used only in short-lived signed upload authorizations. |
+| `CLOUDINARY_API_SECRET` | Sensitive server-only Cloudinary signing secret. Never expose this through a `VITE_*` variable. |
+
+SOSO media uploads are signed by the API and sent directly from the staff browser to Cloudinary. The app does not require a public unsigned upload preset or any Replit Object Storage variables.
 
 ### Keep unset until their separate approval gates pass
 

@@ -39,6 +39,8 @@ import type {
   EnquiryInput,
   FaqHistoryPage,
   FaqItem,
+  FinalizeUploadRequest,
+  FinalizeUploadResponse,
   GetRedirectParams,
   GetSiteContent200,
   GetStaffExportParams,
@@ -5088,6 +5090,77 @@ export const useRequestUploadUrl = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRequestUploadUrlMutationOptions(options));
+    }
+
+export const getFinalizeStorageUploadUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/finalize`
+}
+
+/**
+ * @summary Verify a completed Cloudinary upload before it can be persisted
+ */
+export const finalizeStorageUpload = async (finalizeUploadRequest: FinalizeUploadRequest, options?: Parameters<typeof customFetch>[1]): Promise<FinalizeUploadResponse> => {
+
+  return customFetch<FinalizeUploadResponse>(getFinalizeStorageUploadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(finalizeUploadRequest)
+  }
+);}
+
+
+
+
+
+export const getFinalizeStorageUploadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeStorageUpload>>, TError,{data: BodyType<FinalizeUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof finalizeStorageUpload>>, TError,{data: BodyType<FinalizeUploadRequest>}, TContext> => {
+
+const mutationKey = ['finalizeStorageUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof finalizeStorageUpload>>, {data: BodyType<FinalizeUploadRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  finalizeStorageUpload(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type FinalizeStorageUploadMutationResult = NonNullable<Awaited<ReturnType<typeof finalizeStorageUpload>>>
+    export type FinalizeStorageUploadMutationBody = BodyType<FinalizeUploadRequest>
+    export type FinalizeStorageUploadMutationError = ErrorType<void>
+
+    /**
+ * @summary Verify a completed Cloudinary upload before it can be persisted
+ */
+export const useFinalizeStorageUpload = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeStorageUpload>>, TError,{data: BodyType<FinalizeUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof finalizeStorageUpload>>,
+        TError,
+        {data: BodyType<FinalizeUploadRequest>},
+        TContext
+      > => {
+      return useMutation(getFinalizeStorageUploadMutationOptions(options));
     }
 
 export const getGetStorageObjectUrl = (objectPath: string,) => {

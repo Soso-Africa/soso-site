@@ -366,7 +366,7 @@ test("product image publishing checks verify existence, image identity, extensio
 
   const missingIssues = await validateProductMediaAssets(content, async () => null);
   assert.equal(missingIssues.length, new Set(content.products.flatMap((product) => product.images.map((image) => image.src))).size);
-  assert.ok(missingIssues.every((issue) => issue.message.includes("verified bundled or SOSO App Storage")));
+  assert.ok(missingIssues.every((issue) => issue.message.includes("verified bundled or SOSO Cloudinary")));
 
   const invalidIssues = await validateProductMediaAssets(content, async (path) => ({
     contentType: "video/mp4",

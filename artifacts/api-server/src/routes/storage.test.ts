@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { RequestUploadUrlBody } from "@workspace/api-zod";
 import { isAnimatedImage } from "../lib/media-files";
+import {
+  cloudinaryDeliveryUrlForPath,
+  createCloudinarySignature,
+  cloudinaryUploadPolicyForContentType,
+  MediaNotFoundError,
+} from "../lib/cloudinary-storage";
 import { detectMediaContentType, parseMediaByteRange } from "./storage";
 
 test("stored media detection accepts only approved image and video signatures", () => {
@@ -50,6 +56,48 @@ test("the generated upload contract accepts governed video metadata", () => {
     size: 4_000_000,
     contentType: "video/quicktime",
   }).success, false);
+});
+
+test("Cloudinary signatures are deterministic and exclude transport-only fields", () => {
+  assert.equal(
+    createCloudinarySignature({ timestamp: 1_700_000_000, public_id: "soso-store/uploads/example" }, "secret"),
+    createCloudinarySignature({ public_id: "soso-store/uploads/example", timestamp: 1_700_000_000 }, "secret"),
+  );
+});
+
+test("Cloudinary upload policies enforce separate formats and byte limits", () => {
+  assert.deepEqual(cloudinaryUploadPolicyForContentType("image/webp"), {
+    resourceType: "image",
+    preset: "soso-governed-image-v1",
+    allowedFormats: ["jpg", "jpeg", "png", "webp", "gif"],
+    maxFileSize: 12 * 1024 * 1024,
+  });
+  assert.deepEqual(cloudinaryUploadPolicyForContentType("video/mp4"), {
+    resourceType: "video",
+    preset: "soso-governed-video-v1",
+    allowedFormats: ["mp4", "webm"],
+    maxFileSize: 8 * 1024 * 1024,
+  });
+  assert.throws(() => cloudinaryUploadPolicyForContentType("image/svg+xml"));
+});
+
+test("legacy storage paths resolve only to SOSO-owned Cloudinary delivery URLs", () => {
+  assert.equal(
+    cloudinaryDeliveryUrlForPath("uploads/example-photo.jpg", "uploads", "demo"),
+    "https://res.cloudinary.com/demo/image/upload/soso-store/uploads/example-photo.jpg",
+  );
+  assert.equal(
+    cloudinaryDeliveryUrlForPath("uploads/hero.webm", "uploads", "demo"),
+    "https://res.cloudinary.com/demo/video/upload/soso-store/uploads/hero.webm",
+  );
+  assert.throws(
+    () => cloudinaryDeliveryUrlForPath("../private.jpg", "uploads", "demo"),
+    MediaNotFoundError,
+  );
+  assert.throws(
+    () => cloudinaryDeliveryUrlForPath("uploads/payload.svg", "uploads", "demo"),
+    MediaNotFoundError,
+  );
 });
 
 test("hero image inspection identifies GIF, APNG, and animated WebP", () => {
