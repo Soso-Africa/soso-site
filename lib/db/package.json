@@ -9,6 +9,7 @@
   },
   "scripts": {
     "migrate:soso-content": "node ./scripts/apply-soso-content-migration.mjs",
+    "seed:soso-journal-launch": "node ./scripts/seed-soso-journal-launch.mjs",
     "test:migrations": "node ./scripts/validate-soso-content-migration.mjs",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"

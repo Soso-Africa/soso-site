@@ -36,24 +36,16 @@ Set these build-time variables **only after the matching approval is complete**:
 | `VITE_SOSO_JOURNAL_APPROVED=true` | Allows only Journal landing/article records present in the explicit approved SEO allowlist into search. |
 | `VITE_SOSO_SOCIAL_IMAGE_PATH=/images/...` | Path to SOSO's approved social-sharing image. |
 
-The storefront build generates `dist/public/robots.txt`, `dist/public/sitemap.xml`, and an internal SEO manifest after Vite completes. The generated storefront sitemap is the public sitemap; the API sitemap is intentionally conservative and does not infer Journal approval from publication status. A production response layer sets route-specific robots and canonical metadata before React loads. Do not hand-edit generated files. The committed `public/robots.txt` is deliberately private as a safety fallback.
+The storefront build generates `dist/public/robots.txt`, sitemap, RSS/Atom/JSON feeds, `llms.txt`, an SEO manifest, and clean-URL crawler HTML after Vite completes (`journal.html`, `journal/<slug>.html`, and equivalent files). The generator reads only the published platform record and published Journal rows when the corresponding approval gate is enabled. Vercel `cleanUrls` and filesystem handling serve those generated files before the SPA fallback, while React still hydrates them in browsers. Missing, private, preview, and unknown routes naturally use the SPA `index.html`; do not add explicit prerender rewrites or hand-edit generated files.
 
-Before enabling Journal indexing, add each approved, published article's factual SEO record to `src/data/journal-seo.json`. The record is the explicit publication allowlist used by the response layer and sitemap; keep it empty until editorial approval:
-
-```json
-{
-  "articles": []
-}
-```
-
-Each approved entry must include `slug`, `title`, `excerpt`, `authorName`, and `publishedAt`, with an optional approved `coverImageUrl`. Its slug must exactly match the published Journal post. Remove or update the entry before archiving or materially changing an article, then rebuild and redeploy.
+When indexing is disabled—or when the exact approved canonical origin is absent—the build retains private robots and removes every sitemap, feed, manifest, `llms.txt`, and generated route directory. Public generation accepts only `https://shopsoso.co`; an explicit `https://www.shopsoso.co` input is canonicalized to the apex and Vercel redirects www requests to that canonical origin. Do not use a preview URL or assume DNS has been cut over.
 
 After publishing:
 
 1. Open the production domain over HTTPS and check `/robots.txt` and `/sitemap.xml`.
 2. Confirm canonical, Open Graph, Twitter, and robots tags on the home page, shop, one product, one final policy, and one published Journal article.
 3. Validate Organization/WebSite and Product structured data in Google's Rich Results Test or Schema Markup Validator. Do not add Offer availability or review markup until SOSO has approved a source of truth for those facts.
-4. Submit the exact production sitemap URL in the verified Search Console property. Do not submit a preview URL. Publish and validate individual Journal articles only after their approved record is in `journal-seo.json` and their server-rendered title, description, canonical URL, and article schema are confirmed; until then they remain intentionally noindex.
+4. Submit the exact production sitemap URL in the verified Search Console property. Do not submit a preview URL. Publish and validate individual Journal articles only after editorial approval and after their server-rendered title, body, description, canonical URL, social metadata, and article schema are confirmed; until the Journal approval gate is enabled they remain intentionally absent from generated search output.
 5. Inspect Search Console's Page Indexing and Enhancements reports after the first crawl; resolve any `noindex`, canonical, mobile, or structured-data errors before marketing traffic is sent.
 
 ## Required release validation

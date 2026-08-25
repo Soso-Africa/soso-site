@@ -3,47 +3,70 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const readSource = (path) => readFile(resolve(packageRoot, path), "utf8");
-const [sitemapGenerator, productionServer, seoComponent, appRoutes, collectionPage] = await Promise.all([
-  readSource("scripts/generate-seo-assets.mjs"),
-  readSource("scripts/serve-production.mjs"),
-  readSource("src/components/Seo.tsx"),
-  readSource("src/App.tsx"),
-  readSource("src/pages/CollectionPage.tsx"),
-]);
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const source = await readFile(resolve(root, "scripts/generate-seo-assets.mjs"), "utf8");
+const vercel = await readFile(resolve(root, "../../vercel.json"), "utf8");
 
-const sitemapPaths = [...sitemapGenerator.matchAll(/path: "([^"]+)"/g)].map((match) => match[1]);
-for (const path of sitemapPaths) {
-  assert.match(appRoutes, new RegExp(`path="${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
-}
-assert.ok(!sitemapPaths.includes("/sizing"), "Sitemap must not contain the removed /sizing route.");
-assert.match(sitemapGenerator, /if \(!canIndex\) \{/);
-assert.match(sitemapGenerator, /if \(catalogApproved\) \{/);
-assert.match(sitemapGenerator, /if \(policiesApproved\) \{/);
-assert.match(sitemapGenerator, /if \(journalApproved && journalEntries\.length > 0\) \{/);
-
-assert.match(productionServer, /new URL\(request\.url \|\| "\/", "http:\/\/localhost"\)\.pathname/);
-assert.match(productionServer, /if \(!metadata\.indexable\) return html;/);
-assert.match(productionServer, /<link rel="canonical" href=/);
-assert.match(productionServer, /"X-Robots-Tag": metadata\.indexable \? "index, follow" : "noindex, nofollow"/);
-assert.match(productionServer, /"@type": "Product"/);
-assert.match(productionServer, /"@type": "BlogPosting"/);
-
-assert.match(seoComponent, /const pageIsIndexable = Boolean\(siteUrl && indexingEnabled && !noIndex\)/);
-assert.match(seoComponent, /upsertMeta\("property", "og:url", pageIsIndexable/);
-assert.match(seoComponent, /if \(pageIsIndexable\) \{/);
-assert.match(seoComponent, /product && pageIsIndexable/);
-assert.match(seoComponent, /type === "article" && article && pageIsIndexable/);
-assert.match(seoComponent, /injectSchema\("soso-page-schema", pageIsIndexable \? structuredData \?\? articleSchema \?\? productSchema : null\)/);
-assert.match(seoComponent, /breadcrumbs && pageIsIndexable/);
-assert.match(collectionPage, /noIndex=\{!catalogApproved\}/);
-
-// Regression: the master switch alone must not permit product/collection
-// structured data, breadcrumbs, or a canonical when catalog approval is off.
-const masterIndexingOnCatalogApprovalOff = { indexingEnabled: true, catalogApproved: false };
-const catalogPageNoIndex = !masterIndexingOnCatalogApprovalOff.catalogApproved;
-const pageIsIndexable = masterIndexingOnCatalogApprovalOff.indexingEnabled && !catalogPageNoIndex;
-assert.equal(pageIsIndexable, false);
-
-process.stdout.write("SEO source validation passed: sitemap routes, release gates, noindex, canonical query handling, and JSON-LD guards are present, including catalog-disabled pages.\n");
+assert.match(source, /const approvedOrigin = "https:\/\/shopsoso\.co"/);
+assert.match(source, /url\.hostname === "shopsoso\.co"/);
+assert.match(source, /url\.hostname === "www\.shopsoso\.co"/);
+assert.match(source, /if \(!canIndex\) \{/);
+assert.match(source, /Private until the approved production canonical gate/);
+assert.match(source, /rm\(resolve\(out, file\), \{ recursive: true, force: true \}\)/);
+assert.match(source, /DATABASE_URL is required when public SEO generation is enabled/);
+assert.match(source, /body, seo_title/);
+assert.match(source, /related_product_slugs/);
+assert.match(source, /sitemap\.xml/);
+assert.match(source, /<lastmod>/);
+assert.match(source, /feed\.json/);
+assert.match(source, /feed\.xml/);
+assert.match(source, /atom\.xml/);
+assert.match(source, /llms\.txt/);
+assert.match(source, /"@type": "ClothingStore"/);
+assert.match(source, /`\$\{siteUrl\}\/#organization`/);
+assert.match(source, /"@type": "WebSite"/);
+assert.match(source, /`\$\{siteUrl\}\/#website`/);
+assert.match(source, /"@type": "BreadcrumbList"/);
+assert.match(source, /"@type": "Product"/);
+assert.match(source, /"@type": "Offer"/);
+assert.match(source, /"@type": "FAQPage"/);
+assert.match(source, /"@type": "BlogPosting"/);
+assert.match(source, /headline: article\.title/);
+assert.match(source, /articleBody: article\.bodyText/);
+assert.match(source, /publisher: \{ "@id": `\$\{siteUrl\}\/#organization` \}/);
+assert.match(source, /<h1>/);
+assert.match(source, /rel="canonical"/);
+assert.match(source, /og:title/);
+assert.match(source, /twitter:title/);
+assert.match(source, /summary_large_image/);
+assert.match(source, /og:site_name/);
+assert.match(source, /article:published_time/);
+assert.match(source, /id="soso-server-schema"/);
+assert.match(source, /renderMarkdown\(article\.body\)/);
+assert.match(source, /safeHref = \/\^\(\?:\\\/\(\?:journal\|product\|collections\)/);
+const allowedInternalLink = /^(?:\/(?:journal|product|collections)\/[a-z0-9]+(?:-[a-z0-9]+)*|\/(?:shop|faq|about))$/;
+for (const href of ["/shop", "/faq", "/about", "/journal/a-post", "/product/a-product", "/collections/a-collection"]) assert.ok(allowedInternalLink.test(href), `${href} should be allowed.`);
+for (const href of ["/staff", "/checkout", "/journal/preview/a-post", "/shop?q=x", "/about#team", "/../staff", "https://shopsoso.co/shop", "//example.com"]) assert.ok(!allowedInternalLink.test(href), `${href} must remain plain text.`);
+assert.match(source, /bodyText: stripMarkdown\(row\.body\)/);
+assert.match(source, /product\.commerceProductId && authoritativeState/);
+assert.match(source, /brand: \{ "@type": "Brand", name: platform\.site\?\.name/);
+assert.match(source, /\.\.\.\(product\.img \? \{ image: absolute\(product\.img\) \}/);
+assert.match(source, /https:\/\/schema\.org\/OutOfStock/);
+assert.match(source, /"@type": "CollectionPage"/);
+assert.match(source, /product\.department === collection\.department && product\.category === collection\.category/);
+assert.match(source, /resolve\(out, `\$\{path\.slice\(1\)\}\.html`\)/);
+assert.match(source, /await clearPrerenders\(\)/);
+assert.match(source, /hydrationAsset/);
+const vercelConfig = JSON.parse(vercel);
+assert.equal(vercelConfig.cleanUrls, true);
+assert.equal(vercelConfig.routes[0].src, "/api");
+assert.match(vercel, /www\.shopsoso\.co/);
+const previewGuard = vercelConfig.routes.find((route) => route.headers?.["X-Robots-Tag"]);
+assert.equal(previewGuard?.headers?.["X-Robots-Tag"], "noindex, nofollow");
+assert.equal(previewGuard?.continue, true);
+assert.match(previewGuard?.has?.[0]?.value || "", /vercel/);
+const filesystemIndex = vercelConfig.routes.findIndex((route) => route.handle === "filesystem");
+assert.ok(filesystemIndex > vercelConfig.routes.indexOf(previewGuard));
+assert.deepEqual(vercelConfig.routes.slice(filesystemIndex + 1), [{ src: "/(.*)", dest: "/index.html" }]);
+assert.ok(!vercelConfig.routes.some((route) => /journal|product|collections/.test(route.src || "")), "Prerenders must use clean URL filesystem routing, not explicit rewrites.");
+process.stdout.write("SEO source validation passed: canonical gate, private fallback, crawlable route files, feeds, schema, social metadata, and www redirect are present.\n");

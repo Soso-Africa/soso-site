@@ -21,11 +21,23 @@ export default function CollectionPage({ slug }: { slug: string }) {
     .filter((product) => product.department === meta.department && product.category === meta.category)
     .sort((a, b) => b.merchandising.sortPriority - a.merchandising.sortPriority);
   const schema = siteUrl && catalogApproved ? {
-    "@context": "https://schema.org", "@type": "CollectionPage", name: meta.h1,
-    description: meta.seo.description, url: absoluteUrl(`/collections/${meta.slug}`),
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: meta.h1,
+    description: meta.seo.description,
+    url: absoluteUrl(`/collections/${meta.slug}`),
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: pieces.map((product, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        url: absoluteUrl(`/product/${product.slug}`),
+        name: product.name,
+      })),
+    },
   } : null;
   return <div className="min-h-screen bg-background fade-in">
-    <Seo title={meta.seo.title} description={meta.seo.description} path={`/collections/${meta.slug}`} structuredData={schema} noIndex={!catalogApproved} />
+    <Seo title={meta.seo.title} description={meta.seo.description} path={`/collections/${meta.slug}`} structuredData={schema} noIndex={!catalogApproved} breadcrumbs={[{ name: meta.label, path: `/collections/${meta.slug}` }]} />
     <header className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-14 text-center border-b border-border/50 mb-14">
       <p className="text-xs uppercase tracking-[0.3em] text-primary mb-4">{meta.label}</p>
       <h1 className="text-5xl md:text-6xl soso-display text-foreground mb-6 tracking-tight">{meta.h1}</h1>

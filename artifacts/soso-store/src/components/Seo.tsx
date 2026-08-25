@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { usePlatformContent, type CatalogProduct, type PlatformContent } from "@/data/platformContent";
+import { buildProductStructuredData } from "@/lib/product-schema";
 import { absoluteUrl, indexingEnabled, siteUrl, socialImageUrl } from "@/lib/seo";
 
 type SeoProps = {
@@ -16,6 +17,8 @@ type SeoProps = {
     modifiedAt?: string;
     authorName?: string;
     imageUrl?: string;
+    imageAlt?: string;
+    section?: string;
     tags?: string[];
   };
   breadcrumbs?: { name: string; path: string }[];
@@ -55,20 +58,21 @@ function injectSchema(id: string, data: Record<string, unknown> | null) {
   document.head.appendChild(script);
 }
 
-type StructuredSite = Pick<PlatformContent["site"], "name" | "structuredData">;
+type StructuredSite = Pick<PlatformContent["site"], "name" | "logoAlt" | "structuredData">;
 
 /** Organization schema — injected once at app level */
 export function buildOrganizationSchema(site: StructuredSite): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "ClothingStore",
+    "@id": siteUrl ? `${siteUrl}/#organization` : undefined,
     name: site.name,
     description: site.structuredData.organizationDescription,
     url: siteUrl || undefined,
     address: {
       "@type": "PostalAddress",
       addressLocality: site.structuredData.locality,
-        addressCountry: site.structuredData.country,
+      addressCountry: site.structuredData.country,
     },
       areaServed: { "@type": "Country", name: site.structuredData.country, identifier: site.structuredData.countryCode },
     brand: { "@type": "Brand", name: site.name },
@@ -81,10 +85,24 @@ export function buildWebsiteSchema(site: StructuredSite): Record<string, unknown
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": siteUrl ? `${siteUrl}/#website` : undefined,
     name: site.name,
     url: siteUrl || undefined,
     description: site.structuredData.websiteDescription,
   };
+}
+
+function schemaImage(url?: string, alt?: string) {
+  if (!url) return undefined;
+  return {
+    "@type": "ImageObject",
+    url: absoluteUrl(url),
+    ...(alt ? { caption: alt } : {}),
+  };
+}
+
+export function buildProductSchema(product: CatalogProduct, site: StructuredSite, path: string): Record<string, unknown> {
+  return buildProductStructuredData(product, site, path, { siteUrl, absoluteUrl });
 }
 
 export function Seo({
@@ -103,6 +121,9 @@ export function Seo({
 
   useEffect(() => {
     const pageIsIndexable = Boolean(siteUrl && indexingEnabled && !noIndex);
+    // The static response carries one route schema for crawlers. Hydration owns
+    // schema state from this point onward, so remove it before client parity.
+    document.getElementById("soso-server-schema")?.remove();
     document.title = title;
     setMeta('meta[name="description"]', description);
     upsertMeta("name", "robots", pageIsIndexable ? "index, follow" : "noindex, follow");
@@ -110,11 +131,16 @@ export function Seo({
     upsertMeta("property", "og:description", description);
     upsertMeta("property", "og:type", type);
     upsertMeta("property", "og:url", pageIsIndexable ? absoluteUrl(path) : null);
-    upsertMeta("property", "og:image", article?.imageUrl || socialImageUrl() || null);
+    upsertMeta("property", "og:site_name", site?.name ?? null);
+    upsertMeta("property", "og:locale", "en_NG");
+    const imageUrl = article?.imageUrl || socialImageUrl() || null;
+    upsertMeta("property", "og:image", imageUrl ? absoluteUrl(imageUrl) : null);
+    upsertMeta("property", "og:image:alt", imageUrl ? article?.imageAlt || site?.logoAlt || title : null);
     upsertMeta("name", "twitter:card", "summary_large_image");
     upsertMeta("name", "twitter:title", title);
     upsertMeta("name", "twitter:description", description);
-    upsertMeta("name", "twitter:image", article?.imageUrl || socialImageUrl() || null);
+    upsertMeta("name", "twitter:image", imageUrl ? absoluteUrl(imageUrl) : null);
+    upsertMeta("name", "twitter:image:alt", imageUrl ? article?.imageAlt || site?.logoAlt || title : null);
 
     // Article-specific meta
     if (type === "article" && article) {
@@ -129,6 +155,9 @@ export function Seo({
         el.content = tag;
         el.dataset.sosoManaged = "true";
         if (!document.head.querySelector(selector)) document.head.appendChild(el);
+      });
+      document.head.querySelectorAll<HTMLMetaElement>('meta[property="article:tag"][data-soso-managed="true"]').forEach((el) => {
+        if (Number(el.dataset.idx) >= (article.tags?.length ?? 0)) el.remove();
       });
     } else {
       document.head.querySelectorAll<HTMLMetaElement>('meta[property^="article:"]').forEach((el) => el.remove());
@@ -146,22 +175,7 @@ export function Seo({
     // Page schema (product, article, or supplied)
     const productSchema =
       product && site && pageIsIndexable
-        ? {
-            "@context": "https://schema.org",
-            "@type": "Product",
-            name: product.name,
-            description: product.description,
-            image: absoluteUrl(product.img),
-            url: absoluteUrl(path),
-            brand: { "@type": "Brand", name: site.name },
-            offers: {
-              "@type": "Offer",
-              priceCurrency: "NGN",
-              price: product.price,
-              availability: "https://schema.org/PreOrder",
-              seller: { "@type": "Organization", name: site.name },
-            },
-          }
+        ? buildProductSchema(product, site, path)
         : null;
 
     const articleSchema =
@@ -174,9 +188,11 @@ export function Seo({
             datePublished: article.publishedAt,
             dateModified: article.modifiedAt ?? article.publishedAt,
             author: { "@type": "Person", name: article.authorName ?? site.name },
-            publisher: { "@type": "Organization", name: site.name },
-            mainEntityOfPage: absoluteUrl(path),
-            ...(article.imageUrl ? { image: article.imageUrl } : {}),
+            publisher: { "@id": `${siteUrl}/#organization`, name: site.name },
+            mainEntityOfPage: { "@type": "WebPage", "@id": absoluteUrl(path) },
+            ...(article.section ? { articleSection: article.section } : {}),
+            ...(article.tags?.length ? { keywords: article.tags.join(", ") } : {}),
+            ...(article.imageUrl ? { image: schemaImage(article.imageUrl, article.imageAlt) } : {}),
           }
         : null;
 

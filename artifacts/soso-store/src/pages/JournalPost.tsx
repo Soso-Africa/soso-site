@@ -5,8 +5,27 @@ import { format } from 'date-fns';
 import { Loader2, ArrowLeft, Share2, Clock, Tag } from 'lucide-react';
 import { Seo } from '@/components/Seo';
 import { journalApproved, indexingEnabled } from '@/lib/seo';
+import { journalBodyBlocks, journalInlineParts } from '@/lib/journal-body';
 import { rememberEditorialOrigin, trackStorefrontEvent } from '@/components/ConsentManager';
 import { PlatformContentState, usePlatformContent } from '@/data/platformContent';
+
+export function StructuredJournalBody({ body }: { body: string }) {
+  const renderInline = (value: string) => journalInlineParts(value).map((part, index) =>
+    part.type === "link"
+      ? <Link key={`${index}-${part.href}`} href={part.href}>{part.text}</Link>
+      : <React.Fragment key={`${index}-${part.text}`}>{part.text}</React.Fragment>,
+  );
+  return (
+    <div className="space-y-6">
+      {journalBodyBlocks(body).map((block, index) => {
+        const key = `${block.type}-${index}`;
+        if (block.type === "heading") return <h2 key={key}>{block.text}</h2>;
+        if (block.type === "list") return <ul key={key}>{block.items.map((item, itemIndex) => <li key={`${itemIndex}-${item}`}>{renderInline(item)}</li>)}</ul>;
+        return <p key={key}>{renderInline(block.text)}</p>;
+      })}
+    </div>
+  );
+}
 
 export default function JournalPost() {
   const params = useParams();
@@ -79,6 +98,8 @@ export default function JournalPost() {
           modifiedAt: post.updatedAt ?? undefined,
           authorName: post.authorName,
           imageUrl: seoImageUrl,
+          imageAlt: post.coverImageAlt ?? post.title,
+          section: post.category ?? undefined,
           tags: post.tags ?? undefined,
         }}
         breadcrumbs={[
@@ -146,17 +167,17 @@ export default function JournalPost() {
       )}
 
       <article className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 prose prose-invert prose-lg prose-headings:font-serif prose-headings:font-normal prose-headings:text-foreground prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-none prose-p:leading-relaxed prose-p:text-foreground/90">
-        <div className="space-y-6 whitespace-pre-line">
-          {post.body.split(/\n{2,}/).map((paragraph, index) => (
-            <p key={`${index}-${paragraph.slice(0, 24)}`}>{paragraph}</p>
-          ))}
-        </div>
+        <aside aria-label="Article summary" className="not-prose mb-10 border-l-2 border-primary pl-5 text-base leading-relaxed text-muted-foreground">
+          <strong className="block mb-2 text-xs uppercase tracking-[0.2em] text-primary">In brief</strong>
+          {post.excerpt}
+        </aside>
+        <StructuredJournalBody body={post.body} />
       </article>
 
       {/* Related articles */}
       {relatedArticles.length > 0 && (
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-20 pt-12 border-t border-border">
-          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">{platform.data.content.pages.journal.relatedArticlesHeading}</p>
+          <h2 className="text-xs uppercase tracking-[0.3em] text-primary mb-8">{platform.data.content.pages.journal.relatedArticlesHeading}</h2>
           <div className="grid gap-6 sm:grid-cols-2">
             {relatedArticles.map((article) => (
               <Link key={article.slug} href={`/journal/${article.slug}`} onClick={() => trackStorefrontEvent("cta_clicked", { ctaLabel: "journal_related_article", articleSlug: post.slug, targetArticleSlug: article.slug })} className="group block border border-border/40 p-5 hover:border-primary/40 transition-colors">
@@ -177,7 +198,7 @@ export default function JournalPost() {
       {/* Related products */}
       {relatedProducts.length > 0 && (
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-20 pt-12 border-t border-border">
-          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">{platform.data.content.pages.journal.relatedProductsHeading}</p>
+          <h2 className="text-xs uppercase tracking-[0.3em] text-primary mb-8">{platform.data.content.pages.journal.relatedProductsHeading}</h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {relatedProducts.map((product) => (
               <Link key={product.slug} href={`/product/${product.slug}`} onClick={() => {

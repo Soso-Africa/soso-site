@@ -3,6 +3,7 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm run vercel:build",
   "outputDirectory": "artifacts/soso-store/dist/public",
+  "cleanUrls": true,
   "routes": [
     {
       "src": "/api",
@@ -11,6 +12,26 @@
     {
       "src": "/api/(.*)",
       "dest": "/api/handler.js?__soso_path=$1"
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        { "type": "host", "value": "www.shopsoso.co" }
+      ],
+      "headers": {
+        "Location": "https://shopsoso.co/$1"
+      },
+      "status": 308
+    },
+    {
+      "src": "/(.*)",
+      "has": [
+        { "type": "host", "value": "(?<deployment>.+)\\.vercel\\.app" }
+      ],
+      "headers": {
+        "X-Robots-Tag": "noindex, nofollow"
+      },
+      "continue": true
     },
     {
       "handle": "filesystem"

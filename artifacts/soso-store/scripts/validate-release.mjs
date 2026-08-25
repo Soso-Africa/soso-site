@@ -3,40 +3,45 @@ import { access, readdir, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const outputDirectory = resolve(packageRoot, "dist/public");
-const requiredFiles = ["index.html", "robots.txt", "seo-manifest.json"];
-
-for (const file of requiredFiles) {
-  await access(resolve(outputDirectory, file));
+const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const out = resolve(root, "dist/public");
+for (const file of ["index.html", "robots.txt"]) await access(resolve(out, file));
+const index = await readFile(resolve(out, "index.html"), "utf8");
+assert.match(index, /<meta[^>]+name="viewport"/i);
+assert.match(index, /<script[^>]+src="\/assets\/[^"]+"/i);
+assert.doesNotMatch(index, /localhost:\d+|127\.0\.0\.1:\d+/i);
+const robots = await readFile(resolve(out, "robots.txt"), "utf8");
+const sitemap = resolve(out, "sitemap.xml");
+let publicBuild = true;
+try { await access(sitemap); } catch { publicBuild = false; }
+if (!publicBuild) {
+  assert.match(robots, /Disallow:\s*\//i, "Private builds must disallow all crawlers.");
+  for (const file of ["feed.xml", "atom.xml", "feed.json", "llms.txt", "seo-manifest.json"]) {
+    await assert.rejects(access(resolve(out, file)), undefined, `${file} must not exist in a private build.`);
+  }
+} else {
+  assert.match(robots, /Sitemap:\s*https:\/\/shopsoso\.co\/sitemap\.xml/i);
+  const map = await readFile(sitemap, "utf8");
+  assert.match(map, /<loc>https:\/\/shopsoso\.co\//);
+  assert.match(map, /<lastmod>[^<]+<\/lastmod>/);
+  for (const [file, type] of [["feed.xml", /<rss/], ["atom.xml", /<feed/], ["feed.json", /"version": "https:\/\/jsonfeed\.org/], ["llms.txt", /# SOSO Africa/]]) {
+    const body = await readFile(resolve(out, file), "utf8"); assert.match(body, type, `${file} is malformed.`);
+  }
+  const manifest = JSON.parse(await readFile(resolve(out, "seo-manifest.json"), "utf8"));
+  for (const route of manifest.routes) {
+    const file = route.path === "/" ? "index.html" : `${route.path.slice(1)}.html`;
+    await access(resolve(out, file));
+    assert.ok(!file.endsWith("/index.html"), `Prerender ${file} is not a clean-URL HTML file.`);
+    const page = await readFile(resolve(out, file), "utf8");
+    assert.match(page, /<h1>/);
+    assert.match(page, new RegExp(`rel="canonical" href="https://shopsoso\\.co${route.path === "/" ? "/" : route.path}"`));
+    assert.match(page, /name="robots" content="index, follow"/);
+  }
 }
-
-const indexHtml = await readFile(resolve(outputDirectory, "index.html"), "utf8");
-assert.match(indexHtml, /<meta[^>]+name="viewport"/i, "Built HTML is missing a viewport declaration.");
-assert.match(indexHtml, /<script[^>]+src="\/assets\/[^"]+"/i, "Built HTML does not reference a Vite client asset.");
-assert.doesNotMatch(indexHtml, /localhost:\d+|127\.0\.0\.1:\d+/i, "Built HTML contains a local server address.");
-
-const robots = await readFile(resolve(outputDirectory, "robots.txt"), "utf8");
-try {
-  await access(resolve(outputDirectory, "sitemap.xml"));
-} catch {
-  assert.match(
-    robots,
-    /Disallow:\s*\//i,
-    "A build without a sitemap must retain the private robots fallback.",
-  );
-}
-
-const assetsDirectory = resolve(outputDirectory, "assets");
-const assets = await readdir(assetsDirectory);
-assert.ok(assets.some((asset) => asset.endsWith(".js")), "Built output has no JavaScript asset.");
-assert.ok(assets.some((asset) => asset.endsWith(".css")), "Built output has no CSS asset.");
-
+const assets = await readdir(resolve(out, "assets"));
 for (const asset of assets) {
-  const path = resolve(assetsDirectory, asset);
-  const info = await stat(path);
-  assert.ok(info.size <= 1024 * 1024, `Built asset ${asset} is ${info.size} bytes; split or optimize assets before release.`);
-  assert.ok(!asset.endsWith(".map"), `Source map ${asset} is present in release output.`);
+  const info = await stat(resolve(out, "assets", asset));
+  assert.ok(info.size <= 1024 * 1024, `Built asset ${asset} exceeds 1 MiB.`);
+  assert.ok(!asset.endsWith(".map"), `Source map ${asset} is present.`);
 }
-
-process.stdout.write("Local staging-like release validation passed: production build output, required release files, asset references, and asset-size safeguards are present.\n");
+process.stdout.write("Release validation passed: private/public SEO gate, sitemap lastmod, feeds, llms, metadata, and asset safeguards are valid.\n");

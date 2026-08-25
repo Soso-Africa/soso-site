@@ -159,6 +159,11 @@ export default function ProductDetail() {
         path={`/product/${product.slug}`}
         product={product}
         noIndex={!catalogApproved}
+        breadcrumbs={[
+          { name: productCopy.shopBreadcrumbLabel, path: "/shop" },
+          { name: product.category, path: `/shop?category=${encodeURIComponent(product.category)}` },
+          { name: product.name, path: `/product/${product.slug}` },
+        ]}
       />
       {/* ————— HERO / BUY BLOCK ————— */}
       <div className="max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
