@@ -21,35 +21,38 @@ export default function Home() {
 
   return <div className="flex flex-col">
     <Seo title={homepage.seo.title} description={homepage.seo.description} noIndex={!indexingEnabled} />
-    <section className="relative overflow-hidden" style={{ minHeight: "min(780px, calc(86dvh - 72px))" }}>
+    <section className="relative flex h-[85svh] min-h-[600px] w-full flex-col justify-start overflow-hidden pt-20 sm:pt-24 lg:justify-end lg:pb-24 lg:pt-0">
       <HomeHeroMedia hero={homepage.hero} />
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-background/20" />
+      <div className="pointer-events-none absolute inset-0 z-0">
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent opacity-90" />
+        <div className="absolute inset-0 w-full bg-gradient-to-r from-background/70 to-transparent md:w-2/3" />
       </div>
-      <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-12 flex flex-col justify-center py-16" style={{ minHeight: "min(780px, calc(86dvh - 72px))" }}>
-        <Reveal><p className="text-[12px] tracking-[0.35em] uppercase mb-6 text-primary">{homepage.hero.eyebrow}</p></Reveal>
-        <Reveal delay={120}><h1 className="soso-display font-light leading-[1.02] max-w-3xl text-white" style={{ fontSize: "clamp(2.6rem, 6vw, 5.2rem)" }}>
-          {homepage.hero.title}<br />{homepage.hero.suffix} <em className="text-primary">{homepage.hero.accent}</em>
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-12">
+        <Reveal><h1
+          className="soso-display max-w-4xl font-light leading-[1.02] text-white drop-shadow-sm"
+          style={{ fontSize: "clamp(2.8rem, 6.5vw, 5.5rem)" }}
+          data-testid="heading-home-hero"
+        >
+          {homepage.hero.title}<br />
+          <span>{homepage.hero.suffix ? `${homepage.hero.suffix} ` : null}<em className="text-primary">{homepage.hero.accent}</em></span>
         </h1></Reveal>
-        <Reveal delay={240}><p className="mt-6 max-w-xl text-[15px] leading-relaxed text-secondary">{homepage.hero.description}</p></Reveal>
-        <Reveal delay={360}><div className="mt-9 flex flex-wrap gap-4">
-          <Link href={homepage.hero.primaryCta.href} className="soso-btn-gold px-8 py-4 text-[13px] font-bold uppercase tracking-[0.15em]">{homepage.hero.primaryCta.label}</Link>
-          <button type="button" onClick={() => setStylistOpen(true)} className="soso-btn-ghost flex items-center gap-2.5 px-8 py-4 text-[13px] font-semibold uppercase tracking-[0.15em]"><WhatsAppIcon size={17} />{homepage.hero.stylistCtaLabel}</button>
+        <Reveal delay={180}><div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
+          <Link
+            href={homepage.hero.primaryCta.href}
+            className="soso-btn-gold px-8 py-4 text-[12px] font-bold uppercase tracking-[0.15em]"
+            data-testid="link-home-hero-primary"
+          >
+            {homepage.hero.primaryCta.label}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setStylistOpen(true)}
+            className="inline-flex min-h-11 items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-white/80 underline decoration-white/30 underline-offset-8 transition-colors hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+            data-testid="button-home-hero-stylist"
+          >
+            <WhatsAppIcon size={15} />{homepage.hero.stylistCtaLabel}
+          </button>
         </div></Reveal>
-        <div className="mt-10 flex flex-wrap gap-6 text-xs text-secondary">{homepage.hero.assurances.map((item) => <span key={item}>{item}</span>)}</div>
-        <nav aria-label="Quick shopping paths" className="mt-8 flex flex-wrap gap-2">
-          {[
-            { label: "New in", href: "/shop?sort=newest" },
-            { label: "Ready now", href: "/shop?fulfilment=ready_now" },
-            { label: "Kaftans", href: "/collections/kaftans" },
-            { label: "Agbadas", href: "/collections/agbadas" },
-          ].map((item) => <Link
-            key={item.label}
-            href={item.href}
-            className="border border-white/20 bg-background/45 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-white backdrop-blur-sm transition-colors hover:border-primary hover:text-primary"
-            data-testid={`link-quick-${item.label.toLowerCase().replaceAll(" ", "-")}`}
-          >{item.label}</Link>)}
-        </nav>
       </div>
     </section>
 

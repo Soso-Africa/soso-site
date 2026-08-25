@@ -77,7 +77,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
       <img
         src={hero.imageUrl}
         alt={hero.imageAlt}
-        className="h-full w-full object-cover object-top opacity-55"
+        className="h-full w-full object-cover object-top opacity-85"
         loading="eager"
         fetchPriority="high"
       />
@@ -86,7 +86,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
       <video
         key={selected.videoUrl}
         ref={videoRef}
-        className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${isVisible ? "opacity-55" : "opacity-0"}`}
+        className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${isVisible ? "opacity-85" : "opacity-0"}`}
         poster={selected.posterUrl}
         muted
         loop
@@ -108,7 +108,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
         onClick={() => void togglePlayback()}
         aria-label={isPlaying ? hero.pauseLabel : hero.playLabel}
         aria-pressed={isPlaying}
-        className="absolute bottom-5 right-5 z-20 inline-flex min-h-11 items-center gap-2 border border-white/40 bg-background/75 px-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-sm transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        className="absolute right-5 top-5 z-20 inline-flex min-h-11 items-center gap-2 border border-white/40 bg-background/75 px-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-white backdrop-blur-sm transition-colors hover:border-primary hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary md:bottom-5 md:top-auto"
         data-testid="button-hero-motion"
       >
         {isPlaying ? <Pause aria-hidden="true" size={14} /> : <Play aria-hidden="true" size={14} />}

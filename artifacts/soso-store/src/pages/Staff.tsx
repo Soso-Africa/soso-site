@@ -490,6 +490,8 @@ function PlatformContentManagementSection() {
       {section === "homepage" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
         <p className="font-semibold text-primary">Homepage hero media checks</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+          <li>Keep title, suffix and accent together as one short editorial headline. The first viewport shows that headline, primaryCta and the optional stylistCtaLabel.</li>
+          <li>Description and assurances remain in the document for compatibility, but supporting purchase guidance belongs in trustItems below the hero.</li>
           <li>Use mediaMode image with imageUrl, mobileImageUrl and imageAlt for a still hero. Do not include video fields.</li>
           <li>Use mediaMode video only with local MP4 or WebM paths in both videoUrl and mobileVideoUrl.</li>
           <li>imageUrl and mobileImageUrl remain the required approved poster and fallback for motion, reduced-motion, data-saving and failed playback. Use a static JPEG, PNG or WebP—animated images are rejected.</li>

@@ -311,6 +311,26 @@ test("known bespoke-only defaults upgrade to hybrid copy without replacing merch
   assert.equal(preserved.pages.shop.title, "Merchant seasonal edit");
 });
 
+test("known shipped hero defaults become quieter without replacing merchant campaign copy", () => {
+  const shipped = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  shipped.homepage.hero.eyebrow = "New season · Ready now & made immediately";
+  shipped.homepage.hero.title = "Dress like the man";
+  shipped.homepage.hero.suffix = "for.";
+  shipped.homepage.hero.accent = "make way";
+  shipped.homepage.hero.description = "Shop premium kaftans, agbadas and refined separates in Standard sizes or Custom. Buy directly, with fit guidance and optional stylist support when you want it.";
+  shipped.homepage.hero.primaryCta.label = "Shop the Collection";
+
+  const upgraded = mergePlatformContentDefaults(shipped) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.deepEqual(upgraded.homepage.hero, DEFAULT_PLATFORM_CONTENT.homepage.hero);
+
+  shipped.homepage.hero.title = "Merchant campaign headline";
+  shipped.homepage.hero.description = "Merchant campaign description";
+  const preserved = mergePlatformContentDefaults(shipped) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(preserved.homepage.hero.title, "Merchant campaign headline");
+  assert.equal(preserved.homepage.hero.description, "Merchant campaign description");
+  assert.equal(preserved.homepage.hero.accent, DEFAULT_PLATFORM_CONTENT.homepage.hero.accent);
+});
+
 test("platform schema upgrades fill missing fields without replacing edited content", () => {
   const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
   legacy.site.announcement = "A merchant-edited announcement";
