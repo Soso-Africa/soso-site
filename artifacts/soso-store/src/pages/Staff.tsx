@@ -1,4 +1,6 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
+import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
 import {
   customFetch,
   getStaffExport,
@@ -472,8 +474,27 @@ function PlatformContentManagementSection() {
     });
   };
 
+  let structuredEditor: React.ReactNode = null;
+  if (json) {
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      if (section === "site") {
+        const allowedTargets = [
+          "/shop",
+          ...(content?.products.map((product) => `/product/${product.slug}`) ?? []),
+          ...(content?.collections.map((collection) => `/collections/${collection.slug}`) ?? []),
+        ];
+        structuredEditor = <PlatformEditorSite data={parsed as PlatformContent["site"]} allowedTargets={allowedTargets} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+      } else if (section === "catalogue") {
+        structuredEditor = <PlatformEditorCatalogue data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy">} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+      }
+    } catch {
+      // JSON is invalid, don't render structured editor
+    }
+  }
+
   return <section className="mt-12 border-t border-border pt-10">
-    <SectionHeading icon={Globe} title="Platform content" description="Edit the complete storefront document. Section JSON supports every nested link, product, collection, page, SEO field, and reusable support message." />
+    <SectionHeading icon={Globe} title="Platform content" description="Use structured controls for day-to-day navigation and catalogue merchandising. Advanced JSON remains available for unscoped storefront copy." />
     <div className="mb-4 grid gap-3 border border-border bg-card p-4 text-xs sm:grid-cols-3">
       <div><span className="text-muted-foreground">Draft updated</span><p className="mt-1">{row?.draftUpdatedAt ? format(new Date(row.draftUpdatedAt), "d MMM yyyy, HH:mm") : "No draft"}</p></div>
       <div><span className="text-muted-foreground">Published</span><p className="mt-1">{row?.publishedAt ? format(new Date(row.publishedAt), "d MMM yyyy, HH:mm") : "Not published"}</p></div>
@@ -525,15 +546,35 @@ function PlatformContentManagementSection() {
           <button type="button" onClick={insertUploadedPath} className="min-h-9 border border-primary px-3 text-[10px] font-semibold uppercase tracking-wider text-primary">Insert at cursor</button>
         </div>}
       </div>
-      <label className="mt-5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Validated section JSON
-        <textarea ref={jsonEditorRef} value={json} onChange={(event) => setJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
-      </label>
+
+      {structuredEditor}
+
+      {section === "site" || section === "catalogue" ? (
+        <details className="mt-5 border border-border group" data-testid="advanced-json-details">
+          <summary className="cursor-pointer bg-muted/20 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-primary list-none flex items-center justify-between">
+            <span>Advanced JSON Details</span>
+            <span className="text-[10px] normal-case tracking-normal">Structured controls above are primary</span>
+          </summary>
+          <div className="p-4 bg-background border-t border-border">
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Raw section JSON (synced with structured controls)
+              <textarea data-testid="advanced-json-textarea" ref={jsonEditorRef} value={json} onChange={(event) => setJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
+            </label>
+          </div>
+        </details>
+      ) : (
+        <label className="mt-5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Validated section JSON
+          <textarea data-testid="advanced-json-textarea" ref={jsonEditorRef} value={json} onChange={(event) => setJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
+        </label>
+      )}
+
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button type="button" disabled={saving} onClick={() => void save()} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
-        <button type="button" disabled={saving || !row?.draft} onClick={() => void action("publish")} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish</button>
-        <button type="button" disabled={saving || !row?.published} onClick={() => void action("unpublish")} className="min-h-10 border border-border px-4 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Unpublish</button>
+        <button data-testid="btn-save-draft" type="button" disabled={saving} onClick={() => void save()} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
+        <button data-testid="btn-publish" type="button" disabled={saving || !row?.draft} onClick={() => void action("publish")} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish</button>
+        <button data-testid="btn-unpublish" type="button" disabled={saving || !row?.published} onClick={() => void action("unpublish")} className="min-h-10 border border-border px-4 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Unpublish</button>
       </div>
-      {status && <p role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm">{status}</p>}
+      {status && <p data-testid="status-message" role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm">{status}</p>}
     </div>
     <div className="mt-5 border border-border bg-card p-5"><h3 className="text-xs font-semibold uppercase tracking-wider">Recent revisions</h3>
       {!revisions.length ? <p className="mt-3 text-sm text-muted-foreground">No revisions recorded yet.</p> : <ul className="mt-3 divide-y divide-border">{revisions.slice(0, 10).map((revision, index) => <li key={revision.id ?? index} className="py-3 text-xs"><span className="font-medium">{revision.action ?? "Revision"}</span>{revision.createdAt ? ` · ${format(new Date(revision.createdAt), "d MMM yyyy, HH:mm")}` : ""}</li>)}</ul>}
