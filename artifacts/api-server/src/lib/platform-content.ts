@@ -26,6 +26,19 @@ const image = z.object({
   alt: z.string().min(1).max(300),
   provenance: imageProvenance,
 }).strict();
+const department = z.enum(["men", "women", "accessories"]);
+const megaMenuGroup = z.object({
+  id: slug,
+  label: z.string().min(1).max(120),
+  href: localPath,
+  department: department.optional(),
+  visible: z.boolean(),
+  columns: z.array(z.object({
+    heading: z.string().min(1).max(120),
+    links: z.array(link).min(1).max(12),
+  }).strict()).max(4),
+  featuredProductSlugs: z.array(slug).max(2),
+}).strict();
 const searchSuggestion = z.object({
   label: z.string().min(1).max(120),
   href: localPath,
@@ -76,6 +89,7 @@ export const PlatformContentSchema = z.object({
     contactEmail: z.union([z.literal(""), z.string().email()]), contactPhone: z.string().max(40),
     instagramUrl: href, whatsappUrl: href,
     navigation: z.array(link).min(1), mobileNavigation: z.array(link).min(1),
+    megaMenu: z.array(megaMenuGroup).min(1).max(8),
     platformState: z.object({ loadingMessage: copy.min(1), unavailableMessage: copy.min(1) }).strict(),
     header: z.object({
       openMenuLabel: copy, closeMenuLabel: copy, mainNavigationLabel: copy, whatsappLabel: copy,
@@ -116,6 +130,11 @@ export const PlatformContentSchema = z.object({
       searchLabel: copy.min(1), searchPlaceholder: copy.min(1), noSearchResultsMessage: copy.min(1),
       newLabel: copy.min(1), readyNowLabel: copy.min(1), madeImmediatelyLabel: copy.min(1),
       unavailableLabel: copy.min(1),
+      departments: z.object({
+        men: z.object({ seo, eyebrow: copy, title: copy, intro: copy }).strict(),
+        women: z.object({ seo, eyebrow: copy, title: copy, intro: copy }).strict(),
+        accessories: z.object({ seo, eyebrow: copy, title: copy, intro: copy }).strict(),
+      }).strict(),
     }).strict(),
     faq: z.object({
       seo, eyebrow: copy, title: copy, intro: copy, helpText: copy, listAriaLabel: copy.min(1),
@@ -152,7 +171,7 @@ export const PlatformContentSchema = z.object({
   }).strict(),
   products: z.array(z.object({
     slug, name: copy, img: localPath, images: z.array(image).min(1),
-    price: z.number().int().positive(), tag: copy, note: copy, category: copy,
+    price: z.number().int().positive(), tag: copy, note: copy, category: copy, department,
     description: copy, sizes: z.array(z.string().min(1).max(40)).min(1),
     colour: copy.min(1), fabric: copy.min(1), fit: copy.min(1),
     searchableTerms: z.array(z.string().min(1).max(120)),
@@ -190,6 +209,12 @@ export const PlatformContentSchema = z.object({
       }
     });
     const customSizeIndex = product.sizes.findIndex((size) => size.toLocaleLowerCase() === "custom");
+    if (product.department !== "men" && product.customEligible) {
+      ctx.addIssue({ code: "custom", message: "Only Men products may offer Custom or made-to-measure sizing", path: ["customEligible"] });
+    }
+    if (product.department !== "men" && product.fulfilmentState !== "unavailable" && !product.standardEligible) {
+      ctx.addIssue({ code: "custom", message: "Women and Accessories products must use Standard ready-to-wear sizing", path: ["standardEligible"] });
+    }
     if (product.customEligible && customSizeIndex < 0) {
       ctx.addIssue({ code: "custom", message: "Custom eligibility requires a Custom selectable size", path: ["sizes"] });
     }
@@ -249,7 +274,7 @@ export const PlatformContentSchema = z.object({
       }
     }
   })).min(1),
-  collections: z.array(z.object({ slug, label: copy, category: copy, h1: copy, intro: copy, seo }).strict()).min(1),
+  collections: z.array(z.object({ slug, label: copy, category: copy, department, h1: copy, intro: copy, seo }).strict()).min(1),
   sizeGuide: z.object({
     title: copy, intro: copy, columns: z.array(copy).min(1),
     rows: z.array(z.object({ size: z.string().min(1), values: z.array(copy).min(1) }).strict()).min(1),
@@ -300,10 +325,13 @@ export const PlatformContentSchema = z.object({
   duplicateSlugs(content.products.map((item) => item.slug), "products");
   duplicateSlugs(content.collections.map((item) => item.slug), "collections");
   const products = new Set(content.products.map((item) => item.slug));
-  const collectionCategories = new Set(content.collections.map((item) => item.category));
+  const productsBySlug = new Map(content.products.map((item) => [item.slug, item]));
+  const collectionCategories = new Set(content.collections.map((item) => `${item.department}\0${item.category}`));
   const collectionSlugs = new Set(content.collections.map((item) => item.slug));
   content.products.forEach((product, index) => {
-    if (!collectionCategories.has(product.category)) ctx.addIssue({ code: "custom", message: `Unknown product collection category: ${product.category}`, path: ["products", index, "category"] });
+    if (!collectionCategories.has(`${product.department}\0${product.category}`)) {
+      ctx.addIssue({ code: "custom", message: `Unknown ${product.department} product collection category: ${product.category}`, path: ["products", index, "category"] });
+    }
     if (!product.images.some((item) => item.src === product.img)) {
       ctx.addIssue({ code: "custom", message: "Primary product image must be included in the approved images", path: ["products", index, "img"] });
     }
@@ -317,6 +345,62 @@ export const PlatformContentSchema = z.object({
       if (!products.has(related) || related === product.slug) ctx.addIssue({ code: "custom", message: `Invalid related product: ${related}`, path: ["products", index, "relatedProductSlugs", relatedIndex] });
       if (relationships.has(related)) ctx.addIssue({ code: "custom", message: `Duplicate related product: ${related}`, path: ["products", index, "relatedProductSlugs", relatedIndex] });
       relationships.add(related);
+    });
+  });
+  const isSafeStorefrontTarget = (target: string): boolean => {
+    if (["/journal", "/faq", "/about", "/#whatsapp"].includes(target)) return true;
+    try {
+      const parsed = new URL(target, "https://soso.invalid");
+      if (parsed.origin !== "https://soso.invalid") return parsed.protocol === "https:";
+      if (parsed.pathname === "/shop") {
+        const targetDepartment = parsed.searchParams.get("department");
+        return !targetDepartment || department.options.includes(targetDepartment as typeof department.options[number]);
+      }
+    } catch {
+      return false;
+    }
+    const productMatch = target.match(/^\/product\/([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+    if (productMatch) return products.has(productMatch[1]!);
+    const collectionMatch = target.match(/^\/collections\/([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+    return Boolean(collectionMatch && collectionSlugs.has(collectionMatch[1]!));
+  };
+  const menuIds = new Set<string>();
+  content.site.megaMenu.forEach((group, groupIndex) => {
+    if (menuIds.has(group.id)) {
+      ctx.addIssue({ code: "custom", message: `Duplicate mega-menu group ID: ${group.id}`, path: ["site", "megaMenu", groupIndex, "id"] });
+    }
+    menuIds.add(group.id);
+    if (!isSafeStorefrontTarget(group.href)) {
+      ctx.addIssue({ code: "custom", message: `Unsafe or unknown mega-menu target: ${group.href}`, path: ["site", "megaMenu", groupIndex, "href"] });
+    }
+    if (group.visible && group.department) {
+      const liveProducts = content.products.filter((item) => item.department === group.department && item.fulfilmentState !== "unavailable");
+      if (liveProducts.length === 0) {
+        ctx.addIssue({ code: "custom", message: `Visible ${group.label} menu requires at least one available product`, path: ["site", "megaMenu", groupIndex, "visible"] });
+      }
+      if (group.featuredProductSlugs.length === 0) {
+        ctx.addIssue({ code: "custom", message: `Visible ${group.label} menu requires at least one featured product image`, path: ["site", "megaMenu", groupIndex, "featuredProductSlugs"] });
+      }
+    }
+    group.columns.forEach((column, columnIndex) => {
+      column.links.forEach((item, linkIndex) => {
+        if (!isSafeStorefrontTarget(item.href)) {
+          ctx.addIssue({ code: "custom", message: `Unsafe or unknown mega-menu link: ${item.href}`, path: ["site", "megaMenu", groupIndex, "columns", columnIndex, "links", linkIndex, "href"] });
+        }
+      });
+    });
+    const featured = new Set<string>();
+    group.featuredProductSlugs.forEach((productSlug, productIndex) => {
+      const featuredProduct = productsBySlug.get(productSlug);
+      if (!featuredProduct) {
+        ctx.addIssue({ code: "custom", message: `Unknown mega-menu featured product: ${productSlug}`, path: ["site", "megaMenu", groupIndex, "featuredProductSlugs", productIndex] });
+      } else if (group.department && featuredProduct.department !== group.department) {
+        ctx.addIssue({ code: "custom", message: `Featured product ${productSlug} does not belong to ${group.department}`, path: ["site", "megaMenu", groupIndex, "featuredProductSlugs", productIndex] });
+      }
+      if (featured.has(productSlug)) {
+        ctx.addIssue({ code: "custom", message: `Duplicate mega-menu featured product: ${productSlug}`, path: ["site", "megaMenu", groupIndex, "featuredProductSlugs", productIndex] });
+      }
+      featured.add(productSlug);
     });
   });
   const suggestions = new Set<string>();
@@ -351,6 +435,7 @@ const suppliedImageProvenance = {
   rights: "Supplied by SOSO Africa for storefront publication",
 };
 const hybridProductDefaults = {
+  department: "men" as const,
   colour: "As shown",
   fabric: "Atelier-selected fabric",
   fit: "Regular",
@@ -374,8 +459,29 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
     announcement: "Ready now and made immediately · Dispatch within five days", skipLinkLabel: "Skip to content",
     contactEmail: "", contactPhone: "", instagramUrl: "https://instagram.com/sosoafrica", whatsappUrl: "/#whatsapp",
-    navigation: [{ label: "Shop", href: "/shop" }, { label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }, { label: "Journal", href: "/journal" }],
-    mobileNavigation: [{ label: "Shop", href: "/shop" }, { label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }, { label: "FAQ", href: "/faq" }],
+    navigation: [{ label: "Journal", href: "/journal" }],
+    mobileNavigation: [{ label: "Journal", href: "/journal" }, { label: "FAQ", href: "/faq" }],
+    megaMenu: [
+      {
+        id: "men", label: "Men", href: "/shop?department=men", department: "men", visible: true,
+        columns: [
+          { heading: "Shop", links: [{ label: "Shop all men", href: "/shop?department=men" }, { label: "Ready now", href: "/shop?department=men&fulfilment=ready_now" }] },
+          { heading: "Collections", links: [{ label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }] },
+          { heading: "Services", links: [{ label: "Made-to-measure", href: "/shop?department=men&size=Custom" }, { label: "Ask a stylist", href: "/#whatsapp" }] },
+        ],
+        featuredProductSlugs: ["sovereign-agbada", "vault"],
+      },
+      {
+        id: "women", label: "Women", href: "/shop?department=women", department: "women", visible: false,
+        columns: [{ heading: "Shop", links: [{ label: "Women’s collection", href: "/shop?department=women" }] }],
+        featuredProductSlugs: [],
+      },
+      {
+        id: "accessories", label: "Accessories", href: "/shop?department=accessories", department: "accessories", visible: false,
+        columns: [{ heading: "Shop", links: [{ label: "Accessories", href: "/shop?department=accessories" }] }],
+        featuredProductSlugs: [],
+      },
+    ],
     platformState: { loadingMessage: "Loading the published storefront…", unavailableMessage: "Storefront content is not published or is temporarily unavailable." },
     header: {
       openMenuLabel: "Open menu", closeMenuLabel: "Close menu", mainNavigationLabel: "Main navigation",
@@ -443,7 +549,28 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     finalCta: { eyebrow: "Ready when you are", title: "Your next piece starts here.", body: "Shop Standard or Custom directly. A SOSO stylist is available if you would like fit or occasion guidance.", primaryCta: { label: "Shop the Collection", href: "/shop" }, stylistCtaLabel: "Ask a stylist", note: "Dispatch within five days is a dispatch estimate, not a delivery guarantee." },
   },
   pages: {
-    shop: { seo: { title: "Shop premium menswear | SOSO Africa", description: "Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts in Standard sizes or Custom." }, eyebrow: "Ready now · Made immediately · Custom", title: "Shop SOSO", intro: "Discover the current collection and refine by category, fit, colour, size, price or fulfilment.", allFilterLabel: "All", emptyMessage: "No pieces are published in this collection yet.", productCtaLabel: "View piece", collectionNotFoundTitle: "Collection not found", collectionNotFoundCta: { label: "View all pieces", href: "/shop" }, collectionEmptyMessage: "No pieces are published in this collection yet.", allCollectionsLabel: "All pieces", searchLabel: "Search the collection", searchPlaceholder: "Search by piece, colour, fabric or fit", noSearchResultsMessage: "No pieces match those refinements. Reset the filters to explore the full collection.", newLabel: "New", readyNowLabel: "Ready now", madeImmediatelyLabel: "Made immediately", unavailableLabel: "Unavailable" },
+    shop: {
+      seo: { title: "Shop premium menswear | SOSO Africa", description: "Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts in Standard sizes or Custom." },
+      eyebrow: "Ready now · Made immediately · Custom", title: "Shop SOSO", intro: "Discover the current collection and refine by category, fit, colour, size, price or fulfilment.",
+      allFilterLabel: "All", emptyMessage: "No pieces are published in this collection yet.", productCtaLabel: "View piece", collectionNotFoundTitle: "Collection not found",
+      collectionNotFoundCta: { label: "View all pieces", href: "/shop" }, collectionEmptyMessage: "No pieces are published in this collection yet.", allCollectionsLabel: "All pieces",
+      searchLabel: "Search the collection", searchPlaceholder: "Search by piece, colour, fabric or fit", noSearchResultsMessage: "No pieces match those refinements. Reset the filters to explore the full collection.",
+      newLabel: "New", readyNowLabel: "Ready now", madeImmediatelyLabel: "Made immediately", unavailableLabel: "Unavailable",
+      departments: {
+        men: {
+          seo: { title: "Shop premium menswear | SOSO Africa", description: "Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts in Standard sizes or Custom." },
+          eyebrow: "Men · Ready now · Made immediately · Custom", title: "Men at SOSO", intro: "Considered menswear for presence, with Standard and Custom routes where each piece allows.",
+        },
+        women: {
+          seo: { title: "Women’s ready-to-wear | SOSO Africa", description: "Discover SOSO Africa women’s ready-to-wear, with considered silhouettes available in Standard sizes." },
+          eyebrow: "Women · Ready-to-wear", title: "Women at SOSO", intro: "A curated ready-to-wear collection shaped with the same restraint, proportion, and presence.",
+        },
+        accessories: {
+          seo: { title: "Accessories | SOSO Africa", description: "Discover SOSO Africa accessories when the first collection is ready." },
+          eyebrow: "Accessories", title: "The finishing pieces", intro: "A considered accessories collection will be published when the first pieces are ready.",
+        },
+      },
+    },
     faq: {
       seo: { title: "Frequently asked questions | SOSO Africa", description: "Answers about SOSO Africa ordering, sizing, care, delivery and secure payment." },
       eyebrow: "Support", title: "Frequently Asked Questions", intro: "Everything you need to choose your piece with confidence.", listAriaLabel: "Frequently asked questions",
@@ -518,11 +645,11 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     product("twin-set", "Twin Set — Two Piece", "/images/soso/twopiece.jpg", 220000, "Collection", "Coordinated, relaxed tailoring", "Two-Piece", "A coordinated two-piece set with an easy, polished presence. Select your usual size or choose Custom for made-to-measure support."),
   ],
   collections: [
-    { slug: "kaftans", label: "Kaftans", category: "Kaftans", h1: "Kaftans", intro: "Considered kaftans for significant occasions and daily distinction. Each piece is made to order for the person who wears it.", seo: { title: "Bespoke Kaftans | SOSO Africa, Abuja", description: "Premium made-to-order kaftans from SOSO Africa. Contemporary silhouettes made for the individual in Abuja, Nigeria." } },
-    { slug: "agbadas", label: "Agbadas", category: "Agbadas", h1: "Agbadas", intro: "Statement three-piece agbadas for ceremonies, celebrations, and moments that require presence.", seo: { title: "Bespoke Agbadas | SOSO Africa, Abuja", description: "Made-to-order agbadas from SOSO Africa, Abuja. Generous three-piece sets for grand occasions." } },
-    { slug: "dashikis", label: "Dashikis", category: "Dashikis", h1: "Dashikis", intro: "Heritage craft in a contemporary silhouette — dashikis for celebration and the days in between.", seo: { title: "Modern Dashikis | SOSO Africa, Abuja", description: "Contemporary made-to-order dashikis from SOSO Africa." } },
-    { slug: "two-piece", label: "Two-Piece Sets", category: "Two-Piece", h1: "Two-Piece Sets", intro: "Coordinated and effortless — two-piece sets that move between occasions.", seo: { title: "Two-Piece Sets | SOSO Africa, Abuja", description: "Coordinated two-piece sets from SOSO Africa, made to order in Abuja." } },
-    { slug: "shirts", label: "Shirts", category: "Shirts", h1: "Shirts", intro: "Sharp, considered shirting for business settings and formal occasions.", seo: { title: "Premium Men's Shirts | SOSO Africa, Abuja", description: "Refined made-to-order shirts from SOSO Africa." } },
+    { slug: "kaftans", label: "Kaftans", category: "Kaftans", department: "men", h1: "Kaftans", intro: "Considered kaftans for significant occasions and daily distinction. Each piece is made to order for the person who wears it.", seo: { title: "Bespoke Kaftans | SOSO Africa, Abuja", description: "Premium made-to-order kaftans from SOSO Africa. Contemporary silhouettes made for the individual in Abuja, Nigeria." } },
+    { slug: "agbadas", label: "Agbadas", category: "Agbadas", department: "men", h1: "Agbadas", intro: "Statement three-piece agbadas for ceremonies, celebrations, and moments that require presence.", seo: { title: "Bespoke Agbadas | SOSO Africa, Abuja", description: "Made-to-order agbadas from SOSO Africa, Abuja. Generous three-piece sets for grand occasions." } },
+    { slug: "dashikis", label: "Dashikis", category: "Dashikis", department: "men", h1: "Dashikis", intro: "Heritage craft in a contemporary silhouette — dashikis for celebration and the days in between.", seo: { title: "Modern Dashikis | SOSO Africa, Abuja", description: "Contemporary made-to-order dashikis from SOSO Africa." } },
+    { slug: "two-piece", label: "Two-Piece Sets", category: "Two-Piece", department: "men", h1: "Two-Piece Sets", intro: "Coordinated and effortless — two-piece sets that move between occasions.", seo: { title: "Two-Piece Sets | SOSO Africa, Abuja", description: "Coordinated two-piece sets from SOSO Africa, made to order in Abuja." } },
+    { slug: "shirts", label: "Shirts", category: "Shirts", department: "men", h1: "Shirts", intro: "Sharp, considered shirting for business settings and formal occasions.", seo: { title: "Premium Men's Shirts | SOSO Africa, Abuja", description: "Refined made-to-order shirts from SOSO Africa." } },
   ],
   sizeGuide: {
     title: "Size guide", intro: "Use these finished-garment measurements as a starting point. Ask a stylist if you are between sizes.",
@@ -683,6 +810,11 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         }
         return productRecord;
       });
+    }
+    const collections = (merged as { collections?: unknown }).collections;
+    if (Array.isArray(collections)) {
+      (merged as { collections: unknown[] }).collections = collections.map((entry) =>
+        mergeMissing({ department: "men" }, entry));
     }
     const consent = (merged as {
       site?: { consent?: { body?: unknown; marketingDescription?: unknown } };

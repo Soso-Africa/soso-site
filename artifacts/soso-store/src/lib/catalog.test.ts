@@ -7,6 +7,7 @@ const mockProducts: CatalogProduct[] = [
   {
     slug: "suit-1",
     name: "Classic Suit",
+    department: "men",
     description: "A classic suit",
     category: "Suits",
     fulfilmentState: "ready_now",
@@ -29,6 +30,7 @@ const mockProducts: CatalogProduct[] = [
   {
     slug: "shirt-1",
     name: "Linen Shirt",
+    department: "women",
     description: "Breathable linen shirt",
     category: "Shirts",
     fulfilmentState: "made_immediately",
@@ -51,6 +53,7 @@ const mockProducts: CatalogProduct[] = [
   {
     slug: "trousers-1",
     name: "Wool Trousers",
+    department: "men",
     description: "Warm trousers",
     category: "Trousers",
     fulfilmentState: "ready_now",
@@ -77,6 +80,11 @@ test("filterAndSortProducts", async (t) => {
     const result = filterAndSortProducts(mockProducts, { category: "Suits" });
     assert.equal(result.length, 1);
     assert.equal(result[0].slug, "suit-1");
+  });
+
+  await t.test("filters by department before category refinements", () => {
+    const result = filterAndSortProducts(mockProducts, { department: "women" });
+    assert.deepEqual(result.map((product) => product.slug), ["shirt-1"]);
   });
 
   await t.test("filters by fulfillment state", () => {

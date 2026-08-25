@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { WhatsAppIcon } from "@/components/Icons";
-import { usePlatformContent } from "@/data/platformContent";
-import { Search } from "lucide-react";
+import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/data/platformContent";
+import { Search, ChevronDown } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
 
 export function Navbar() {
@@ -12,23 +12,32 @@ export function Navbar() {
   const { openDrawer, itemCount } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { data } = usePlatformContent();
+
   const site = data?.content.site;
+  const products = data?.content.products || [];
+
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const desktopNavRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  
-  // Close mobile menu on route change
+
+  // Close menus on route change
   useEffect(() => {
     setMobileMenuOpen(false);
+    setActiveGroupId(null);
     window.scrollTo(0, 0);
   }, [location]);
 
+  // Mobile Menu Focus Trap
   useEffect(() => {
     if (!mobileMenuOpen) return;
 
@@ -66,6 +75,26 @@ export function Navbar() {
     };
   }, [mobileMenuOpen]);
 
+  // Desktop Menu Event Listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveGroupId(null);
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (desktopNavRef.current && !desktopNavRef.current.contains(e.target as Node)) {
+        setActiveGroupId(null);
+      }
+    };
+    if (activeGroupId) {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeGroupId]);
+
   const openMobileMenu = () => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -73,7 +102,38 @@ export function Navbar() {
     setMobileMenuOpen(true);
   };
 
+  const handleMouseEnter = (id: string) => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    setActiveGroupId(id);
+  };
+
+  const handleMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setActiveGroupId(null);
+    }, 150);
+  };
+
+  const handlePanelMouseEnter = () => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+  };
+
   if (!site) return null;
+
+  const hasMegaMenu = !!(site.megaMenu && site.megaMenu.length > 0);
+  const visibleGroups = site.megaMenu?.filter(g => g.visible) || [];
+
+  const isLegacyShopLink = (href: string) => (
+    href === "/shop"
+    || href.startsWith("/shop?")
+    || href.startsWith("/collections/")
+  );
+  const filteredNavigation = hasMegaMenu
+    ? site.navigation.filter(link => !isLegacyShopLink(link.href))
+    : site.navigation;
+
+  const filteredMobileNavigation = hasMegaMenu
+    ? site.mobileNavigation.filter(link => !isLegacyShopLink(link.href))
+    : site.mobileNavigation;
 
   return (
     <>
@@ -105,9 +165,64 @@ export function Navbar() {
           </svg>
         </button>
 
-        <nav className="hidden md:flex items-center gap-8 text-[12px] tracking-[0.18em] uppercase" style={{ color: "hsl(var(--secondary))" }}>
-          {site.navigation.map((link) => <Link key={`${link.href}-${link.label}`} href={link.href} className="soso-link">{link.label}</Link>)}
-        </nav>
+        {/* Desktop Navigation */}
+        <div
+          ref={desktopNavRef}
+          className="hidden md:flex flex-col justify-center h-full"
+          onBlur={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setActiveGroupId(null);
+            }
+          }}
+        >
+          <nav className="flex items-center gap-8 text-[12px] tracking-[0.18em] uppercase" style={{ color: "hsl(var(--secondary))" }}>
+            {hasMegaMenu && visibleGroups.map(group => {
+              const isActive = activeGroupId === group.id;
+              return (
+                <div
+                  key={group.id}
+                  className="flex items-center h-full group"
+                  onMouseEnter={() => handleMouseEnter(group.id)}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <Link
+                    href={group.href}
+                    className="soso-link py-6"
+                    onFocus={() => handleMouseEnter(group.id)}
+                    aria-expanded={isActive}
+                  >
+                    {group.label}
+                  </Link>
+
+                  {/* Mega Menu Panel */}
+                  <div
+                    className={`absolute left-0 top-[72px] w-full border-t border-[rgba(184,145,47,0.15)] shadow-2xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none origin-top
+                      ${isActive ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-2 invisible pointer-events-none'}`}
+                    style={{ backgroundColor: "rgba(16,14,11,0.98)", backdropFilter: "blur(20px)" }}
+                    onMouseEnter={handlePanelMouseEnter}
+                  >
+                    <DesktopMegaMenuPanel group={group} products={products} onClick={() => setActiveGroupId(null)} />
+                  </div>
+                </div>
+              );
+            })}
+            {filteredNavigation.map(link => (
+              <div
+                key={`${link.href}-${link.label}`}
+                className="flex items-center h-full"
+                onMouseEnter={() => handleMouseEnter('')}
+              >
+                <Link
+                  href={link.href}
+                  className="soso-link py-6"
+                  onFocus={() => setActiveGroupId(null)}
+                >
+                  {link.label}
+                </Link>
+              </div>
+            ))}
+          </nav>
+        </div>
         
         <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center">
           <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9" />
@@ -145,15 +260,47 @@ export function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-black/90 backdrop-blur-md flex flex-col p-6 animate-in fade-in duration-300">
-          <div className="flex justify-between items-center mb-10">
+        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-black/95 backdrop-blur-xl flex flex-col overflow-hidden animate-in fade-in duration-300">
+
+          {/* Header of mobile menu */}
+          <div className="flex justify-between items-center p-4 px-6 border-b border-[rgba(184,145,47,0.15)] shrink-0">
             <img src={site.logoUrl} alt={site.logoAlt} className="h-8" />
-            <button type="button" aria-label={site.header.closeMenuLabel} className="text-white text-3xl opacity-70" onClick={() => setMobileMenuOpen(false)}>&times;</button>
+            <button type="button" aria-label={site.header.closeMenuLabel} className="text-white p-2 -mr-2 opacity-70 hover:opacity-100 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <nav className="flex flex-col gap-6 text-xl soso-display tracking-widest text-center">
-            {site.mobileNavigation.map((link) => <Link key={`${link.href}-${link.label}`} href={link.href} className="hover:text-[hsl(var(--primary))] transition-colors">{link.label}</Link>)}
-          </nav>
-          <div className="mt-auto flex flex-col gap-4">
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8">
+
+            {/* Mega Menu Groups (Accordions) */}
+            {hasMegaMenu && (
+              <div className="flex flex-col">
+                {visibleGroups.map(group => (
+                  <MobileMenuGroup key={group.id} group={group} products={products} onClick={() => setMobileMenuOpen(false)} />
+                ))}
+              </div>
+            )}
+
+            {/* Regular Navigation */}
+            <nav className="flex flex-col gap-5 pt-4 pb-8 border-t border-[rgba(184,145,47,0.15)]">
+              {filteredMobileNavigation.map((link) => (
+                <Link
+                  key={`${link.href}-${link.label}`}
+                  href={link.href}
+                  className="text-lg soso-display tracking-[0.15em] text-foreground/90 hover:text-[hsl(var(--primary))] transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          </div>
+
+          {/* Footer sticky bottom */}
+          <div className="mt-auto shrink-0 p-6 bg-black border-t border-[rgba(184,145,47,0.15)]">
             <a href={site.whatsappUrl} className="w-full flex items-center justify-center gap-2 py-4 soso-btn-gold text-[12px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }} onClick={() => setMobileMenuOpen(false)}>
               <WhatsAppIcon size={18} /> {site.header.mobileWhatsappLabel}
             </a>
@@ -161,5 +308,131 @@ export function Navbar() {
         </div>
       )}
     </>
+  );
+}
+
+function DesktopMegaMenuPanel({ group, products, onClick }: { group: MegaMenuGroup, products: CatalogProduct[], onClick: () => void }) {
+  const featuredProducts = group.featuredProductSlugs
+    .map(slug => products.find(p => p.slug === slug))
+    .filter((product): product is CatalogProduct => Boolean(product))
+    .slice(0, 2);
+
+  return (
+    <div className="max-w-[1400px] mx-auto px-4 md:px-6 lg:px-12 py-10 lg:py-16 flex justify-between gap-12 text-left">
+      {/* Links Columns */}
+      <div className="flex gap-16 lg:gap-24">
+        {group.columns.map((col, i) => (
+          <div key={i} className="flex flex-col gap-6">
+            <h3 className="text-[11px] tracking-[0.2em] uppercase font-bold text-[hsl(var(--primary))]">{col.heading}</h3>
+            <ul className="flex flex-col gap-4">
+              {col.links.map(link => (
+                <li key={`${link.href}-${link.label}`}>
+                  <Link
+                    href={link.href}
+                    className="text-[13px] tracking-wide text-foreground/80 hover:text-[hsl(var(--primary))] transition-colors block py-1"
+                    onClick={onClick}
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      {/* Featured Products */}
+      {featuredProducts.length > 0 && (
+        <div className="w-[500px] shrink-0 flex gap-6">
+          {featuredProducts.map(product => (
+            <Link
+              key={product.slug}
+              href={`/product/${product.slug}`}
+              className="group flex-1 flex flex-col gap-4 lift"
+              onClick={onClick}
+            >
+              <div className="aspect-[3/4] overflow-hidden bg-muted/20 relative">
+                <img
+                  src={product.img}
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105 motion-reduce:transition-none"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-[12px] font-medium tracking-[0.1em] text-foreground group-hover:text-[hsl(var(--primary))] transition-colors uppercase">{product.name}</p>
+                <p className="text-[10px] tracking-[0.15em] text-foreground/60 uppercase">{product.merchandising?.label || product.category || 'Featured'}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileMenuGroup({ group, products, onClick }: { group: MegaMenuGroup, products: CatalogProduct[], onClick: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const featuredProducts = group.featuredProductSlugs
+    .map(slug => products.find(p => p.slug === slug))
+    .filter((product): product is CatalogProduct => Boolean(product))
+    .slice(0, 2);
+
+  return (
+    <div className="flex flex-col border-b border-[rgba(184,145,47,0.15)] overflow-hidden">
+      <button
+        className="flex items-center justify-between py-5 w-full text-left"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+      >
+        <span className="text-xl soso-display tracking-[0.15em] uppercase text-foreground/90">{group.label}</span>
+        <ChevronDown className={`w-5 h-5 text-[hsl(var(--primary))] transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${expanded ? 'rotate-180' : ''}`} />
+      </button>
+
+      <div className={`grid transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className="overflow-hidden flex flex-col gap-8">
+          {/* Pad the content inside so it collapses properly without margin collapsing issues */}
+          <div className="pt-2 pb-6 flex flex-col gap-8">
+            {/* Columns */}
+            <div className="flex flex-col gap-6">
+              {group.columns.map((col, i) => (
+                <div key={i} className="flex flex-col gap-3">
+                  {col.heading && <h4 className="text-[10px] tracking-[0.2em] uppercase text-[hsl(var(--primary))] font-bold">{col.heading}</h4>}
+                  <div className="flex flex-col gap-3">
+                    {col.links.map(link => (
+                      <Link key={`${link.href}-${link.label}`} href={link.href} className="text-[13px] tracking-widest text-foreground/80 py-1" onClick={onClick}>
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {/* Direct group link */}
+              <Link href={group.href} className="text-[11px] font-bold tracking-[0.2em] uppercase text-[hsl(var(--primary))] py-2 mt-2 flex items-center gap-2 w-fit" onClick={onClick}>
+                Shop All {group.label} <span aria-hidden="true">&rarr;</span>
+              </Link>
+            </div>
+
+            {/* Compact Image Cards */}
+            {featuredProducts.length > 0 && (
+              <div className="grid grid-cols-2 gap-4">
+                {featuredProducts.map(product => (
+                  <Link key={product.slug} href={`/product/${product.slug}`} className="flex flex-col gap-3 group" onClick={onClick}>
+                    <div className="aspect-[3/4] overflow-hidden bg-muted/20 relative">
+                      <img src={product.img} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" loading="lazy" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] uppercase tracking-[0.1em] text-foreground truncate">{product.name}</span>
+                      <span className="text-[9px] uppercase tracking-[0.15em] text-[hsl(var(--primary))] mt-0.5">{product.merchandising?.label || 'Featured'}</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

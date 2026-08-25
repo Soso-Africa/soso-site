@@ -388,6 +388,22 @@ test("header search suggestions only publish unique safe catalogue targets", () 
   }
 });
 
+test("mega menus reject unsafe links, empty visible departments, and mismatched featured products", () => {
+  const invalid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  invalid.site.megaMenu[0]!.columns[0]!.links[0]!.href = "/checkout";
+  invalid.site.megaMenu[1]!.visible = true;
+  invalid.site.megaMenu[1]!.featuredProductSlugs = [invalid.products[0]!.slug];
+
+  const parsed = PlatformContentSchema.safeParse(invalid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    const messages = parsed.error.issues.map((issue) => issue.message);
+    assert.ok(messages.some((message) => message.includes("Unsafe or unknown mega-menu link")));
+    assert.ok(messages.some((message) => message.includes("requires at least one available product")));
+    assert.ok(messages.some((message) => message.includes("does not belong to women")));
+  }
+});
+
 test("optional product detail copy validates and survives default upgrades without replacing merchant edits", () => {
   const governed = structuredClone(DEFAULT_PLATFORM_CONTENT);
   governed.products[0]!.composition = "100% atelier-selected cotton.";
@@ -460,6 +476,8 @@ test("known shipped hero defaults become quieter without replacing merchant camp
 test("platform schema upgrades fill missing fields without replacing edited content", () => {
   const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
   legacy.site.announcement = "A merchant-edited announcement";
+  delete legacy.site.megaMenu;
+  delete legacy.pages.shop.departments;
   delete legacy.pages.about;
   delete legacy.productCopy.addToBagLabel;
   delete legacy.supportCopy.productHelp;
@@ -479,6 +497,7 @@ test("platform schema upgrades fill missing fields without replacing edited cont
   delete legacy.homepage.hero.playLabel;
   delete legacy.homepage.hero.pauseLabel;
   legacy.products[0].colour = "Merchant-edited midnight black";
+  delete legacy.products[0].department;
   delete legacy.products[0].fabric;
   delete legacy.products[0].fit;
   delete legacy.products[0].searchableTerms;
@@ -490,12 +509,15 @@ test("platform schema upgrades fill missing fields without replacing edited cont
   delete legacy.products[0].fulfilmentState;
   delete legacy.products[0].dispatchMessage;
   delete legacy.products[0].images[0].provenance;
+  delete legacy.collections[0].department;
 
   const upgraded = mergePlatformContentDefaults(legacy);
   const parsed = PlatformContentSchema.safeParse(upgraded);
   assert.equal(parsed.success, true);
   if (parsed.success) {
     assert.equal(parsed.data.site.announcement, "A merchant-edited announcement");
+    assert.deepEqual(parsed.data.site.megaMenu, DEFAULT_PLATFORM_CONTENT.site.megaMenu);
+    assert.equal(parsed.data.pages.shop.departments.women.title, DEFAULT_PLATFORM_CONTENT.pages.shop.departments.women.title);
     assert.equal(parsed.data.productCopy.addToBagLabel, DEFAULT_PLATFORM_CONTENT.productCopy.addToBagLabel);
     assert.equal(parsed.data.pages.about.hero.title, DEFAULT_PLATFORM_CONTENT.pages.about.hero.title);
     assert.equal(parsed.data.site.consent.title, DEFAULT_PLATFORM_CONTENT.site.consent.title);
@@ -512,6 +534,8 @@ test("platform schema upgrades fill missing fields without replacing edited cont
     assert.equal(parsed.data.productCopy.detailImageAltSuffix, DEFAULT_PLATFORM_CONTENT.productCopy.detailImageAltSuffix);
     assert.equal(parsed.data.productCopy.sizeGuideCloseLabel, DEFAULT_PLATFORM_CONTENT.productCopy.sizeGuideCloseLabel);
     assert.equal(parsed.data.products[0]!.colour, "Merchant-edited midnight black");
+    assert.equal(parsed.data.products[0]!.department, "men");
+    assert.equal(parsed.data.collections[0]!.department, "men");
     assert.equal(parsed.data.products[0]!.fabric, "Atelier-selected fabric");
     assert.equal(parsed.data.products[0]!.fulfilmentState, "made_immediately");
     assert.deepEqual(parsed.data.products[0]!.readyNowSizes, []);

@@ -8,7 +8,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 import { catalogApproved } from "@/lib/seo";
 import { filterAndSortProducts } from "@/lib/catalog";
-import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
+import { PlatformContentState, usePlatformContent, type ProductDepartment } from "@/data/platformContent";
 
 const all = "__all";
 
@@ -24,28 +24,39 @@ export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const sourceProducts = platform.data?.content.products ?? [];
+  const searchQuery = searchParams.get("q") || "";
+  const departmentParam = searchParams.get("department");
+  const activeDepartment: ProductDepartment | typeof all = (
+    departmentParam === "men" || departmentParam === "women" || departmentParam === "accessories"
+  ) ? departmentParam : (searchQuery ? all : "men");
   const activeCategory = searchParams.get("category") || all;
   const activeSort = searchParams.get("sort") || "featured";
-  const searchQuery = searchParams.get("q") || "";
   const activeFulfilment = searchParams.get("fulfilment") || all;
   const activeSize = searchParams.get("size") || all;
   const activeColour = searchParams.get("colour") || all;
   const minPrice = numberParam(searchParams.get("minPrice"));
   const maxPrice = numberParam(searchParams.get("maxPrice"));
 
+  const scopedProducts = useMemo(
+    () => activeDepartment === all
+      ? sourceProducts
+      : sourceProducts.filter((product) => product.department === activeDepartment),
+    [activeDepartment, sourceProducts],
+  );
   const categories = useMemo(
-    () => [all, ...Array.from(new Set(sourceProducts.map((product) => product.category)))],
-    [sourceProducts],
+    () => [all, ...Array.from(new Set(scopedProducts.map((product) => product.category)))],
+    [scopedProducts],
   );
   const colours = useMemo(
-    () => [all, ...Array.from(new Set(sourceProducts.map((product) => product.colour)))],
-    [sourceProducts],
+    () => [all, ...Array.from(new Set(scopedProducts.map((product) => product.colour)))],
+    [scopedProducts],
   );
   const sizes = useMemo(() => {
-    const standardSizes = sourceProducts.flatMap((product) => product.standardSizes);
-    return [all, ...Array.from(new Set(standardSizes)), "Custom"];
-  }, [sourceProducts]);
+    const standardSizes = scopedProducts.flatMap((product) => product.standardSizes);
+    return [all, ...Array.from(new Set(standardSizes)), ...(scopedProducts.some((product) => product.customEligible) ? ["Custom"] : [])];
+  }, [scopedProducts]);
   const filteredProducts = useMemo(() => filterAndSortProducts(sourceProducts, {
+    department: activeDepartment,
     category: activeCategory,
     fulfillment: activeFulfilment,
     size: activeSize,
@@ -56,6 +67,7 @@ export default function Shop() {
     sort: activeSort,
   }), [
     sourceProducts,
+    activeDepartment,
     activeCategory,
     activeFulfilment,
     activeSize,
@@ -115,6 +127,16 @@ export default function Shop() {
     />;
   }
   const copy = platform.data.content.pages.shop;
+  const departmentCopy = activeDepartment === all ? copy : copy.departments[activeDepartment];
+  const visibleDepartments = platform.data.content.site.megaMenu
+    .filter((group) => group.visible && group.department)
+    .map((group) => group.department!)
+    .filter((department, index, values) => values.indexOf(department) === index);
+  const departmentLabels: Record<ProductDepartment, string> = {
+    men: "Men",
+    women: "Women",
+    accessories: "Accessories",
+  };
 
   const fulfilmentOptions = [
     { value: all, label: copy.allFilterLabel },
@@ -183,13 +205,32 @@ export default function Shop() {
   );
 
   return <div className="flex flex-col pt-10">
-    <Seo title={copy.seo.title} description={copy.seo.description} path="/shop" noIndex={!catalogApproved} />
+    <Seo
+      title={departmentCopy.seo.title}
+      description={departmentCopy.seo.description}
+      path={activeDepartment === all ? "/shop" : `/shop?department=${activeDepartment}`}
+      noIndex={!catalogApproved}
+    />
     <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 sm:px-6 lg:px-12">
       <Reveal>
         <header className="mb-10 text-center md:mb-14">
-          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{copy.eyebrow}</p>
-          <h1 className="mt-3 text-4xl font-light text-white soso-display md:text-5xl">{copy.title}</h1>
-          <p className="mx-auto mt-4 max-w-xl text-sm text-secondary">{copy.intro}</p>
+          <nav aria-label="Shop departments" className="mb-8 flex flex-wrap justify-center gap-2">
+            {visibleDepartments.map((department) => (
+              <button
+                key={department}
+                type="button"
+                onClick={() => updateParams({ department, category: null, size: null }, `catalogue_department_${department}`)}
+                aria-pressed={activeDepartment === department}
+                className={`border px-5 py-2 text-[10px] uppercase tracking-[0.22em] transition-colors ${activeDepartment === department ? "border-primary bg-primary text-primary-foreground" : "border-white/15 text-secondary hover:border-primary hover:text-primary"}`}
+                data-testid={`button-department-${department}`}
+              >
+                {departmentLabels[department]}
+              </button>
+            ))}
+          </nav>
+          <p className="text-[11px] uppercase tracking-[0.3em] text-primary">{departmentCopy.eyebrow}</p>
+          <h1 className="mt-3 text-4xl font-light text-white soso-display md:text-5xl">{departmentCopy.title}</h1>
+          <p className="mx-auto mt-4 max-w-xl text-sm text-secondary">{departmentCopy.intro}</p>
         </header>
       </Reveal>
 

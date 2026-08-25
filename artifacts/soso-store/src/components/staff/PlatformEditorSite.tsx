@@ -1,19 +1,24 @@
 import { useMemo } from "react";
 import { ArrowUp, ArrowDown, Plus, Trash2, AlertCircle } from "lucide-react";
-import type { PlatformContent } from "../../data/platformContent";
+import type { CatalogProduct, PlatformContent } from "../../data/platformContent";
 
 type SiteData = PlatformContent["site"];
+type MegaMenuGroup = SiteData["megaMenu"][number];
+type ProductOption = Pick<CatalogProduct, "slug" | "name" | "department">;
 
 export function PlatformEditorSite({
   data,
   onChange,
   allowedTargets,
+  products,
 }: {
   data: SiteData;
   onChange: (data: SiteData) => void;
   allowedTargets: string[];
+  products: ProductOption[];
 }) {
   const suggestions = data.header?.searchSuggestions || [];
+  const megaMenu = data.megaMenu || [];
 
   const updateSuggestions = (newSuggestions: { label: string; href: string }[]) => {
     onChange({
@@ -52,6 +57,104 @@ export function PlatformEditorSite({
     updateSuggestions([...suggestions, { label: "", href: "" }]);
   };
 
+  const updateMegaMenu = (groups: MegaMenuGroup[]) => {
+    onChange({ ...data, megaMenu: groups });
+  };
+
+  const updateGroup = (groupIndex: number, updates: Partial<MegaMenuGroup>) => {
+    const groups = [...megaMenu];
+    groups[groupIndex] = { ...groups[groupIndex], ...updates };
+    updateMegaMenu(groups);
+  };
+
+  const addGroup = () => {
+    let suffix = megaMenu.length + 1;
+    while (megaMenu.some((group) => group.id === `menu-${suffix}`)) suffix += 1;
+    updateMegaMenu([
+      ...megaMenu,
+      {
+        id: `menu-${suffix}`,
+        label: "",
+        href: "",
+        visible: true,
+        columns: [],
+        featuredProductSlugs: [],
+      },
+    ]);
+  };
+
+  const moveGroup = (groupIndex: number, direction: "up" | "down") => {
+    const nextIndex = direction === "up" ? groupIndex - 1 : groupIndex + 1;
+    if (nextIndex < 0 || nextIndex >= megaMenu.length) return;
+    const groups = [...megaMenu];
+    [groups[groupIndex], groups[nextIndex]] = [groups[nextIndex], groups[groupIndex]];
+    updateMegaMenu(groups);
+  };
+
+  const removeGroup = (groupIndex: number) => {
+    updateMegaMenu(megaMenu.filter((_, index) => index !== groupIndex));
+  };
+
+  const addColumn = (groupIndex: number) => {
+    updateGroup(groupIndex, {
+      columns: [...megaMenu[groupIndex].columns, { heading: "", links: [] }],
+    });
+  };
+
+  const updateColumnHeading = (groupIndex: number, columnIndex: number, heading: string) => {
+    const columns = [...megaMenu[groupIndex].columns];
+    columns[columnIndex] = { ...columns[columnIndex], heading };
+    updateGroup(groupIndex, { columns });
+  };
+
+  const removeColumn = (groupIndex: number, columnIndex: number) => {
+    updateGroup(groupIndex, {
+      columns: megaMenu[groupIndex].columns.filter((_, index) => index !== columnIndex),
+    });
+  };
+
+  const addLink = (groupIndex: number, columnIndex: number) => {
+    const columns = [...megaMenu[groupIndex].columns];
+    columns[columnIndex] = {
+      ...columns[columnIndex],
+      links: [...columns[columnIndex].links, { label: "", href: "" }],
+    };
+    updateGroup(groupIndex, { columns });
+  };
+
+  const updateLink = (
+    groupIndex: number,
+    columnIndex: number,
+    linkIndex: number,
+    updates: Partial<MegaMenuGroup["columns"][number]["links"][number]>,
+  ) => {
+    const columns = [...megaMenu[groupIndex].columns];
+    const links = [...columns[columnIndex].links];
+    links[linkIndex] = { ...links[linkIndex], ...updates };
+    columns[columnIndex] = { ...columns[columnIndex], links };
+    updateGroup(groupIndex, { columns });
+  };
+
+  const removeLink = (groupIndex: number, columnIndex: number, linkIndex: number) => {
+    const columns = [...megaMenu[groupIndex].columns];
+    columns[columnIndex] = {
+      ...columns[columnIndex],
+      links: columns[columnIndex].links.filter((_, index) => index !== linkIndex),
+    };
+    updateGroup(groupIndex, { columns });
+  };
+
+  const toggleFeaturedProduct = (groupIndex: number, slug: string) => {
+    const selected = megaMenu[groupIndex].featuredProductSlugs;
+    updateGroup(groupIndex, {
+      featuredProductSlugs: selected.includes(slug)
+        ? selected.filter((productSlug) => productSlug !== slug)
+        : selected.length < 2
+          ? [...selected, slug]
+          : selected,
+    });
+  };
+
   const validateHrefs = useMemo(() => {
     const issues = new Set<string>();
     const seen = new Set<string>();
@@ -67,10 +170,230 @@ export function PlatformEditorSite({
     return Array.from(issues);
   }, [allowedTargets, suggestions]);
 
+  const validateMegaMenu = useMemo(() => {
+    const issues = new Set<string>();
+    const ids = new Set<string>();
+    const targets = new Set<string>();
+    const productBySlug = new Map(products.map((product) => [product.slug, product]));
+    const validateTarget = (href: string, location: string) => {
+      if (!href) {
+        issues.add(`${location} is missing a URL path`);
+      } else if (!allowedTargets.includes(href) && !href.startsWith("/shop?")) {
+        issues.add(`Unknown or unsafe storefront target: ${href}`);
+      }
+      if (href && targets.has(href)) issues.add(`Duplicate mega-menu target detected: ${href}`);
+      if (href) targets.add(href);
+    };
+
+    megaMenu.forEach((group) => {
+      const groupName = group.label.trim() || group.id || "Unnamed group";
+      if (!group.id.trim()) issues.add("Every mega-menu group needs an ID");
+      else if (ids.has(group.id)) issues.add(`Duplicate mega-menu ID detected: ${group.id}`);
+      ids.add(group.id);
+      if (!group.label.trim()) issues.add(`Mega-menu group ${group.id || "without an ID"} needs a label`);
+      validateTarget(group.href, `Mega-menu group ${groupName}`);
+
+      group.columns.forEach((column, columnIndex) => {
+        if (!column.heading.trim()) issues.add(`${groupName}, column ${columnIndex + 1} needs a heading`);
+        column.links.forEach((link, linkIndex) => {
+          if (!link.label.trim()) {
+            issues.add(`${groupName}, column ${columnIndex + 1}, link ${linkIndex + 1} needs a label`);
+          }
+          validateTarget(link.href, `${groupName}, link ${link.label.trim() || linkIndex + 1}`);
+        });
+      });
+
+      if (group.featuredProductSlugs.length > 2) {
+        issues.add(`${groupName} can feature no more than two products`);
+      }
+      if (new Set(group.featuredProductSlugs).size !== group.featuredProductSlugs.length) {
+        issues.add(`${groupName} has duplicate featured products`);
+      }
+      group.featuredProductSlugs.forEach((slug) => {
+        const product = productBySlug.get(slug);
+        if (!product) issues.add(`${groupName} features an unknown product: ${slug}`);
+        else if (!group.department || product.department !== group.department) {
+          issues.add(`${groupName} features a product outside its department: ${slug}`);
+        }
+      });
+      if (group.visible && group.department && (group.featuredProductSlugs.length < 1 || group.featuredProductSlugs.length > 2)) {
+        issues.add(`${groupName} must feature one or two products while visible`);
+      }
+    });
+    return Array.from(issues);
+  }, [allowedTargets, megaMenu, products]);
+
   return (
-    <div className="mt-5 border border-border bg-card p-5">
+    <div className="mt-5 space-y-5">
+      <section className="border border-border bg-card p-5" aria-labelledby="mega-menu-editor-heading">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h3 id="mega-menu-editor-heading" className="text-xs font-semibold uppercase tracking-wider text-primary">Mega Menu</h3>
+          {validateMegaMenu.length > 0 && (
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle size={14} aria-hidden="true" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider" data-testid="text-mega-menu-issue-count">
+                {validateMegaMenu.length} Issue{validateMegaMenu.length > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {validateMegaMenu.length > 0 && (
+          <div className="mb-4 space-y-1 border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive" data-testid="mega-menu-validation-errors">
+            {validateMegaMenu.map((issue) => <div key={issue}>{issue}</div>)}
+          </div>
+        )}
+
+        <div className="space-y-5">
+          {megaMenu.map((group, groupIndex) => {
+            const departmentProducts = group.department
+              ? products.filter((product) => product.department === group.department)
+              : [];
+            return (
+              <div key={`${group.id}-${groupIndex}`} className="border border-border bg-background p-4" data-testid={`site-mega-menu-group-${groupIndex}`}>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[10rem_1fr_1fr_11rem_auto]">
+                  <label>
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Group ID</span>
+                    <input
+                      type="text"
+                      value={group.id}
+                      onChange={(event) => updateGroup(groupIndex, { id: event.target.value })}
+                      className="staff-input text-xs font-mono"
+                      data-testid={`input-mega-menu-id-${groupIndex}`}
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Group Label</span>
+                    <input
+                      type="text"
+                      value={group.label}
+                      onChange={(event) => updateGroup(groupIndex, { label: event.target.value })}
+                      className="staff-input text-xs"
+                      data-testid={`input-mega-menu-label-${groupIndex}`}
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">URL Path</span>
+                    <input
+                      type="text"
+                      value={group.href}
+                      onChange={(event) => updateGroup(groupIndex, { href: event.target.value })}
+                      className="staff-input text-xs font-mono"
+                      placeholder="/shop?department=men"
+                      data-testid={`input-mega-menu-href-${groupIndex}`}
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Department</span>
+                    <select
+                      value={group.department || ""}
+                      onChange={(event) => updateGroup(groupIndex, {
+                        department: (event.target.value || undefined) as MegaMenuGroup["department"],
+                      })}
+                      className="staff-input text-xs"
+                      data-testid={`select-mega-menu-department-${groupIndex}`}
+                    >
+                      <option value="">None</option>
+                      <option value="men">Men</option>
+                      <option value="women">Women</option>
+                      <option value="accessories">Accessories</option>
+                    </select>
+                  </label>
+                  <div className="flex items-end gap-2">
+                    <button type="button" onClick={() => moveGroup(groupIndex, "up")} disabled={groupIndex === 0} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30" aria-label={`Move ${group.label || "group"} up`} data-testid={`button-mega-menu-up-${groupIndex}`}><ArrowUp size={16} /></button>
+                    <button type="button" onClick={() => moveGroup(groupIndex, "down")} disabled={groupIndex === megaMenu.length - 1} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30" aria-label={`Move ${group.label || "group"} down`} data-testid={`button-mega-menu-down-${groupIndex}`}><ArrowDown size={16} /></button>
+                    <button type="button" onClick={() => removeGroup(groupIndex)} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10" aria-label={`Remove ${group.label || "group"}`} data-testid={`button-mega-menu-remove-${groupIndex}`}><Trash2 size={16} /></button>
+                  </div>
+                </div>
+
+                <label className="mt-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider">
+                  <input type="checkbox" checked={group.visible} onChange={(event) => updateGroup(groupIndex, { visible: event.target.checked })} data-testid={`checkbox-mega-menu-visible-${groupIndex}`} />
+                  Visible on storefront
+                </label>
+
+                <div className="mt-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Menu Columns</h4>
+                    <button type="button" onClick={() => addColumn(groupIndex)} className="inline-flex min-h-9 items-center gap-2 border border-border px-3 text-[10px] font-semibold uppercase tracking-wider hover:border-primary hover:text-primary" data-testid={`button-mega-menu-column-add-${groupIndex}`}><Plus size={14} /> Add Column</button>
+                  </div>
+                  {group.columns.map((column, columnIndex) => (
+                    <div key={columnIndex} className="border border-border p-3" data-testid={`site-mega-menu-column-${groupIndex}-${columnIndex}`}>
+                      <div className="flex items-end gap-2">
+                        <label className="flex-1">
+                          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Column Heading</span>
+                          <input type="text" value={column.heading} onChange={(event) => updateColumnHeading(groupIndex, columnIndex, event.target.value)} className="staff-input text-xs" data-testid={`input-mega-menu-column-heading-${groupIndex}-${columnIndex}`} />
+                        </label>
+                        <button type="button" onClick={() => removeColumn(groupIndex, columnIndex)} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10" aria-label={`Remove column ${columnIndex + 1}`} data-testid={`button-mega-menu-column-remove-${groupIndex}-${columnIndex}`}><Trash2 size={15} /></button>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {column.links.map((link, linkIndex) => (
+                          <div key={linkIndex} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]" data-testid={`site-mega-menu-link-${groupIndex}-${columnIndex}-${linkIndex}`}>
+                            <label>
+                              <span className="sr-only">Link label</span>
+                              <input type="text" value={link.label} onChange={(event) => updateLink(groupIndex, columnIndex, linkIndex, { label: event.target.value })} className="staff-input text-xs" placeholder="Link label" data-testid={`input-mega-menu-link-label-${groupIndex}-${columnIndex}-${linkIndex}`} />
+                            </label>
+                            <label>
+                              <span className="sr-only">Link URL path</span>
+                              <input type="text" value={link.href} onChange={(event) => updateLink(groupIndex, columnIndex, linkIndex, { href: event.target.value })} className="staff-input text-xs font-mono" placeholder="/shop?..." data-testid={`input-mega-menu-link-href-${groupIndex}-${columnIndex}-${linkIndex}`} />
+                            </label>
+                            <label className="flex min-h-10 items-center gap-2 text-[10px] font-semibold uppercase tracking-wider">
+                              <input type="checkbox" checked={Boolean(link.external)} onChange={(event) => updateLink(groupIndex, columnIndex, linkIndex, { external: event.target.checked || undefined })} data-testid={`checkbox-mega-menu-link-external-${groupIndex}-${columnIndex}-${linkIndex}`} />
+                              External
+                            </label>
+                            <button type="button" onClick={() => removeLink(groupIndex, columnIndex, linkIndex)} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10" aria-label={`Remove link ${link.label || linkIndex + 1}`} data-testid={`button-mega-menu-link-remove-${groupIndex}-${columnIndex}-${linkIndex}`}><Trash2 size={15} /></button>
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => addLink(groupIndex, columnIndex)} className="inline-flex min-h-9 items-center gap-2 border border-border px-3 text-[10px] font-semibold uppercase tracking-wider hover:border-primary hover:text-primary" data-testid={`button-mega-menu-link-add-${groupIndex}-${columnIndex}`}><Plus size={14} /> Add Link</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <fieldset className="mt-5">
+                  <legend className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Featured Products (up to two)</legend>
+                  {group.featuredProductSlugs
+                    .filter((slug) => !departmentProducts.some((product) => product.slug === slug))
+                    .map((slug) => (
+                      <div key={slug} className="mt-2 flex items-center justify-between border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive" data-testid={`row-mega-menu-invalid-featured-${groupIndex}-${slug}`}>
+                        <span className="font-mono">{slug}</span>
+                        <button type="button" onClick={() => toggleFeaturedProduct(groupIndex, slug)} className="border border-destructive/30 px-3 py-1 font-semibold uppercase tracking-wider hover:bg-destructive/10" data-testid={`button-mega-menu-invalid-featured-remove-${groupIndex}-${slug}`}>Remove</button>
+                      </div>
+                    ))}
+                  {!group.department ? (
+                    <p className="mt-2 text-xs text-muted-foreground" data-testid={`text-mega-menu-products-help-${groupIndex}`}>Choose a department to select featured products.</p>
+                  ) : departmentProducts.length === 0 ? (
+                    <p className="mt-2 text-xs text-muted-foreground" data-testid={`text-mega-menu-products-empty-${groupIndex}`}>No products are available for this department.</p>
+                  ) : (
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {departmentProducts.map((product) => {
+                        const selected = group.featuredProductSlugs.includes(product.slug);
+                        return (
+                          <label key={product.slug} className="flex items-center gap-2 border border-border p-3 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              disabled={!selected && group.featuredProductSlugs.length >= 2}
+                              onChange={() => toggleFeaturedProduct(groupIndex, product.slug)}
+                              data-testid={`checkbox-mega-menu-featured-${groupIndex}-${product.slug}`}
+                            />
+                            <span>{product.name}</span>
+                            <span className="ml-auto font-mono text-[10px] text-muted-foreground">{product.slug}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </fieldset>
+              </div>
+            );
+          })}
+          <button type="button" onClick={addGroup} className="inline-flex min-h-10 items-center gap-2 border border-border px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary hover:text-primary" data-testid="button-mega-menu-add"><Plus size={15} /> Add Menu Group</button>
+        </div>
+      </section>
+
+      <section className="border border-border bg-card p-5" aria-labelledby="search-suggestions-editor-heading">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-primary">Header Search Suggestions</h3>
+        <h3 id="search-suggestions-editor-heading" className="text-xs font-semibold uppercase tracking-wider text-primary">Header Search Suggestions</h3>
         {validateHrefs.length > 0 && (
           <div className="flex items-center gap-2 text-destructive">
             <AlertCircle size={14} />
@@ -154,6 +477,7 @@ export function PlatformEditorSite({
           <Plus size={15} /> Add Suggestion
         </button>
       </div>
+      </section>
     </div>
   );
 }

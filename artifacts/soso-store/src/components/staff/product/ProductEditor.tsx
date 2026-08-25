@@ -8,6 +8,7 @@ import {
   handleUpdateAvailableSizes, 
   handleUpdateStandardSizes,
   handleUpdateFulfilmentState,
+  handleUpdateDepartment,
 } from "./ProductTransitions";
 import { StringListEditor } from "./StringListEditor";
 import { ImagesEditor } from "./ImagesEditor";
@@ -22,14 +23,16 @@ export function ProductEditor({
 }: {
   product: CatalogProduct;
   allProducts: CatalogProduct[];
-  collections: Pick<PlatformCollection, "slug" | "label" | "category">[];
+  collections: Pick<PlatformCollection, "slug" | "label" | "category" | "department">[];
   isExpanded: boolean;
   onToggle: () => void;
   onChange: (product: CatalogProduct) => void;
 }) {
   const categoryOptions = useMemo(
-    () => Array.from(new Set(collections.map((collection) => collection.category))),
-    [collections],
+    () => Array.from(new Set(collections
+      .filter((collection) => collection.department === product.department)
+      .map((collection) => collection.category))),
+    [collections, product.department],
   );
   const validations = useMemo(
     () => validateProduct(product, allProducts, categoryOptions),
@@ -89,7 +92,7 @@ export function ProductEditor({
                     data-testid={`input-product-name-${product.slug}`}
                   />
                 </label>
-                <div className="flex gap-4">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <label className="block flex-1">
                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Price</span>
                     <input
@@ -102,8 +105,28 @@ export function ProductEditor({
                       data-testid={`input-product-price-${product.slug}`}
                     />
                   </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Department</span>
+                    <select
+                      value={product.department}
+                      onChange={(event) => {
+                        const nextDepartment = event.target.value as CatalogProduct["department"];
+                        const nextCategories = Array.from(new Set(collections
+                          .filter((collection) => collection.department === nextDepartment)
+                          .map((collection) => collection.category)));
+                        const updated = handleUpdateDepartment(product, nextDepartment, nextCategories, window.confirm);
+                        if (updated) onChange(updated);
+                      }}
+                      className="staff-input text-xs"
+                      data-testid={`select-product-department-${product.slug}`}
+                    >
+                      <option value="men">Men</option>
+                      <option value="women">Women</option>
+                      <option value="accessories">Accessories</option>
+                    </select>
+                  </label>
                   <label className="block flex-1">
-                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Category</span>
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Collection category</span>
                     <select
                       value={product.category || ""}
                       onChange={(e) => onChange({ ...product, category: e.target.value })}

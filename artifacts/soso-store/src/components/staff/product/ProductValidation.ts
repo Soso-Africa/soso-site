@@ -27,6 +27,7 @@ export function validateProduct(
   if (!product.fabric) errors.push("Fabric is required");
   if (!product.fit) errors.push("Fit is required");
   if (!product.dispatchMessage) errors.push("Dispatch message is required");
+  if (!["men", "women", "accessories"].includes(product.department)) errors.push("Department must be Men, Women, or Accessories");
   if (product.merchandising?.sortPriority == null) errors.push("Sort priority is required");
 
   // Arrays structure
@@ -52,6 +53,12 @@ export function validateProduct(
   });
 
   const hasCustomSize = sizes.some((size) => size.toLowerCase() === "custom");
+  if (product.department !== "men" && product.customEligible) {
+    errors.push("Only Men products may offer Custom or made-to-measure sizing");
+  }
+  if (product.department !== "men" && product.fulfilmentState !== "unavailable" && !product.standardEligible) {
+    errors.push("Women and Accessories products must use Standard ready-to-wear sizing");
+  }
   if (product.customEligible && !hasCustomSize) {
     errors.push("Custom eligibility requires a Custom selectable size");
   }

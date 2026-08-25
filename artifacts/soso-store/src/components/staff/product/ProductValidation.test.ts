@@ -7,6 +7,7 @@ import type { CatalogProduct } from "../../../data/platformContent";
 const mockBaseProduct: CatalogProduct = {
   slug: "test-product",
   name: "Test Product",
+  department: "men",
   price: 100,
   category: "tops",
   colour: "Black",
@@ -88,6 +89,17 @@ describe("ProductValidation", () => {
       unavailableMessage: "Temporarily unavailable",
     };
     assert.strictEqual(validateProduct(product, [product]).some(e => e.includes("At least one selectable size")), true);
+  });
+
+  it("keeps Women and Accessories ready-to-wear only", () => {
+    const product: CatalogProduct = {
+      ...mockBaseProduct,
+      department: "women",
+      customEligible: true,
+      sizes: ["S", "Custom"],
+    };
+    const errors = validateProduct(product, [product], ["tops"]);
+    assert.strictEqual(errors.some((error) => error.includes("Only Men products")), true);
   });
 
   it("matches server provenance source-link rules", () => {

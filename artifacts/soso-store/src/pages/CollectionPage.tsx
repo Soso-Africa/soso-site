@@ -18,7 +18,7 @@ export default function CollectionPage({ slug }: { slug: string }) {
     </div></main>;
   }
   const pieces = products
-    .filter((product) => product.category === meta.category)
+    .filter((product) => product.department === meta.department && product.category === meta.category)
     .sort((a, b) => b.merchandising.sortPriority - a.merchandising.sortPriority);
   const schema = siteUrl && catalogApproved ? {
     "@context": "https://schema.org", "@type": "CollectionPage", name: meta.h1,
@@ -37,7 +37,7 @@ export default function CollectionPage({ slug }: { slug: string }) {
           <ProductCard key={product.slug} product={product} testIdPrefix="collection" />
         )}</div>}
       <div className="mt-16 text-center pt-10 border-t border-border/50 flex flex-wrap gap-4 justify-center">
-        {collections.filter((item) => item.slug !== slug).map((item) =>
+        {collections.filter((item) => item.slug !== slug && item.department === meta.department).map((item) =>
           <Link key={item.slug} href={`/collections/${item.slug}`} className="text-[11px] uppercase tracking-[0.2em] px-5 py-3 border border-border">{item.label}</Link>)}
         <Link href={platform.data.content.pages.shop.collectionNotFoundCta.href} className="text-[11px] uppercase tracking-[0.2em] px-5 py-3 bg-primary text-primary-foreground">{platform.data.content.pages.shop.allCollectionsLabel}</Link>
       </div>

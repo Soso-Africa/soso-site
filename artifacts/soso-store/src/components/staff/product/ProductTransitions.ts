@@ -1,5 +1,31 @@
 import type { CatalogProduct } from "../../../data/platformContent";
 
+export function handleUpdateDepartment(
+  product: CatalogProduct,
+  department: CatalogProduct["department"],
+  availableCategories: string[],
+  confirm: (msg: string) => boolean,
+): CatalogProduct | null {
+  const leavingMenWithCustomData = department !== "men" && (
+    product.customEligible
+    || product.sizes.some((size) => size.toLowerCase() === "custom")
+    || Boolean(product.commerceVariantIds?.Custom)
+  );
+  if (leavingMenWithCustomData && !confirm("Women and Accessories are ready-to-wear only. Changing department will remove Custom sizing and its commerce mapping. Continue?")) {
+    return null;
+  }
+  const commerceVariantIds = { ...(product.commerceVariantIds ?? {}) };
+  if (department !== "men") delete commerceVariantIds.Custom;
+  return {
+    ...product,
+    department,
+    category: availableCategories.includes(product.category) ? product.category : (availableCategories[0] ?? product.category),
+    customEligible: department === "men" ? product.customEligible : false,
+    sizes: department === "men" ? product.sizes : product.sizes.filter((size) => size.toLowerCase() !== "custom"),
+    commerceVariantIds: Object.keys(commerceVariantIds).length > 0 ? commerceVariantIds : undefined,
+  };
+}
+
 export function handleToggleCustomEligible(
   product: CatalogProduct,
   checked: boolean,

@@ -94,6 +94,7 @@ export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
     tag: product.inStock === false ? "Currently unavailable" : "JusticeSure collection",
     note: product.inStock === false ? "Currently unavailable for secure checkout" : "Live price and availability",
     category: "Online collection",
+    department: "men",
     description: typeof product.description === "string" ? product.description : "Published through JusticeSure.",
     sizes,
     commerceProductId: product.id,

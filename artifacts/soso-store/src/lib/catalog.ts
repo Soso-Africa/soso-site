@@ -3,6 +3,7 @@ import type { CatalogProduct } from "@/data/platformContent";
 export function filterAndSortProducts(
   products: CatalogProduct[],
   options: {
+    department?: string | null;
     category?: string | null;
     fulfillment?: string | null;
     size?: string | null;
@@ -14,6 +15,10 @@ export function filterAndSortProducts(
   }
 ): CatalogProduct[] {
   let result = products;
+
+  if (options.department && options.department !== "__all") {
+    result = result.filter((product) => product.department === options.department);
+  }
 
   if (options.category && options.category !== "__all") {
     result = result.filter(p => p.category === options.category);

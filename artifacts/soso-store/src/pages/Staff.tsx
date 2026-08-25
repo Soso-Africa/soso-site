@@ -484,7 +484,12 @@ function PlatformContentManagementSection() {
           ...(content?.products.map((product) => `/product/${product.slug}`) ?? []),
           ...(content?.collections.map((collection) => `/collections/${collection.slug}`) ?? []),
         ];
-        structuredEditor = <PlatformEditorSite data={parsed as PlatformContent["site"]} allowedTargets={allowedTargets} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+        structuredEditor = <PlatformEditorSite
+          data={parsed as PlatformContent["site"]}
+          products={content?.products ?? []}
+          allowedTargets={allowedTargets}
+          onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+        />;
       } else if (section === "catalogue") {
         structuredEditor = <PlatformEditorCatalogue data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy">} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
       }
@@ -505,6 +510,8 @@ function PlatformContentManagementSection() {
       {section === "site" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
         <p className="font-semibold text-primary">Site navigation and search checks</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+          <li>Keep Men first. Publish Women or Accessories only after that department has at least one available product and one or two approved featured product images.</li>
+          <li>Use department-matched catalogue products for menu imagery; Women and Accessories must never reuse Men products as featured cards.</li>
           <li>Curate header searchSuggestions with unique, safe links to the shop or a published product or collection.</li>
           <li>Keep the search label, placeholder, close label, and suggestions heading clear for keyboard and screen-reader shoppers.</li>
         </ul>
@@ -512,6 +519,7 @@ function PlatformContentManagementSection() {
       {section === "catalogue" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
         <p className="font-semibold text-primary">Hybrid catalogue publishing checks</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+          <li>Assign every piece and collection to Men, Women, or Accessories. Women and Accessories are ready-to-wear only and cannot include Custom sizing.</li>
           <li>Set colour, fabric, fit, searchableTerms, merchandising priority, and Standard/Custom eligibility for every piece.</li>
           <li>Add product-specific composition, care, delivery, and returns copy when the piece needs guidance beyond the shared defaults.</li>
           <li>Use readyNowSizes only for Standard sizes physically ready now. An empty list stays purchasable when fulfilmentState is made_immediately.</li>

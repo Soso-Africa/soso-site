@@ -4,6 +4,16 @@ import { createElement } from "react";
 
 export type SeoCopy = { title: string; description: string };
 export type ContentLink = { label: string; href: string; external?: boolean };
+export type ProductDepartment = "men" | "women" | "accessories";
+export type MegaMenuGroup = {
+  id: string;
+  label: string;
+  href: string;
+  department?: ProductDepartment;
+  visible: boolean;
+  columns: { heading: string; links: ContentLink[] }[];
+  featuredProductSlugs: string[];
+};
 export type CatalogProduct = {
   slug: string;
   name: string;
@@ -17,6 +27,7 @@ export type CatalogProduct = {
   tag: string;
   note: string;
   category: string;
+  department: ProductDepartment;
   description: string;
   sizes: string[];
   featured?: boolean;
@@ -44,6 +55,7 @@ export type PlatformCollection = {
   slug: string;
   label: string;
   category: string;
+  department: ProductDepartment;
   h1: string;
   intro: string;
   seo: SeoCopy;
@@ -63,6 +75,7 @@ export type PlatformContent = {
     whatsappUrl: string;
     navigation: ContentLink[];
     mobileNavigation: ContentLink[];
+    megaMenu: MegaMenuGroup[];
     platformState: { loadingMessage: string; unavailableMessage: string };
     header: {
       openMenuLabel: string; closeMenuLabel: string; mainNavigationLabel: string; whatsappLabel: string;
@@ -107,6 +120,7 @@ export type PlatformContent = {
       collectionNotFoundCta: ContentLink; collectionEmptyMessage: string; allCollectionsLabel: string;
       searchLabel: string; searchPlaceholder: string; noSearchResultsMessage: string;
       newLabel: string; readyNowLabel: string; madeImmediatelyLabel: string; unavailableLabel: string;
+      departments: Record<ProductDepartment, { seo: SeoCopy; eyebrow: string; title: string; intro: string }>;
     };
     faq: {
       seo: SeoCopy; eyebrow: string; title: string; intro: string; helpText: string; listAriaLabel: string;
