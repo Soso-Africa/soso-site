@@ -3,10 +3,22 @@ import pinoHttp from "pino-http";
 import cookieParser from "cookie-parser";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { ensurePlatformContent } from "./lib/platform-content";
 import { requireSameOriginForWrites } from "./middlewares/sameOriginWrite";
 import { loadStaffSession } from "./middlewares/staff";
 
 const app: Express = express();
+let initialization: Promise<void> | null = null;
+
+export function initializeApi(): Promise<void> {
+  if (!initialization) {
+    initialization = ensurePlatformContent().catch((error) => {
+      initialization = null;
+      throw error;
+    });
+  }
+  return initialization;
+}
 
 app.set("trust proxy", 1);
 app.use(

@@ -1,4 +1,4 @@
-import app from "../artifacts/api-server/dist/app.mjs";
+import app, { initializeApi } from "../artifacts/api-server/dist/app.mjs";
 
 function restoreApiPath(req, res) {
   const requestUrl = new URL(req.url ?? "/", "https://soso.invalid");
@@ -20,7 +20,8 @@ function restoreApiPath(req, res) {
   return true;
 }
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (!restoreApiPath(req, res)) return;
+  await initializeApi();
   return app(req, res);
 }
