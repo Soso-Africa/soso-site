@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = await readFile(resolve(root, "scripts/generate-seo-assets.mjs"), "utf8");
+const main = await readFile(resolve(root, "src/main.tsx"), "utf8");
 const vercel = await readFile(resolve(root, "../../vercel.json"), "utf8");
 
 assert.match(source, /const approvedOrigin = "https:\/\/shopsoso\.co"/);
@@ -57,6 +58,11 @@ assert.match(source, /product\.department === collection\.department && product\
 assert.match(source, /resolve\(out, `\$\{path\.slice\(1\)\}\.html`\)/);
 assert.match(source, /await clearPrerenders\(\)/);
 assert.match(source, /hydrationAsset/);
+assert.match(source, /data-soso-crawler-content/);
+assert.match(source, /assertNoIndexFallback\(builtShell\)/);
+assert.match(source, /writeFile\(resolve\(out, "index\.html"\), builtShell\)/);
+assert.match(source, /SOSO_SEO_OUTPUT_DIR/);
+assert.match(main, /rootElement\.replaceChildren\(\)/);
 const vercelConfig = JSON.parse(vercel);
 assert.equal(vercelConfig.cleanUrls, true);
 assert.equal(vercelConfig.routes[0].src, "/api");
@@ -71,6 +77,6 @@ assert.deepEqual(vercelConfig.routes.slice(0, 2), [
   { src: "/api", dest: "/api/handler" },
   { src: "/api/(.*)", dest: "/api/handler?__soso_path=$1" },
 ]);
-assert.deepEqual(vercelConfig.routes.slice(filesystemIndex + 1), [{ src: "/(.*)", dest: "/" }]);
+assert.deepEqual(vercelConfig.routes.slice(filesystemIndex + 1), [{ src: "/(.*)", dest: "/spa-fallback" }]);
 assert.ok(!vercelConfig.routes.some((route) => /journal|product|collections/.test(route.src || "")), "Prerenders must use clean URL filesystem routing, not explicit rewrites.");
 process.stdout.write("SEO source validation passed: canonical gate, private fallback, crawlable route files, feeds, schema, social metadata, and www redirect are present.\n");

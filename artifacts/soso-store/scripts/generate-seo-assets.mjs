@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const out = resolve(root, "dist/public");
+const out = process.env.SOSO_SEO_OUTPUT_DIR
+  ? resolve(process.env.SOSO_SEO_OUTPUT_DIR)
+  : resolve(root, "dist/public");
 const approvedOrigin = "https://shopsoso.co";
 const requestedOrigin = (process.env.VITE_PUBLIC_SITE_URL || "").trim();
 const indexingEnabled = process.env.VITE_SOSO_INDEXING_ENABLED === "true";
@@ -42,6 +44,7 @@ const now = iso();
 
 await mkdir(out, { recursive: true });
 const robotsPath = resolve(out, "robots.txt");
+const fallbackPath = resolve(out, "spa-fallback.html");
 const generated = ["sitemap.xml", "feed.xml", "atom.xml", "feed.json", "llms.txt", "seo-manifest.json", "_seo"];
 const routeRoots = ["shop", "product", "collections", "journal", "faq", "about", "policies", "privacy", "terms", "delivery-returns", "care"];
 async function clearPrerenders() {
@@ -50,7 +53,25 @@ async function clearPrerenders() {
     rm(resolve(out, `${path}.html`), { force: true }),
   ]));
 }
+function assertNoIndexFallback(shell) {
+  if (!/<meta[^>]+name="robots"[^>]+content="noindex,\s*nofollow"/i.test(shell)) {
+    throw new Error("The SPA fallback must retain a noindex, nofollow robots directive.");
+  }
+  if (/<link[^>]+rel="canonical"/i.test(shell)) {
+    throw new Error("The SPA fallback must not advertise a canonical route.");
+  }
+}
+const currentIndex = await readFile(resolve(out, "index.html"), "utf8");
+const builtShell = currentIndex.includes('data-soso-managed="robots"')
+  ? currentIndex
+  : await readFile(fallbackPath, "utf8");
+assertNoIndexFallback(builtShell);
+await writeFile(fallbackPath, builtShell);
+const hydrationAsset = builtShell.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/i)?.[1];
+if (!hydrationAsset) throw new Error("Vite build output is missing its hydration client asset.");
+
 if (!canIndex) {
+  await writeFile(resolve(out, "index.html"), builtShell);
   await writeFile(robotsPath, "User-agent: *\nDisallow: /\n\n# Private until the approved production canonical gate is enabled.\n");
   await Promise.all(generated.map((file) => rm(resolve(out, file), { recursive: true, force: true })));
   // These are filesystem-routed prerenders. Remove them rather than allowing a
@@ -61,9 +82,6 @@ if (!canIndex) {
 }
 
 if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required when public SEO generation is enabled.");
-const builtShell = await readFile(resolve(out, "index.html"), "utf8");
-const hydrationAsset = builtShell.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/i)?.[1];
-if (!hydrationAsset) throw new Error("Vite build output is missing its hydration client asset.");
 await clearPrerenders();
 await Promise.all(generated.map((file) => rm(resolve(out, file), { recursive: true, force: true })));
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
@@ -140,7 +158,7 @@ function page({ path, title, description, h1, body, bodyHtml, schema = [], type 
   const socialImage = image ? absolute(image) : (socialImagePath ? absolute(socialImagePath) : "");
   const imageMeta = socialImage ? `<meta property="og:image" content="${escapeHtml(socialImage)}"><meta property="og:image:alt" content="${escapeHtml(imageAlt || title)}"><meta name="twitter:image" content="${escapeHtml(socialImage)}"><meta name="twitter:image:alt" content="${escapeHtml(imageAlt || title)}">` : "";
   const articleMeta = article ? `<meta property="article:published_time" content="${escapeHtml(article.publishedAt)}"><meta property="article:modified_time" content="${escapeHtml(article.updatedAt)}"><meta property="article:author" content="${escapeHtml(article.authorName)}">${(article.tags || []).map((tag) => `<meta property="article:tag" content="${escapeHtml(tag)}">`).join("")}` : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="${type}"><meta property="og:site_name" content="${escapeHtml(platform.site?.name || "SOSO Africa")}"><meta property="og:locale" content="en_NG"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}">${imageMeta}${articleMeta}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><script id="soso-server-schema" type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c")}</script></head><body><main><h1>${escapeHtml(h1)}</h1>${bodyHtml || `<p>${escapeHtml(body)}</p>`}${links(staticPages)}</main><div id="root"></div><script type="module" src="${escapeHtml(hydrationAsset)}"></script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="${type}"><meta property="og:site_name" content="${escapeHtml(platform.site?.name || "SOSO Africa")}"><meta property="og:locale" content="en_NG"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}">${imageMeta}${articleMeta}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><script id="soso-server-schema" type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c")}</script></head><body><div id="root"><main data-soso-crawler-content><h1>${escapeHtml(h1)}</h1>${bodyHtml || `<p>${escapeHtml(body)}</p>`}${links(staticPages)}</main></div><script type="module" src="${escapeHtml(hydrationAsset)}"></script></body></html>`;
 }
 async function emit(path, html) {
   const file = path === "/" ? resolve(out, "index.html") : resolve(out, `${path.slice(1)}.html`);
@@ -176,7 +194,7 @@ if (journalApproved) for (const article of articles) {
   const relatedHtml = related.length ? `<nav aria-label="Related content">${related.map((href) => `<a href="${escapeHtml(href)}">${escapeHtml(href.split("/").at(-1).replaceAll("-", " "))}</a>`).join(" · ")}</nav>` : "";
   await emit(item.path, page({ ...item, type: "article", image: article.coverImageUrl, imageAlt: article.coverImageAlt, article, bodyHtml: `${renderMarkdown(article.body)}${relatedHtml}`, schema: [{ "@context": "https://schema.org", "@type": "BlogPosting", headline: article.title, description: article.description, articleBody: article.bodyText, datePublished: article.publishedAt, dateModified: article.updatedAt, author: { "@type": "Person", name: article.authorName }, publisher: { "@id": `${siteUrl}/#organization` }, mainEntityOfPage: { "@type": "WebPage", "@id": absolute(item.path) }, ...(article.category ? { articleSection: article.category } : {}), ...(article.tags?.length ? { keywords: article.tags.join(", ") } : {}), ...(article.coverImageUrl ? { image: { "@type": "ImageObject", url: absolute(article.coverImageUrl), ...(article.coverImageAlt ? { caption: article.coverImageAlt } : {}) } } : {}), relatedLink: related.map(absolute) }] }));
 }
-await writeFile(robotsPath, `User-agent: *\nAllow: /\nDisallow: /checkout\nDisallow: /staff\nDisallow: /sign-in\nDisallow: /sign-up\nSitemap: ${siteUrl}/sitemap.xml\n`);
+await writeFile(robotsPath, `User-agent: *\nAllow: /\nDisallow: /checkout\nDisallow: /staff\nDisallow: /sign-in\nDisallow: /sign-up\nDisallow: /journal/preview\nSitemap: ${siteUrl}/sitemap.xml\n`);
 await writeFile(resolve(out, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${routes.map((r) => `  <url><loc>${xml(absolute(r.path))}</loc><lastmod>${iso(r.lastmod)}</lastmod></url>`).join("\n")}\n</urlset>\n`);
 const feedItems = articles.map((a) => ({ id: absolute(`/journal/${a.slug}`), url: absolute(`/journal/${a.slug}`), title: a.title, content_text: a.bodyText || a.excerpt, summary: a.description, date_published: a.publishedAt, date_modified: a.updatedAt, authors: [{ name: a.authorName }] }));
 if (journalApproved) {

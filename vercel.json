@@ -38,7 +38,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/"
+      "dest": "/spa-fallback"
     }
   ]
 }
