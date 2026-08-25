@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import {
   FinalizeStorageUploadBody,
@@ -22,12 +21,6 @@ const router: IRouter = Router();
 const storage = new CloudinaryStorageService();
 const SAFE_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$/;
 export { detectMediaContentType, parseMediaByteRange } from "../lib/media-files";
-
-export function storageDiagnosticTokenMatches(expected: string, supplied: string): boolean {
-  return expected.length >= 32
-    && supplied.length === expected.length
-    && timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
-}
 
 function inspectionIssue(
   relativePath: string,
@@ -110,32 +103,6 @@ router.post(
     }
   },
 );
-
-router.post("/storage/diagnostic", async (req: Request, res: Response): Promise<void> => {
-  const expected = process.env.STAFF_BOOTSTRAP_TOKEN ?? "";
-  const supplied = req.header("x-soso-bootstrap-token") ?? "";
-  if (!storageDiagnosticTokenMatches(expected, supplied)) {
-    res.status(403).json({ error: "Storage diagnostic authorization failed" });
-    return;
-  }
-  try {
-    const inspected = await storage.runDiagnostic();
-    const issue = inspectionIssue("uploads/storage-diagnostic.png", inspected);
-    if (issue) {
-      res.status(500).json({ error: "Cloudinary diagnostic media failed verification" });
-      return;
-    }
-    res.json({
-      status: "ok",
-      contentType: inspected.contentType,
-      size: inspected.size,
-      cleanedUp: true,
-    });
-  } catch (error) {
-    req.log.error({ err: error }, "Cloudinary storage diagnostic failed");
-    res.status(503).json({ error: "Cloudinary storage diagnostic failed" });
-  }
-});
 
 router.get("/storage/objects/*path", async (req: Request, res: Response): Promise<void> => {
   try {

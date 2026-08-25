@@ -298,9 +298,10 @@ export class CloudinaryStorageService {
     const form = new FormData();
     for (const [key, value] of Object.entries(upload.uploadFields)) form.append(key, value);
     form.append("file", new Blob([diagnosticPng], { type: "image/png" }), "storage-diagnostic.png");
-    let uploaded = false;
+    let uploadAttempted = false;
     const relativePath = upload.objectPath.slice("/api/storage/objects/".length);
     try {
+      uploadAttempted = true;
       const response = await fetch(upload.uploadURL, {
         method: upload.uploadMethod,
         body: form,
@@ -309,7 +310,6 @@ export class CloudinaryStorageService {
       if (!response.ok) {
         throw new Error(`Cloudinary diagnostic upload failed (${response.status})`);
       }
-      uploaded = true;
       let lastError: unknown;
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
@@ -321,7 +321,7 @@ export class CloudinaryStorageService {
       }
       throw lastError;
     } finally {
-      if (uploaded) await this.deleteUploadedMedia(relativePath);
+      if (uploadAttempted) await this.deleteUploadedMedia(relativePath);
     }
   }
 }

@@ -9,6 +9,7 @@
     "pretest": "pnpm run build",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test": "node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs pnpm --dir ../../scripts exec tsx --test ../artifacts/api-server/src/**/*.test.ts",
+    "verify:cloudinary": "pnpm --dir ../../scripts exec tsx ../artifacts/api-server/scripts/verify-cloudinary-storage.ts",
     "verify:privacy-access-packages": "pnpm --dir ../../scripts exec tsx ../artifacts/api-server/scripts/verify-privacy-access-packages.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

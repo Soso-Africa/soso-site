@@ -6,9 +6,10 @@ import {
   cloudinaryDeliveryUrlForPath,
   createCloudinarySignature,
   cloudinaryUploadPolicyForContentType,
+  CloudinaryStorageService,
   MediaNotFoundError,
 } from "../lib/cloudinary-storage";
-import { detectMediaContentType, parseMediaByteRange, storageDiagnosticTokenMatches } from "./storage";
+import { detectMediaContentType, parseMediaByteRange } from "./storage";
 
 test("stored media detection accepts only approved image and video signatures", () => {
   assert.equal(detectMediaContentType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "image/png");
@@ -81,12 +82,42 @@ test("Cloudinary upload policies enforce separate formats and byte limits", () =
   assert.throws(() => cloudinaryUploadPolicyForContentType("image/svg+xml"));
 });
 
-test("the storage diagnostic requires an exact high-entropy bootstrap token", () => {
-  const token = "a".repeat(32);
-  assert.equal(storageDiagnosticTokenMatches(token, token), true);
-  assert.equal(storageDiagnosticTokenMatches(token, `${token.slice(0, -1)}b`), false);
-  assert.equal(storageDiagnosticTokenMatches("short", "short"), false);
-  assert.equal(storageDiagnosticTokenMatches(token, ""), false);
+test("the production diagnostic attempts cleanup after an ambiguous upload failure", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalEnvironment = {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+  };
+  const requestedURLs: string[] = [];
+  process.env.CLOUDINARY_CLOUD_NAME = "diagnostic-cloud";
+  process.env.CLOUDINARY_API_KEY = "diagnostic-key";
+  process.env.CLOUDINARY_API_SECRET = "diagnostic-secret";
+  globalThis.fetch = async (input): Promise<Response> => {
+    const url = String(input);
+    requestedURLs.push(url);
+    if (url.includes("/upload_presets/")) return new Response(null, { status: 200 });
+    if (url.endsWith("/image/upload")) throw new Error("connection reset after remote acceptance");
+    if (url.endsWith("/image/destroy")) return new Response(null, { status: 200 });
+    throw new Error(`Unexpected diagnostic request: ${url}`);
+  };
+
+  try {
+    await assert.rejects(
+      new CloudinaryStorageService().runDiagnostic(),
+      /connection reset after remote acceptance/,
+    );
+    assert.equal(requestedURLs.some((url) => url.endsWith("/image/upload")), true);
+    assert.equal(requestedURLs.some((url) => url.endsWith("/image/destroy")), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalEnvironment.cloudName === undefined) delete process.env.CLOUDINARY_CLOUD_NAME;
+    else process.env.CLOUDINARY_CLOUD_NAME = originalEnvironment.cloudName;
+    if (originalEnvironment.apiKey === undefined) delete process.env.CLOUDINARY_API_KEY;
+    else process.env.CLOUDINARY_API_KEY = originalEnvironment.apiKey;
+    if (originalEnvironment.apiSecret === undefined) delete process.env.CLOUDINARY_API_SECRET;
+    else process.env.CLOUDINARY_API_SECRET = originalEnvironment.apiSecret;
+  }
 });
 
 test("legacy storage paths resolve only to SOSO-owned Cloudinary delivery URLs", () => {
