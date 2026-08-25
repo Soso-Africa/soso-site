@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { StaffOrderDispatchGuidance } from './staffOrderDispatchGuidance';
+import type { StaffOrderItem } from './staffOrderItem';
 import type { StaffOrderRefundRequestStatus } from './staffOrderRefundRequestStatus';
 
 export interface StaffOrder {
@@ -17,6 +19,8 @@ export interface StaffOrder {
   total: string;
   currency: string;
   status: string;
+  dispatchGuidance: StaffOrderDispatchGuidance;
+  items: StaffOrderItem[];
   /**
      * @maxLength 2000
      * @nullable

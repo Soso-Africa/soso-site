@@ -27,6 +27,9 @@ import {
   UpdateStaffOrderBody,
   UpdateStaffOrderParams,
   UpdateStaffOrderResponse,
+  UpdateStaffMeasurementBody,
+  UpdateStaffMeasurementParams,
+  UpdateStaffMeasurementResponse,
   UpdateStaffPrivacyRequestBody,
   UpdateStaffPrivacyRequestParams,
   UpdateStaffPrivacyRequestResponse,
@@ -38,6 +41,8 @@ import {
   customerEnquiriesTable,
   commerceCheckoutAttemptsTable,
   db,
+  measurementRequestsTable,
+  measurementRevisionsTable,
   orderItemsTable,
   redirectsTable,
   redirectRevisionsTable,
@@ -53,6 +58,10 @@ import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzl
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { newManagedStaffIdentity, setManagedStaffPassword } from "./staff-auth";
+import {
+  CUSTOM_DISPATCH_GUIDANCE,
+  staffMeasurementActionAllowed,
+} from "../lib/measurements";
 import {
   buildAnalyticsQualityReport,
   QUALITY_EVENT_LIMIT,
@@ -174,7 +183,36 @@ export function hasRecordedIdentityVerification(request: {
   return Boolean(request.verificationNote?.trim() && request.verifiedAt && request.verifiedByClerkUserId);
 }
 
-function orderView(order: typeof ordersTable.$inferSelect) {
+type StaffOrderItemRow = {
+  item: typeof orderItemsTable.$inferSelect;
+  measurement: typeof measurementRequestsTable.$inferSelect | null;
+};
+
+function staffMeasurementView(row: StaffOrderItemRow) {
+  const request = row.measurement;
+  if (!request) return null;
+  return {
+    id: request.id,
+    lineNumber: row.item.lineNumber,
+    productId: row.item.commerceProductId,
+    variantId: row.item.commerceVariantId,
+    productName: row.item.productName,
+    selectionType: "custom" as const,
+    selectedSize: row.item.selectedSize,
+    status: request.status,
+    unit: request.unit,
+    values: request.values,
+    customerNote: request.customerNote,
+    clarificationNote: request.clarificationNote,
+    productionException: request.productionException,
+    version: request.version,
+    submittedAt: request.submittedAt,
+    confirmedAt: request.confirmedAt,
+    updatedAt: request.updatedAt,
+  };
+}
+
+function orderView(order: typeof ordersTable.$inferSelect, rows: StaffOrderItemRow[] = []) {
   return {
     id: order.id,
     orderNumber: order.orderNumber,
@@ -183,6 +221,18 @@ function orderView(order: typeof ordersTable.$inferSelect) {
     total: order.total,
     currency: order.currency,
     status: order.status,
+    dispatchGuidance: CUSTOM_DISPATCH_GUIDANCE,
+    items: rows.map((row) => ({
+      id: row.item.id,
+      lineNumber: row.item.lineNumber,
+      productId: row.item.commerceProductId,
+      variantId: row.item.commerceVariantId,
+      productName: row.item.productName,
+      selectionType: row.item.selectionType,
+      selectedSize: row.item.selectedSize,
+      quantity: row.item.quantity,
+      measurement: staffMeasurementView(row),
+    })),
     atelierNotes: order.atelierNotes,
     deliveryNotes: order.deliveryNotes,
     refundRequestStatus: order.refundRequestStatus,
@@ -193,6 +243,22 @@ function orderView(order: typeof ordersTable.$inferSelect) {
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
   };
+}
+
+async function staffOrderItems(orderIds: string[]): Promise<Map<string, StaffOrderItemRow[]>> {
+  const grouped = new Map<string, StaffOrderItemRow[]>();
+  if (!orderIds.length) return grouped;
+  const rows = await db.select({ item: orderItemsTable, measurement: measurementRequestsTable })
+    .from(orderItemsTable)
+    .leftJoin(measurementRequestsTable, eq(measurementRequestsTable.orderItemId, orderItemsTable.id))
+    .where(inArray(orderItemsTable.orderId, orderIds))
+    .orderBy(orderItemsTable.lineNumber);
+  for (const row of rows) {
+    const values = grouped.get(row.item.orderId) ?? [];
+    values.push(row);
+    grouped.set(row.item.orderId, values);
+  }
+  return grouped;
 }
 
 export function staffOverviewView(
@@ -449,8 +515,8 @@ router.get("/staff/orders", requireStaffRoles("owner", "administrator", "operati
     .where(and(...orderConditions))
     .orderBy(desc(ordersTable.createdAt))
     .limit(100);
-
-  res.json(ListStaffOrdersResponse.parse(orders.map(orderView)));
+  const items = await staffOrderItems(orders.map(({ id }) => id));
+  res.json(ListStaffOrdersResponse.parse(orders.map((order) => orderView(order, items.get(order.id)))));
 });
 
 router.patch("/staff/orders/:id", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
@@ -488,6 +554,21 @@ router.patch("/staff/orders/:id", requireStaffRoles("owner", "operations"), asyn
     return;
   }
   const now = new Date();
+  const guards = [eq(ordersTable.id, order.id)];
+  if (parsed.data.status === "atelier_confirmation" || parsed.data.status === "in_production") {
+    guards.push(sql`not exists (
+      select 1
+      from ${orderItemsTable}
+      left join ${measurementRequestsTable}
+        on ${measurementRequestsTable.orderItemId} = ${orderItemsTable.id}
+      where ${orderItemsTable.orderId} = ${ordersTable.id}
+        and ${orderItemsTable.selectionType} = 'custom'
+        and (
+          ${measurementRequestsTable.id} is null
+          or ${measurementRequestsTable.status} <> 'confirmed'
+        )
+    )`);
+  }
   const [updated] = await db.update(ordersTable).set({
     ...(parsed.data.status ? { status: parsed.data.status } : {}),
     ...(parsed.data.atelierNotes !== undefined ? { atelierNotes: parsed.data.atelierNotes ?? null } : {}),
@@ -498,7 +579,11 @@ router.patch("/staff/orders/:id", requireStaffRoles("owner", "operations"), asyn
       refundDecisionNote: parsed.data.refundDecisionNote!,
       refundReviewedAt: now,
     } : {}),
-  }).where(eq(ordersTable.id, order.id)).returning();
+  }).where(and(...guards)).returning();
+  if (!updated) {
+    res.status(409).json({ error: "Confirm every Custom measurement before advancing the atelier workflow." });
+    return;
+  }
   await db.insert(auditLogsTable).values({
     actorClerkUserId: req.staff!.clerkUserId,
     action: "order.updated",
@@ -506,8 +591,92 @@ router.patch("/staff/orders/:id", requireStaffRoles("owner", "operations"), asyn
     entityId: order.id,
     metadata: auditMetadata({ status: updated!.status, refundDecision: parsed.data.refundRequestDecision ?? null }),
   });
-  res.json(UpdateStaffOrderResponse.parse(orderView(updated!)));
+  const items = await staffOrderItems([updated!.id]);
+  res.json(UpdateStaffOrderResponse.parse(orderView(updated!, items.get(updated!.id))));
 });
+
+router.patch(
+  "/staff/measurements/:id",
+  requireStaffRoles("owner", "administrator", "operations", "stylist"),
+  async (req, res): Promise<void> => {
+    const params = UpdateStaffMeasurementParams.safeParse(req.params);
+    const parsed = UpdateStaffMeasurementBody.safeParse(req.body);
+    if (!params.success || !parsed.success) {
+      res.status(400).json({ error: "Provide a valid atelier measurement action." });
+      return;
+    }
+    const note = parsed.data.note?.trim();
+    if ((parsed.data.action === "request_clarification" || parsed.data.action === "set_production_exception") && !note) {
+      res.status(400).json({ error: "A note is required for this action." });
+      return;
+    }
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx.select({
+        request: measurementRequestsTable,
+        item: orderItemsTable,
+        order: ordersTable,
+      }).from(measurementRequestsTable)
+        .innerJoin(orderItemsTable, eq(measurementRequestsTable.orderItemId, orderItemsTable.id))
+        .innerJoin(ordersTable, eq(orderItemsTable.orderId, ordersTable.id))
+        .where(eq(measurementRequestsTable.id, params.data.id)).limit(1);
+      if (!row || row.item.selectionType !== "custom") return { kind: "missing" as const };
+      if (!["paid", "atelier_confirmation", "in_production", "ready", "fulfilled"].includes(row.order.status)) {
+        return { kind: "unpaid" as const };
+      }
+      if (!staffMeasurementActionAllowed(row.request.status, parsed.data.action, Boolean(row.request.productionException))) {
+        return { kind: "transition" as const };
+      }
+      const now = new Date();
+      const changes = parsed.data.action === "request_clarification"
+        ? { status: "clarification_requested" as const, clarificationNote: note! }
+        : parsed.data.action === "confirm"
+          ? { status: "confirmed" as const, clarificationNote: null, confirmedAt: now }
+          : parsed.data.action === "set_production_exception"
+            ? { productionException: note! }
+            : { productionException: null };
+      const [updated] = await tx.update(measurementRequestsTable).set({
+        ...changes,
+        version: row.request.version + 1,
+        updatedAt: now,
+      }).where(and(
+        eq(measurementRequestsTable.id, row.request.id),
+        eq(measurementRequestsTable.version, parsed.data.version),
+      )).returning();
+      if (!updated) return { kind: "stale" as const };
+      await tx.insert(measurementRevisionsTable).values({
+        measurementRequestId: updated.id,
+        version: updated.version,
+        actorType: "staff",
+        actorId: req.staff!.clerkUserId,
+        action: parsed.data.action,
+        snapshot: updated,
+      });
+      await tx.insert(auditLogsTable).values({
+        actorClerkUserId: req.staff!.clerkUserId,
+        action: `measurement.${parsed.data.action}`,
+        entityType: "measurement_request",
+        entityId: updated.id,
+        metadata: auditMetadata({
+          orderId: row.order.id,
+          lineNumber: row.item.lineNumber,
+          status: updated.status,
+          hasProductionException: Boolean(updated.productionException),
+          version: updated.version,
+        }),
+      });
+      return { kind: "updated" as const, row: { item: row.item, measurement: updated } };
+    });
+    if (result.kind === "missing") {
+      res.status(404).json({ error: "Custom measurement request not found." });
+      return;
+    }
+    if (result.kind === "unpaid" || result.kind === "transition" || result.kind === "stale") {
+      res.status(409).json({ error: "The paid-order measurement action is stale or is not allowed in its current state." });
+      return;
+    }
+    res.json(UpdateStaffMeasurementResponse.parse(staffMeasurementView(result.row)));
+  },
+);
 
 router.get("/staff/enquiries", requireStaffRoles("owner", "administrator", "operations", "stylist"), async (_req, res): Promise<void> => {
   const enquiries = await db.select().from(customerEnquiriesTable).orderBy(desc(customerEnquiriesTable.createdAt)).limit(100);
@@ -639,7 +808,12 @@ router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("own
 
     const [existing] = await tx.select().from(privacyAccessPackagesTable)
       .where(eq(privacyAccessPackagesTable.privacyRequestId, request.id)).limit(1);
-    if (existing && !existing.downloadedAt && existing.expiresAt > new Date()) return { kind: "existing" as const, package: existing };
+    const existingFormat = existing?.payload && typeof existing.payload === "object" && !Array.isArray(existing.payload)
+      ? (existing.payload as Record<string, unknown>).format
+      : undefined;
+    if (existing && existingFormat === "soso-subject-access-package-v2" && !existing.downloadedAt && existing.expiresAt > new Date()) {
+      return { kind: "existing" as const, package: existing };
+    }
 
     const email = normalizedEmail(request.requesterEmail);
     const orders = await tx.select({
@@ -652,6 +826,34 @@ router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("own
       orderId: orderItemsTable.orderId, productSlug: orderItemsTable.productSlug, productName: orderItemsTable.productName,
       selectedSize: orderItemsTable.selectedSize, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
     }).from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
+    const measurements = orders.length ? await tx.select({
+      id: measurementRequestsTable.id,
+      orderId: orderItemsTable.orderId,
+      orderItemId: measurementRequestsTable.orderItemId,
+      lineNumber: orderItemsTable.lineNumber,
+      status: measurementRequestsTable.status,
+      unit: measurementRequestsTable.unit,
+      values: measurementRequestsTable.values,
+      customerNote: measurementRequestsTable.customerNote,
+      clarificationNote: measurementRequestsTable.clarificationNote,
+      productionException: measurementRequestsTable.productionException,
+      version: measurementRequestsTable.version,
+      submittedAt: measurementRequestsTable.submittedAt,
+      confirmedAt: measurementRequestsTable.confirmedAt,
+      createdAt: measurementRequestsTable.createdAt,
+      updatedAt: measurementRequestsTable.updatedAt,
+    }).from(measurementRequestsTable)
+      .innerJoin(orderItemsTable, eq(measurementRequestsTable.orderItemId, orderItemsTable.id))
+      .where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
+    const measurementRevisions = measurements.length ? await tx.select({
+      measurementRequestId: measurementRevisionsTable.measurementRequestId,
+      version: measurementRevisionsTable.version,
+      actorType: measurementRevisionsTable.actorType,
+      action: measurementRevisionsTable.action,
+      snapshot: measurementRevisionsTable.snapshot,
+      createdAt: measurementRevisionsTable.createdAt,
+    }).from(measurementRevisionsTable)
+      .where(inArray(measurementRevisionsTable.measurementRequestId, measurements.map(({ id }) => id))) : [];
     const enquiries = await tx.select({
       name: customerEnquiriesTable.name, email: customerEnquiriesTable.email, phone: customerEnquiriesTable.phone,
       productSlug: customerEnquiriesTable.productSlug, message: customerEnquiriesTable.message, status: customerEnquiriesTable.status,
@@ -664,16 +866,23 @@ router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("own
       createdAt: commerceCheckoutAttemptsTable.createdAt, updatedAt: commerceCheckoutAttemptsTable.updatedAt,
     }).from(commerceCheckoutAttemptsTable).where(sql`lower(${commerceCheckoutAttemptsTable.customerEmail}) = ${email}`);
     const payload = {
-      format: "soso-subject-access-package-v1",
+      format: "soso-subject-access-package-v2",
       generatedAt: new Date().toISOString(),
       requesterEmail: email,
       scope: {
-        included: ["orders", "order_items", "customer_enquiries", "checkout_attempts"],
+        included: ["orders", "order_items", "measurements", "measurement_revisions", "customer_enquiries", "checkout_attempts"],
         excluded: ["payment card data, payment-provider references, ownership or idempotency tokens", "staff-only audit and operational records", "anonymous analytics and consent records, which are not linked to an identified requester"],
       },
-      data: { orders, orderItems, enquiries, checkoutAttempts },
+      data: { orders, orderItems, measurements, measurementRevisions, enquiries, checkoutAttempts },
     };
-    const rowCounts = { orders: orders.length, orderItems: orderItems.length, enquiries: enquiries.length, checkoutAttempts: checkoutAttempts.length };
+    const rowCounts = {
+      orders: orders.length,
+      orderItems: orderItems.length,
+      measurements: measurements.length,
+      measurementRevisions: measurementRevisions.length,
+      enquiries: enquiries.length,
+      checkoutAttempts: checkoutAttempts.length,
+    };
     const nextPackage = { packageHash: privacyPackageHash(payload), payload, rowCounts, createdByClerkUserId: req.staff!.clerkUserId, expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) };
     const [packageRecord] = existing
       ? await tx.update(privacyAccessPackagesTable).set({ ...nextPackage, downloadedAt: null, downloadedByClerkUserId: null }).where(eq(privacyAccessPackagesTable.id, existing.id)).returning()

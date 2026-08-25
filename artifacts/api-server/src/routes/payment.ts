@@ -1,10 +1,13 @@
 import crypto from "node:crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, eq, lt, ne } from "drizzle-orm";
+import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import {
   commerceCheckoutAttemptsTable,
   commerceWebhookEventsTable,
   db,
+  measurementRequestsTable,
+  measurementRevisionsTable,
+  orderItemsTable,
   ordersTable,
 } from "@workspace/db";
 import {
@@ -12,10 +15,14 @@ import {
   GetCommerceLocationsResponse,
   GetCommercePaymentStatusParams,
   GetCommercePaymentStatusResponse,
+  GetCustomerMeasurementsResponse,
   InitiateCommerceCheckoutBody,
   InitiateCommerceCheckoutResponse,
   ReceiveCommerceWebhookBody,
   ReceiveCommerceWebhookResponse,
+  UpdateCustomerMeasurementBody,
+  UpdateCustomerMeasurementParams,
+  UpdateCustomerMeasurementResponse,
 } from "@workspace/api-zod";
 import {
   isJusticeSureCommerceReady,
@@ -27,6 +34,15 @@ import {
   type JusticeSureLineItem,
   type JusticeSureOrder,
 } from "../lib/justicesureCommerce";
+import {
+  CUSTOM_DISPATCH_GUIDANCE,
+  customerCanSubmit,
+  reconciledOrderStatus,
+  resolveAuthoritativeCheckoutItems,
+  selectionType,
+  shouldActivateMeasurements,
+  validateMeasurementValues,
+} from "../lib/measurements";
 
 const router: IRouter = Router();
 const OWNERSHIP_COOKIE = "soso_checkout_owner";
@@ -50,6 +66,7 @@ type CheckoutItem = {
   displayName?: string;
   displaySlug?: string;
   selectedSize?: string;
+  unitPriceKobo?: number;
 };
 
 type CheckoutBody = {
@@ -183,18 +200,15 @@ function toNaira(kobo: number): string {
 }
 
 async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promise<void> {
-  const [attempt] = await db
-    .select()
-    .from(commerceCheckoutAttemptsTable)
-    .where(eq(commerceCheckoutAttemptsTable.id, attemptId))
-    .limit(1);
-  if (!attempt) return;
-  const status = remoteStatus(order);
-  let localOrderId = attempt.localOrderId;
-  if (!localOrderId) {
-    const [created] = await db
-      .insert(ordersTable)
-      .values({
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`soso-checkout-sync:${attemptId}`}))`);
+    const [attempt] = await tx.select().from(commerceCheckoutAttemptsTable)
+      .where(eq(commerceCheckoutAttemptsTable.id, attemptId)).limit(1);
+    if (!attempt) return;
+    const status = remoteStatus(order);
+    let localOrderId = attempt.localOrderId;
+    if (!localOrderId) {
+      const [created] = await tx.insert(ordersTable).values({
         orderNumber: order.number,
         customerName: attempt.customerName,
         customerEmail: attempt.customerEmail,
@@ -207,30 +221,93 @@ async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promi
         paymentProvider: attempt.provider,
         paymentReference: attempt.paymentReference,
         deliveryNotes: JSON.stringify(attempt.fulfillment),
-      })
-      .returning({ id: ordersTable.id });
-    localOrderId = created?.id;
-  } else {
-    await db
-      .update(ordersTable)
-      .set({
+      }).returning({ id: ordersTable.id });
+      localOrderId = created!.id;
+      const items = attempt.items as CheckoutItem[];
+      if (items.some(({ unitPriceKobo }) => !Number.isInteger(unitPriceKobo) || unitPriceKobo! < 0)) {
+        throw new Error("Authoritative checkout item pricing is unavailable for this order.");
+      }
+      await tx.insert(orderItemsTable).values(items.map((item, index) => ({
+        orderId: localOrderId!,
+        lineNumber: index + 1,
+        commerceProductId: item.productId,
+        commerceVariantId: item.variantId ?? null,
+        productSlug: item.displaySlug ?? item.productId,
+        productName: item.displayName ?? item.productId,
+        selectionType: selectionType(item.selectedSize),
+        selectedSize: item.selectedSize ?? null,
+        quantity: item.quantity,
+        unitPrice: toNaira(item.unitPriceKobo!),
+      })));
+    } else {
+      const [localOrder] = await tx.select({ status: ordersTable.status }).from(ordersTable)
+        .where(eq(ordersTable.id, localOrderId)).limit(1);
+      await tx.update(ordersTable).set({
         subtotal: toNaira(order.amounts.subtotalKobo),
         total: toNaira(order.amounts.totalKobo),
-        status,
+        status: reconciledOrderStatus(localOrder?.status ?? "payment_pending", status),
         paymentProvider: attempt.provider,
         paymentReference: attempt.paymentReference,
-      })
-      .where(eq(ordersTable.id, localOrderId));
-  }
-  await db
-    .update(commerceCheckoutAttemptsTable)
-    .set({
+      }).where(eq(ordersTable.id, localOrderId));
+    }
+    if (shouldActivateMeasurements(status)) {
+      const customItems = await tx.select({ id: orderItemsTable.id }).from(orderItemsTable)
+        .where(and(eq(orderItemsTable.orderId, localOrderId!), eq(orderItemsTable.selectionType, "custom")));
+      if (customItems.length) {
+        await tx.insert(measurementRequestsTable)
+          .values(customItems.map(({ id }) => ({ orderItemId: id })))
+          .onConflictDoNothing({ target: measurementRequestsTable.orderItemId });
+      }
+    } else if (status === "cancelled" || status === "refunded") {
+      const requestRows = await tx.select({ id: measurementRequestsTable.id })
+        .from(measurementRequestsTable)
+        .innerJoin(orderItemsTable, eq(measurementRequestsTable.orderItemId, orderItemsTable.id))
+        .where(and(eq(orderItemsTable.orderId, localOrderId!), inArray(measurementRequestsTable.status, ["needed", "submitted", "clarification_requested"])));
+      for (const request of requestRows) {
+        const [cancelled] = await tx.update(measurementRequestsTable)
+          .set({ status: "cancelled", version: sql`${measurementRequestsTable.version} + 1`, updatedAt: new Date() })
+          .where(eq(measurementRequestsTable.id, request.id)).returning();
+        await tx.insert(measurementRevisionsTable).values({
+          measurementRequestId: request.id,
+          version: cancelled!.version,
+          actorType: "system",
+          action: status,
+          snapshot: cancelled!,
+        });
+      }
+    }
+    await tx.update(commerceCheckoutAttemptsTable).set({
       localOrderId,
       status: attemptStatus(order),
       lastErrorCode: null,
       lastErrorMessage: null,
-    })
-    .where(eq(commerceCheckoutAttemptsTable.id, attemptId));
+    }).where(eq(commerceCheckoutAttemptsTable.id, attemptId));
+  });
+}
+
+function measurementView(row: {
+  request: typeof measurementRequestsTable.$inferSelect;
+  item: typeof orderItemsTable.$inferSelect;
+}) {
+  return {
+    id: row.request.id,
+    lineNumber: row.item.lineNumber,
+    productId: row.item.commerceProductId,
+    variantId: row.item.commerceVariantId,
+    productName: row.item.productName,
+    selectionType: "custom" as const,
+    selectedSize: row.item.selectedSize,
+    status: row.request.status,
+    unit: row.request.unit,
+    values: row.request.values,
+    customerNote: row.request.customerNote,
+    clarificationNote: row.request.clarificationNote,
+    productionException: row.request.productionException,
+    version: row.request.version,
+    submittedAt: row.request.submittedAt,
+    confirmedAt: row.request.confirmedAt,
+    updatedAt: row.request.updatedAt,
+  };
 }
 
 function publicStatus(order: JusticeSureOrder, attempt: typeof commerceCheckoutAttemptsTable.$inferSelect) {
@@ -299,7 +376,7 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
 
   const requestHash = hash(JSON.stringify({
     customer: body.customer,
-    items: body.items,
+    items: body.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
     fulfillment: body.fulfillment,
     notes: body.notes ?? "",
   }));
@@ -318,6 +395,19 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
 
   let concurrentCreate = false;
   if (!attempt) {
+    let authoritativeItems: CheckoutItem[];
+    try {
+      const catalog = await new JusticeSureCommerceClient(config).listProducts();
+      const resolved = resolveAuthoritativeCheckoutItems(body.items, catalog);
+      if (!resolved) {
+        res.status(400).json({ error: "A selected product or size is no longer available for secure checkout." });
+        return;
+      }
+      authoritativeItems = resolved;
+    } catch (error) {
+      errorResponse(res, error);
+      return;
+    }
     const ownershipToken = randomOwnershipToken();
     try {
       [attempt] = await db
@@ -328,7 +418,7 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
           customerName: body.customer.name,
           customerEmail: body.customer.email,
           customerPhone: body.customer.phone,
-          items: body.items,
+          items: authoritativeItems,
           fulfillment: body.fulfillment,
           orderIdempotencyKey,
           paymentIdempotencyKey,
@@ -365,7 +455,8 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
 
   try {
     const client = new JusticeSureCommerceClient(config);
-    const items: JusticeSureLineItem[] = body.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
+    const persistedItems = attempt.items as CheckoutItem[];
+    const items: JusticeSureLineItem[] = persistedItems.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
     const fulfillment: JusticeSureFulfillment = {
       type: body.fulfillment.type,
       ...(body.fulfillment.locationId ? { locationId: body.fulfillment.locationId } : {}),
@@ -443,6 +534,129 @@ router.get("/payment/status/:attemptId", async (req, res): Promise<void> => {
     const order = await new JusticeSureCommerceClient().getOrder(attempt.justiceSureOrderId);
     await syncLocalOrder(attempt.id, order);
     res.json(publicStatus(order, attempt));
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+async function ownedAttempt(req: Request) {
+  const attemptId = header(req, "x-soso-checkout-attempt");
+  if (!isUuid(attemptId)) return undefined;
+  const [attempt] = await db.select().from(commerceCheckoutAttemptsTable)
+    .where(eq(commerceCheckoutAttemptsTable.id, attemptId)).limit(1);
+  return attempt && hasOwnership(req, attempt.id, attempt.ownershipTokenHash) ? attempt : undefined;
+}
+
+router.get("/payment/measurements", async (req, res): Promise<void> => {
+  const attempt = await ownedAttempt(req);
+  if (!attempt?.justiceSureOrderId) {
+    res.status(403).json({ error: "Checkout ownership is not valid." });
+    return;
+  }
+  try {
+    const remoteOrder = await new JusticeSureCommerceClient().getOrder(attempt.justiceSureOrderId);
+    await syncLocalOrder(attempt.id, remoteOrder);
+    const paymentStatus = remoteStatus(remoteOrder);
+    if (!shouldActivateMeasurements(paymentStatus) || !attempt.localOrderId) {
+      const [refreshed] = await db.select({ localOrderId: commerceCheckoutAttemptsTable.localOrderId })
+        .from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.id, attempt.id)).limit(1);
+      if (!shouldActivateMeasurements(paymentStatus) || !refreshed?.localOrderId) {
+        res.status(409).json({ error: "Measurements are available only for a paid order." });
+        return;
+      }
+    }
+    const [refreshed] = await db.select().from(commerceCheckoutAttemptsTable)
+      .where(eq(commerceCheckoutAttemptsTable.id, attempt.id)).limit(1);
+    const rows = await db.select({ request: measurementRequestsTable, item: orderItemsTable })
+      .from(measurementRequestsTable)
+      .innerJoin(orderItemsTable, eq(measurementRequestsTable.orderItemId, orderItemsTable.id))
+      .where(eq(orderItemsTable.orderId, refreshed!.localOrderId!));
+    res.json(GetCustomerMeasurementsResponse.parse({
+      paymentStatus,
+      measurementsRequired: rows.some(({ request }) => request.status !== "confirmed" && request.status !== "cancelled"),
+      orderNumber: remoteOrder.number,
+      dispatchGuidance: CUSTOM_DISPATCH_GUIDANCE,
+      items: rows.map(measurementView),
+    }));
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+router.put("/payment/measurements/:id", async (req, res): Promise<void> => {
+  const params = UpdateCustomerMeasurementParams.safeParse(req.params);
+  const parsed = UpdateCustomerMeasurementBody.safeParse(req.body);
+  if (!params.success || !parsed.success
+    || !validateMeasurementValues(parsed.data.unit, parsed.data.values)
+    || (parsed.data.customerNote?.length ?? 0) > 500) {
+    res.status(400).json({ error: "Provide all required measurements within the permitted bounds." });
+    return;
+  }
+  const attempt = await ownedAttempt(req);
+  if (!attempt?.justiceSureOrderId) {
+    res.status(403).json({ error: "Checkout ownership is not valid." });
+    return;
+  }
+  try {
+    const remoteOrder = await new JusticeSureCommerceClient().getOrder(attempt.justiceSureOrderId);
+    await syncLocalOrder(attempt.id, remoteOrder);
+    if (!shouldActivateMeasurements(remoteStatus(remoteOrder))) {
+      res.status(409).json({ error: "Measurements are available only for a paid order." });
+      return;
+    }
+    const [refreshed] = await db.select({ localOrderId: commerceCheckoutAttemptsTable.localOrderId })
+      .from(commerceCheckoutAttemptsTable)
+      .where(eq(commerceCheckoutAttemptsTable.id, attempt.id))
+      .limit(1);
+    if (!refreshed?.localOrderId) {
+      res.status(409).json({ error: "The paid order handoff is still being prepared. Please retry." });
+      return;
+    }
+    const result = await db.transaction(async (tx) => {
+      const [row] = await tx.select({ request: measurementRequestsTable, item: orderItemsTable })
+        .from(measurementRequestsTable)
+        .innerJoin(orderItemsTable, eq(measurementRequestsTable.orderItemId, orderItemsTable.id))
+        .where(and(
+          eq(measurementRequestsTable.id, params.data.id),
+          eq(orderItemsTable.orderId, refreshed.localOrderId!),
+          eq(orderItemsTable.selectionType, "custom"),
+        )).limit(1);
+      if (!row) return { kind: "missing" as const };
+      if (!customerCanSubmit(row.request.status)) return { kind: "transition" as const };
+      const [updated] = await tx.update(measurementRequestsTable).set({
+        unit: parsed.data.unit,
+        values: parsed.data.values,
+        customerNote: parsed.data.customerNote?.trim() || null,
+        clarificationNote: null,
+        status: "submitted",
+        submittedAt: new Date(),
+        version: row.request.version + 1,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(measurementRequestsTable.id, row.request.id),
+        eq(measurementRequestsTable.version, parsed.data.version),
+        inArray(measurementRequestsTable.status, ["needed", "submitted", "clarification_requested"]),
+      )).returning();
+      if (!updated) return { kind: "stale" as const };
+      await tx.insert(measurementRevisionsTable).values({
+        measurementRequestId: updated.id,
+        version: updated.version,
+        actorType: "customer",
+        actorId: attempt.id,
+        action: row.request.status === "needed" ? "submitted" : "corrected",
+        snapshot: updated,
+      });
+      return { kind: "updated" as const, row: { request: updated, item: row.item } };
+    });
+    if (result.kind === "missing") {
+      res.status(404).json({ error: "Custom measurement request not found." });
+      return;
+    }
+    if (result.kind !== "updated") {
+      res.status(409).json({ error: "This measurement request cannot be edited or has changed." });
+      return;
+    }
+    res.json(UpdateCustomerMeasurementResponse.parse(measurementView(result.row)));
   } catch (error) {
     errorResponse(res, error);
   }

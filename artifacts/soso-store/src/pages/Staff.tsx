@@ -38,6 +38,9 @@ import {
   useUpdateStaffMarketingPixels,
   useListStaffMarketingPixelRevisions,
   type MarketingPixelSettings,
+  useUpdateStaffMeasurement,
+  type StaffMeasurementUpdateAction,
+  type StaffMeasurement,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import {
@@ -137,8 +140,8 @@ export default function Staff() {
   const [activeTab, setActiveTabState] = useState<StaffTab>("overview");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
-  // Stylists can view orders (read-only) so they can answer delivery queries.
-  const canViewOrders = canManageOrders || profile?.role === "stylist";
+  const canViewOrders = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
+  const canManageMeasurements = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
   const canManageEnquiries = canManageOrders || profile?.role === "stylist";
   const canSeeAnalytics = profile?.role === "owner" || profile?.role === "analyst";
   const canManagePrivacy = canManageOrders;
@@ -256,7 +259,7 @@ export default function Staff() {
           {["overview", "orders", "analytics"].includes(activeTab) && <DateRangeControl range={range} onChange={setRange} />}
         </header>
         {activeTab === "overview" && <><section className="mt-6 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Activity className="mt-0.5 shrink-0 text-primary" size={18} /><p className="text-sm text-muted-foreground">{overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${format(new Date(overview.data.generatedAt), "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}</p></div><span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span></section><NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} /><RoleCapabilityBanner role={profile.role} /><Pulse overview={overview.data} loading={overview.isLoading} /></>}
-        {activeTab === "orders" && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} readOnly={!canManageOrders} />}
+        {activeTab === "orders" && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} readOnly={!canManageOrders} canManageMeasurements={canManageMeasurements} />}
         {activeTab === "enquiries" && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
         {activeTab === "privacy" && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
         {activeTab === "journal" && <JournalManagementSection />}
@@ -903,15 +906,15 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
   );
 }
 
-function OrdersSection({ orders, loading, canRefund, onChanged, readOnly }: { orders: StaffOrder[] | undefined; loading: boolean; canRefund: boolean; onChanged: () => void; readOnly?: boolean }) {
+function OrdersSection({ orders, loading, canRefund, onChanged, readOnly, canManageMeasurements }: { orders: StaffOrder[] | undefined; loading: boolean; canRefund: boolean; onChanged: () => void; readOnly?: boolean; canManageMeasurements: boolean; }) {
   return (
     <section>
       <SectionHeading
         icon={Package}
-        title={readOnly ? "Order lookup (read-only)" : "Order & production queue"}
+        title={readOnly ? "Order lookup" : "Order & production queue"}
         description={
           readOnly
-            ? "Active orders — for answering customer delivery and status queries. Contact operations to update an order."
+            ? "Active orders — for answering customer delivery and status queries. You can review and action Custom measurements. Contact operations to update workflow statuses."
             : "Every currently active paid, atelier, production, and ready-to-deliver order stays here until it reaches a terminal state."
         }
       />
@@ -923,7 +926,7 @@ function OrdersSection({ orders, loading, canRefund, onChanged, readOnly }: { or
         ) : (
           <div className="divide-y divide-border">
             {orders.map((order) => (
-              <OrderRow key={order.id} order={order} canRefund={canRefund} onChanged={onChanged} readOnly={readOnly} />
+              <OrderRow key={order.id} order={order} canRefund={canRefund} onChanged={onChanged} readOnly={readOnly} canManageMeasurements={canManageMeasurements} />
             ))}
           </div>
         )}
@@ -932,7 +935,7 @@ function OrdersSection({ orders, loading, canRefund, onChanged, readOnly }: { or
   );
 }
 
-function OrderRow({ order, canRefund, onChanged, readOnly }: { order: StaffOrder; canRefund: boolean; onChanged: () => void; readOnly?: boolean }) {
+function OrderRow({ order, canRefund, onChanged, readOnly, canManageMeasurements }: { order: StaffOrder; canRefund: boolean; onChanged: () => void; readOnly?: boolean; canManageMeasurements: boolean; }) {
   const update = useUpdateStaffOrder();
   const [status, setStatus] = useState<StaffWorkflowDisplayStatus>(order.status as StaffWorkflowDisplayStatus);
   const [atelierNotes, setAtelierNotes] = useState(order.atelierNotes ?? "");
@@ -942,6 +945,7 @@ function OrderRow({ order, canRefund, onChanged, readOnly }: { order: StaffOrder
   const [notice, setNotice] = useState("");
   const currentStatus = order.status as StaffWorkflowDisplayStatus;
   const availableStatuses = [currentStatus, ...nextOrderStatuses[currentStatus]];
+
   useEffect(() => {
     setStatus(currentStatus);
     setAtelierNotes(order.atelierNotes ?? "");
@@ -949,6 +953,7 @@ function OrderRow({ order, canRefund, onChanged, readOnly }: { order: StaffOrder
     setRefundRequestReason("");
     setRefundDecisionNote("");
   }, [order.id, order.updatedAt, order.atelierNotes, order.deliveryNotes, currentStatus]);
+
   const save = async () => {
     setNotice("");
     try {
@@ -958,6 +963,7 @@ function OrderRow({ order, canRefund, onChanged, readOnly }: { order: StaffOrder
       onChanged();
     } catch (error) { setNotice(errorMessage(error, "This order could not be updated.")); }
   };
+
   const requestRefundReview = async () => {
     try {
       await update.mutateAsync({ id: order.id, data: { refundRequestReason } });
@@ -965,6 +971,7 @@ function OrderRow({ order, canRefund, onChanged, readOnly }: { order: StaffOrder
       onChanged();
     } catch (error) { setNotice(errorMessage(error, "The internal refund request could not be recorded.")); }
   };
+
   const reviewRefundRequest = async (refundRequestDecision: "approved" | "declined") => {
     try {
       await update.mutateAsync({ id: order.id, data: { refundRequestDecision, refundDecisionNote } });
@@ -973,52 +980,292 @@ function OrderRow({ order, canRefund, onChanged, readOnly }: { order: StaffOrder
     } catch (error) { setNotice(errorMessage(error, "The refund request could not be reviewed.")); }
   };
 
-  if (readOnly) {
-    return (
-      <article className="p-5">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm text-primary">#{order.orderNumber}</span>
-              <StatusBadge status={order.status} />
-            </div>
-            <p className="mt-2 text-sm font-medium">{order.customerName}</p>
-            <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-              <Mail size={12} /> {order.customerEmail}
-            </p>
-          </div>
-          <div className="sm:text-right">
-            <p className="text-xl soso-display">{order.currency} {Number(order.total).toLocaleString()}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{format(new Date(order.createdAt), "d MMM yyyy")}</p>
-          </div>
-        </div>
-        {order.atelierNotes && (
-          <p className="mt-3 border-l-2 border-primary/30 pl-3 text-xs italic text-muted-foreground">Atelier: {order.atelierNotes}</p>
-        )}
-      </article>
-    );
-  }
+  const hasCustomItems = order.items.some(i => i.selectionType === 'custom');
 
   return (
     <article className="p-5">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row"><div><div className="flex items-center gap-2"><span className="font-mono text-sm text-primary">#{order.orderNumber}</span><StatusBadge status={order.status} /></div><p className="mt-2 text-sm font-medium">{order.customerName}</p><p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Mail size={12} /> {order.customerEmail}</p></div><div className="sm:text-right"><p className="text-xl soso-display">{order.currency} {Number(order.total).toLocaleString()}</p><p className="mt-1 text-xs text-muted-foreground">{format(new Date(order.createdAt), "d MMM yyyy")}</p></div></div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Workflow<select value={status} disabled={availableStatuses.length === 1} onChange={(event) => setStatus(event.target.value as StaffWorkflowDisplayStatus)} className="staff-input mt-1"><>{availableStatuses.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</></select></label><label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Delivery note<input value={deliveryNotes} onChange={(event) => setDeliveryNotes(event.target.value)} placeholder="Dispatch, courier, or delivery note" className="staff-input mt-1" /></label></div>
-      <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Atelier note<textarea value={atelierNotes} onChange={(event) => setAtelierNotes(event.target.value)} rows={2} placeholder="Production instruction or progress note" className="staff-input mt-1 resize-y" /></label>
-      <div className="mt-4 border border-border bg-muted/20 p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Internal refund review</p>
-        {order.refundRequestStatus ? (
-          <div className="mt-2">
-            <div className="flex flex-wrap items-center gap-2"><StatusBadge status={`refund ${order.refundRequestStatus}`} /><p className="text-xs text-muted-foreground">No payment refund is issued or confirmed from this workspace.</p></div>
-            <p className="mt-2 text-sm text-foreground/80">{order.refundRequestReason}</p>
-            {order.refundDecisionNote && <p className="mt-1 text-xs text-muted-foreground">Decision note: {order.refundDecisionNote}</p>}
-            {canRefund && order.refundRequestStatus === "requested" && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input value={refundDecisionNote} onChange={(event) => setRefundDecisionNote(event.target.value)} minLength={8} placeholder="Owner decision note" className="staff-input flex-1" /><button type="button" disabled={update.isPending || refundDecisionNote.trim().length < 8} onClick={() => void reviewRefundRequest("approved")} className="min-h-10 border border-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50">Approve internally</button><button type="button" disabled={update.isPending || refundDecisionNote.trim().length < 8} onClick={() => void reviewRefundRequest("declined")} className="min-h-10 border border-border px-3 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Decline</button></div>}
+      <div className="flex flex-col justify-between gap-3 sm:flex-row">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm text-primary">#{order.orderNumber}</span>
+            <StatusBadge status={order.status} />
+            {hasCustomItems && <span className="ml-2 px-2 py-0.5 bg-primary/20 text-[10px] font-bold text-primary uppercase tracking-widest">Custom Pieces</span>}
           </div>
-        ) : (
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row"><input value={refundRequestReason} onChange={(event) => setRefundRequestReason(event.target.value)} minLength={8} placeholder="Reason to request a payment refund review" className="staff-input flex-1" /><button type="button" disabled={update.isPending || refundRequestReason.trim().length < 8} onClick={() => void requestRefundReview()} className="min-h-10 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50">Request review</button></div>
-        )}
+          <p className="mt-2 text-sm font-medium">{order.customerName}</p>
+          <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <Mail size={12} /> {order.customerEmail}
+          </p>
+        </div>
+        <div className="sm:text-right">
+          <p className="text-xl soso-display">{order.currency} {Number(order.total).toLocaleString()}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{format(new Date(order.createdAt), "d MMM yyyy")}</p>
+        </div>
       </div>
-      <div className="mt-3 flex items-center justify-between gap-3"><p role="status" className="text-xs text-muted-foreground">{notice}</p><button type="button" disabled={update.isPending} onClick={() => void save()} className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50">{update.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save</button></div>
+
+      <div className="mt-6 border border-border bg-[#1c1914]">
+        <div className="bg-muted/30 px-4 py-2 border-b border-border">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Order Items</p>
+        </div>
+        <div className="divide-y divide-border/50">
+          {order.items.map(item => (
+            <div key={item.id} className="p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    {item.quantity}x {item.productName}
+                    <span className="text-[10px] px-1.5 py-0.5 border border-border uppercase tracking-widest text-muted-foreground bg-black/20">
+                      {item.selectionType}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Line {item.lineNumber} {item.selectedSize ? `— Size: ${item.selectedSize}` : ""}</p>
+                </div>
+              </div>
+
+              {item.selectionType === 'custom' && item.measurement && (
+                <StaffMeasurementView measurement={item.measurement} canManageMeasurements={canManageMeasurements} onChanged={onChanged} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {hasCustomItems && order.dispatchGuidance && (
+        <div className="mt-4 flex items-start gap-2 bg-primary/10 border border-primary/20 p-3 text-xs text-primary" data-testid={`status-dispatch-guidance-${order.id}`}>
+          <Info size={16} className="shrink-0 mt-0.5" />
+          <p>{order.dispatchGuidance}</p>
+        </div>
+      )}
+
+      {readOnly ? (
+        order.atelierNotes && (
+          <p className="mt-3 border-l-2 border-primary/30 pl-3 text-xs italic text-muted-foreground">Atelier: {order.atelierNotes}</p>
+        )
+      ) : (
+        <>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Workflow
+              <select value={status} disabled={availableStatuses.length === 1} onChange={(event) => setStatus(event.target.value as StaffWorkflowDisplayStatus)} className="staff-input mt-1" data-testid={`select-workflow-${order.id}`}>
+                <>{availableStatuses.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</>
+              </select>
+            </label>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Delivery note
+              <input value={deliveryNotes} onChange={(event) => setDeliveryNotes(event.target.value)} placeholder="Dispatch, courier, or delivery note" className="staff-input mt-1" data-testid={`input-delivery-note-${order.id}`} />
+            </label>
+          </div>
+          <label className="mt-3 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Atelier note
+            <textarea value={atelierNotes} onChange={(event) => setAtelierNotes(event.target.value)} rows={2} placeholder="Production instruction or progress note" className="staff-input mt-1 resize-y" data-testid={`input-atelier-note-${order.id}`} />
+          </label>
+
+          <div className="mt-4 border border-border bg-muted/20 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Internal refund review</p>
+            {order.refundRequestStatus ? (
+              <div className="mt-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={`refund ${order.refundRequestStatus}`} />
+                  <p className="text-xs text-muted-foreground">No payment refund is issued or confirmed from this workspace.</p>
+                </div>
+                <p className="mt-2 text-sm text-foreground/80">{order.refundRequestReason}</p>
+                {order.refundDecisionNote && <p className="mt-1 text-xs text-muted-foreground">Decision note: {order.refundDecisionNote}</p>}
+                {canRefund && order.refundRequestStatus === "requested" && (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input value={refundDecisionNote} onChange={(event) => setRefundDecisionNote(event.target.value)} minLength={8} placeholder="Owner decision note" className="staff-input flex-1" data-testid={`input-refund-decision-${order.id}`} />
+                    <button type="button" disabled={update.isPending || refundDecisionNote.trim().length < 8} onClick={() => void reviewRefundRequest("approved")} className="min-h-10 border border-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50" data-testid={`btn-approve-refund-${order.id}`}>Approve internally</button>
+                    <button type="button" disabled={update.isPending || refundDecisionNote.trim().length < 8} onClick={() => void reviewRefundRequest("declined")} className="min-h-10 border border-border px-3 text-xs font-semibold uppercase tracking-wider disabled:opacity-50" data-testid={`btn-decline-refund-${order.id}`}>Decline</button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input value={refundRequestReason} onChange={(event) => setRefundRequestReason(event.target.value)} minLength={8} placeholder="Reason to request a payment refund review" className="staff-input flex-1" data-testid={`input-refund-reason-${order.id}`} />
+                <button type="button" disabled={update.isPending || refundRequestReason.trim().length < 8} onClick={() => void requestRefundReview()} className="min-h-10 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50" data-testid={`btn-request-refund-${order.id}`}>Request review</button>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p role="status" className="text-xs text-muted-foreground">{notice}</p>
+            <button type="button" disabled={update.isPending} onClick={() => void save()} className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50" data-testid={`btn-save-order-${order.id}`}>
+              {update.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+            </button>
+          </div>
+        </>
+      )}
     </article>
+  );
+}
+
+function StaffMeasurementView({ measurement, canManageMeasurements, onChanged }: { measurement: StaffMeasurement; canManageMeasurements: boolean; onChanged: () => void; }) {
+  const updateMutation = useUpdateStaffMeasurement();
+  const [clarificationNote, setClarificationNote] = useState("");
+  const [productionException, setProductionException] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const handleAction = async (action: StaffMeasurementUpdateAction, note?: string) => {
+    setNotice("");
+    try {
+      await updateMutation.mutateAsync({
+        id: measurement.id,
+        data: {
+          action,
+          note,
+          version: measurement.version
+        }
+      });
+      if (action === "request_clarification") setClarificationNote("");
+      if (action === "set_production_exception") setProductionException("");
+      if (action === "clear_production_exception") setProductionException("");
+      onChanged();
+    } catch (err: any) {
+      if (err?.response?.status === 409 || err?.status === 409) {
+        setNotice("This measurement was updated elsewhere. Please refresh the page to see the latest version.");
+      } else {
+        setNotice(errorMessage(err, "Measurement action failed. Please refresh and try again."));
+      }
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "needed": return "Customer Input Needed";
+      case "submitted": return "Submitted - Needs Review";
+      case "clarification_requested": return "Clarification Requested";
+      case "confirmed": return "Measurements Confirmed";
+      case "cancelled": return "Cancelled";
+      default: return status;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "needed": return "text-primary border-primary";
+      case "submitted": return "text-blue-400 border-blue-400";
+      case "clarification_requested": return "text-amber-500 border-amber-500";
+      case "confirmed": return "text-green-500 border-green-500";
+      case "cancelled": return "text-red-500 border-red-500";
+      default: return "text-muted-foreground border-border";
+    }
+  };
+
+  return (
+    <div className="mt-4 bg-[#15110d] border border-border p-4">
+      <div className="flex justify-between items-center mb-4 pb-3 border-b border-border/50">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Measurement Details</h4>
+        <span role="status" data-testid={`status-staff-measurement-${measurement.id}`} className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${getStatusColor(measurement.status)}`}>
+          {getStatusText(measurement.status)}
+        </span>
+      </div>
+
+      {measurement.values ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+          {Object.entries(measurement.values).map(([key, val]) => (
+            <div key={key}>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{key.replace(/([A-Z])/g, ' $1').trim()}</p>
+              <p className="text-sm font-medium">{val} {measurement.unit}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground mb-4">No measurements submitted yet.</p>
+      )}
+
+      {measurement.customerNote && (
+        <div className="mb-4 bg-muted/20 p-3 text-sm italic border-l-2 border-primary/30">
+          <p className="text-[10px] not-italic uppercase tracking-wider font-semibold text-muted-foreground mb-1">Customer Note</p>
+          "{measurement.customerNote}"
+        </div>
+      )}
+
+      {measurement.clarificationNote && (
+        <div className="mb-4 bg-amber-500/10 p-3 text-sm text-amber-100 border border-amber-500/20">
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-amber-500 mb-1">Clarification Requested</p>
+          {measurement.clarificationNote}
+        </div>
+      )}
+
+      {measurement.productionException && (
+        <div className="mb-4 bg-red-500/10 p-3 text-sm text-red-100 border border-red-500/20 flex justify-between items-center gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-semibold text-red-500 mb-1">Production Exception</p>
+            {measurement.productionException}
+          </div>
+          {canManageMeasurements && (
+            <button
+              type="button"
+              onClick={() => handleAction("clear_production_exception")}
+              data-testid={`btn-clear-exception-${measurement.id}`}
+              disabled={updateMutation.isPending}
+              className="shrink-0 text-[10px] px-3 py-1.5 font-bold uppercase tracking-wider border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {canManageMeasurements && measurement.status === "submitted" && (
+        <div className="mt-4 pt-4 border-t border-border/50 grid gap-4">
+          <div className="flex gap-2">
+            <input
+              aria-label="Clarification request note"
+              value={clarificationNote}
+              onChange={e => setClarificationNote(e.target.value)}
+              data-testid={`input-clarification-note-${measurement.id}`}
+              placeholder="Reason for clarification..."
+              className="staff-input flex-1 h-9 min-h-0 text-xs"
+            />
+            <button
+              type="button"
+              onClick={() => handleAction("request_clarification", clarificationNote)}
+              data-testid={`btn-request-clarification-${measurement.id}`}
+              disabled={!clarificationNote.trim() || updateMutation.isPending}
+              className="h-9 px-3 text-[10px] font-bold uppercase tracking-wider border border-amber-500/50 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              Request Clarification
+            </button>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => handleAction("confirm")}
+              data-testid={`btn-confirm-measurement-${measurement.id}`}
+              disabled={updateMutation.isPending}
+              className="h-9 px-6 bg-green-600 hover:bg-green-500 text-white text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
+            >
+              Confirm Measurements
+            </button>
+          </div>
+        </div>
+      )}
+
+      {canManageMeasurements && !measurement.productionException && measurement.status !== "cancelled" && (
+        <div className="mt-4 pt-4 border-t border-border/50">
+          <div className="flex gap-2">
+            <input
+              aria-label="Production exception"
+              value={productionException}
+              onChange={e => setProductionException(e.target.value)}
+              data-testid={`input-production-exception-${measurement.id}`}
+              placeholder="Record a production exception..."
+              className="staff-input flex-1 h-9 min-h-0 text-xs"
+            />
+            <button
+              type="button"
+              onClick={() => handleAction("set_production_exception", productionException)}
+              data-testid={`btn-set-exception-${measurement.id}`}
+              disabled={!productionException.trim() || updateMutation.isPending}
+              className="h-9 px-3 text-[10px] font-bold uppercase tracking-wider border border-red-500/50 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+            >
+              Set Exception
+            </button>
+          </div>
+        </div>
+      )}
+
+      {notice && <p role="alert" className="mt-3 text-xs text-red-400">{notice}</p>}
+    </div>
   );
 }
 

@@ -32,6 +32,9 @@ import type {
   CommerceWebhookReceipt,
   ConsentInput,
   ConsentRecord,
+  CustomerMeasurement,
+  CustomerMeasurementInput,
+  CustomerMeasurements,
   Enquiry,
   EnquiryInput,
   FaqHistoryPage,
@@ -73,6 +76,8 @@ import type {
   StaffJournalPostRevision,
   StaffJournalPostUpdate,
   StaffMarketingPixelSettings,
+  StaffMeasurement,
+  StaffMeasurementUpdate,
   StaffNotification,
   StaffNotificationAcknowledgement,
   StaffOrder,
@@ -499,6 +504,155 @@ export function useGetCommercePaymentStatus<TData = Awaited<ReturnType<typeof ge
 
 
 
+
+export const getGetCustomerMeasurementsUrl = () => {
+
+
+
+
+  return `/api/payment/measurements`
+}
+
+/**
+ * @summary Get the browser-owned paid order measurement handoff
+ */
+export const getCustomerMeasurements = async ( options?: Parameters<typeof customFetch>[1]): Promise<CustomerMeasurements> => {
+
+  return customFetch<CustomerMeasurements>(getGetCustomerMeasurementsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomerMeasurementsQueryKey = () => {
+    return [
+    `/api/payment/measurements`
+    ] as const;
+    }
+
+
+export const getGetCustomerMeasurementsQueryOptions = <TData = Awaited<ReturnType<typeof getCustomerMeasurements>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerMeasurements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomerMeasurementsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomerMeasurements>>> = ({ signal }) => getCustomerMeasurements({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomerMeasurements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCustomerMeasurementsQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomerMeasurements>>>
+export type GetCustomerMeasurementsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the browser-owned paid order measurement handoff
+ */
+
+export function useGetCustomerMeasurements<TData = Awaited<ReturnType<typeof getCustomerMeasurements>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCustomerMeasurements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCustomerMeasurementsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateCustomerMeasurementUrl = (id: string,) => {
+
+
+
+
+  return `/api/payment/measurements/${id}`
+}
+
+/**
+ * @summary Submit or correct measurements for a browser-owned Custom item
+ */
+export const updateCustomerMeasurement = async (id: string,
+    customerMeasurementInput: CustomerMeasurementInput, options?: Parameters<typeof customFetch>[1]): Promise<CustomerMeasurement> => {
+
+  return customFetch<CustomerMeasurement>(getUpdateCustomerMeasurementUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customerMeasurementInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCustomerMeasurementMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomerMeasurement>>, TError,{id: string;data: BodyType<CustomerMeasurementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCustomerMeasurement>>, TError,{id: string;data: BodyType<CustomerMeasurementInput>}, TContext> => {
+
+const mutationKey = ['updateCustomerMeasurement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCustomerMeasurement>>, {id: string;data: BodyType<CustomerMeasurementInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCustomerMeasurement(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCustomerMeasurementMutationResult = NonNullable<Awaited<ReturnType<typeof updateCustomerMeasurement>>>
+    export type UpdateCustomerMeasurementMutationBody = BodyType<CustomerMeasurementInput>
+    export type UpdateCustomerMeasurementMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit or correct measurements for a browser-owned Custom item
+ */
+export const useUpdateCustomerMeasurement = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomerMeasurement>>, TError,{id: string;data: BodyType<CustomerMeasurementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCustomerMeasurement>>,
+        TError,
+        {id: string;data: BodyType<CustomerMeasurementInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCustomerMeasurementMutationOptions(options));
+    }
 
 export const getReceiveCommerceWebhookUrl = () => {
 
@@ -2336,6 +2490,78 @@ export const useUpdateStaffOrder = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateStaffOrderMutationOptions(options));
+    }
+
+export const getUpdateStaffMeasurementUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/measurements/${id}`
+}
+
+/**
+ * @summary Request clarification, confirm atelier measurements, or maintain a production exception
+ */
+export const updateStaffMeasurement = async (id: string,
+    staffMeasurementUpdate: StaffMeasurementUpdate, options?: Parameters<typeof customFetch>[1]): Promise<StaffMeasurement> => {
+
+  return customFetch<StaffMeasurement>(getUpdateStaffMeasurementUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffMeasurementUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffMeasurementMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffMeasurement>>, TError,{id: string;data: BodyType<StaffMeasurementUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffMeasurement>>, TError,{id: string;data: BodyType<StaffMeasurementUpdate>}, TContext> => {
+
+const mutationKey = ['updateStaffMeasurement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffMeasurement>>, {id: string;data: BodyType<StaffMeasurementUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStaffMeasurement(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffMeasurementMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffMeasurement>>>
+    export type UpdateStaffMeasurementMutationBody = BodyType<StaffMeasurementUpdate>
+    export type UpdateStaffMeasurementMutationError = ErrorType<void>
+
+    /**
+ * @summary Request clarification, confirm atelier measurements, or maintain a production exception
+ */
+export const useUpdateStaffMeasurement = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffMeasurement>>, TError,{id: string;data: BodyType<StaffMeasurementUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffMeasurement>>,
+        TError,
+        {id: string;data: BodyType<StaffMeasurementUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffMeasurementMutationOptions(options));
     }
 
 export const getUpdateStaffEnquiryUrl = (id: string,) => {
@@ -4802,7 +5028,7 @@ export const getRequestUploadUrlUrl = () => {
 }
 
 /**
- * @summary Request a signed direct-upload URL for a staff-managed image
+ * @summary Request a signed direct-upload URL for staff-managed storefront media
  */
 export const requestUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
 
@@ -4851,7 +5077,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type RequestUploadUrlMutationError = ErrorType<void>
 
     /**
- * @summary Request a signed direct-upload URL for a staff-managed image
+ * @summary Request a signed direct-upload URL for staff-managed storefront media
  */
 export const useRequestUploadUrl = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}

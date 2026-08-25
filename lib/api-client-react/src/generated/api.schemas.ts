@@ -985,6 +985,13 @@ export interface StaffAccessMapping {
   updatedAt: string;
 }
 
+export type StaffOrderDispatchGuidance = typeof StaffOrderDispatchGuidance[keyof typeof StaffOrderDispatchGuidance];
+
+
+export const StaffOrderDispatchGuidance = {
+  'Dispatch_within_five_days_after_measurements_are_confirmed_This_is_a_dispatch_estimate,_not_a_delivery_guarantee': 'Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee.',
+} as const;
+
 /**
  * @nullable
  */
@@ -997,6 +1004,113 @@ export const StaffOrderRefundRequestStatus = {
   declined: 'declined',
 } as const;
 
+export type StaffOrderItemSelectionType = typeof StaffOrderItemSelectionType[keyof typeof StaffOrderItemSelectionType];
+
+
+export const StaffOrderItemSelectionType = {
+  standard: 'standard',
+  custom: 'custom',
+} as const;
+
+export type CustomerMeasurementSelectionType = typeof CustomerMeasurementSelectionType[keyof typeof CustomerMeasurementSelectionType];
+
+
+export const CustomerMeasurementSelectionType = {
+  custom: 'custom',
+} as const;
+
+export type CustomerMeasurementStatus = typeof CustomerMeasurementStatus[keyof typeof CustomerMeasurementStatus];
+
+
+export const CustomerMeasurementStatus = {
+  needed: 'needed',
+  submitted: 'submitted',
+  clarification_requested: 'clarification_requested',
+  confirmed: 'confirmed',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * @nullable
+ */
+export type CustomerMeasurementUnit = typeof CustomerMeasurementUnit[keyof typeof CustomerMeasurementUnit] | null;
+
+
+export const CustomerMeasurementUnit = {
+  cm: 'cm',
+  in: 'in',
+} as const;
+
+export interface MeasurementValues {
+  /** @exclusiveMinimum 0 */
+  height: number;
+  /** @exclusiveMinimum 0 */
+  chest: number;
+  /** @exclusiveMinimum 0 */
+  waist: number;
+  /** @exclusiveMinimum 0 */
+  hips: number;
+  /** @exclusiveMinimum 0 */
+  shoulder: number;
+  /** @exclusiveMinimum 0 */
+  sleeve: number;
+  /** @exclusiveMinimum 0 */
+  garmentLength: number;
+}
+
+export interface CustomerMeasurement {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  /** @minimum 1 */
+  lineNumber: number;
+  productId: string;
+  /** @nullable */
+  variantId?: string | null;
+  productName: string;
+  selectionType: CustomerMeasurementSelectionType;
+  /** @nullable */
+  selectedSize: string | null;
+  status: CustomerMeasurementStatus;
+  /** @nullable */
+  unit?: CustomerMeasurementUnit;
+  values?: MeasurementValues | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  customerNote?: string | null;
+  /** @nullable */
+  clarificationNote?: string | null;
+  /** @nullable */
+  productionException?: string | null;
+  /** @minimum 1 */
+  version: number;
+  /** @nullable */
+  submittedAt?: string | null;
+  /** @nullable */
+  confirmedAt?: string | null;
+  updatedAt: string;
+}
+
+export type StaffMeasurement = CustomerMeasurement;
+
+export interface StaffOrderItem {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  /** @minimum 1 */
+  lineNumber: number;
+  productId: string;
+  /** @nullable */
+  variantId?: string | null;
+  productName: string;
+  selectionType: StaffOrderItemSelectionType;
+  /** @nullable */
+  selectedSize?: string | null;
+  /** @minimum 1 */
+  quantity: number;
+  measurement?: StaffMeasurement | null;
+}
+
 export interface StaffOrder {
   /** @pattern ^[0-9a-fA-F-]{36}$ */
   id: string;
@@ -1007,6 +1121,8 @@ export interface StaffOrder {
   total: string;
   currency: string;
   status: string;
+  dispatchGuidance: StaffOrderDispatchGuidance;
+  items: StaffOrderItem[];
   /**
      * @maxLength 2000
      * @nullable
@@ -1079,6 +1195,64 @@ export interface StaffOrderUpdate {
      * @maxLength 1000
      */
   refundDecisionNote?: string;
+}
+
+export type CustomerMeasurementInputUnit = typeof CustomerMeasurementInputUnit[keyof typeof CustomerMeasurementInputUnit];
+
+
+export const CustomerMeasurementInputUnit = {
+  cm: 'cm',
+  in: 'in',
+} as const;
+
+export interface CustomerMeasurementInput {
+  unit: CustomerMeasurementInputUnit;
+  values: MeasurementValues;
+  /** @maxLength 500 */
+  customerNote?: string;
+  /** @minimum 1 */
+  version: number;
+}
+
+export type CustomerMeasurementsPaymentStatus = typeof CustomerMeasurementsPaymentStatus[keyof typeof CustomerMeasurementsPaymentStatus];
+
+
+export const CustomerMeasurementsPaymentStatus = {
+  paid: 'paid',
+  fulfilled: 'fulfilled',
+} as const;
+
+export type CustomerMeasurementsDispatchGuidance = typeof CustomerMeasurementsDispatchGuidance[keyof typeof CustomerMeasurementsDispatchGuidance];
+
+
+export const CustomerMeasurementsDispatchGuidance = {
+  'Dispatch_within_five_days_after_measurements_are_confirmed_This_is_a_dispatch_estimate,_not_a_delivery_guarantee': 'Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee.',
+} as const;
+
+export interface CustomerMeasurements {
+  paymentStatus: CustomerMeasurementsPaymentStatus;
+  measurementsRequired: boolean;
+  orderNumber: string;
+  dispatchGuidance: CustomerMeasurementsDispatchGuidance;
+  items: CustomerMeasurement[];
+}
+
+export type StaffMeasurementUpdateAction = typeof StaffMeasurementUpdateAction[keyof typeof StaffMeasurementUpdateAction];
+
+
+export const StaffMeasurementUpdateAction = {
+  request_clarification: 'request_clarification',
+  confirm: 'confirm',
+  set_production_exception: 'set_production_exception',
+  clear_production_exception: 'clear_production_exception',
+} as const;
+
+export interface StaffMeasurementUpdate {
+  action: StaffMeasurementUpdateAction;
+  /** @maxLength 1000 */
+  note?: string;
+  /** @minimum 1 */
+  version: number;
 }
 
 export type StaffEnquiryUpdateStatus = typeof StaffEnquiryUpdateStatus[keyof typeof StaffEnquiryUpdateStatus];

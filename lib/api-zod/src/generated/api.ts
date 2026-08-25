@@ -179,6 +179,178 @@ export const GetCommercePaymentStatusResponse = zod.object({
 
 
 /**
+ * @summary Get the browser-owned paid order measurement handoff
+ */
+export const getCustomerMeasurementsHeaderXSOSOCheckoutAttemptRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const GetCustomerMeasurementsHeader = zod.object({
+  "X-SOSO-Checkout-Attempt": zod.string().regex(getCustomerMeasurementsHeaderXSOSOCheckoutAttemptRegExp)
+})
+
+export const getCustomerMeasurementsResponseItemsItemIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const getCustomerMeasurementsResponseItemsItemLineNumberMultipleOf = 1;
+
+export const getCustomerMeasurementsResponseItemsItemValuesOneHeightExclusiveMin = 0;
+
+export const getCustomerMeasurementsResponseItemsItemValuesOneChestExclusiveMin = 0;
+
+export const getCustomerMeasurementsResponseItemsItemValuesOneWaistExclusiveMin = 0;
+
+export const getCustomerMeasurementsResponseItemsItemValuesOneHipsExclusiveMin = 0;
+
+export const getCustomerMeasurementsResponseItemsItemValuesOneShoulderExclusiveMin = 0;
+
+export const getCustomerMeasurementsResponseItemsItemValuesOneSleeveExclusiveMin = 0;
+
+export const getCustomerMeasurementsResponseItemsItemValuesOneGarmentLengthExclusiveMin = 0;
+
+export const getCustomerMeasurementsResponseItemsItemCustomerNoteMax = 500;
+
+export const getCustomerMeasurementsResponseItemsItemVersionMultipleOf = 1;
+
+
+
+export const GetCustomerMeasurementsResponse = zod.object({
+  "paymentStatus": zod.enum(['paid', 'fulfilled']),
+  "measurementsRequired": zod.boolean(),
+  "orderNumber": zod.string(),
+  "dispatchGuidance": zod.enum(['Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee.']),
+  "items": zod.array(zod.object({
+  "id": zod.string().regex(getCustomerMeasurementsResponseItemsItemIdRegExp),
+  "lineNumber": zod.number().min(1).multipleOf(getCustomerMeasurementsResponseItemsItemLineNumberMultipleOf),
+  "productId": zod.string(),
+  "variantId": zod.string().nullish(),
+  "productName": zod.string(),
+  "selectionType": zod.enum(['custom']),
+  "selectedSize": zod.string().nullable(),
+  "status": zod.enum(['needed', 'submitted', 'clarification_requested', 'confirmed', 'cancelled']),
+  "unit": zod.union([zod.literal('cm'),zod.literal('in'),zod.literal(null)]).nullish(),
+  "values": zod.union([zod.object({
+  "height": zod.number().gt(getCustomerMeasurementsResponseItemsItemValuesOneHeightExclusiveMin),
+  "chest": zod.number().gt(getCustomerMeasurementsResponseItemsItemValuesOneChestExclusiveMin),
+  "waist": zod.number().gt(getCustomerMeasurementsResponseItemsItemValuesOneWaistExclusiveMin),
+  "hips": zod.number().gt(getCustomerMeasurementsResponseItemsItemValuesOneHipsExclusiveMin),
+  "shoulder": zod.number().gt(getCustomerMeasurementsResponseItemsItemValuesOneShoulderExclusiveMin),
+  "sleeve": zod.number().gt(getCustomerMeasurementsResponseItemsItemValuesOneSleeveExclusiveMin),
+  "garmentLength": zod.number().gt(getCustomerMeasurementsResponseItemsItemValuesOneGarmentLengthExclusiveMin)
+}),zod.null()]).optional(),
+  "customerNote": zod.string().max(getCustomerMeasurementsResponseItemsItemCustomerNoteMax).nullish(),
+  "clarificationNote": zod.string().nullish(),
+  "productionException": zod.string().nullish(),
+  "version": zod.number().min(1).multipleOf(getCustomerMeasurementsResponseItemsItemVersionMultipleOf),
+  "submittedAt": zod.coerce.date().nullish(),
+  "confirmedAt": zod.coerce.date().nullish(),
+  "updatedAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary Submit or correct measurements for a browser-owned Custom item
+ */
+export const updateCustomerMeasurementPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateCustomerMeasurementParams = zod.object({
+  "id": zod.coerce.string().regex(updateCustomerMeasurementPathIdRegExp)
+})
+
+export const updateCustomerMeasurementHeaderXSOSOCheckoutAttemptRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateCustomerMeasurementHeader = zod.object({
+  "X-SOSO-Checkout-Attempt": zod.string().regex(updateCustomerMeasurementHeaderXSOSOCheckoutAttemptRegExp)
+})
+
+export const updateCustomerMeasurementBodyValuesHeightExclusiveMin = 0;
+
+export const updateCustomerMeasurementBodyValuesChestExclusiveMin = 0;
+
+export const updateCustomerMeasurementBodyValuesWaistExclusiveMin = 0;
+
+export const updateCustomerMeasurementBodyValuesHipsExclusiveMin = 0;
+
+export const updateCustomerMeasurementBodyValuesShoulderExclusiveMin = 0;
+
+export const updateCustomerMeasurementBodyValuesSleeveExclusiveMin = 0;
+
+export const updateCustomerMeasurementBodyValuesGarmentLengthExclusiveMin = 0;
+
+export const updateCustomerMeasurementBodyCustomerNoteMax = 500;
+
+export const updateCustomerMeasurementBodyVersionMultipleOf = 1;
+
+
+
+export const UpdateCustomerMeasurementBody = zod.object({
+  "unit": zod.enum(['cm', 'in']),
+  "values": zod.object({
+  "height": zod.number().gt(updateCustomerMeasurementBodyValuesHeightExclusiveMin),
+  "chest": zod.number().gt(updateCustomerMeasurementBodyValuesChestExclusiveMin),
+  "waist": zod.number().gt(updateCustomerMeasurementBodyValuesWaistExclusiveMin),
+  "hips": zod.number().gt(updateCustomerMeasurementBodyValuesHipsExclusiveMin),
+  "shoulder": zod.number().gt(updateCustomerMeasurementBodyValuesShoulderExclusiveMin),
+  "sleeve": zod.number().gt(updateCustomerMeasurementBodyValuesSleeveExclusiveMin),
+  "garmentLength": zod.number().gt(updateCustomerMeasurementBodyValuesGarmentLengthExclusiveMin)
+}),
+  "customerNote": zod.string().max(updateCustomerMeasurementBodyCustomerNoteMax).optional(),
+  "version": zod.number().min(1).multipleOf(updateCustomerMeasurementBodyVersionMultipleOf)
+})
+
+export const updateCustomerMeasurementResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const updateCustomerMeasurementResponseLineNumberMultipleOf = 1;
+
+export const updateCustomerMeasurementResponseValuesOneHeightExclusiveMin = 0;
+
+export const updateCustomerMeasurementResponseValuesOneChestExclusiveMin = 0;
+
+export const updateCustomerMeasurementResponseValuesOneWaistExclusiveMin = 0;
+
+export const updateCustomerMeasurementResponseValuesOneHipsExclusiveMin = 0;
+
+export const updateCustomerMeasurementResponseValuesOneShoulderExclusiveMin = 0;
+
+export const updateCustomerMeasurementResponseValuesOneSleeveExclusiveMin = 0;
+
+export const updateCustomerMeasurementResponseValuesOneGarmentLengthExclusiveMin = 0;
+
+export const updateCustomerMeasurementResponseCustomerNoteMax = 500;
+
+export const updateCustomerMeasurementResponseVersionMultipleOf = 1;
+
+
+
+export const UpdateCustomerMeasurementResponse = zod.object({
+  "id": zod.string().regex(updateCustomerMeasurementResponseIdRegExp),
+  "lineNumber": zod.number().min(1).multipleOf(updateCustomerMeasurementResponseLineNumberMultipleOf),
+  "productId": zod.string(),
+  "variantId": zod.string().nullish(),
+  "productName": zod.string(),
+  "selectionType": zod.enum(['custom']),
+  "selectedSize": zod.string().nullable(),
+  "status": zod.enum(['needed', 'submitted', 'clarification_requested', 'confirmed', 'cancelled']),
+  "unit": zod.union([zod.literal('cm'),zod.literal('in'),zod.literal(null)]).nullish(),
+  "values": zod.union([zod.object({
+  "height": zod.number().gt(updateCustomerMeasurementResponseValuesOneHeightExclusiveMin),
+  "chest": zod.number().gt(updateCustomerMeasurementResponseValuesOneChestExclusiveMin),
+  "waist": zod.number().gt(updateCustomerMeasurementResponseValuesOneWaistExclusiveMin),
+  "hips": zod.number().gt(updateCustomerMeasurementResponseValuesOneHipsExclusiveMin),
+  "shoulder": zod.number().gt(updateCustomerMeasurementResponseValuesOneShoulderExclusiveMin),
+  "sleeve": zod.number().gt(updateCustomerMeasurementResponseValuesOneSleeveExclusiveMin),
+  "garmentLength": zod.number().gt(updateCustomerMeasurementResponseValuesOneGarmentLengthExclusiveMin)
+}),zod.null()]).optional(),
+  "customerNote": zod.string().max(updateCustomerMeasurementResponseCustomerNoteMax).nullish(),
+  "clarificationNote": zod.string().nullish(),
+  "productionException": zod.string().nullish(),
+  "version": zod.number().min(1).multipleOf(updateCustomerMeasurementResponseVersionMultipleOf),
+  "submittedAt": zod.coerce.date().nullish(),
+  "confirmedAt": zod.coerce.date().nullish(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Receive a signed JusticeSure Commerce webhook
  */
 export const receiveCommerceWebhookHeaderXJusticeSureTimestampMax = 32;
@@ -752,6 +924,32 @@ export const ListStaffOrdersQueryParams = zod.object({
 export const listStaffOrdersResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
 export const listStaffOrdersResponseCustomerEmailMax = 320;
 
+export const listStaffOrdersResponseItemsItemIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const listStaffOrdersResponseItemsItemLineNumberMultipleOf = 1;
+
+export const listStaffOrdersResponseItemsItemQuantityMultipleOf = 1;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const listStaffOrdersResponseItemsItemMeasurementOneOneLineNumberMultipleOf = 1;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneHeightExclusiveMin = 0;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneChestExclusiveMin = 0;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneWaistExclusiveMin = 0;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneHipsExclusiveMin = 0;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneShoulderExclusiveMin = 0;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneSleeveExclusiveMin = 0;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneGarmentLengthExclusiveMin = 0;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneCustomerNoteMax = 500;
+
+export const listStaffOrdersResponseItemsItemMeasurementOneOneVersionMultipleOf = 1;
+
 export const listStaffOrdersResponseAtelierNotesMax = 2000;
 
 export const listStaffOrdersResponseDeliveryNotesMax = 2000;
@@ -770,6 +968,44 @@ export const ListStaffOrdersResponseItem = zod.object({
   "total": zod.string(),
   "currency": zod.string(),
   "status": zod.string(),
+  "dispatchGuidance": zod.enum(['Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee.']),
+  "items": zod.array(zod.object({
+  "id": zod.string().regex(listStaffOrdersResponseItemsItemIdRegExp),
+  "lineNumber": zod.number().min(1).multipleOf(listStaffOrdersResponseItemsItemLineNumberMultipleOf),
+  "productId": zod.string(),
+  "variantId": zod.string().nullish(),
+  "productName": zod.string(),
+  "selectionType": zod.enum(['standard', 'custom']),
+  "selectedSize": zod.string().nullish(),
+  "quantity": zod.number().min(1).multipleOf(listStaffOrdersResponseItemsItemQuantityMultipleOf),
+  "measurement": zod.union([zod.object({
+  "id": zod.string().regex(listStaffOrdersResponseItemsItemMeasurementOneOneIdRegExp),
+  "lineNumber": zod.number().min(1).multipleOf(listStaffOrdersResponseItemsItemMeasurementOneOneLineNumberMultipleOf),
+  "productId": zod.string(),
+  "variantId": zod.string().nullish(),
+  "productName": zod.string(),
+  "selectionType": zod.enum(['custom']),
+  "selectedSize": zod.string().nullable(),
+  "status": zod.enum(['needed', 'submitted', 'clarification_requested', 'confirmed', 'cancelled']),
+  "unit": zod.union([zod.literal('cm'),zod.literal('in'),zod.literal(null)]).nullish(),
+  "values": zod.union([zod.object({
+  "height": zod.number().gt(listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneHeightExclusiveMin),
+  "chest": zod.number().gt(listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneChestExclusiveMin),
+  "waist": zod.number().gt(listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneWaistExclusiveMin),
+  "hips": zod.number().gt(listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneHipsExclusiveMin),
+  "shoulder": zod.number().gt(listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneShoulderExclusiveMin),
+  "sleeve": zod.number().gt(listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneSleeveExclusiveMin),
+  "garmentLength": zod.number().gt(listStaffOrdersResponseItemsItemMeasurementOneOneValuesOneGarmentLengthExclusiveMin)
+}),zod.null()]).optional(),
+  "customerNote": zod.string().max(listStaffOrdersResponseItemsItemMeasurementOneOneCustomerNoteMax).nullish(),
+  "clarificationNote": zod.string().nullish(),
+  "productionException": zod.string().nullish(),
+  "version": zod.number().min(1).multipleOf(listStaffOrdersResponseItemsItemMeasurementOneOneVersionMultipleOf),
+  "submittedAt": zod.coerce.date().nullish(),
+  "confirmedAt": zod.coerce.date().nullish(),
+  "updatedAt": zod.coerce.date()
+}),zod.null()]).optional()
+})),
   "atelierNotes": zod.string().max(listStaffOrdersResponseAtelierNotesMax).nullish(),
   "deliveryNotes": zod.string().max(listStaffOrdersResponseDeliveryNotesMax).nullish(),
   "refundRequestStatus": zod.union([zod.literal('requested'),zod.literal('approved'),zod.literal('declined'),zod.literal(null)]).nullish(),
@@ -901,6 +1137,32 @@ export const UpdateStaffOrderBody = zod.object({
 export const updateStaffOrderResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
 export const updateStaffOrderResponseCustomerEmailMax = 320;
 
+export const updateStaffOrderResponseItemsItemIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const updateStaffOrderResponseItemsItemLineNumberMultipleOf = 1;
+
+export const updateStaffOrderResponseItemsItemQuantityMultipleOf = 1;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const updateStaffOrderResponseItemsItemMeasurementOneOneLineNumberMultipleOf = 1;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneHeightExclusiveMin = 0;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneChestExclusiveMin = 0;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneWaistExclusiveMin = 0;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneHipsExclusiveMin = 0;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneShoulderExclusiveMin = 0;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneSleeveExclusiveMin = 0;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneGarmentLengthExclusiveMin = 0;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneCustomerNoteMax = 500;
+
+export const updateStaffOrderResponseItemsItemMeasurementOneOneVersionMultipleOf = 1;
+
 export const updateStaffOrderResponseAtelierNotesMax = 2000;
 
 export const updateStaffOrderResponseDeliveryNotesMax = 2000;
@@ -919,6 +1181,44 @@ export const UpdateStaffOrderResponse = zod.object({
   "total": zod.string(),
   "currency": zod.string(),
   "status": zod.string(),
+  "dispatchGuidance": zod.enum(['Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee.']),
+  "items": zod.array(zod.object({
+  "id": zod.string().regex(updateStaffOrderResponseItemsItemIdRegExp),
+  "lineNumber": zod.number().min(1).multipleOf(updateStaffOrderResponseItemsItemLineNumberMultipleOf),
+  "productId": zod.string(),
+  "variantId": zod.string().nullish(),
+  "productName": zod.string(),
+  "selectionType": zod.enum(['standard', 'custom']),
+  "selectedSize": zod.string().nullish(),
+  "quantity": zod.number().min(1).multipleOf(updateStaffOrderResponseItemsItemQuantityMultipleOf),
+  "measurement": zod.union([zod.object({
+  "id": zod.string().regex(updateStaffOrderResponseItemsItemMeasurementOneOneIdRegExp),
+  "lineNumber": zod.number().min(1).multipleOf(updateStaffOrderResponseItemsItemMeasurementOneOneLineNumberMultipleOf),
+  "productId": zod.string(),
+  "variantId": zod.string().nullish(),
+  "productName": zod.string(),
+  "selectionType": zod.enum(['custom']),
+  "selectedSize": zod.string().nullable(),
+  "status": zod.enum(['needed', 'submitted', 'clarification_requested', 'confirmed', 'cancelled']),
+  "unit": zod.union([zod.literal('cm'),zod.literal('in'),zod.literal(null)]).nullish(),
+  "values": zod.union([zod.object({
+  "height": zod.number().gt(updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneHeightExclusiveMin),
+  "chest": zod.number().gt(updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneChestExclusiveMin),
+  "waist": zod.number().gt(updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneWaistExclusiveMin),
+  "hips": zod.number().gt(updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneHipsExclusiveMin),
+  "shoulder": zod.number().gt(updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneShoulderExclusiveMin),
+  "sleeve": zod.number().gt(updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneSleeveExclusiveMin),
+  "garmentLength": zod.number().gt(updateStaffOrderResponseItemsItemMeasurementOneOneValuesOneGarmentLengthExclusiveMin)
+}),zod.null()]).optional(),
+  "customerNote": zod.string().max(updateStaffOrderResponseItemsItemMeasurementOneOneCustomerNoteMax).nullish(),
+  "clarificationNote": zod.string().nullish(),
+  "productionException": zod.string().nullish(),
+  "version": zod.number().min(1).multipleOf(updateStaffOrderResponseItemsItemMeasurementOneOneVersionMultipleOf),
+  "submittedAt": zod.coerce.date().nullish(),
+  "confirmedAt": zod.coerce.date().nullish(),
+  "updatedAt": zod.coerce.date()
+}),zod.null()]).optional()
+})),
   "atelierNotes": zod.string().max(updateStaffOrderResponseAtelierNotesMax).nullish(),
   "deliveryNotes": zod.string().max(updateStaffOrderResponseDeliveryNotesMax).nullish(),
   "refundRequestStatus": zod.union([zod.literal('requested'),zod.literal('approved'),zod.literal('declined'),zod.literal(null)]).nullish(),
@@ -927,6 +1227,80 @@ export const UpdateStaffOrderResponse = zod.object({
   "refundRequestedAt": zod.coerce.date().nullish(),
   "refundReviewedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Request clarification, confirm atelier measurements, or maintain a production exception
+ */
+export const updateStaffMeasurementPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffMeasurementParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffMeasurementPathIdRegExp)
+})
+
+export const updateStaffMeasurementBodyNoteMax = 1000;
+
+export const updateStaffMeasurementBodyVersionMultipleOf = 1;
+
+
+
+export const UpdateStaffMeasurementBody = zod.object({
+  "action": zod.enum(['request_clarification', 'confirm', 'set_production_exception', 'clear_production_exception']),
+  "note": zod.string().max(updateStaffMeasurementBodyNoteMax).optional(),
+  "version": zod.number().min(1).multipleOf(updateStaffMeasurementBodyVersionMultipleOf)
+})
+
+export const updateStaffMeasurementResponseOneIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const updateStaffMeasurementResponseOneLineNumberMultipleOf = 1;
+
+export const updateStaffMeasurementResponseOneValuesOneHeightExclusiveMin = 0;
+
+export const updateStaffMeasurementResponseOneValuesOneChestExclusiveMin = 0;
+
+export const updateStaffMeasurementResponseOneValuesOneWaistExclusiveMin = 0;
+
+export const updateStaffMeasurementResponseOneValuesOneHipsExclusiveMin = 0;
+
+export const updateStaffMeasurementResponseOneValuesOneShoulderExclusiveMin = 0;
+
+export const updateStaffMeasurementResponseOneValuesOneSleeveExclusiveMin = 0;
+
+export const updateStaffMeasurementResponseOneValuesOneGarmentLengthExclusiveMin = 0;
+
+export const updateStaffMeasurementResponseOneCustomerNoteMax = 500;
+
+export const updateStaffMeasurementResponseOneVersionMultipleOf = 1;
+
+
+
+export const UpdateStaffMeasurementResponse = zod.object({
+  "id": zod.string().regex(updateStaffMeasurementResponseOneIdRegExp),
+  "lineNumber": zod.number().min(1).multipleOf(updateStaffMeasurementResponseOneLineNumberMultipleOf),
+  "productId": zod.string(),
+  "variantId": zod.string().nullish(),
+  "productName": zod.string(),
+  "selectionType": zod.enum(['custom']),
+  "selectedSize": zod.string().nullable(),
+  "status": zod.enum(['needed', 'submitted', 'clarification_requested', 'confirmed', 'cancelled']),
+  "unit": zod.union([zod.literal('cm'),zod.literal('in'),zod.literal(null)]).nullish(),
+  "values": zod.union([zod.object({
+  "height": zod.number().gt(updateStaffMeasurementResponseOneValuesOneHeightExclusiveMin),
+  "chest": zod.number().gt(updateStaffMeasurementResponseOneValuesOneChestExclusiveMin),
+  "waist": zod.number().gt(updateStaffMeasurementResponseOneValuesOneWaistExclusiveMin),
+  "hips": zod.number().gt(updateStaffMeasurementResponseOneValuesOneHipsExclusiveMin),
+  "shoulder": zod.number().gt(updateStaffMeasurementResponseOneValuesOneShoulderExclusiveMin),
+  "sleeve": zod.number().gt(updateStaffMeasurementResponseOneValuesOneSleeveExclusiveMin),
+  "garmentLength": zod.number().gt(updateStaffMeasurementResponseOneValuesOneGarmentLengthExclusiveMin)
+}),zod.null()]).optional(),
+  "customerNote": zod.string().max(updateStaffMeasurementResponseOneCustomerNoteMax).nullish(),
+  "clarificationNote": zod.string().nullish(),
+  "productionException": zod.string().nullish(),
+  "version": zod.number().min(1).multipleOf(updateStaffMeasurementResponseOneVersionMultipleOf),
+  "submittedAt": zod.coerce.date().nullish(),
+  "confirmedAt": zod.coerce.date().nullish(),
   "updatedAt": zod.coerce.date()
 })
 
@@ -2174,7 +2548,7 @@ export const ListStaffRedirectHistoryResponse = zod.array(ListStaffRedirectHisto
 
 
 /**
- * @summary Request a signed direct-upload URL for a staff-managed image
+ * @summary Request a signed direct-upload URL for staff-managed storefront media
  */
 export const requestUploadUrlBodyNameMax = 160;
 

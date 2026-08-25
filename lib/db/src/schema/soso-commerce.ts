@@ -81,6 +81,27 @@ export const commerceWebhookStatusEnum = pgEnum("soso_commerce_webhook_status", 
   "failed",
 ]);
 
+export const orderItemSelectionTypeEnum = pgEnum("soso_order_item_selection_type", [
+  "standard",
+  "custom",
+]);
+
+export const measurementStatusEnum = pgEnum("soso_measurement_status", [
+  "needed",
+  "submitted",
+  "clarification_requested",
+  "confirmed",
+  "cancelled",
+]);
+
+export const measurementUnitEnum = pgEnum("soso_measurement_unit", ["cm", "in"]);
+
+export const measurementRevisionActorEnum = pgEnum("soso_measurement_revision_actor", [
+  "customer",
+  "staff",
+  "system",
+]);
+
 export const staffUsersTable = pgTable(
   "soso_staff_users",
   {
@@ -153,14 +174,62 @@ export const orderItemsTable = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     orderId: uuid("order_id").notNull().references(() => ordersTable.id, { onDelete: "cascade" }),
+    lineNumber: integer("line_number").notNull(),
+    commerceProductId: text("commerce_product_id").notNull(),
+    commerceVariantId: text("commerce_variant_id"),
     productSlug: text("product_slug").notNull(),
     productName: text("product_name").notNull(),
+    selectionType: orderItemSelectionTypeEnum("selection_type").notNull().default("standard"),
     selectedSize: text("selected_size"),
     quantity: integer("quantity").notNull(),
     unitPrice: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("soso_order_items_order_idx").on(table.orderId)],
+  (table) => [
+    index("soso_order_items_order_idx").on(table.orderId),
+    uniqueIndex("soso_order_items_order_line_idx").on(table.orderId, table.lineNumber),
+  ],
+);
+
+export const measurementRequestsTable = pgTable(
+  "soso_measurement_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderItemId: uuid("order_item_id").notNull().references(() => orderItemsTable.id, { onDelete: "cascade" }),
+    status: measurementStatusEnum("status").notNull().default("needed"),
+    unit: measurementUnitEnum("unit"),
+    values: jsonb("values"),
+    customerNote: text("customer_note"),
+    clarificationNote: text("clarification_note"),
+    productionException: text("production_exception"),
+    version: integer("version").notNull().default(1),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex("soso_measurement_requests_order_item_idx").on(table.orderItemId),
+    index("soso_measurement_requests_status_updated_idx").on(table.status, table.updatedAt),
+  ],
+);
+
+export const measurementRevisionsTable = pgTable(
+  "soso_measurement_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    measurementRequestId: uuid("measurement_request_id").notNull().references(() => measurementRequestsTable.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    actorType: measurementRevisionActorEnum("actor_type").notNull(),
+    actorId: text("actor_id"),
+    action: text("action").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("soso_measurement_revisions_request_version_idx").on(table.measurementRequestId, table.version),
+    index("soso_measurement_revisions_request_created_idx").on(table.measurementRequestId, table.createdAt),
+  ],
 );
 
 export const commerceCheckoutAttemptsTable = pgTable(
@@ -561,6 +630,8 @@ export const insertStaffUserSchema = createInsertSchema(staffUsersTable).omit({ 
 export const insertStaffSessionSchema = createInsertSchema(staffSessionsTable).omit({ id: true, createdAt: true, lastSeenAt: true, revokedAt: true });
 export const insertOrderSchema = createInsertSchema(ordersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItemsTable).omit({ id: true, createdAt: true });
+export const insertMeasurementRequestSchema = createInsertSchema(measurementRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMeasurementRevisionSchema = createInsertSchema(measurementRevisionsTable).omit({ id: true, createdAt: true });
 export const insertCustomerEnquirySchema = createInsertSchema(customerEnquiriesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertPrivacyRequestSchema = createInsertSchema(privacyRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOperationalNotificationSchema = createInsertSchema(operationalNotificationsTable).omit({ id: true, createdAt: true, acknowledgedAt: true, acknowledgedByClerkUserId: true });
@@ -583,6 +654,8 @@ export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type StaffSession = typeof staffSessionsTable.$inferSelect;
 export type Order = typeof ordersTable.$inferSelect;
 export type OrderItem = typeof orderItemsTable.$inferSelect;
+export type MeasurementRequest = typeof measurementRequestsTable.$inferSelect;
+export type MeasurementRevision = typeof measurementRevisionsTable.$inferSelect;
 export type CommerceCheckoutAttempt = typeof commerceCheckoutAttemptsTable.$inferSelect;
 export type CommerceWebhookEvent = typeof commerceWebhookEventsTable.$inferSelect;
 export type CustomerEnquiry = typeof customerEnquiriesTable.$inferSelect;

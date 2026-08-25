@@ -107,6 +107,57 @@ paths:
           description: Checkout attempt is unknown or not owned by this browser
         "503":
           description: Authoritative payment status cannot be checked
+  /payment/measurements:
+    get:
+      operationId: getCustomerMeasurements
+      tags: [storefront]
+      summary: Get the browser-owned paid order measurement handoff
+      parameters:
+        - in: header
+          name: X-SOSO-Checkout-Attempt
+          required: true
+          schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+      responses:
+        "200":
+          description: Authoritative payment and Custom measurement state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerMeasurements"
+        "403": { description: Checkout ownership is not valid }
+        "409": { description: Order is not in a valid paid state }
+        "503": { description: Authoritative payment status cannot be checked }
+  /payment/measurements/{id}:
+    put:
+      operationId: updateCustomerMeasurement
+      tags: [storefront]
+      summary: Submit or correct measurements for a browser-owned Custom item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        - in: header
+          name: X-SOSO-Checkout-Attempt
+          required: true
+          schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerMeasurementInput"
+      responses:
+        "200":
+          description: Updated measurement request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerMeasurement"
+        "400": { description: Measurements are invalid }
+        "403": { description: Checkout ownership is not valid }
+        "404": { description: Custom measurement request not found }
+        "409": { description: Request is stale or cannot be edited }
   /payment/webhook:
     post:
       operationId: receiveCommerceWebhook
@@ -579,6 +630,30 @@ paths:
         "403": { description: "Owner or operations access required" }
         "404": { description: "Order not found" }
         "409": { description: "Order changed while being updated" }
+  /staff/measurements/{id}:
+    patch:
+      operationId: updateStaffMeasurement
+      tags: [staff]
+      summary: Request clarification, confirm atelier measurements, or maintain a production exception
+      parameters:
+        - $ref: "#/components/parameters/StaffEntityId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StaffMeasurementUpdate"
+      responses:
+        "200":
+          description: Updated measurement request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffMeasurement"
+        "400": { description: Invalid measurement action }
+        "403": { description: Atelier staff role required }
+        "404": { description: Custom measurement request not found }
+        "409": { description: Request changed or transition is not allowed }
   /staff/enquiries/{id}:
     patch:
       operationId: updateStaffEnquiry
@@ -1770,7 +1845,7 @@ components:
         updatedAt: { type: string, format: date-time }
     StaffOrder:
       type: object
-      required: [id, orderNumber, customerName, customerEmail, total, currency, status, createdAt, updatedAt]
+      required: [id, orderNumber, customerName, customerEmail, total, currency, status, dispatchGuidance, items, createdAt, updatedAt]
       properties:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         orderNumber: { type: string }
@@ -1779,6 +1854,10 @@ components:
         total: { type: string }
         currency: { type: string }
         status: { type: string }
+        dispatchGuidance: { type: string, enum: ["Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee."] }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/StaffOrderItem" }
         atelierNotes: { type: ["string", "null"], maxLength: 2000 }
         deliveryNotes: { type: ["string", "null"], maxLength: 2000 }
         refundRequestStatus: { type: ["string", "null"], enum: [requested, approved, declined, null] }
@@ -1800,6 +1879,89 @@ components:
         refundRequestReason: { type: string, minLength: 8, maxLength: 1000 }
         refundRequestDecision: { type: string, enum: [approved, declined] }
         refundDecisionNote: { type: string, minLength: 8, maxLength: 1000 }
+    MeasurementValues:
+      type: object
+      required: [height, chest, waist, hips, shoulder, sleeve, garmentLength]
+      additionalProperties: false
+      properties:
+        height: { type: number, exclusiveMinimum: 0 }
+        chest: { type: number, exclusiveMinimum: 0 }
+        waist: { type: number, exclusiveMinimum: 0 }
+        hips: { type: number, exclusiveMinimum: 0 }
+        shoulder: { type: number, exclusiveMinimum: 0 }
+        sleeve: { type: number, exclusiveMinimum: 0 }
+        garmentLength: { type: number, exclusiveMinimum: 0 }
+    CustomerMeasurementInput:
+      type: object
+      required: [unit, values, version]
+      additionalProperties: false
+      properties:
+        unit: { type: string, enum: [cm, in] }
+        values: { $ref: "#/components/schemas/MeasurementValues" }
+        customerNote: { type: string, maxLength: 500 }
+        version: { type: number, minimum: 1, multipleOf: 1 }
+    CustomerMeasurement:
+      type: object
+      required: [id, lineNumber, productId, productName, selectionType, selectedSize, status, version, updatedAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        lineNumber: { type: number, minimum: 1, multipleOf: 1 }
+        productId: { type: string }
+        variantId: { type: ["string", "null"] }
+        productName: { type: string }
+        selectionType: { type: string, enum: [custom] }
+        selectedSize: { type: ["string", "null"] }
+        status: { type: string, enum: [needed, submitted, clarification_requested, confirmed, cancelled] }
+        unit: { type: ["string", "null"], enum: [cm, in, null] }
+        values:
+          anyOf:
+            - $ref: "#/components/schemas/MeasurementValues"
+            - type: "null"
+        customerNote: { type: ["string", "null"], maxLength: 500 }
+        clarificationNote: { type: ["string", "null"] }
+        productionException: { type: ["string", "null"] }
+        version: { type: number, minimum: 1, multipleOf: 1 }
+        submittedAt: { type: ["string", "null"], format: date-time }
+        confirmedAt: { type: ["string", "null"], format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CustomerMeasurements:
+      type: object
+      required: [paymentStatus, measurementsRequired, orderNumber, dispatchGuidance, items]
+      properties:
+        paymentStatus: { type: string, enum: [paid, fulfilled] }
+        measurementsRequired: { type: boolean }
+        orderNumber: { type: string }
+        dispatchGuidance: { type: string, enum: ["Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee."] }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/CustomerMeasurement" }
+    StaffMeasurement:
+      allOf:
+        - $ref: "#/components/schemas/CustomerMeasurement"
+    StaffOrderItem:
+      type: object
+      required: [id, lineNumber, productId, productName, selectionType, quantity]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        lineNumber: { type: number, minimum: 1, multipleOf: 1 }
+        productId: { type: string }
+        variantId: { type: ["string", "null"] }
+        productName: { type: string }
+        selectionType: { type: string, enum: [standard, custom] }
+        selectedSize: { type: ["string", "null"] }
+        quantity: { type: number, minimum: 1, multipleOf: 1 }
+        measurement:
+          anyOf:
+            - $ref: "#/components/schemas/StaffMeasurement"
+            - type: "null"
+    StaffMeasurementUpdate:
+      type: object
+      required: [action, version]
+      additionalProperties: false
+      properties:
+        action: { type: string, enum: [request_clarification, confirm, set_production_exception, clear_production_exception] }
+        note: { type: string, maxLength: 1000 }
+        version: { type: number, minimum: 1, multipleOf: 1 }
     StaffEnquiryUpdate:
       type: object
       minProperties: 1
