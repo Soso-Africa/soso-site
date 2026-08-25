@@ -4,16 +4,18 @@ import { useParams, Link } from 'wouter';
 import { format } from 'date-fns';
 import { Loader2, ArrowLeft, Share2, Clock, Tag } from 'lucide-react';
 import { Seo } from '@/components/Seo';
-import { absoluteUrl, journalApproved, siteUrl, indexingEnabled } from '@/lib/seo';
-import { approvedJournalEntryForSlug } from '@/data/journalSeo';
+import { journalApproved, indexingEnabled } from '@/lib/seo';
 import { rememberEditorialOrigin, trackStorefrontEvent } from '@/components/ConsentManager';
-import { products } from '@/data/products';
+import { PlatformContentState, usePlatformContent } from '@/data/platformContent';
 
 export default function JournalPost() {
   const params = useParams();
   const slug = params.slug || '';
-  const { data: post, isLoading, isError } = useGetJournalPost(slug);
-  const approvedArticle = approvedJournalEntryForSlug(slug);
+  const { data: post, isLoading, isError, error: articleError } = useGetJournalPost(slug);
+  const platform = usePlatformContent();
+  const platformStateCopy = platform.data?.content.site.platformState;
+  const hasRelatedArticles = (post?.relatedArticleSlugs?.length ?? 0) > 0;
+  const { data: allPosts } = useListJournalPosts({ query: { queryKey: ["journal-list-for-related"], enabled: hasRelatedArticles } });
 
   // Track article view
   useEffect(() => {
@@ -22,48 +24,52 @@ export default function JournalPost() {
     }
   }, [post?.slug]);
 
+  if (platform.isLoading) return <PlatformContentState loading copy={platformStateCopy} />;
+  if (!platform.data) return <PlatformContentState loading={false} error copy={platformStateCopy} />;
+  const copy = platform.data.content.pages.journal;
   if (isLoading) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center bg-background">
-        <Seo title="The Journal | SOSO Africa" description="SOSO Africa Journal." path="/journal" noIndex />
+        <Seo title={copy.loadingSeo.title} description={copy.loadingSeo.description} path="/journal" noIndex />
         <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-        <p className="uppercase tracking-widest text-xs text-muted-foreground">Loading Article...</p>
+        <p className="uppercase tracking-widest text-xs text-muted-foreground">{copy.loadingMessage}</p>
       </div>
     );
   }
 
-  if (isError || !post) {
+  const articleNotFound = isError && (articleError as { status?: number } | null)?.status === 404;
+  if (isError && !articleNotFound) {
+    return <PlatformContentState loading={false} error copy={platform.data.content.site.platformState} />;
+  }
+
+  if (articleNotFound || !post) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center bg-background text-center px-4">
-        <Seo title="Article not found | SOSO Africa" description="The requested SOSO Africa Journal article is not available." noIndex />
-        <h1 className="text-4xl soso-display mb-4 text-foreground">Article Not Found</h1>
-        <p className="text-muted-foreground mb-8 uppercase tracking-widest text-sm">The requested journal entry could not be located.</p>
-        <Link href="/journal" className="inline-flex items-center gap-2 text-primary hover:text-primary/80 uppercase tracking-widest text-sm font-medium transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Return to Journal
+        <Seo title={copy.notFoundSeo.title} description={copy.notFoundSeo.description} noIndex />
+        <h1 className="text-4xl soso-display mb-4 text-foreground">{copy.notFoundTitle}</h1>
+        <p className="text-muted-foreground mb-8 uppercase tracking-widest text-sm">{copy.notFoundMessage}</p>
+        <Link href={copy.backCta.href} className="inline-flex items-center gap-2 text-primary hover:text-primary/80 uppercase tracking-widest text-sm font-medium transition-colors">
+          <ArrowLeft className="w-4 h-4" /> {copy.backCta.label}
         </Link>
       </div>
     );
   }
 
-  // SEO: prefer approved whitelist title/excerpt until general indexing is on;
-  // once journalApproved is true, fall back to live post data.
-  const seoTitle = post.seoTitle ?? approvedArticle?.title ?? post.title;
-  const seoExcerpt = post.seoDescription ?? approvedArticle?.excerpt ?? post.excerpt;
-  const seoImageUrl = post.coverImageUrl ?? approvedArticle?.coverImageUrl ?? undefined;
-  const canIndex = journalApproved && (!!approvedArticle || indexingEnabled);
+  const seoTitle = post.seoTitle ?? post.title;
+  const seoExcerpt = post.seoDescription ?? post.excerpt;
+  const seoImageUrl = post.coverImageUrl ?? undefined;
+  const canIndex = journalApproved && indexingEnabled;
 
   const relatedProducts = (post.relatedProductSlugs ?? [])
-    .map((s) => products.find((p) => p.slug === s))
-    .filter(Boolean) as typeof products;
+    .map((s) => platform.data.content.products.find((p) => p.slug === s))
+    .filter((product): product is NonNullable<typeof product> => Boolean(product));
 
-  const hasRelatedArticles = (post.relatedArticleSlugs?.length ?? 0) > 0;
-  const { data: allPosts } = useListJournalPosts({ query: { queryKey: ["journal-list-for-related"], enabled: hasRelatedArticles } });
   const relatedArticles = allPosts?.filter((a) => post.relatedArticleSlugs?.includes(a.slug) && a.slug !== post.slug) ?? [];
 
   return (
     <div className="min-h-screen bg-background pb-24 fade-in">
       <Seo
-        title={`${seoTitle} | SOSO Africa Journal`}
+        title={seoTitle}
         description={seoExcerpt}
         path={`/journal/${post.slug}`}
         type="article"
@@ -76,13 +82,13 @@ export default function JournalPost() {
           tags: post.tags ?? undefined,
         }}
         breadcrumbs={[
-          { name: 'Journal', path: '/journal' },
+          { name: copy.backCta.label, path: copy.backCta.href },
           { name: seoTitle, path: `/journal/${post.slug}` },
         ]}
       />
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8">
-        <Link href="/journal" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest text-xs font-medium mb-16 group">
-          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" /> Back to Journal
+        <Link href={copy.backCta.href} className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest text-xs font-medium mb-16 group">
+          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" /> {copy.backCta.label}
         </Link>
         
         <header className="text-center mb-16">
@@ -94,11 +100,11 @@ export default function JournalPost() {
             {post.updatedAt && Math.abs(new Date(post.updatedAt).getTime() - new Date(post.publishedAt).getTime()) > 86_400_000 && (
               <>
                 <span className="opacity-40">&bull;</span>
-                <span>Updated {format(new Date(post.updatedAt), 'MMMM d, yyyy')}</span>
+                <span>{copy.updatedLabel} {format(new Date(post.updatedAt), 'MMMM d, yyyy')}</span>
               </>
             )}
             <span className="opacity-40">&bull;</span>
-            <span>By {post.authorName}</span>
+            <span>{copy.byLabel} {post.authorName}</span>
             {post.readTimeMinutes && (
               <>
                 <span className="opacity-40">&bull;</span>
@@ -150,7 +156,7 @@ export default function JournalPost() {
       {/* Related articles */}
       {relatedArticles.length > 0 && (
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-20 pt-12 border-t border-border">
-          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">Read also</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">{platform.data.content.pages.journal.relatedArticlesHeading}</p>
           <div className="grid gap-6 sm:grid-cols-2">
             {relatedArticles.map((article) => (
               <Link key={article.slug} href={`/journal/${article.slug}`} onClick={() => trackStorefrontEvent("cta_clicked", { ctaLabel: "journal_related_article", articleSlug: post.slug, targetArticleSlug: article.slug })} className="group block border border-border/40 p-5 hover:border-primary/40 transition-colors">
@@ -171,7 +177,7 @@ export default function JournalPost() {
       {/* Related products */}
       {relatedProducts.length > 0 && (
         <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 mt-20 pt-12 border-t border-border">
-          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">Featured in this article</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-primary mb-8">{platform.data.content.pages.journal.relatedProductsHeading}</p>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
             {relatedProducts.map((product) => (
               <Link key={product.slug} href={`/product/${product.slug}`} onClick={() => {
@@ -197,17 +203,17 @@ export default function JournalPost() {
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-24 pt-12 border-t border-border">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Written By</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">{copy.writtenByLabel}</p>
             <p className="text-lg soso-display text-foreground">{post.authorName}</p>
           </div>
-          <ShareArticleButton title={post.title} />
+          <ShareArticleButton title={post.title} shareLabel={copy.shareLabel} copiedLabel={copy.copiedLabel} />
         </div>
       </div>
     </div>
   );
 }
 
-function ShareArticleButton({ title }: { title: string }) {
+function ShareArticleButton({ title, shareLabel, copiedLabel }: { title: string; shareLabel: string; copiedLabel: string }) {
   const [copied, setCopied] = useState(false);
 
   const share = async () => {
@@ -228,7 +234,7 @@ function ShareArticleButton({ title }: { title: string }) {
       onClick={() => void share().catch(() => undefined)}
       className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors text-xs uppercase tracking-widest font-medium"
     >
-      <Share2 className="w-4 h-4" /> {copied ? "Link copied" : "Share article"}
+      <Share2 className="w-4 h-4" /> {copied ? copiedLabel : shareLabel}
     </button>
   );
 }

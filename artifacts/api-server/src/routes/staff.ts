@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { createHash } from "node:crypto";
 import {
   AcknowledgeStaffNotificationBody,
@@ -40,6 +40,7 @@ import {
   db,
   orderItemsTable,
   redirectsTable,
+  redirectRevisionsTable,
   operationalNotificationAcknowledgementsTable,
   operationalNotificationsTable,
   ordersTable,
@@ -183,6 +184,32 @@ function orderView(order: typeof ordersTable.$inferSelect) {
   };
 }
 
+export function staffOverviewView(
+  values: {
+    ordersTotal: number;
+    ordersInProduction: number;
+    openEnquiries: number;
+    storefrontEvents7d: number;
+  },
+  range: { from: string; to: string },
+  generatedAt = new Date(),
+) {
+  return {
+    ...values,
+    paymentIsLive: false,
+    from: range.from,
+    to: range.to,
+    generatedAt,
+    freshnessMinutes: 5,
+    metrics: [
+      { key: "orders_received", label: "Orders received", definition: "Orders created in the selected date range.", value: values.ordersTotal },
+      { key: "in_production", label: "Atelier active", definition: "All orders currently in atelier confirmation or production, regardless of when they were created.", value: values.ordersInProduction },
+      { key: "open_enquiries", label: "Open enquiries", definition: "New or in-progress enquiries received in the selected date range.", value: values.openEnquiries },
+      { key: "consented_events", label: "Consented storefront events", definition: "First-party events from visitors who opted into measurement.", value: values.storefrontEvents7d },
+    ],
+  };
+}
+
 router.get("/staff/me", (req, res): void => {
   res.json(
     GetStaffProfileResponse.parse({
@@ -202,7 +229,7 @@ router.post("/staff/access", requireStaffRoles("owner"), async (req, res): Promi
   const email = normalizedEmail(req.body?.email);
   const password = req.body?.password;
   const role = req.body?.role;
-  if (!email || typeof password !== "string" || password.length < 12 || !["owner", "operations", "stylist", "editor", "analyst"].includes(role)) {
+  if (!email || typeof password !== "string" || password.length < 12 || !["owner", "administrator", "operations", "stylist", "editor", "analyst"].includes(role)) {
     res.status(400).json({ error: "Provide an email, a strong temporary password, and a valid SOSO role." });
     return;
   }
@@ -306,25 +333,13 @@ router.get("/staff/overview", async (req, res): Promise<void> => {
   };
 
   res.json(
-    GetStaffOverviewResponse.parse({
-      paymentIsLive: false,
-      from: range.from,
-      to: range.to,
-      generatedAt: new Date(),
-      freshnessMinutes: 5,
-      metrics: [
-        { key: "orders_received", label: "Orders received", definition: "Orders created in the selected date range.", value: values.ordersTotal },
-        { key: "in_production", label: "Atelier active", definition: "All orders currently in atelier confirmation or production, regardless of when they were created.", value: values.ordersInProduction },
-        { key: "open_enquiries", label: "Open enquiries", definition: "New or in-progress enquiries received in the selected date range.", value: values.openEnquiries },
-        { key: "consented_events", label: "Consented storefront events", definition: "First-party events from visitors who opted into measurement.", value: values.storefrontEvents7d },
-      ],
-    }),
+    GetStaffOverviewResponse.parse(staffOverviewView(values, range)),
   );
 });
 
 router.get(
   "/staff/funnel",
-  requireStaffRoles("owner", "analyst"),
+  requireStaffRoles("owner", "administrator", "analyst"),
   async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
     if (!range) {
@@ -379,7 +394,7 @@ router.get(
   },
 );
 
-router.get("/staff/orders", requireStaffRoles("owner", "operations", "stylist"), async (req, res): Promise<void> => {
+router.get("/staff/orders", requireStaffRoles("owner", "administrator", "operations", "stylist"), async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   const status = typeof req.query.status === "string" && orderStatuses.includes(req.query.status as (typeof orderStatuses)[number])
     ? req.query.status as (typeof orderStatuses)[number]
@@ -458,7 +473,7 @@ router.patch("/staff/orders/:id", requireStaffRoles("owner", "operations"), asyn
   res.json(UpdateStaffOrderResponse.parse(orderView(updated!)));
 });
 
-router.get("/staff/enquiries", requireStaffRoles("owner", "operations", "stylist"), async (_req, res): Promise<void> => {
+router.get("/staff/enquiries", requireStaffRoles("owner", "administrator", "operations", "stylist"), async (_req, res): Promise<void> => {
   const enquiries = await db.select().from(customerEnquiriesTable).orderBy(desc(customerEnquiriesTable.createdAt)).limit(100);
   res.json(ListStaffEnquiriesResponse.parse(enquiries));
 });
@@ -742,7 +757,7 @@ router.patch("/staff/notifications/:id", async (req, res): Promise<void> => {
   }));
 });
 
-router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
+router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator", "analyst"), async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   if (!range) {
     res.status(400).json({ error: "Use a valid from/to date range (YYYY-MM-DD)" });
@@ -953,7 +968,7 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "analyst"), as
   });
 });
 
-router.get("/staff/analytics/quality", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
+router.get("/staff/analytics/quality", requireStaffRoles("owner", "administrator", "analyst"), async (req, res): Promise<void> => {
   // Every check is aggregate-only: visitor and session identifiers stay server-side.
   const now = new Date();
   const last24h = new Date(now.getTime() - 86_400_000);
@@ -1033,7 +1048,7 @@ router.get("/staff/analytics/quality", requireStaffRoles("owner", "analyst"), as
   }));
 });
 
-router.get("/staff/audit", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
+router.get("/staff/audit", requireStaffRoles("owner", "administrator", "analyst"), async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   if (!range) {
     res.status(400).json({ error: "Use a valid from/to date range (YYYY-MM-DD)" });
@@ -1048,7 +1063,7 @@ router.get("/staff/audit", requireStaffRoles("owner", "analyst"), async (req, re
   res.json(ListStaffAuditEventsResponse.parse(events));
 });
 
-router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, res): Promise<void> => {
+router.get("/staff/exports", requireStaffRoles("owner", "administrator", "analyst"), async (req, res): Promise<void> => {
   const range = resolveDateRange(req.query);
   const report = req.query.report;
   if (!range || (report !== "operations_summary" && report !== "analytics_summary" && report !== "campaign_aggregate" && report !== "content_seo_aggregate")) {
@@ -1154,12 +1169,19 @@ router.get("/staff/exports", requireStaffRoles("owner", "analyst"), async (req, 
 
 // ── Redirect management ────────────────────────────────────────────────────
 
-router.get("/staff/redirects", requireStaffRoles("owner", "operations"), async (_req, res): Promise<void> => {
+function expectedRedirectRevision(req: Request): Date | null | "invalid" {
+  const header = req.header("x-soso-expected-revision");
+  if (!header) return null;
+  const revision = new Date(header);
+  return Number.isNaN(revision.getTime()) ? "invalid" : revision;
+}
+
+router.get("/staff/redirects", requireStaffRoles("owner", "administrator", "operations"), async (_req, res): Promise<void> => {
   const rows = await db.select().from(redirectsTable).orderBy(desc(redirectsTable.createdAt)).limit(200);
   res.json(rows);
 });
 
-router.post("/staff/redirects", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
+router.post("/staff/redirects", requireStaffRoles("owner", "administrator", "operations"), async (req, res): Promise<void> => {
   const { fromPath, toPath, statusCode } = req.body as Record<string, unknown>;
   if (
     typeof fromPath !== "string"
@@ -1173,15 +1195,79 @@ router.post("/staff/redirects", requireStaffRoles("owner", "operations"), async 
     return;
   }
   const code = typeof statusCode === "number" && [301, 302, 307, 308].includes(statusCode) ? statusCode : 301;
-  const [row] = await db.delete(redirectsTable).where(eq(redirectsTable.id, req.params.id as string)).returning({ id: redirectsTable.id });
-  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.upserted", entityType: "redirect", entityId: row!.id, metadata: { fromPath, toPath, statusCode: code } });
+  if (fromPath === toPath || fromPath.length > 512 || toPath.length > 512) {
+    res.status(400).json({ error: "Redirect paths must be distinct and at most 512 characters" });
+    return;
+  }
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(redirectsTable).values({
+      fromPath, toPath, statusCode: code, isPublished: false, updatedByClerkUserId: req.staff!.clerkUserId,
+    }).returning();
+    await tx.insert(redirectRevisionsTable).values({ redirectId: created!.id, event: "created", snapshot: created!, createdByClerkUserId: req.staff!.clerkUserId });
+    await tx.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.created", entityType: "redirect", entityId: created!.id, metadata: { fromPath, toPath, statusCode: code } });
+    return created!;
+  });
   res.status(201).json(row);
 });
 
-router.delete("/staff/redirects/:id", requireStaffRoles("owner", "operations"), async (req, res): Promise<void> => {
-  const [row] = await db.delete(redirectsTable).where(eq(redirectsTable.id, req.params.id as string)).returning({ id: redirectsTable.id });
-  if (!row) { res.status(404).json({ error: "Redirect not found" }); return; }
-  await db.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.deleted", entityType: "redirect", entityId: row.id, metadata: {} });
+router.put("/staff/redirects/:id", requireStaffRoles("owner", "administrator", "operations"), async (req, res): Promise<void> => {
+  const { fromPath, toPath, statusCode } = req.body as Record<string, unknown>;
+  if (typeof fromPath !== "string" || typeof toPath !== "string" || !fromPath.startsWith("/") || fromPath.startsWith("//") || !toPath.startsWith("/") || toPath.startsWith("//") || fromPath === toPath || fromPath.length > 512 || toPath.length > 512 || typeof statusCode !== "number" || ![301, 302, 307, 308].includes(statusCode)) {
+    res.status(400).json({ error: "Provide distinct safe internal redirect paths and a supported status code" }); return;
+  }
+  const expected = expectedRedirectRevision(req);
+  if (expected === "invalid") { res.status(400).json({ error: "The redirect revision reference is invalid" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(redirectsTable).where(eq(redirectsTable.id, req.params.id as string)).limit(1);
+    if (!current) return { kind: "missing" as const };
+    if (expected && current.updatedAt.getTime() !== expected.getTime()) return { kind: "conflict" as const };
+    const [row] = await tx.update(redirectsTable).set({ fromPath, toPath, statusCode, updatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId }).where(eq(redirectsTable.id, current.id)).returning();
+    await tx.insert(redirectRevisionsTable).values({ redirectId: row.id, event: "updated", snapshot: row, createdByClerkUserId: req.staff!.clerkUserId });
+    await tx.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.updated", entityType: "redirect", entityId: row.id, metadata: { fromPath, toPath, statusCode } });
+    return { kind: "updated" as const, row };
+  });
+  if (result.kind === "missing") { res.status(404).json({ error: "Redirect not found" }); return; }
+  if (result.kind === "conflict") { res.status(409).json({ error: "This redirect changed while you were editing it. Reload before saving." }); return; }
+  res.json(result.row);
+});
+
+router.post("/staff/redirects/:id/publish", requireStaffRoles("owner", "administrator", "operations"), async (req, res): Promise<void> => {
+  const publish = req.body?.published !== false;
+  const expected = expectedRedirectRevision(req);
+  if (expected === "invalid") { res.status(400).json({ error: "The redirect revision reference is invalid" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(redirectsTable).where(eq(redirectsTable.id, req.params.id as string)).limit(1);
+    if (!current) return { kind: "missing" as const };
+    if (expected && current.updatedAt.getTime() !== expected.getTime()) return { kind: "conflict" as const };
+    const [row] = await tx.update(redirectsTable).set({ isPublished: publish, updatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId }).where(eq(redirectsTable.id, current.id)).returning();
+    await tx.insert(redirectRevisionsTable).values({ redirectId: row.id, event: publish ? "published" : "unpublished", snapshot: row, createdByClerkUserId: req.staff!.clerkUserId });
+    await tx.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: publish ? "redirect.published" : "redirect.unpublished", entityType: "redirect", entityId: row.id, metadata: {} });
+    return { kind: "updated" as const, row };
+  });
+  if (result.kind === "missing") { res.status(404).json({ error: "Redirect not found" }); return; }
+  if (result.kind === "conflict") { res.status(409).json({ error: "This redirect changed before its publication state could be updated." }); return; }
+  res.json(result.row);
+});
+
+router.get("/staff/redirects/:id/history", requireStaffRoles("owner", "administrator", "operations"), async (req, res): Promise<void> => {
+  const rows = await db.select().from(redirectRevisionsTable).where(eq(redirectRevisionsTable.redirectId, req.params.id as string)).orderBy(desc(redirectRevisionsTable.createdAt)).limit(100);
+  res.json(rows);
+});
+
+router.delete("/staff/redirects/:id", requireStaffRoles("owner", "administrator", "operations"), async (req, res): Promise<void> => {
+  const expected = expectedRedirectRevision(req);
+  if (expected === "invalid") { res.status(400).json({ error: "The redirect revision reference is invalid" }); return; }
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx.select().from(redirectsTable).where(eq(redirectsTable.id, req.params.id as string)).limit(1);
+    if (!current) return "missing";
+    if (expected && current.updatedAt.getTime() !== expected.getTime()) return "conflict";
+    await tx.insert(redirectRevisionsTable).values({ redirectId: current.id, event: "deleted", snapshot: current, createdByClerkUserId: req.staff!.clerkUserId });
+    await tx.delete(redirectsTable).where(eq(redirectsTable.id, current.id));
+    await tx.insert(auditLogsTable).values({ actorClerkUserId: req.staff!.clerkUserId, action: "redirect.deleted", entityType: "redirect", entityId: current.id, metadata: {} });
+    return "deleted";
+  });
+  if (result === "missing") { res.status(404).json({ error: "Redirect not found" }); return; }
+  if (result === "conflict") { res.status(409).json({ error: "This redirect changed before it could be deleted." }); return; }
   res.status(204).send();
 });
 

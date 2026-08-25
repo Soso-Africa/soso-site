@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { CatalogProduct } from "@/data/products";
+import type { CatalogProduct } from "@/data/platformContent";
 import { absoluteUrl, indexingEnabled, siteUrl, socialImageUrl } from "@/lib/seo";
 
 type SeoProps = {

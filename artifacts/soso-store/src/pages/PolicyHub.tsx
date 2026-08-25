@@ -1,62 +1,52 @@
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { customFetch } from "@workspace/api-client-react";
 import { Seo } from "@/components/Seo";
-import { policiesApproved } from "@/lib/seo";
-
-const policyLinks = [
-  {
-    href: "/privacy",
-    title: "Privacy & cookie notice",
-    description: "How SOSO handles personal information, necessary browser storage and optional measurement.",
-  },
-  {
-    href: "/terms",
-    title: "Terms of purchase",
-    description: "The made-to-order journey, sizing, payment and atelier confirmation.",
-  },
-  {
-    href: "/delivery-returns",
-    title: "Delivery, returns & refunds",
-    description: "Delivery support, cancellations, alterations, returns and refund guidance.",
-  },
-  {
-    href: "/care",
-    title: "Garment care",
-    description: "Practical guidance for looking after a SOSO piece.",
-  },
-] as const;
+import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
+import type { PolicySummary } from "@/data/policies";
 
 export default function PolicyHub() {
+  const platform = usePlatformContent();
+  const platformStateCopy = platform.data?.content.site.platformState;
+  const policies = useQuery<PolicySummary[]>({
+    queryKey: ["published-policies"],
+    queryFn: () => customFetch("/api/policies", { responseType: "json" }),
+    staleTime: 60_000,
+  });
+  if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
+  const copy = platform.data.content.pages.policies;
+
   return (
     <section className="min-h-[70vh] px-6 py-20 md:px-12 md:py-28">
       <Seo
-        title="Policies & support | SOSO Africa"
-        description="SOSO Africa’s customer policy and garment care drafts."
+        title={copy.seo.title}
+        description={copy.seo.description}
         path="/policies"
-        noIndex={!policiesApproved}
       />
       <div className="mx-auto max-w-4xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#b8912f]">
-          Customer information
+          {copy.eyebrow}
         </p>
-        <h1 className="soso-display mt-5 text-4xl leading-tight md:text-6xl">Policies & support</h1>
+        <h1 className="soso-display mt-5 text-4xl leading-tight md:text-6xl">{copy.title}</h1>
         <p className="mt-7 max-w-2xl text-base leading-8 text-[#d8ceb9] md:text-lg">
-          Clear, consolidated information for a made-to-order SOSO purchase.
+          {copy.intro}
         </p>
-        <div className="mt-8 border border-[#b8912f]/50 bg-[#b8912f]/10 px-6 py-5 text-sm leading-7 text-[#f6f1e7]">
-          <strong className="font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">Working drafts — not effective</strong>
-          <p className="mt-2">These documents are being prepared for SOSO’s legal and business review. They must be approved and completed before SOSO relies on them as final notices or binding policies.</p>
-        </div>
         <div className="mt-12 grid gap-5 md:grid-cols-2">
-          {policyLinks.map((policy) => (
+          {policies.isLoading && <p role="status" className="text-sm text-muted-foreground">{copy.loadingMessage}</p>}
+          {policies.isError && <p role="alert" className="text-sm text-muted-foreground">{copy.unavailableMessage}</p>}
+          {!policies.isLoading && !policies.isError && policies.data?.length === 0 && (
+            <p role="status" className="text-sm text-muted-foreground">{copy.emptyMessage}</p>
+          )}
+          {policies.data?.map((policy) => (
             <Link
-              key={policy.href}
-              href={policy.href}
+              key={policy.slug}
+              href={`/policies/${policy.slug}`}
               className="group border border-[#b8912f]/30 bg-[#17130e] p-6 transition hover:border-[#b8912f]/70 hover:bg-[#1d1811]"
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8912f]">Read draft</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8912f]">{copy.cardLabel}</p>
               <h2 className="soso-display mt-4 text-2xl text-foreground">{policy.title}</h2>
-              <p className="mt-3 text-sm leading-7 text-[#d8ceb9]">{policy.description}</p>
-              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">Open document →</p>
+              <p className="mt-3 text-sm leading-7 text-[#d8ceb9]">{policy.summary}</p>
+              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">{copy.openLabel}</p>
             </Link>
           ))}
         </div>

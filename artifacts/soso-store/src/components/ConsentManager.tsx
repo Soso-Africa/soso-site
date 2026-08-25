@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { usePlatformContent } from "@/data/platformContent";
 import {
   nextMeasurementGrantGeneration,
   pageViewRecordAfterSend,
@@ -466,6 +467,7 @@ function useScrollDepth(consent: ConsentState | null, pathname: string) {
 }
 
 export function ConsentManager() {
+  const platform = usePlatformContent();
   const [consent, setConsent] = useState<ConsentState | null>(() => consentSource);
   const [visible, setVisible] = useState(() => !consentSource);
   const [pathname] = useLocation();
@@ -592,11 +594,12 @@ export function ConsentManager() {
     }
   };
 
-  if (!visible) return null;
+  if (!visible || !platform.data) return null;
+  const copy = platform.data.content.site.consent;
 
   return (
     <section
-      aria-label="Privacy choices"
+      aria-label={copy.regionLabel}
       aria-live="polite"
       role="region"
       className="fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-xl border p-5 shadow-2xl md:left-auto"
@@ -606,30 +609,30 @@ export function ConsentManager() {
         color: "#f6f1e7",
       }}
     >
-      <p className="soso-display text-xl">Your privacy choices</p>
+      <p className="soso-display text-xl">{copy.title}</p>
       <p className="mt-2 text-sm leading-6 text-[#d8ceb9]">
-        Necessary storage keeps your bag and privacy choice working. Optional measurement helps SOSO understand which pages are useful; it stays off until you choose it.
+        {copy.body}
       </p>
       <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
         <button
           onClick={() => void save("essential_only")}
           className="border border-[#b8912f]/70 px-4 py-3 text-[#f6f1e7] transition hover:bg-[#b8912f]/10"
         >
-          Necessary only
+          {copy.essentialLabel}
         </button>
         <button
           onClick={() => void save("analytics")}
           className="bg-[#b8912f] px-4 py-3 text-[#100e0b] transition hover:bg-[#d4b45a]"
         >
-          Allow measurement
+          {copy.analyticsLabel}
         </button>
       </div>
       <details className="mt-3 text-[10px] text-[#a09070]">
-        <summary className="cursor-pointer hover:text-[#c8b89a] select-none">Manage preference cookies</summary>
+        <summary className="cursor-pointer hover:text-[#c8b89a] select-none">{copy.manageLabel}</summary>
         <div className="mt-2 border border-[#b8912f]/20 p-3 space-y-2">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked disabled readOnly className="accent-[#b8912f]" />
-            <span><strong>Necessary</strong> — bag, session, consent preference. Always active.</span>
+            <span>{copy.necessaryDescription}</span>
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -638,18 +641,18 @@ export function ConsentManager() {
               onChange={(e) => void save(e.target.checked ? "analytics" : "essential_only")}
               className="accent-[#b8912f]"
             />
-            <span><strong>Measurement</strong> — anonymous page and product journey counts.</span>
+            <span>{copy.measurementDescription}</span>
           </label>
            <label className="flex items-center gap-2 opacity-70">
              <input type="checkbox" checked={false} disabled readOnly className="accent-[#b8912f]" />
-             <span><strong>Marketing</strong> — no marketing technology or pixels are currently active.</span>
+              <span>{copy.marketingDescription}</span>
            </label>
         </div>
       </details>
       <p className="mt-3 text-[10px] text-[#a09070] leading-relaxed">
-        You can change your choice at any time from the footer.{" "}
-        <a href="/privacy" className="underline hover:text-[#f6f1e7]">
-          Privacy notice
+         {copy.footerText}{" "}
+         <a href={copy.privacyLink.href} className="underline hover:text-[#f6f1e7]">
+           {copy.privacyLink.label}
         </a>
       </p>
     </section>

@@ -5,6 +5,271 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export type UploadUrlRequestContentType = typeof UploadUrlRequestContentType[keyof typeof UploadUrlRequestContentType];
+
+
+export const UploadUrlRequestContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'image/gif': 'image/gif',
+} as const;
+
+export interface UploadUrlRequest {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     * @pattern ^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$
+     */
+  name: string;
+  /**
+     * @minimum 1
+     * @maximum 12582912
+     */
+  size: number;
+  contentType: UploadUrlRequestContentType;
+}
+
+export interface UploadUrlResponse {
+  /** @minLength 1 */
+  uploadURL: string;
+  /** @pattern ^/api/storage/objects/uploads/ */
+  objectPath: string;
+}
+
+export type PlatformContentSite = { [key: string]: unknown };
+
+export type PlatformContentHomepage = { [key: string]: unknown };
+
+export type PlatformContentPages = { [key: string]: unknown };
+
+export type PlatformContentProductsItem = { [key: string]: unknown };
+
+export type PlatformContentCollectionsItem = { [key: string]: unknown };
+
+export type PlatformContentSizeGuide = { [key: string]: unknown };
+
+export type PlatformContentProductCopy = { [key: string]: unknown };
+
+export type PlatformContentSupportCopy = { [key: string]: unknown };
+
+/**
+ * Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.
+ */
+export interface PlatformContent {
+  site: PlatformContentSite;
+  homepage: PlatformContentHomepage;
+  pages: PlatformContentPages;
+  products: PlatformContentProductsItem[];
+  collections: PlatformContentCollectionsItem[];
+  sizeGuide: PlatformContentSizeGuide;
+  productCopy: PlatformContentProductCopy;
+  supportCopy: PlatformContentSupportCopy;
+}
+
+export interface PublishedPlatformContent {
+  content: PlatformContent;
+  publishedAt: string;
+}
+
+export type StaffPlatformContentKey = typeof StaffPlatformContentKey[keyof typeof StaffPlatformContentKey];
+
+
+export const StaffPlatformContentKey = {
+  platform: 'platform',
+} as const;
+
+export type StaffPlatformContentPublished = { [key: string]: unknown };
+
+export interface StaffPlatformContent {
+  key: StaffPlatformContentKey;
+  draft: PlatformContent;
+  published: StaffPlatformContentPublished;
+  draftUpdatedAt: string;
+  /** @nullable */
+  publishedAt?: string | null;
+  /** @nullable */
+  updatedByClerkUserId?: string | null;
+  /** @nullable */
+  publishedByClerkUserId?: string | null;
+}
+
+export interface PlatformContentUpdate {
+  content: PlatformContent;
+  expectedDraftUpdatedAt: string;
+}
+
+export interface PlatformContentPublication {
+  expectedDraftUpdatedAt: string;
+}
+
+export type PlatformContentRevisionContentKey = typeof PlatformContentRevisionContentKey[keyof typeof PlatformContentRevisionContentKey];
+
+
+export const PlatformContentRevisionContentKey = {
+  platform: 'platform',
+} as const;
+
+export type PlatformContentRevisionEvent = typeof PlatformContentRevisionEvent[keyof typeof PlatformContentRevisionEvent];
+
+
+export const PlatformContentRevisionEvent = {
+  draft_saved: 'draft_saved',
+  published: 'published',
+  unpublished: 'unpublished',
+} as const;
+
+/**
+ * @nullable
+ */
+export type PlatformContentRevisionSnapshot = { [key: string]: unknown } | null;
+
+export interface PlatformContentRevision {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  contentKey: PlatformContentRevisionContentKey;
+  event: PlatformContentRevisionEvent;
+  /** @nullable */
+  snapshot?: PlatformContentRevisionSnapshot;
+  contentHash: string;
+  createdByClerkUserId: string;
+  createdAt: string;
+}
+
+export type PolicySection = (unknown & {
+  /**
+     * @maxLength 160
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 240
+     */
+  heading: string;
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     * @items.maxLength 10000
+     */
+  paragraphs?: string[];
+  /**
+     * @minItems 1
+     * @items.minLength 1
+     * @items.maxLength 1000
+     */
+  bullets?: string[];
+});
+
+export interface StaffPolicyInput {
+  /**
+     * @maxLength 160
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  slug: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  summary: string;
+  /** @minItems 1 */
+  sections: PolicySection[];
+}
+
+export interface PolicySummary {
+  /**
+     * @maxLength 160
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  slug: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  title: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  summary: string;
+  /** @minimum 1 */
+  version: number;
+  effectiveAt: string;
+}
+
+export type PolicyDocument = PolicySummary & {
+  /** @minItems 1 */
+  sections: PolicySection[];
+};
+
+export type StaffPolicyStatus = typeof StaffPolicyStatus[keyof typeof StaffPolicyStatus];
+
+
+export const StaffPolicyStatus = {
+  draft: 'draft',
+  published: 'published',
+  archived: 'archived',
+} as const;
+
+export interface StaffPolicy {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  /** @minItems 1 */
+  sections: PolicySection[];
+  /** @minimum 1 */
+  version: number;
+  status: StaffPolicyStatus;
+  [key: string]: unknown;
+ }
+
+export interface StaffPolicyPublicationInput {
+  effectiveAt?: string;
+}
+
+export type StaffRedirectInputStatusCode = typeof StaffRedirectInputStatusCode[keyof typeof StaffRedirectInputStatusCode];
+
+
+export const StaffRedirectInputStatusCode = {
+  NUMBER_301: 301,
+  NUMBER_302: 302,
+  NUMBER_307: 307,
+  NUMBER_308: 308,
+} as const;
+
+export interface StaffRedirectInput {
+  /**
+     * @maxLength 512
+     * @pattern ^/(?!/)
+     */
+  fromPath: string;
+  /**
+     * @maxLength 512
+     * @pattern ^/(?!/)
+     */
+  toPath: string;
+  statusCode: StaffRedirectInputStatusCode;
+}
+
+export type StaffRedirect = StaffRedirectInput & {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export interface StaffRedirectPublicationInput {
+  published?: boolean;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -501,6 +766,7 @@ export type StaffProfileRole = typeof StaffProfileRole[keyof typeof StaffProfile
 
 export const StaffProfileRole = {
   owner: 'owner',
+  administrator: 'administrator',
   operations: 'operations',
   stylist: 'stylist',
   editor: 'editor',
@@ -520,6 +786,7 @@ export type StaffAccessInputRole = typeof StaffAccessInputRole[keyof typeof Staf
 
 export const StaffAccessInputRole = {
   owner: 'owner',
+  administrator: 'administrator',
   operations: 'operations',
   stylist: 'stylist',
   editor: 'editor',
@@ -542,6 +809,7 @@ export type StaffAccessUpdateRole = typeof StaffAccessUpdateRole[keyof typeof St
 
 export const StaffAccessUpdateRole = {
   owner: 'owner',
+  administrator: 'administrator',
   operations: 'operations',
   stylist: 'stylist',
   editor: 'editor',
@@ -558,6 +826,7 @@ export type StaffAccessMappingRole = typeof StaffAccessMappingRole[keyof typeof 
 
 export const StaffAccessMappingRole = {
   owner: 'owner',
+  administrator: 'administrator',
   operations: 'operations',
   stylist: 'stylist',
   editor: 'editor',
@@ -1193,6 +1462,11 @@ export interface StaffExport {
   rows: StaffExportRowsItem[];
 }
 
+/**
+ * Last observed redirect updatedAt value used to reject stale mutations.
+ */
+export type RedirectExpectedRevisionParameter = string;
+
 export type StaffDateFromParameter = string;
 
 export type StaffDateToParameter = string;
@@ -1202,6 +1476,12 @@ export type GetRedirectParams = {
  * @maxLength 512
  */
 path: string;
+};
+
+export type GetSiteContent200Content = { [key: string]: unknown };
+
+export type GetSiteContent200 = {
+  content: GetSiteContent200Content;
 };
 
 export type GetStaffOverviewParams = {
@@ -1284,4 +1564,8 @@ export const GetStaffExportReport = {
   campaign_aggregate: 'campaign_aggregate',
   content_seo_aggregate: 'content_seo_aggregate',
 } as const;
+
+export type ListStaffPolicyHistory200Item = { [key: string]: unknown };
+
+export type ListStaffRedirectHistory200Item = { [key: string]: unknown };
 

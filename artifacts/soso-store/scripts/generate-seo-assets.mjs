@@ -1,6 +1,7 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import pg from "pg";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outputDirectory = resolve(packageRoot, "dist/public");
@@ -61,25 +62,68 @@ const robots = canIndex
 await mkdir(outputDirectory, { recursive: true });
 await writeFile(resolve(outputDirectory, "robots.txt"), robots);
 
-const productSource = await readFile(resolve(packageRoot, "src/data/products.ts"), "utf8");
-const productEntries = [...productSource.matchAll(
-  /\{\s*slug:\s*"([^"]+)",\s*name:\s*"([^"]+)",\s*img:\s*"([^"]+)",\s*price:\s*(\d+),.*?description:\s*"([^"]+)"/g,
-)].map((match) => ({
-  slug: match[1],
-  name: match[2],
-  image: match[3],
-  price: Number(match[4]),
-  description: match[5],
-}));
-
-if (productEntries.length === 0) {
-  throw new Error("Could not generate SEO metadata because no catalogue products were found.");
+let productEntries = [];
+let journalEntries = [];
+if (canIndex && (catalogApproved || journalApproved)) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is required to generate approved database-backed SEO metadata.");
+  }
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+  try {
+    if (catalogApproved) {
+      const result = await pool.query(
+        "select published from soso_site_content where key = 'platform' and published_at is not null limit 1",
+      );
+      const products = result.rows[0]?.published?.products;
+      if (!Array.isArray(products) || products.length === 0) {
+        throw new Error("Could not generate approved catalogue SEO metadata because no platform products are published.");
+      }
+      productEntries = products.map((product) => ({
+        slug: product.slug,
+        name: product.name,
+        image: product.images?.[0]?.src ?? product.img,
+        price: product.price,
+        description: product.description,
+      }));
+    }
+    if (journalApproved) {
+      const result = await pool.query(
+        `select slug, title, excerpt, seo_title as "seoTitle",
+                seo_description as "seoDescription", author_name as "authorName",
+                published_at as "publishedAt", updated_at as "updatedAt",
+                cover_image_url as "coverImageUrl"
+           from soso_journal_posts
+          where status = 'published' and published_at is not null
+          order by published_at desc`,
+      );
+      journalEntries = result.rows.map((article) => ({
+        ...article,
+        canonicalPath: `/journal/${article.slug}`,
+        title: article.seoTitle ?? article.title,
+        excerpt: article.seoDescription ?? article.excerpt,
+        publishedAt: new Date(article.publishedAt).toISOString(),
+        updatedAt: new Date(article.updatedAt).toISOString(),
+      }));
+    }
+  } finally {
+    await pool.end();
+  }
 }
 
-const journalSource = JSON.parse(await readFile(resolve(packageRoot, "src/data/journal-seo.json"), "utf8"));
-const journalEntries = Array.isArray(journalSource.articles)
-  ? journalSource.articles
-  : [];
+for (const product of productEntries) {
+  if (
+    !product
+    || typeof product.slug !== "string"
+    || typeof product.name !== "string"
+    || typeof product.image !== "string"
+    || !Number.isInteger(product.price)
+    || product.price <= 0
+    || typeof product.description !== "string"
+  ) {
+    throw new Error("Each published product SEO entry must include slug, name, image, positive price, and description.");
+  }
+}
+
 for (const article of journalEntries) {
   if (
     !article
@@ -88,6 +132,7 @@ for (const article of journalEntries) {
     || typeof article.excerpt !== "string"
     || typeof article.authorName !== "string"
     || typeof article.publishedAt !== "string"
+    || typeof article.canonicalPath !== "string"
   ) {
     throw new Error("Each approved Journal SEO entry must include slug, title, excerpt, authorName, and publishedAt.");
   }

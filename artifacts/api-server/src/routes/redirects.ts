@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { redirectsTable, db } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -16,29 +16,22 @@ router.get("/redirects", async (req, res): Promise<void> => {
     return;
   }
 
-  try {
-    const [redirect] = await db
+  const [redirect] = await db
       .select({
         fromPath: redirectsTable.fromPath,
         toPath: redirectsTable.toPath,
         statusCode: redirectsTable.statusCode,
       })
       .from(redirectsTable)
-      .where(eq(redirectsTable.fromPath, requestedPath))
+      .where(and(eq(redirectsTable.fromPath, requestedPath), eq(redirectsTable.isPublished, true)))
       .limit(1);
 
-    if (!redirect) {
-      res.json({ redirect: null });
-      return;
-    }
-
-    res.json({ redirect });
-  } catch (error) {
-    // Redirects are an optional convenience layer. A schema or permission
-    // issue must never make a public storefront route unavailable.
-    req.log?.warn({ err: error }, "Redirect lookup unavailable");
+  if (!redirect) {
     res.json({ redirect: null });
+    return;
   }
+
+  res.json({ redirect });
 });
 
 export default router;

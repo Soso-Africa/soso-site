@@ -1,5 +1,5 @@
 import type { CartItem } from "@/context/CartContext";
-import type { CatalogProduct } from "@/data/products";
+import type { CatalogProduct } from "@/data/platformContent";
 
 export type CommerceMode = "catalog-preview" | "justicesure-headless";
 
@@ -30,8 +30,8 @@ export interface CommerceGateway {
 }
 
 export class CommerceConfigurationError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(code: string) {
+    super(code);
     this.name = "CommerceConfigurationError";
   }
 }
@@ -64,14 +64,14 @@ function toCatalogProduct(value: unknown): CatalogProduct {
     || !images.every((image) => typeof image === "string")
     || !Array.isArray(variants)
   ) {
-    throw new CommerceConfigurationError("The live JusticeSure catalogue is incomplete. No payment has been taken.");
+    throw new CommerceConfigurationError("catalogue_incomplete");
   }
   const labels = new Set<string>();
   const commerceVariantIds: Record<string, string> = {};
   for (const [index, value] of variants.entries()) {
     const variant = record(value);
     if (!variant || typeof variant.id !== "string" || typeof variant.label !== "string") {
-      throw new CommerceConfigurationError("The live JusticeSure catalogue contains an invalid variant. No payment has been taken.");
+      throw new CommerceConfigurationError("catalogue_invalid_variant");
     }
     const baseLabel = variant.label.trim() || `Option ${index + 1}`;
     const label = labels.has(baseLabel) ? `${baseLabel} (${index + 1})` : baseLabel;
@@ -102,12 +102,11 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
     const response = await fetch(`${apiBase}/api/payment/catalog`, { credentials: "include" });
     if (!response.ok) {
-      const data = await response.json().catch(() => ({})) as Record<string, string>;
-      throw new CommerceConfigurationError(data.error ?? "The live JusticeSure catalogue is not available. No payment has been taken.");
+      throw new CommerceConfigurationError("catalogue_unavailable");
     }
     const payload = await response.json() as { products?: CommerceCatalogProjection[] };
     if (!Array.isArray(payload.products)) {
-      throw new CommerceConfigurationError("The live JusticeSure catalogue returned an invalid response. No payment has been taken.");
+      throw new CommerceConfigurationError("catalogue_invalid_response");
     }
     return payload.products.map(toCatalogProduct);
   }
@@ -121,6 +120,11 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
   }
 
   async createCheckoutSession(request: CheckoutRequest): Promise<CheckoutResult> {
+    if (request.items.some((item) => !item.commerceProductId || !item.commerceVariantId)) {
+      throw new CommerceConfigurationError(
+        "catalogue_mapping_missing",
+      );
+    }
     const operationKey = checkoutOperationKey(request);
     const apiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
     const response = await fetch(`${apiBase}/api/payment/initiate`, {
@@ -143,9 +147,8 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
       }),
     });
     if (!response.ok) {
-      const data = await response.json().catch(() => ({})) as Record<string, string>;
       throw new CommerceConfigurationError(
-        data.error ?? "Payment could not be started. No payment has been taken.",
+        "checkout_unavailable",
       );
     }
     return response.json() as Promise<CheckoutResult>;
@@ -216,7 +219,7 @@ export const commerceGateway: CommerceGateway =
         },
         async createCheckoutSession() {
           throw new CommerceConfigurationError(
-            "Secure payment is being connected. If you have a question before paying, speak with a SOSO stylist.",
+            "commerce_disabled",
           );
         },
       };

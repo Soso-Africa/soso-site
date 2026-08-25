@@ -36,6 +36,7 @@ import type {
   EnquiryInput,
   FaqItem,
   GetRedirectParams,
+  GetSiteContent200,
   GetStaffExportParams,
   GetStaffFunnelParams,
   GetStaffOverviewParams,
@@ -44,8 +45,16 @@ import type {
   JournalPostSummary,
   ListStaffAuditEventsParams,
   ListStaffOrdersParams,
+  ListStaffPolicyHistory200Item,
+  ListStaffRedirectHistory200Item,
+  PlatformContentPublication,
+  PlatformContentRevision,
+  PlatformContentUpdate,
+  PolicyDocument,
+  PolicySummary,
   PrivacyRequestAcknowledgement,
   PrivacyRequestInput,
+  PublishedPlatformContent,
   RedirectLookup,
   StaffAccessInput,
   StaffAccessMapping,
@@ -63,10 +72,19 @@ import type {
   StaffOrder,
   StaffOrderUpdate,
   StaffOverview,
+  StaffPlatformContent,
+  StaffPolicy,
+  StaffPolicyInput,
+  StaffPolicyPublicationInput,
   StaffPrivacyRequest,
   StaffPrivacyRequestInput,
   StaffPrivacyRequestUpdate,
-  StaffProfile
+  StaffProfile,
+  StaffRedirect,
+  StaffRedirectInput,
+  StaffRedirectPublicationInput,
+  UploadUrlRequest,
+  UploadUrlResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -1063,6 +1081,160 @@ export function useListFaqItems<TData = Awaited<ReturnType<typeof listFaqItems>>
 
 
 
+export const getListPoliciesUrl = () => {
+
+
+
+
+  return `/api/policies`
+}
+
+/**
+ * @summary List currently effective published policy summaries
+ */
+export const listPolicies = async ( options?: Parameters<typeof customFetch>[1]): Promise<PolicySummary[]> => {
+
+  return customFetch<PolicySummary[]>(getListPoliciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPoliciesQueryKey = () => {
+    return [
+    `/api/policies`
+    ] as const;
+    }
+
+
+export const getListPoliciesQueryOptions = <TData = Awaited<ReturnType<typeof listPolicies>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPoliciesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPolicies>>> = ({ signal }) => listPolicies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPolicies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof listPolicies>>>
+export type ListPoliciesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List currently effective published policy summaries
+ */
+
+export function useListPolicies<TData = Awaited<ReturnType<typeof listPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPoliciesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPolicyUrl = (slug: string,) => {
+
+
+
+
+  return `/api/policies/${slug}`
+}
+
+/**
+ * @summary Get a currently effective published policy
+ */
+export const getPolicy = async (slug: string, options?: Parameters<typeof customFetch>[1]): Promise<PolicyDocument> => {
+
+  return customFetch<PolicyDocument>(getGetPolicyUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPolicyQueryKey = (slug: string,) => {
+    return [
+    `/api/policies/${slug}`
+    ] as const;
+    }
+
+
+export const getGetPolicyQueryOptions = <TData = Awaited<ReturnType<typeof getPolicy>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPolicy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPolicyQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPolicy>>> = ({ signal }) => getPolicy(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPolicy>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPolicyQueryResult = NonNullable<Awaited<ReturnType<typeof getPolicy>>>
+export type GetPolicyQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a currently effective published policy
+ */
+
+export function useGetPolicy<TData = Awaited<ReturnType<typeof getPolicy>>, TError = ErrorType<void>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPolicy>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPolicyQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetRedirectUrl = (params: GetRedirectParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -1135,6 +1307,160 @@ export function useGetRedirect<TData = Awaited<ReturnType<typeof getRedirect>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRedirectQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlatformContentUrl = () => {
+
+
+
+
+  return `/api/content/platform`
+}
+
+/**
+ * @summary Get the published platform content document
+ */
+export const getPlatformContent = async ( options?: Parameters<typeof customFetch>[1]): Promise<PublishedPlatformContent> => {
+
+  return customFetch<PublishedPlatformContent>(getGetPlatformContentUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlatformContentQueryKey = () => {
+    return [
+    `/api/content/platform`
+    ] as const;
+    }
+
+
+export const getGetPlatformContentQueryOptions = <TData = Awaited<ReturnType<typeof getPlatformContent>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlatformContent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlatformContentQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlatformContent>>> = ({ signal }) => getPlatformContent({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlatformContent>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPlatformContentQueryResult = NonNullable<Awaited<ReturnType<typeof getPlatformContent>>>
+export type GetPlatformContentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the published platform content document
+ */
+
+export function useGetPlatformContent<TData = Awaited<ReturnType<typeof getPlatformContent>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPlatformContent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPlatformContentQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetSiteContentUrl = () => {
+
+
+
+
+  return `/api/content/site`
+}
+
+/**
+ * @summary Get the compatibility site projection from published platform content
+ */
+export const getSiteContent = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetSiteContent200> => {
+
+  return customFetch<GetSiteContent200>(getGetSiteContentUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSiteContentQueryKey = () => {
+    return [
+    `/api/content/site`
+    ] as const;
+    }
+
+
+export const getGetSiteContentQueryOptions = <TData = Awaited<ReturnType<typeof getSiteContent>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSiteContent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSiteContentQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSiteContent>>> = ({ signal }) => getSiteContent({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSiteContent>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSiteContentQueryResult = NonNullable<Awaited<ReturnType<typeof getSiteContent>>>
+export type GetSiteContentQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the compatibility site projection from published platform content
+ */
+
+export function useGetSiteContent<TData = Awaited<ReturnType<typeof getSiteContent>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSiteContent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSiteContentQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2816,6 +3142,1478 @@ export function useListStaffJournalPostRevisions<TData = Awaited<ReturnType<type
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListStaffJournalPostRevisionsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStaffPlatformContentUrl = () => {
+
+
+
+
+  return `/api/staff/content/platform`
+}
+
+/**
+ * @summary Get draft and published platform content
+ */
+export const getStaffPlatformContent = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffPlatformContent> => {
+
+  return customFetch<StaffPlatformContent>(getGetStaffPlatformContentUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffPlatformContentQueryKey = () => {
+    return [
+    `/api/staff/content/platform`
+    ] as const;
+    }
+
+
+export const getGetStaffPlatformContentQueryOptions = <TData = Awaited<ReturnType<typeof getStaffPlatformContent>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffPlatformContent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffPlatformContentQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffPlatformContent>>> = ({ signal }) => getStaffPlatformContent({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffPlatformContent>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffPlatformContentQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffPlatformContent>>>
+export type GetStaffPlatformContentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get draft and published platform content
+ */
+
+export function useGetStaffPlatformContent<TData = Awaited<ReturnType<typeof getStaffPlatformContent>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffPlatformContent>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffPlatformContentQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateStaffPlatformContentUrl = () => {
+
+
+
+
+  return `/api/staff/content/platform`
+}
+
+/**
+ * @summary Save a validated platform draft with optimistic concurrency
+ */
+export const updateStaffPlatformContent = async (platformContentUpdate: PlatformContentUpdate, options?: Parameters<typeof customFetch>[1]): Promise<StaffPlatformContent> => {
+
+  return customFetch<StaffPlatformContent>(getUpdateStaffPlatformContentUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(platformContentUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffPlatformContentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffPlatformContent>>, TError,{data: BodyType<PlatformContentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffPlatformContent>>, TError,{data: BodyType<PlatformContentUpdate>}, TContext> => {
+
+const mutationKey = ['updateStaffPlatformContent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffPlatformContent>>, {data: BodyType<PlatformContentUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateStaffPlatformContent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffPlatformContentMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffPlatformContent>>>
+    export type UpdateStaffPlatformContentMutationBody = BodyType<PlatformContentUpdate>
+    export type UpdateStaffPlatformContentMutationError = ErrorType<void>
+
+    /**
+ * @summary Save a validated platform draft with optimistic concurrency
+ */
+export const useUpdateStaffPlatformContent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffPlatformContent>>, TError,{data: BodyType<PlatformContentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffPlatformContent>>,
+        TError,
+        {data: BodyType<PlatformContentUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffPlatformContentMutationOptions(options));
+    }
+
+export const getPublishStaffPlatformContentUrl = () => {
+
+
+
+
+  return `/api/staff/content/platform/publish`
+}
+
+/**
+ * @summary Publish the current validated platform draft
+ */
+export const publishStaffPlatformContent = async (platformContentPublication: PlatformContentPublication, options?: Parameters<typeof customFetch>[1]): Promise<StaffPlatformContent> => {
+
+  return customFetch<StaffPlatformContent>(getPublishStaffPlatformContentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(platformContentPublication)
+  }
+);}
+
+
+
+
+
+export const getPublishStaffPlatformContentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffPlatformContent>>, TError,{data: BodyType<PlatformContentPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishStaffPlatformContent>>, TError,{data: BodyType<PlatformContentPublication>}, TContext> => {
+
+const mutationKey = ['publishStaffPlatformContent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishStaffPlatformContent>>, {data: BodyType<PlatformContentPublication>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  publishStaffPlatformContent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishStaffPlatformContentMutationResult = NonNullable<Awaited<ReturnType<typeof publishStaffPlatformContent>>>
+    export type PublishStaffPlatformContentMutationBody = BodyType<PlatformContentPublication>
+    export type PublishStaffPlatformContentMutationError = ErrorType<void>
+
+    /**
+ * @summary Publish the current validated platform draft
+ */
+export const usePublishStaffPlatformContent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffPlatformContent>>, TError,{data: BodyType<PlatformContentPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishStaffPlatformContent>>,
+        TError,
+        {data: BodyType<PlatformContentPublication>},
+        TContext
+      > => {
+      return useMutation(getPublishStaffPlatformContentMutationOptions(options));
+    }
+
+export const getUnpublishStaffPlatformContentUrl = () => {
+
+
+
+
+  return `/api/staff/content/platform/unpublish`
+}
+
+/**
+ * @summary Remove the public platform document without deleting its draft
+ */
+export const unpublishStaffPlatformContent = async (platformContentPublication: PlatformContentPublication, options?: Parameters<typeof customFetch>[1]): Promise<StaffPlatformContent> => {
+
+  return customFetch<StaffPlatformContent>(getUnpublishStaffPlatformContentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(platformContentPublication)
+  }
+);}
+
+
+
+
+
+export const getUnpublishStaffPlatformContentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unpublishStaffPlatformContent>>, TError,{data: BodyType<PlatformContentPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unpublishStaffPlatformContent>>, TError,{data: BodyType<PlatformContentPublication>}, TContext> => {
+
+const mutationKey = ['unpublishStaffPlatformContent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unpublishStaffPlatformContent>>, {data: BodyType<PlatformContentPublication>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  unpublishStaffPlatformContent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnpublishStaffPlatformContentMutationResult = NonNullable<Awaited<ReturnType<typeof unpublishStaffPlatformContent>>>
+    export type UnpublishStaffPlatformContentMutationBody = BodyType<PlatformContentPublication>
+    export type UnpublishStaffPlatformContentMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove the public platform document without deleting its draft
+ */
+export const useUnpublishStaffPlatformContent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unpublishStaffPlatformContent>>, TError,{data: BodyType<PlatformContentPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unpublishStaffPlatformContent>>,
+        TError,
+        {data: BodyType<PlatformContentPublication>},
+        TContext
+      > => {
+      return useMutation(getUnpublishStaffPlatformContentMutationOptions(options));
+    }
+
+export const getListStaffPlatformContentRevisionsUrl = () => {
+
+
+
+
+  return `/api/staff/content/platform/revisions`
+}
+
+/**
+ * @summary List immutable platform content revisions
+ */
+export const listStaffPlatformContentRevisions = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlatformContentRevision[]> => {
+
+  return customFetch<PlatformContentRevision[]>(getListStaffPlatformContentRevisionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffPlatformContentRevisionsQueryKey = () => {
+    return [
+    `/api/staff/content/platform/revisions`
+    ] as const;
+    }
+
+
+export const getListStaffPlatformContentRevisionsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffPlatformContentRevisions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffPlatformContentRevisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffPlatformContentRevisionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffPlatformContentRevisions>>> = ({ signal }) => listStaffPlatformContentRevisions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffPlatformContentRevisions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffPlatformContentRevisionsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffPlatformContentRevisions>>>
+export type ListStaffPlatformContentRevisionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List immutable platform content revisions
+ */
+
+export function useListStaffPlatformContentRevisions<TData = Awaited<ReturnType<typeof listStaffPlatformContentRevisions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffPlatformContentRevisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffPlatformContentRevisionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStaffPoliciesUrl = () => {
+
+
+
+
+  return `/api/staff/policies`
+}
+
+/**
+ * @summary List policy versions
+ */
+export const listStaffPolicies = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffPolicy[]> => {
+
+  return customFetch<StaffPolicy[]>(getListStaffPoliciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffPoliciesQueryKey = () => {
+    return [
+    `/api/staff/policies`
+    ] as const;
+    }
+
+
+export const getListStaffPoliciesQueryOptions = <TData = Awaited<ReturnType<typeof listStaffPolicies>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffPoliciesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffPolicies>>> = ({ signal }) => listStaffPolicies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffPolicies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffPoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffPolicies>>>
+export type ListStaffPoliciesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List policy versions
+ */
+
+export function useListStaffPolicies<TData = Awaited<ReturnType<typeof listStaffPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffPoliciesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffPolicyUrl = () => {
+
+
+
+
+  return `/api/staff/policies`
+}
+
+/**
+ * @summary Create the next draft version of a policy
+ */
+export const createStaffPolicy = async (staffPolicyInput: StaffPolicyInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffPolicy> => {
+
+  return customFetch<StaffPolicy>(getCreateStaffPolicyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffPolicyInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffPolicyMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffPolicy>>, TError,{data: BodyType<StaffPolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffPolicy>>, TError,{data: BodyType<StaffPolicyInput>}, TContext> => {
+
+const mutationKey = ['createStaffPolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffPolicy>>, {data: BodyType<StaffPolicyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffPolicy(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffPolicy>>>
+    export type CreateStaffPolicyMutationBody = BodyType<StaffPolicyInput>
+    export type CreateStaffPolicyMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create the next draft version of a policy
+ */
+export const useCreateStaffPolicy = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffPolicy>>, TError,{data: BodyType<StaffPolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffPolicy>>,
+        TError,
+        {data: BodyType<StaffPolicyInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffPolicyMutationOptions(options));
+    }
+
+export const getUpdateStaffPolicyUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/policies/${id}`
+}
+
+/**
+ * @summary Update a draft policy version
+ */
+export const updateStaffPolicy = async (id: string,
+    staffPolicyInput: StaffPolicyInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffPolicy> => {
+
+  return customFetch<StaffPolicy>(getUpdateStaffPolicyUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffPolicyInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffPolicyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffPolicy>>, TError,{id: string;data: BodyType<StaffPolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffPolicy>>, TError,{id: string;data: BodyType<StaffPolicyInput>}, TContext> => {
+
+const mutationKey = ['updateStaffPolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffPolicy>>, {id: string;data: BodyType<StaffPolicyInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStaffPolicy(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffPolicy>>>
+    export type UpdateStaffPolicyMutationBody = BodyType<StaffPolicyInput>
+    export type UpdateStaffPolicyMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a draft policy version
+ */
+export const useUpdateStaffPolicy = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffPolicy>>, TError,{id: string;data: BodyType<StaffPolicyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffPolicy>>,
+        TError,
+        {id: string;data: BodyType<StaffPolicyInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffPolicyMutationOptions(options));
+    }
+
+export const getDeleteStaffPolicyUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/policies/${id}`
+}
+
+/**
+ * @summary Archive a draft policy version
+ */
+export const deleteStaffPolicy = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteStaffPolicyUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteStaffPolicyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffPolicy>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteStaffPolicy>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteStaffPolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteStaffPolicy>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteStaffPolicy(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteStaffPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteStaffPolicy>>>
+
+    export type DeleteStaffPolicyMutationError = ErrorType<void>
+
+    /**
+ * @summary Archive a draft policy version
+ */
+export const useDeleteStaffPolicy = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffPolicy>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteStaffPolicy>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteStaffPolicyMutationOptions(options));
+    }
+
+export const getPublishStaffPolicyUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/policies/${id}/publish`
+}
+
+/**
+ * @summary Publish a policy with an effective date
+ */
+export const publishStaffPolicy = async (id: string,
+    staffPolicyPublicationInput?: StaffPolicyPublicationInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffPolicy> => {
+
+  return customFetch<StaffPolicy>(getPublishStaffPolicyUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffPolicyPublicationInput)
+  }
+);}
+
+
+
+
+
+export const getPublishStaffPolicyMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffPolicy>>, TError,{id: string;data?: BodyType<StaffPolicyPublicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishStaffPolicy>>, TError,{id: string;data?: BodyType<StaffPolicyPublicationInput>}, TContext> => {
+
+const mutationKey = ['publishStaffPolicy'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishStaffPolicy>>, {id: string;data?: BodyType<StaffPolicyPublicationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  publishStaffPolicy(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishStaffPolicyMutationResult = NonNullable<Awaited<ReturnType<typeof publishStaffPolicy>>>
+    export type PublishStaffPolicyMutationBody = BodyType<StaffPolicyPublicationInput> | undefined
+    export type PublishStaffPolicyMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Publish a policy with an effective date
+ */
+export const usePublishStaffPolicy = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffPolicy>>, TError,{id: string;data?: BodyType<StaffPolicyPublicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishStaffPolicy>>,
+        TError,
+        {id: string;data?: BodyType<StaffPolicyPublicationInput>},
+        TContext
+      > => {
+      return useMutation(getPublishStaffPolicyMutationOptions(options));
+    }
+
+export const getListStaffPolicyHistoryUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/policies/${id}/history`
+}
+
+/**
+ * @summary List immutable policy revisions
+ */
+export const listStaffPolicyHistory = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ListStaffPolicyHistory200Item[]> => {
+
+  return customFetch<ListStaffPolicyHistory200Item[]>(getListStaffPolicyHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffPolicyHistoryQueryKey = (id: string,) => {
+    return [
+    `/api/staff/policies/${id}/history`
+    ] as const;
+    }
+
+
+export const getListStaffPolicyHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listStaffPolicyHistory>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffPolicyHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffPolicyHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffPolicyHistory>>> = ({ signal }) => listStaffPolicyHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffPolicyHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffPolicyHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffPolicyHistory>>>
+export type ListStaffPolicyHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List immutable policy revisions
+ */
+
+export function useListStaffPolicyHistory<TData = Awaited<ReturnType<typeof listStaffPolicyHistory>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffPolicyHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffPolicyHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStaffRedirectsUrl = () => {
+
+
+
+
+  return `/api/staff/redirects`
+}
+
+/**
+ * @summary List redirect drafts and publication state
+ */
+export const listStaffRedirects = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffRedirect[]> => {
+
+  return customFetch<StaffRedirect[]>(getListStaffRedirectsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffRedirectsQueryKey = () => {
+    return [
+    `/api/staff/redirects`
+    ] as const;
+    }
+
+
+export const getListStaffRedirectsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffRedirects>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffRedirects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffRedirectsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffRedirects>>> = ({ signal }) => listStaffRedirects({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffRedirects>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffRedirectsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffRedirects>>>
+export type ListStaffRedirectsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List redirect drafts and publication state
+ */
+
+export function useListStaffRedirects<TData = Awaited<ReturnType<typeof listStaffRedirects>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffRedirects>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffRedirectsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffRedirectUrl = () => {
+
+
+
+
+  return `/api/staff/redirects`
+}
+
+/**
+ * @summary Create an unpublished internal redirect
+ */
+export const createStaffRedirect = async (staffRedirectInput: StaffRedirectInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffRedirect> => {
+
+  return customFetch<StaffRedirect>(getCreateStaffRedirectUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffRedirectInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffRedirectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffRedirect>>, TError,{data: BodyType<StaffRedirectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffRedirect>>, TError,{data: BodyType<StaffRedirectInput>}, TContext> => {
+
+const mutationKey = ['createStaffRedirect'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffRedirect>>, {data: BodyType<StaffRedirectInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffRedirect(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffRedirectMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffRedirect>>>
+    export type CreateStaffRedirectMutationBody = BodyType<StaffRedirectInput>
+    export type CreateStaffRedirectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create an unpublished internal redirect
+ */
+export const useCreateStaffRedirect = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffRedirect>>, TError,{data: BodyType<StaffRedirectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffRedirect>>,
+        TError,
+        {data: BodyType<StaffRedirectInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffRedirectMutationOptions(options));
+    }
+
+export const getUpdateStaffRedirectUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/redirects/${id}`
+}
+
+/**
+ * @summary Update an internal redirect
+ */
+export const updateStaffRedirect = async (id: string,
+    staffRedirectInput: StaffRedirectInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffRedirect> => {
+
+  return customFetch<StaffRedirect>(getUpdateStaffRedirectUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffRedirectInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffRedirectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffRedirect>>, TError,{id: string;data: BodyType<StaffRedirectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffRedirect>>, TError,{id: string;data: BodyType<StaffRedirectInput>}, TContext> => {
+
+const mutationKey = ['updateStaffRedirect'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffRedirect>>, {id: string;data: BodyType<StaffRedirectInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateStaffRedirect(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffRedirectMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffRedirect>>>
+    export type UpdateStaffRedirectMutationBody = BodyType<StaffRedirectInput>
+    export type UpdateStaffRedirectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update an internal redirect
+ */
+export const useUpdateStaffRedirect = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffRedirect>>, TError,{id: string;data: BodyType<StaffRedirectInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffRedirect>>,
+        TError,
+        {id: string;data: BodyType<StaffRedirectInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffRedirectMutationOptions(options));
+    }
+
+export const getDeleteStaffRedirectUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/redirects/${id}`
+}
+
+/**
+ * @summary Delete a redirect
+ */
+export const deleteStaffRedirect = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteStaffRedirectUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteStaffRedirectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffRedirect>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteStaffRedirect>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteStaffRedirect'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteStaffRedirect>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteStaffRedirect(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteStaffRedirectMutationResult = NonNullable<Awaited<ReturnType<typeof deleteStaffRedirect>>>
+
+    export type DeleteStaffRedirectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a redirect
+ */
+export const useDeleteStaffRedirect = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffRedirect>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteStaffRedirect>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteStaffRedirectMutationOptions(options));
+    }
+
+export const getPublishStaffRedirectUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/redirects/${id}/publish`
+}
+
+/**
+ * @summary Publish or unpublish a redirect
+ */
+export const publishStaffRedirect = async (id: string,
+    staffRedirectPublicationInput?: StaffRedirectPublicationInput, options?: Parameters<typeof customFetch>[1]): Promise<StaffRedirect> => {
+
+  return customFetch<StaffRedirect>(getPublishStaffRedirectUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffRedirectPublicationInput)
+  }
+);}
+
+
+
+
+
+export const getPublishStaffRedirectMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffRedirect>>, TError,{id: string;data?: BodyType<StaffRedirectPublicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishStaffRedirect>>, TError,{id: string;data?: BodyType<StaffRedirectPublicationInput>}, TContext> => {
+
+const mutationKey = ['publishStaffRedirect'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishStaffRedirect>>, {id: string;data?: BodyType<StaffRedirectPublicationInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  publishStaffRedirect(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishStaffRedirectMutationResult = NonNullable<Awaited<ReturnType<typeof publishStaffRedirect>>>
+    export type PublishStaffRedirectMutationBody = BodyType<StaffRedirectPublicationInput> | undefined
+    export type PublishStaffRedirectMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Publish or unpublish a redirect
+ */
+export const usePublishStaffRedirect = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffRedirect>>, TError,{id: string;data?: BodyType<StaffRedirectPublicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishStaffRedirect>>,
+        TError,
+        {id: string;data?: BodyType<StaffRedirectPublicationInput>},
+        TContext
+      > => {
+      return useMutation(getPublishStaffRedirectMutationOptions(options));
+    }
+
+export const getListStaffRedirectHistoryUrl = (id: string,) => {
+
+
+
+
+  return `/api/staff/redirects/${id}/history`
+}
+
+/**
+ * @summary List immutable redirect revisions
+ */
+export const listStaffRedirectHistory = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ListStaffRedirectHistory200Item[]> => {
+
+  return customFetch<ListStaffRedirectHistory200Item[]>(getListStaffRedirectHistoryUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffRedirectHistoryQueryKey = (id: string,) => {
+    return [
+    `/api/staff/redirects/${id}/history`
+    ] as const;
+    }
+
+
+export const getListStaffRedirectHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listStaffRedirectHistory>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffRedirectHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffRedirectHistoryQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffRedirectHistory>>> = ({ signal }) => listStaffRedirectHistory(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffRedirectHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffRedirectHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffRedirectHistory>>>
+export type ListStaffRedirectHistoryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List immutable redirect revisions
+ */
+
+export function useListStaffRedirectHistory<TData = Awaited<ReturnType<typeof listStaffRedirectHistory>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffRedirectHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffRedirectHistoryQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/request-url`
+}
+
+/**
+ * @summary Request a signed direct-upload URL for a staff-managed image
+ */
+export const requestUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
+
+  return customFetch<UploadUrlResponse>(getRequestUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(uploadUrlRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestUploadUrlMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext> => {
+
+const mutationKey = ['requestUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestUploadUrl>>, {data: BodyType<UploadUrlRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestUploadUrl>>>
+    export type RequestUploadUrlMutationBody = BodyType<UploadUrlRequest>
+    export type RequestUploadUrlMutationError = ErrorType<void>
+
+    /**
+ * @summary Request a signed direct-upload URL for a staff-managed image
+ */
+export const useRequestUploadUrl = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestUploadUrl>>,
+        TError,
+        {data: BodyType<UploadUrlRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestUploadUrlMutationOptions(options));
+    }
+
+export const getGetStorageObjectUrl = (objectPath: string,) => {
+
+
+
+
+  return `/api/storage/objects/${objectPath}`
+}
+
+/**
+ * @summary Publicly serve uploaded storefront media
+ */
+export const getStorageObject = async (objectPath: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetStorageObjectUrl(objectPath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStorageObjectQueryKey = (objectPath: string,) => {
+    return [
+    `/api/storage/objects/${objectPath}`
+    ] as const;
+    }
+
+
+export const getGetStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<void>>(objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStorageObjectQueryKey(objectPath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageObject>>> = ({ signal }) => getStorageObject(objectPath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: objectPath !== null && objectPath !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStorageObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getStorageObject>>>
+export type GetStorageObjectQueryError = ErrorType<void>
+
+
+/**
+ * @summary Publicly serve uploaded storefront media
+ */
+
+export function useGetStorageObject<TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<void>>(
+ objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStorageObjectQueryOptions(objectPath,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPublicStorageObjectUrl = (filePath: string,) => {
+
+
+
+
+  return `/api/storage/public-objects/${filePath}`
+}
+
+/**
+ * @summary Publicly serve an object from configured public search paths
+ */
+export const getPublicStorageObject = async (filePath: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetPublicStorageObjectUrl(filePath),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicStorageObjectQueryKey = (filePath: string,) => {
+    return [
+    `/api/storage/public-objects/${filePath}`
+    ] as const;
+    }
+
+
+export const getGetPublicStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getPublicStorageObject>>, TError = ErrorType<void>>(filePath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicStorageObjectQueryKey(filePath);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicStorageObject>>> = ({ signal }) => getPublicStorageObject(filePath, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: filePath !== null && filePath !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicStorageObject>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicStorageObjectQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicStorageObject>>>
+export type GetPublicStorageObjectQueryError = ErrorType<void>
+
+
+/**
+ * @summary Publicly serve an object from configured public search paths
+ */
+
+export function useGetPublicStorageObject<TData = Awaited<ReturnType<typeof getPublicStorageObject>>, TError = ErrorType<void>>(
+ filePath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicStorageObjectQueryOptions(filePath,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -1,52 +1,37 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Link } from "wouter";
-import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
 import { catalogApproved } from "@/lib/seo";
-import { CommerceConfigurationError, commerceGateway, commerceMode } from "@/lib/commerce";
+import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 
 export default function Shop() {
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [liveProducts, setLiveProducts] = useState<typeof products>([]);
-  const [catalogMessage, setCatalogMessage] = useState("");
-
-  useEffect(() => {
-    if (commerceMode !== "justicesure-headless") return;
-    let current = true;
-    commerceGateway.listProducts()
-      .then((next) => {
-        if (current) setLiveProducts(next);
-      })
-      .catch((error) => {
-        if (!current) return;
-        setCatalogMessage(error instanceof CommerceConfigurationError
-          ? error.message
-          : "The live JusticeSure catalogue is unavailable. No payment has been taken.");
-      });
-    return () => { current = false; };
-  }, []);
-
-  const sourceProducts = commerceMode === "justicesure-headless" ? liveProducts : products;
-  const filters = ["All", ...Array.from(new Set(sourceProducts.map((product) => product.category)))];
-  const filteredProducts = activeFilter === "All" 
+  const [activeFilter, setActiveFilter] = useState("__all");
+  const platform = usePlatformContent();
+  const platformStateCopy = platform.data?.content.site.platformState;
+  if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
+  const { products: sourceProducts } = platform.data.content;
+  const copy = platform.data.content.pages.shop;
+  const filters = ["__all", ...Array.from(new Set(sourceProducts.map((product) => product.category)))];
+  const filteredProducts = activeFilter === "__all"
     ? sourceProducts
     : sourceProducts.filter(p => p.category === activeFilter);
 
   return (
     <div className="flex flex-col pt-10">
       <Seo
-        title="Shop premium menswear | SOSO Africa"
-        description="Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts. Pay securely, with optional stylist help before you order."
+        title={copy.seo.title}
+        description={copy.seo.description}
         path="/shop"
         noIndex={!catalogApproved}
       />
       <div className="max-w-7xl mx-auto w-full px-6 lg:px-12 flex-1">
         <Reveal>
           <div className="text-center mb-16">
-            <h1 className="soso-display text-4xl md:text-5xl font-light text-white">The Collection</h1>
-            <p className="mt-4 text-[14px]" style={{ color: "hsl(var(--secondary))" }}>Hand-finished in our Abuja atelier. Built for presence.</p>
+            <p className="text-[11px] tracking-[0.3em] uppercase text-primary">{copy.eyebrow}</p>
+            <h1 className="mt-3 soso-display text-4xl md:text-5xl font-light text-white">{copy.title}</h1>
+            <p className="mt-4 text-[14px]" style={{ color: "hsl(var(--secondary))" }}>{copy.intro}</p>
           </div>
         </Reveal>
 
@@ -64,21 +49,14 @@ export default function Shop() {
                     : "bg-transparent text-[hsl(var(--secondary))] border border-[rgba(246,241,231,0.2)] hover:border-[hsl(var(--primary))]"
                 }`}
               >
-                {f}
+                {f === "__all" ? copy.allFilterLabel : f}
               </button>
             ))}
           </div>
         </Reveal>
 
         {/* Product Grid */}
-        {catalogMessage && (
-          <p role="status" className="mb-8 border border-[rgba(184,145,47,.45)] bg-[rgba(184,145,47,.08)] p-4 text-sm leading-relaxed text-white">
-            {catalogMessage}
-          </p>
-        )}
-        {commerceMode === "justicesure-headless" && !catalogMessage && filteredProducts.length === 0 && (
-          <p role="status" className="mb-8 text-center text-sm text-[hsl(var(--secondary))]">Loading the verified JusticeSure collection…</p>
-        )}
+        {filteredProducts.length === 0 && <p role="status" className="mb-8 text-center text-sm text-[hsl(var(--secondary))]">{copy.emptyMessage}</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-14 pb-24">
           {filteredProducts.map((p, i) => (
             <Reveal key={p.name} delay={(i % 3) * 120}>
@@ -90,7 +68,7 @@ export default function Shop() {
                   </span>
                   <div className="soso-cta-row absolute inset-x-4 bottom-4 flex gap-2">
                     <div className="soso-btn-gold flex-1 flex items-center justify-center text-[11px] tracking-[0.15em] uppercase py-3 font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
-                      View Details
+                       {copy.productCtaLabel}
                     </div>
                   </div>
                 </div>

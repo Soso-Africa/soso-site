@@ -3,9 +3,11 @@ import { useCart } from "@/context/CartContext";
 import { naira } from "@/lib/utils";
 import { Link } from "wouter";
 import { WhatsAppIcon } from "@/components/Icons";
+import { usePlatformContent } from "@/data/platformContent";
 
 export function CartDrawer() {
   const { isDrawerOpen, closeDrawer, items, removeItem, updateQuantity, cartTotal } = useCart();
+  const { data } = usePlatformContent();
   const drawerRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
@@ -51,7 +53,8 @@ export function CartDrawer() {
     }
   };
 
-  if (!isDrawerOpen) return null;
+  if (!isDrawerOpen || !data) return null;
+  const copy = data.content.site.cart;
 
   return (
     <>
@@ -77,12 +80,12 @@ export function CartDrawer() {
         style={{ backgroundColor: "hsl(var(--background))", borderLeft: "1px solid hsl(var(--border))" }}
       >
         <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: "hsl(var(--border))" }}>
-          <h2 id="cart-drawer-title" className="soso-display text-2xl font-light">Your Bag</h2>
+          <h2 id="cart-drawer-title" className="soso-display text-2xl font-light">{copy.title}</h2>
           <button 
             onClick={closeDrawer}
             data-cart-initial-focus
             className="text-3xl opacity-60 hover:opacity-100 transition-opacity"
-            aria-label="Close cart"
+            aria-label={copy.closeLabel}
           >
             &times;
           </button>
@@ -91,13 +94,13 @@ export function CartDrawer() {
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-60 space-y-4">
-              <p className="soso-display text-xl">Your bag is empty.</p>
+               <p className="soso-display text-xl">{copy.emptyMessage}</p>
               <button 
                 onClick={closeDrawer}
                 className="text-[11px] tracking-[0.2em] uppercase"
                 style={{ color: "hsl(var(--primary))" }}
               >
-                Continue Shopping
+                 {copy.continueShoppingLabel}
               </button>
             </div>
           ) : (
@@ -121,13 +124,13 @@ export function CartDrawer() {
                       <Link href={`/product/${item.slug}`} onClick={closeDrawer} className="soso-display text-lg hover:underline underline-offset-4">
                         {item.name}
                       </Link>
-                      <p className="text-[12px] opacity-70 mt-1 uppercase tracking-widest">Size: {item.size}</p>
+                       <p className="text-[12px] opacity-70 mt-1 uppercase tracking-widest">{copy.sizeLabel} {item.size}</p>
                     </div>
                     <button 
                       onClick={() => removeItem(item.slug, item.size)}
                       className="text-xs opacity-50 hover:opacity-100 underline underline-offset-2"
                     >
-                      Remove
+                       {copy.removeLabel}
                     </button>
                   </div>
                   
@@ -160,27 +163,27 @@ export function CartDrawer() {
         {items.length > 0 && (
           <div className="p-6 border-t bg-black/20" style={{ borderColor: "hsl(var(--border))" }}>
             <div className="flex items-center justify-between mb-6">
-              <span className="text-sm uppercase tracking-widest opacity-80">Subtotal</span>
+               <span className="text-sm uppercase tracking-widest opacity-80">{copy.subtotalLabel}</span>
               <span className="text-xl font-medium">{naira(cartTotal)}</span>
             </div>
             <p className="text-[11px] opacity-60 mb-6 tracking-wide">
-              Shipping and taxes calculated at checkout. Need help first? Ask a stylist.
+               {copy.helpText}
             </p>
             <Link
-              href="/checkout"
+               href={copy.checkoutCta.href}
               onClick={closeDrawer}
               className="w-full soso-btn-gold py-4 text-[13px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2"
               style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}
             >
-              Proceed to payment
+               {copy.checkoutCta.label}
             </Link>
             <a
-              href="/#whatsapp"
+               href={copy.stylistCta.href}
               onClick={closeDrawer}
               className="w-full mt-3 py-4 text-[13px] tracking-[0.2em] uppercase font-semibold flex items-center justify-center gap-2 soso-btn-ghost"
               style={{ border: "1px solid rgba(246,241,231,0.3)" }}
             >
-              <WhatsAppIcon size={16} /> Ask a stylist
+               <WhatsAppIcon size={16} /> {copy.stylistCta.label}
             </a>
           </div>
         )}

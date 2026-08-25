@@ -21,7 +21,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
-import { publicSiteContent } from "./site-content-policy";
+import { ensurePlatformContent, PlatformContentSchema } from "../lib/platform-content";
 
 const router: IRouter = Router();
 const ENQUIRY_RATE_WINDOW_MS = 60_000;
@@ -137,9 +137,29 @@ router.get("/journal", async (_req, res): Promise<void> => {
 });
 
 router.get("/content/site", async (_req, res): Promise<void> => {
-  const [row] = await db.select({ content: siteContentTable.published })
-    .from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
-  res.json(publicSiteContent(row ? { published: row.content } : undefined));
+  await ensurePlatformContent();
+  const [row] = await db.select({ content: siteContentTable.published, publishedAt: siteContentTable.publishedAt })
+    .from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
+  if (!row || !row.publishedAt || Object.keys(row.content).length === 0) {
+    res.status(404).json({ error: "Platform content is not published" });
+    return;
+  }
+  const parsed = PlatformContentSchema.safeParse(row.content);
+  if (!parsed.success) { res.status(500).json({ error: "Published platform content is invalid" }); return; }
+  res.json({ content: parsed.data.site });
+});
+
+router.get("/content/platform", async (_req, res): Promise<void> => {
+  await ensurePlatformContent();
+  const [row] = await db.select({ content: siteContentTable.published, publishedAt: siteContentTable.publishedAt })
+    .from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
+  if (!row || !row.publishedAt || Object.keys(row.content).length === 0) {
+    res.status(404).json({ error: "Platform content is not published" });
+    return;
+  }
+  const parsed = PlatformContentSchema.safeParse(row.content);
+  if (!parsed.success) { res.status(500).json({ error: "Published platform content is invalid" }); return; }
+  res.json({ content: parsed.data, publishedAt: row.publishedAt });
 });
 
 router.get("/journal/:slug", async (req, res): Promise<void> => {

@@ -42,12 +42,14 @@ import {
   ChevronRight,
   CircleCheck,
   ClipboardCheck,
+  Copy,
   Download,
   Eye,
   FileText,
   Globe,
   History,
   Info,
+  ImageUp,
   Loader2,
   LockKeyhole,
   LayoutDashboard,
@@ -72,6 +74,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExperimentLog } from "@/components/ExperimentLog";
+import type { PlatformContent } from "@/data/platformContent";
 
 type StaffWorkflowDisplayStatus = StaffOrderUpdateStatus | "paid";
 
@@ -113,7 +116,7 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "site" | "faq" | "policies" | "redirects" | "analytics" | "staff";
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "platform" | "faq" | "policies" | "redirects" | "analytics" | "staff";
 type StaffNavGroup = {
   label: string;
   items: { id: StaffTab; label: string; icon: React.ElementType }[];
@@ -131,6 +134,7 @@ export default function Staff() {
   const canManageEnquiries = canManageOrders || profile?.role === "stylist";
   const canSeeAnalytics = profile?.role === "owner" || profile?.role === "analyst";
   const canManagePrivacy = canManageOrders;
+  const isEditorial = ["owner", "administrator", "editor"].includes(profile?.role as string);
 
   const overview = useGetStaffOverview(range, { query: { queryKey: ["staff-overview", range.from, range.to], enabled: Boolean(profile), refetchInterval: 60_000 } });
   const funnel = useGetStaffFunnel(range, { query: { queryKey: ["staff-funnel", range.from, range.to], enabled: canSeeAnalytics, refetchInterval: 60_000 } });
@@ -144,10 +148,10 @@ export default function Staff() {
   if (canViewOrders) availableTabs.add("orders");
   if (canManageEnquiries) availableTabs.add("enquiries");
   if (canManagePrivacy) availableTabs.add("privacy");
-  if (profile?.role === "owner" || profile?.role === "editor") {
-    availableTabs.add("journal"); availableTabs.add("site"); availableTabs.add("faq"); availableTabs.add("policies");
+  if (isEditorial) {
+    availableTabs.add("journal"); availableTabs.add("platform"); availableTabs.add("faq"); availableTabs.add("policies");
   }
-  if (profile?.role === "owner" || profile?.role === "operations") availableTabs.add("redirects");
+  if (profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "operations") availableTabs.add("redirects");
   if (canSeeAnalytics) availableTabs.add("analytics");
   if (profile?.role === "owner") availableTabs.add("staff");
 
@@ -180,12 +184,12 @@ export default function Staff() {
       ...(canManageEnquiries ? [staffNavItem("enquiries", "Enquiries", MessageSquare)] : []),
     ] },
     { label: "Customer care", items: canManagePrivacy ? [staffNavItem("privacy", "Privacy requests", LockKeyhole)] : [] },
-    { label: "Editorial", items: (profile.role === "owner" || profile.role === "editor") ? [
-      staffNavItem("journal", "Journal", PenLine), staffNavItem("site", "Site content", Globe), staffNavItem("faq", "FAQs", FileText),
+    { label: "Editorial", items: isEditorial ? [
+      staffNavItem("journal", "Journal", PenLine), staffNavItem("platform", "Platform content", Globe), staffNavItem("faq", "FAQs", FileText),
     ] : [] },
     { label: "Governance", items: [
-      ...((profile.role === "owner" || profile.role === "editor") ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
-      ...((profile.role === "owner" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
+      ...(isEditorial ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
+      ...((profile.role === "owner" || profile.role === "administrator" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
     ] },
     { label: "Intelligence", items: canSeeAnalytics ? [staffNavItem("analytics", "Analytics", BarChart3)] : [] },
     { label: "Administration", items: profile.role === "owner" ? [staffNavItem("staff", "Staff access", Users)] : [] },
@@ -246,7 +250,7 @@ export default function Staff() {
         {activeTab === "enquiries" && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
         {activeTab === "privacy" && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
         {activeTab === "journal" && <JournalManagementSection />}
-        {activeTab === "site" && <SiteContentManagementSection />}
+        {activeTab === "platform" && <PlatformContentManagementSection />}
         {activeTab === "faq" && <FaqManagementSection />}
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
         {activeTab === "redirects" && <RedirectsManagementSection />}
@@ -261,7 +265,7 @@ function StaffAccessSection() {
   const access = useListStaffAccess({ query: { queryKey: ["staff-access"], refetchInterval: 60_000 } });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"owner" | "operations" | "stylist" | "editor" | "analyst">("operations");
+  const [role, setRole] = useState<"owner" | "administrator" | "operations" | "stylist" | "editor" | "analyst">("operations");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const submit = async (event: FormEvent) => {
@@ -280,7 +284,7 @@ function StaffAccessSection() {
     <form onSubmit={submit} className="grid gap-3 border border-border bg-card p-5 md:grid-cols-[1fr_1fr_0.7fr_auto] md:items-end">
       <InputLabel label="Email"><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="staff-input mt-1" /></InputLabel>
       <InputLabel label="Temporary password"><input required minLength={12} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="staff-input mt-1" placeholder="12+ characters" /></InputLabel>
-      <InputLabel label="Role"><select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="staff-input mt-1">{["owner", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select></InputLabel>
+      <InputLabel label="Role"><select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="staff-input mt-1">{["owner", "administrator", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select></InputLabel>
       <button disabled={saving} className="inline-flex min-h-10 items-center justify-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Plus size={14} /> Add access</button>
     </form>
     {notice && <p role="status" className="mt-3 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
@@ -297,85 +301,218 @@ function StaffAccessRow({ member, update, onReset }: { member: { id: string; ema
     try { await customFetch(`/api/staff/access/${member.id}/password`, { method: "POST", body: JSON.stringify({ password }) }); onReset(); }
     finally { setResetting(false); }
   };
-  return <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="font-medium">{member.email}</p><p className="mt-1 text-xs text-muted-foreground">SOSO-managed account · added {format(new Date(member.createdAt), "d MMM yyyy")}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${member.isActive ? "border-green-500/30 text-green-600" : "border-border text-muted-foreground"}`}>{member.isActive ? "Active" : "Inactive"}</span><select value={member.role} onChange={(e) => void update(member.id, { role: e.target.value })} className="staff-input w-auto" aria-label={`Role for ${member.email}`}>{["owner", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select><button type="button" disabled={resetting} onClick={() => void reset()} className="border border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><KeyRound size={13} className="mr-1 inline" /> Reset password</button><button type="button" onClick={() => void update(member.id, { isActive: !member.isActive })} className="border border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider hover:border-primary">{member.isActive ? "Deactivate" : "Reactivate"}</button></div></div>;
+  return <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="font-medium">{member.email}</p><p className="mt-1 text-xs text-muted-foreground">SOSO-managed account · added {format(new Date(member.createdAt), "d MMM yyyy")}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${member.isActive ? "border-green-500/30 text-green-600" : "border-border text-muted-foreground"}`}>{member.isActive ? "Active" : "Inactive"}</span><select value={member.role} onChange={(e) => void update(member.id, { role: e.target.value })} className="staff-input w-auto" aria-label={`Role for ${member.email}`}>{["owner", "administrator", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select><button type="button" disabled={resetting} onClick={() => void reset()} className="border border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><KeyRound size={13} className="mr-1 inline" /> Reset password</button><button type="button" onClick={() => void update(member.id, { isActive: !member.isActive })} className="border border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider hover:border-primary">{member.isActive ? "Deactivate" : "Reactivate"}</button></div></div>;
 }
 
-type EditableSiteContent = Record<string, string>;
-const editableSiteFields = [
-  ["heroEyebrow", "Homepage eyebrow"],
-  ["heroTitle", "Homepage title"],
-  ["heroAccent", "Homepage accent"],
-  ["heroDescription", "Homepage description"],
-  ["heroImageUrl", "Hero image URL"],
-  ["heroImageAlt", "Hero image alt text"],
-  ["primaryCta", "Primary CTA label"],
-  ["primaryCtaHref", "Primary CTA path"],
-  ["stylistCta", "Stylist CTA label"],
-  ["announcement", "Site announcement"],
-  ["footerDescription", "Footer description"],
-  ["instagramUrl", "Instagram URL"],
-  ["whatsappUrl", "WhatsApp link"],
-  ["navKaftansLabel", "Navigation: kaftans"],
-  ["navAgbadasLabel", "Navigation: agbadas"],
-  ["navShirtsLabel", "Navigation: shirts"],
-  ["contactEmail", "Contact email"],
-  ["contactPhone", "Contact phone"],
-] as const;
+type PlatformContentRow = {
+  draft: PlatformContent | null;
+  published: PlatformContent | null;
+  draftUpdatedAt: string | null;
+  publishedAt: string | null;
+};
+type PlatformRevision = { id?: string; createdAt?: string; action?: string; publishedAt?: string | null };
+type PlatformSection = "complete" | "site" | "homepage" | "catalogue" | "pages";
+const platformSections: { id: PlatformSection; label: string }[] = [
+  { id: "complete", label: "Complete document" },
+  { id: "site", label: "Site & navigation" },
+  { id: "homepage", label: "Homepage" },
+  { id: "catalogue", label: "Catalogue" },
+  { id: "pages", label: "Pages & SEO" },
+];
 
-function SiteContentManagementSection() {
-  const [content, setContent] = useState<EditableSiteContent>({});
-  const [status, setStatus] = useState("Loading content…");
+function PlatformContentManagementSection() {
+  const [row, setRow] = useState<PlatformContentRow | null>(null);
+  const [content, setContent] = useState<PlatformContent | null>(null);
+  const [section, setSection] = useState<PlatformSection>("complete");
+  const sectionRef = useRef<PlatformSection>("complete");
+  const [json, setJson] = useState("{}");
+  const [status, setStatus] = useState("Loading platform content…");
   const [saving, setSaving] = useState(false);
+  const [revisions, setRevisions] = useState<PlatformRevision[]>([]);
+  const [uploadedObjectPath, setUploadedObjectPath] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const jsonEditorRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    void customFetch<{ draft: EditableSiteContent; published: EditableSiteContent }>("/api/staff/content/site", { responseType: "json" })
-      .then((row) => { setContent(row.draft && Object.keys(row.draft).length ? row.draft : row.published ?? {}); setStatus("Draft and published states are separate."); })
-      .catch((error) => setStatus(errorMessage(error, "Unable to load site content.")));
+  const sectionValue = (document: PlatformContent, selected: PlatformSection): unknown => {
+    if (selected === "complete") return document;
+    if (selected === "catalogue") return {
+      products: document.products,
+      collections: document.collections,
+      sizeGuide: document.sizeGuide,
+      productCopy: document.productCopy,
+      supportCopy: document.supportCopy,
+    };
+    if (selected === "pages") return document.pages;
+    return document[selected];
+  };
+  const load = useCallback(async () => {
+    try {
+      const next = await customFetch<PlatformContentRow>("/api/staff/content/platform", { responseType: "json" });
+      const document = next.draft ?? next.published;
+      setRow(next);
+      setContent(document);
+      setJson(JSON.stringify(document ? sectionValue(document, sectionRef.current) : {}, null, 2));
+      setStatus(document ? "Draft and published content are versioned separately." : "No platform document exists yet. Paste a complete document in the editor.");
+      const history = await customFetch<PlatformRevision[]>("/api/staff/content/platform/revisions", { responseType: "json" });
+      setRevisions(history);
+    } catch (error) {
+      setStatus(errorMessage(error, "Unable to load platform content."));
+    }
   }, []);
+  useEffect(() => { void load(); }, [load]);
 
-  const saveDraft = async (event: FormEvent) => {
-    event.preventDefault();
+  const selectSection = (next: PlatformSection) => {
+    if (!content) {
+      if (section !== "complete") { setStatus("Create the complete document before editing individual sections."); return; }
+      try {
+        const document = applyPlatformSection(null, "complete", JSON.parse(json) as unknown);
+        setContent(document); setSection(next); sectionRef.current = next; setJson(JSON.stringify(sectionValue(document, next), null, 2)); setStatus("");
+      } catch (error) { setStatus(errorMessage(error, "Enter a valid complete platform document first.")); }
+      return;
+    }
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      const updated = applyPlatformSection(content, section, parsed);
+      setContent(updated);
+      setSection(next);
+      sectionRef.current = next;
+      setJson(JSON.stringify(sectionValue(updated, next), null, 2));
+      setStatus("");
+    } catch {
+      setStatus("Fix the JSON in this section before changing sections.");
+    }
+  };
+  const parsedDocument = () => {
+    return applyPlatformSection(content, section, JSON.parse(json) as unknown);
+  };
+  const save = async () => {
     setSaving(true);
     try {
-      await customFetch("/api/staff/content/site", { method: "PUT", body: JSON.stringify(content), responseType: "json" });
-      setStatus("Draft saved. It is not public until published.");
+      const document = parsedDocument();
+      const next = await customFetch<PlatformContentRow>("/api/staff/content/platform", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: document, expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }),
+        responseType: "json",
+      });
+      setContent(document); setRow(next); setStatus("Draft saved. It is not public until published."); void load();
     } catch (error) {
-      setStatus(errorMessage(error, "Draft could not be saved."));
+      setStatus(error instanceof SyntaxError ? `Invalid JSON: ${error.message}` : errorMessage(error, "Draft could not be saved."));
     } finally { setSaving(false); }
   };
-  const publish = async () => {
+  const action = async (kind: "publish" | "unpublish") => {
     setSaving(true);
     try {
-      await customFetch("/api/staff/content/site/publish", { method: "POST", responseType: "json" });
-      setStatus("Published. The public storefront will use this content.");
-    } catch (error) { setStatus(errorMessage(error, "Content could not be published.")); }
+      if (kind === "publish") {
+        await customFetch("/api/staff/content/platform/publish", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }), responseType: "json",
+        });
+      } else {
+        await customFetch("/api/staff/content/platform/unpublish", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }), responseType: "json",
+        });
+      }
+      setStatus(kind === "publish" ? "Draft published to the storefront." : "Platform content unpublished. The storefront now shows its safe unavailable state.");
+      await load();
+    } catch (error) { setStatus(errorMessage(error, `Content could not be ${kind}ed.`)); }
     finally { setSaving(false); }
   };
+  const uploadImage = async (file: File) => {
+    setUploadingImage(true);
+    setUploadedObjectPath("");
+    try {
+      const signed = await customFetch<{ uploadURL: string; objectPath: string }>("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+        responseType: "json",
+      });
+      const uploaded = await fetch(signed.uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!uploaded.ok) throw new Error(`Image upload failed (${uploaded.status}).`);
+      setUploadedObjectPath(signed.objectPath);
+      setStatus("Image uploaded. Copy or insert its durable path, then save the document.");
+    } catch (error) {
+      setStatus(errorMessage(error, "Image could not be uploaded."));
+    } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+  const insertUploadedPath = () => {
+    if (!uploadedObjectPath) return;
+    const editor = jsonEditorRef.current;
+    const start = editor?.selectionStart ?? json.length;
+    const end = editor?.selectionEnd ?? start;
+    const escapedPath = JSON.stringify(uploadedObjectPath).slice(1, -1);
+    setJson(`${json.slice(0, start)}${escapedPath}${json.slice(end)}`);
+    requestAnimationFrame(() => {
+      editor?.focus();
+      editor?.setSelectionRange(start + escapedPath.length, start + escapedPath.length);
+    });
+  };
 
-  return (
-    <section className="mt-12 border-t border-border pt-10">
-      <SectionHeading icon={Globe} title="Homepage & site content" description="Edit customer-facing copy, calls to action, image metadata, and social links. Save a draft, preview it here, then publish explicitly." />
-      <form onSubmit={(event) => void saveDraft(event)} className="border border-border bg-card p-5">
-        <div className="grid gap-4 md:grid-cols-2">
-          {editableSiteFields.map(([key, label]) => (
-            <label key={key} className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {label}
-              {key === "heroDescription" || key === "footerDescription" ? (
-                <textarea rows={3} value={content[key] ?? ""} onChange={(event) => setContent({ ...content, [key]: event.target.value })} className="staff-input mt-1 resize-y" />
-              ) : (
-                <input value={content[key] ?? ""} onChange={(event) => setContent({ ...content, [key]: event.target.value })} className="staff-input mt-1" />
-              )}
-            </label>
-          ))}
+  return <section className="mt-12 border-t border-border pt-10">
+    <SectionHeading icon={Globe} title="Platform content" description="Edit the complete storefront document. Section JSON supports every nested link, product, collection, page, SEO field, and reusable support message." />
+    <div className="mb-4 grid gap-3 border border-border bg-card p-4 text-xs sm:grid-cols-3">
+      <div><span className="text-muted-foreground">Draft updated</span><p className="mt-1">{row?.draftUpdatedAt ? format(new Date(row.draftUpdatedAt), "d MMM yyyy, HH:mm") : "No draft"}</p></div>
+      <div><span className="text-muted-foreground">Published</span><p className="mt-1">{row?.publishedAt ? format(new Date(row.publishedAt), "d MMM yyyy, HH:mm") : "Not published"}</p></div>
+      <div><a href="/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-primary underline underline-offset-4"><Eye size={14} /> Open storefront preview</a></div>
+    </div>
+    <div className="border border-border bg-card p-5">
+      <div className="flex flex-wrap gap-2">{platformSections.map((item) => <button key={item.id} type="button" onClick={() => selectSection(item.id)} className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${section === item.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{item.label}</button>)}</div>
+      <div className="mt-5 border border-border bg-muted/20 p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 border border-border px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary">
+            <ImageUp size={15} /> {uploadingImage ? "Uploading…" : "Upload image"}
+            <input ref={imageInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploadingImage} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} />
+          </label>
+          <span className="text-xs text-muted-foreground">JPEG, PNG, WebP or GIF · 12 MB maximum</span>
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button type="submit" disabled={saving} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
-          <button type="button" disabled={saving} onClick={() => void publish()} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish draft</button>
-          <span className="text-xs text-muted-foreground" role="status">{status}</span>
-        </div>
-      </form>
-    </section>
-  );
+        {uploadedObjectPath && <div className="mt-3 flex flex-wrap items-center gap-2">
+          <code className="max-w-full overflow-x-auto border border-border bg-background px-3 py-2 text-xs">{uploadedObjectPath}</code>
+          <button type="button" onClick={() => void navigator.clipboard.writeText(uploadedObjectPath)} className="inline-flex min-h-9 items-center gap-2 border border-border px-3 text-[10px] font-semibold uppercase tracking-wider hover:border-primary"><Copy size={13} /> Copy</button>
+          <button type="button" onClick={insertUploadedPath} className="min-h-9 border border-primary px-3 text-[10px] font-semibold uppercase tracking-wider text-primary">Insert at cursor</button>
+        </div>}
+      </div>
+      <label className="mt-5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Validated section JSON
+        <textarea ref={jsonEditorRef} value={json} onChange={(event) => setJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
+      </label>
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button type="button" disabled={saving} onClick={() => void save()} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
+        <button type="button" disabled={saving || !row?.draft} onClick={() => void action("publish")} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish</button>
+        <button type="button" disabled={saving || !row?.published} onClick={() => void action("unpublish")} className="min-h-10 border border-border px-4 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Unpublish</button>
+      </div>
+      {status && <p role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm">{status}</p>}
+    </div>
+    <div className="mt-5 border border-border bg-card p-5"><h3 className="text-xs font-semibold uppercase tracking-wider">Recent revisions</h3>
+      {!revisions.length ? <p className="mt-3 text-sm text-muted-foreground">No revisions recorded yet.</p> : <ul className="mt-3 divide-y divide-border">{revisions.slice(0, 10).map((revision, index) => <li key={revision.id ?? index} className="py-3 text-xs"><span className="font-medium">{revision.action ?? "Revision"}</span>{revision.createdAt ? ` · ${format(new Date(revision.createdAt), "d MMM yyyy, HH:mm")}` : ""}</li>)}</ul>}
+    </div>
+  </section>;
+}
+
+function applyPlatformSection(document: PlatformContent | null, section: PlatformSection, value: unknown): PlatformContent {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Each top-level section must be a JSON object.");
+  if (section === "complete") {
+    const complete = value as PlatformContent;
+    if (!complete.site || !complete.homepage || !complete.pages || !Array.isArray(complete.products) || !Array.isArray(complete.collections)) {
+      throw new Error("A complete document requires site, homepage, pages, products, and collections.");
+    }
+    return complete;
+  }
+  if (!document) throw new Error("Create the complete document before editing individual sections.");
+  if (section === "site") return { ...document, site: value as PlatformContent["site"] };
+  if (section === "homepage") return { ...document, homepage: value as PlatformContent["homepage"] };
+  if (section === "pages") return { ...document, pages: value as PlatformContent["pages"] };
+  const catalogue = value as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy">;
+  if (!Array.isArray(catalogue.products) || !Array.isArray(catalogue.collections)) throw new Error("Catalogue products and collections must be arrays.");
+  return { ...document, ...catalogue };
 }
 
 function LoadingScreen() {
@@ -928,6 +1065,7 @@ function JournalManagementSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expectedRevision, setExpectedRevision] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [uploadingCover, setUploadingCover] = useState(false);
   const { data: revisions, isLoading: revisionsLoading, isError: revisionsError } = useListStaffJournalPostRevisions(editingId ?? "", {
     query: { queryKey: ["staff-journal-revisions", editingId], enabled: Boolean(editingId) },
   });
@@ -955,31 +1093,33 @@ function JournalManagementSection() {
     setNotice("");
   };
 
-  const cloudinaryPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
-  const cloudName = "kc9ubkqs";
-
-  const openCloudinaryWidget = () => {
-    const w = window as unknown as Record<string, unknown>;
-    if (typeof w["cloudinary"] !== "object" || w["cloudinary"] === null) {
-      alert("Cloudinary widget is loading. Please wait a moment and try again.");
-      return;
+  const uploadCover = async (file: File) => {
+    setUploadingCover(true);
+    try {
+      const signed = await customFetch<{ uploadURL: string; objectPath: string }>("/api/storage/uploads/request-url", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+        responseType: "json",
+      });
+      const uploaded = await fetch(signed.uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!uploaded.ok) throw new Error(`Image upload failed (${uploaded.status}).`);
+      setArticle((current) => ({ ...current, coverImageUrl: signed.objectPath }));
+      setNotice("Cover image uploaded to App Storage.");
+    } catch (error) {
+      setNotice(errorMessage(error, "Cover image could not be uploaded."));
+    } finally {
+      setUploadingCover(false);
     }
-    const cloudinary = w["cloudinary"] as { createUploadWidget: (opts: Record<string, unknown>, cb: (err: unknown, result: { event: string; info: { secure_url: string; alt_text?: string } }) => void) => { open: () => void } };
-    const widget = cloudinary.createUploadWidget(
-      { cloudName, uploadPreset: cloudinaryPreset, multiple: false, sources: ["local", "url"], resourceType: "image", maxFileSize: 10000000 },
-      (_err, result) => {
-        if (result.event === "success") {
-          setArticle((prev) => ({ ...prev, coverImageUrl: result.info.secure_url }));
-          setNotice("Image uploaded via Cloudinary.");
-        }
-      },
-    );
-    widget.open();
   };
 
   return (
     <section className="mt-12 border-t border-border pt-10">
-      <SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, and archive approved editorial. Cloudinary image uploads require a signed upload preset — paste an image URL directly if the preset is not yet configured." />
+      <SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, archive, and revise approved editorial. Cover images are stored durably in SOSO App Storage." />
       <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         {/* Article list */}
         <div className="border border-border bg-card">
@@ -1027,12 +1167,21 @@ function JournalManagementSection() {
           {/* Cover image */}
           <InputLabel label="Cover image URL">
             <div className="mt-1 flex gap-2">
-              <input value={article.coverImageUrl ?? ""} onChange={(e) => setArticle({ ...article, coverImageUrl: e.target.value || null })} placeholder="https://res.cloudinary.com/..." className="staff-input flex-1" />
-              {cloudinaryPreset ? (
-                <button type="button" onClick={openCloudinaryWidget} className="shrink-0 border border-border px-3 text-[10px] uppercase tracking-wider hover:border-primary">Upload</button>
-              ) : (
-                <span className="shrink-0 text-[10px] text-muted-foreground self-center">No upload preset yet — paste URL</span>
-              )}
+              <input value={article.coverImageUrl ?? ""} onChange={(e) => setArticle({ ...article, coverImageUrl: e.target.value || null })} placeholder="/api/storage/objects/uploads/…" className="staff-input flex-1" />
+              <label className="inline-flex shrink-0 cursor-pointer items-center border border-border px-3 text-[10px] uppercase tracking-wider hover:border-primary">
+                {uploadingCover ? "Uploading…" : "Upload"}
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  disabled={uploadingCover}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void uploadCover(file);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
             </div>
           </InputLabel>
           <InputLabel label="Image alt text"><input value={article.coverImageAlt ?? ""} onChange={(e) => setArticle({ ...article, coverImageAlt: e.target.value || null })} placeholder="Descriptive alt text for the cover image" className="staff-input mt-1" /></InputLabel>
@@ -1099,7 +1248,7 @@ function JournalManagementSection() {
 
 type FaqRow = { id: string; question: string; answer: string; category: string | null; sortOrder: number; isPublished: boolean; createdAt: string; updatedAt: string };
 type FaqHistoryEvent = { id: string; actorClerkUserId: string; action: string; metadata: { snapshot?: FaqRow; previousSnapshot?: FaqRow; transition?: { from: string | null; to: string } }; createdAt: string };
-type RedirectRow = { id: string; fromPath: string; toPath: string; statusCode: number; createdAt: string };
+type RedirectRow = { id: string; fromPath: string; toPath: string; statusCode: number; isPublished: boolean; createdAt: string; updatedAt: string };
 
 function useCrudFetch<T>(path: string, enabled: boolean) {
   const [data, setData] = useState<T[] | null>(null);
@@ -1259,7 +1408,7 @@ function FaqManagementSection() {
   );
 }
 
-function PolicyManagementSection({ role }: { role: string }) {
+function PolicyManagementSection({ role: _role }: { role: string }) {
   type PolicyRow = {
     id: string; slug: string; title: string; summary: string;
     sections: unknown[]; version: number; status: string; effectiveAt: string | null;
@@ -1275,22 +1424,35 @@ function PolicyManagementSection({ role }: { role: string }) {
     setSaving(true); setNotice("");
     try {
       const sections = typeof editing.sections === "string" ? JSON.parse(editing.sections) : editing.sections;
-      const body = { ...editing, sections };
-      if (editing.id) await customFetch(`/api/staff/policies/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      const body = {
+        slug: editing.slug,
+        title: editing.title,
+        summary: editing.summary,
+        sections,
+      };
+      if (editing.id) await customFetch(`/api/staff/policies/${editing.id}`, { method: "PUT", body: JSON.stringify(body) });
       else await customFetch("/api/staff/policies", { method: "POST", body: JSON.stringify(body) });
       setEditing(null); setNotice("Policy draft saved."); reload();
     } catch (error) { setNotice(errorMessage(error, "Policy could not be saved. Check the sections JSON.")); }
     finally { setSaving(false); }
   };
-  const action = async (id: string, name: "review" | "approve" | "publish") => {
+  const publish = async (id: string) => {
     try {
-      const body = name === "publish" ? { effectiveAt: window.prompt("Effective date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10)) } : undefined;
-      await customFetch(`/api/staff/policies/${id}/${name}`, { method: "POST", body: body ? JSON.stringify(body) : undefined });
-      setNotice(`Policy ${name}d.`); reload();
-    } catch (error) { setNotice(errorMessage(error, `Policy could not be ${name}d.`)); }
+      const effectiveAt = window.prompt("Effective date (YYYY-MM-DD)", new Date().toISOString().slice(0, 10));
+      if (!effectiveAt) return;
+      await customFetch(`/api/staff/policies/${id}/publish`, { method: "POST", body: JSON.stringify({ effectiveAt }) });
+      setNotice("Policy published."); reload();
+    } catch (error) { setNotice(errorMessage(error, "Policy could not be published.")); }
+  };
+  const archive = async (id: string) => {
+    try {
+      await customFetch(`/api/staff/policies/${id}`, { method: "DELETE" });
+      if (editing?.id === id) setEditing(null);
+      setNotice("Policy draft archived."); reload();
+    } catch (error) { setNotice(errorMessage(error, "Policy draft could not be archived.")); }
   };
   return <section className="mt-12 border-t border-border pt-10">
-    <SectionHeading icon={FileText} title="Policy governance" description="Draft, review, approve and explicitly publish immutable policy versions. Public pages use only effective published versions." />
+    <SectionHeading icon={FileText} title="Policy governance" description="Create and edit drafts, then publish them with an effective date. Published versions are immutable." />
     {notice && <p role="status" className="mb-4 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
     <div className="flex items-center justify-between mb-4"><span className="text-xs text-muted-foreground">{policies?.length ?? 0} versions</span>
       <button type="button" onClick={() => setEditing({ slug: "privacy", title: "", summary: "", sections: [], status: "draft" })} className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground"><Plus size={13} /> New policy version</button>
@@ -1303,13 +1465,12 @@ function PolicyManagementSection({ role }: { role: string }) {
       <div className="flex gap-2"><button disabled={saving} className="inline-flex min-h-10 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground"><Save size={13} className="mr-2" /> Save draft</button><button type="button" onClick={() => setEditing(null)} className="border border-border px-4 text-xs">Cancel</button></div>
     </form>}
     {loading ? <LoadingRows /> : <div className="divide-y divide-border border border-border bg-card">
-      {!policies?.length && <Empty label="No database policy versions yet. Existing bundled drafts remain public and noindex until approved." />}
+      {!policies?.length && <Empty label="No policy versions yet. Create the first draft above." />}
       {policies?.map((policy) => <div key={policy.id} className="flex flex-wrap items-center gap-3 p-4">
         <div className="min-w-0 flex-1"><p className="text-sm font-medium">{policy.title} <span className="text-xs text-muted-foreground">v{policy.version} · {policy.slug}</span></p><StatusBadge status={policy.status} /></div>
-        {policy.status !== "published" && <button type="button" onClick={() => setEditing(policy)} className="border border-border px-2 py-2 text-xs">Edit</button>}
-        {policy.status === "draft" && <button type="button" onClick={() => void action(policy.id, "review")} className="border border-border px-2 py-2 text-xs">Submit for review</button>}
-        {policy.status === "review" && role === "owner" && <button type="button" onClick={() => void action(policy.id, "approve")} className="border border-primary px-2 py-2 text-xs text-primary">Approve</button>}
-        {policy.status === "approved" && role === "owner" && <button type="button" onClick={() => void action(policy.id, "publish")} className="bg-primary px-2 py-2 text-xs text-primary-foreground">Publish</button>}
+        {policy.status === "draft" && <button type="button" onClick={() => setEditing(policy)} className="border border-border px-2 py-2 text-xs">Edit</button>}
+        {policy.status === "draft" && <button type="button" onClick={() => void publish(policy.id)} className="bg-primary px-2 py-2 text-xs text-primary-foreground">Publish</button>}
+        {policy.status === "draft" && <button type="button" onClick={() => void archive(policy.id)} className="border border-destructive/50 px-2 py-2 text-xs text-destructive">Archive draft</button>}
       </div>)}
     </div>}
   </section>;
@@ -1317,18 +1478,25 @@ function PolicyManagementSection({ role }: { role: string }) {
 function RedirectsManagementSection() {
   const { data: redirects, loading, reload } = useCrudFetch<RedirectRow>("/staff/redirects", true);
   const [form, setForm] = useState({ fromPath: "", toPath: "", statusCode: 301 });
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setNotice("");
     try {
-      await customFetch("/api/staff/redirects", { method: "POST", body: JSON.stringify(form) });
-      setNotice("Redirect saved.");
+      const current = redirects?.find((redirect) => redirect.id === editingId);
+      await customFetch(editingId ? `/api/staff/redirects/${editingId}` : "/api/staff/redirects", {
+        method: editingId ? "PUT" : "POST",
+        headers: current ? { "x-soso-expected-revision": current.updatedAt } : undefined,
+        body: JSON.stringify(form),
+      });
+      setNotice(editingId ? "Redirect draft updated." : "Unpublished redirect created.");
       setForm({ fromPath: "", toPath: "", statusCode: 301 });
+      setEditingId(null);
       reload();
     } catch (err) {
       setNotice(errorMessage(err, "Save failed."));
@@ -1337,21 +1505,49 @@ function RedirectsManagementSection() {
     }
   };
 
-  const del = async (id: string) => {
-    setDeletingId(id);
+  const setPublication = async (redirect: RedirectRow, published: boolean) => {
+    setBusyId(redirect.id); setNotice("");
     try {
-      await customFetch(`/api/staff/redirects/${id}`, { method: "DELETE" });
+      await customFetch(`/api/staff/redirects/${redirect.id}/publish`, {
+        method: "POST",
+        headers: { "x-soso-expected-revision": redirect.updatedAt },
+        body: JSON.stringify({ published }),
+      });
+      setNotice(published ? "Redirect published." : "Redirect unpublished and no longer active.");
       reload();
     } catch (err) {
-      setNotice(errorMessage(err, "Delete failed."));
+      setNotice(errorMessage(err, "Publication state could not be changed. The list has been refreshed."));
+      reload();
     } finally {
-      setDeletingId(null);
+      setBusyId(null);
+    }
+  };
+
+  const del = async (redirect: RedirectRow) => {
+    if (!window.confirm(`Delete redirect ${redirect.fromPath}? Its revision history will remain in the audit record.`)) return;
+    setBusyId(redirect.id); setNotice("");
+    try {
+      await customFetch(`/api/staff/redirects/${redirect.id}`, {
+        method: "DELETE",
+        headers: { "x-soso-expected-revision": redirect.updatedAt },
+      });
+      if (editingId === redirect.id) {
+        setEditingId(null);
+        setForm({ fromPath: "", toPath: "", statusCode: 301 });
+      }
+      setNotice("Redirect deleted.");
+      reload();
+    } catch (err) {
+      setNotice(errorMessage(err, "Delete failed. The list has been refreshed."));
+      reload();
+    } finally {
+      setBusyId(null);
     }
   };
 
   return (
     <section className="mt-12 border-t border-border pt-10">
-      <SectionHeading icon={Globe} title="Redirect management" description="Define 301/302 URL redirects. These are stored in the database and can be exported for use with your CDN or hosting config. fromPath must start with /." />
+      <SectionHeading icon={Globe} title="Redirect management" description="Create unpublished internal redirects, review them, and explicitly publish or retire them. Both paths must begin with /." />
       {notice && <p role="status" className="mb-4 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
       <form onSubmit={(e) => void save(e)} className="mb-6 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] items-end border border-border p-4">
         <InputLabel label="From path"><input required value={form.fromPath} onChange={(e) => setForm({ ...form, fromPath: e.target.value })} placeholder="/old-url" className="staff-input mt-1" /></InputLabel>
@@ -1359,21 +1555,28 @@ function RedirectsManagementSection() {
         <InputLabel label="Code"><select value={form.statusCode} onChange={(e) => setForm({ ...form, statusCode: Number(e.target.value) })} className="staff-input mt-1">
           <option value={301}>301 Permanent</option><option value={302}>302 Temporary</option><option value={307}>307 Temp (POST)</option><option value={308}>308 Perm (POST)</option>
         </select></InputLabel>
-        <button disabled={saving} className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Plus size={13} /> Add</button>
+        <div className="flex gap-2">
+          <button disabled={saving} className="inline-flex min-h-11 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50">{editingId ? <Save size={13} /> : <Plus size={13} />} {editingId ? "Save" : "Add draft"}</button>
+          {editingId && <button type="button" onClick={() => { setEditingId(null); setForm({ fromPath: "", toPath: "", statusCode: 301 }); }} className="min-h-11 border border-border px-3 text-xs">Cancel</button>}
+        </div>
       </form>
 
       <div className="border border-border bg-card">
         {loading ? <LoadingRows /> : !redirects?.length ? <Empty label="No redirects configured yet." /> : (
           <div className="divide-y divide-border">
             {redirects.map((r) => (
-              <div key={r.id} className="flex items-center gap-4 px-4 py-3">
+              <div key={r.id} className="flex flex-wrap items-center gap-4 px-4 py-3">
                 <div className="flex-1 min-w-0 grid sm:grid-cols-[1fr_auto_1fr_auto] gap-x-3 gap-y-0.5 items-center">
                   <span className="text-sm font-mono truncate">{r.fromPath}</span>
                   <ChevronRight size={14} className="text-muted-foreground hidden sm:block" />
                   <span className="text-sm font-mono text-primary truncate">{r.toPath}</span>
-                  <span className="text-[10px] border border-border px-1.5 py-0.5 text-muted-foreground w-fit">{r.statusCode}</span>
+                  <div className="flex items-center gap-2"><span className="text-[10px] border border-border px-1.5 py-0.5 text-muted-foreground w-fit">{r.statusCode}</span><StatusBadge status={r.isPublished ? "published" : "draft"} /></div>
                 </div>
-                <button type="button" disabled={deletingId === r.id} onClick={() => void del(r.id)} className="inline-flex min-h-9 items-center gap-1 border border-destructive/50 px-2 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50 shrink-0"><Trash2 size={12} /></button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={busyId === r.id} onClick={() => { setEditingId(r.id); setForm({ fromPath: r.fromPath, toPath: r.toPath, statusCode: r.statusCode }); }} className="inline-flex min-h-9 items-center gap-1 border border-border px-2 text-xs hover:border-primary disabled:opacity-50"><PenLine size={12} /> Edit</button>
+                  <button type="button" disabled={busyId === r.id} onClick={() => void setPublication(r, !r.isPublished)} className="inline-flex min-h-9 items-center gap-1 border border-primary px-2 text-xs text-primary disabled:opacity-50">{r.isPublished ? "Unpublish" : "Publish"}</button>
+                  <button type="button" disabled={busyId === r.id} onClick={() => void del(r)} className="inline-flex min-h-9 items-center gap-1 border border-destructive/50 px-2 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"><Trash2 size={12} /> Delete</button>
+                </div>
               </div>
             ))}
           </div>
@@ -1391,6 +1594,14 @@ const ROLE_CAPABILITIES: Record<string, { summary: string; actions: string[] }> 
       "Approve verified privacy access-package generation and one-time downloads",
       "Review aggregate reporting and audit visibility without treating intent events as paid orders",
       "Confirm on-duty role assignments and escalate provider, payment, security, or policy incidents",
+    ],
+  },
+  administrator: {
+    summary: "You administer published editorial surfaces without access to staff accounts.",
+    actions: [
+      "Create, review, publish, and unpublish platform content",
+      "Manage journal, FAQ, and policy content",
+      "Staff access, role assignment, and password controls remain owner-only",
     ],
   },
   operations: {

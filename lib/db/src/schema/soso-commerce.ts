@@ -16,6 +16,7 @@ import { z } from "zod/v4";
 
 export const staffRoleEnum = pgEnum("soso_staff_role", [
   "owner",
+  "administrator",
   "operations",
   "stylist",
   "editor",
@@ -468,6 +469,20 @@ export const siteContentTable = pgTable(
   },
 );
 
+export const siteContentRevisionsTable = pgTable(
+  "soso_site_content_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    contentKey: text("content_key").notNull().references(() => siteContentTable.key, { onDelete: "cascade" }),
+    event: text("event").notNull(),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown> | null>(),
+    contentHash: text("content_hash").notNull(),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("soso_site_content_revisions_key_created_idx").on(table.contentKey, table.createdAt)],
+);
+
 export const redirectsTable = pgTable(
   "soso_redirects",
   {
@@ -475,9 +490,26 @@ export const redirectsTable = pgTable(
     fromPath: text("from_path").notNull(),
     toPath: text("to_path").notNull(),
     statusCode: integer("status_code").notNull().default(301),
+    // Existing redirects were public before publication state was introduced.
+    isPublished: boolean("is_published").notNull().default(true),
+    updatedByClerkUserId: text("updated_by_clerk_user_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
   },
   (table) => [uniqueIndex("soso_redirects_from_path_idx").on(table.fromPath)],
+);
+
+export const redirectRevisionsTable = pgTable(
+  "soso_redirect_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    redirectId: uuid("redirect_id").notNull(),
+    event: text("event").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("soso_redirect_revisions_redirect_created_idx").on(table.redirectId, table.createdAt)],
 );
 
 export const auditLogsTable = pgTable(
@@ -512,6 +544,7 @@ export type FaqItem = typeof faqItemsTable.$inferSelect;
 
 export type PolicyDocument = typeof policyDocumentsTable.$inferSelect;
 export type SiteContent = typeof siteContentTable.$inferSelect;
+export type SiteContentRevision = typeof siteContentRevisionsTable.$inferSelect;
 export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type StaffSession = typeof staffSessionsTable.$inferSelect;

@@ -1,30 +1,25 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { absoluteUrl, indexingEnabled, siteUrl } from "@/lib/seo";
-import { faqItems } from "@/data/faq";
-import type { FaqItem } from "@/data/faq";
-import { customFetch } from "@workspace/api-client-react";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
+import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
+import { useListFaqItems } from "@workspace/api-client-react";
 
 export default function FAQ() {
   const [open, setOpen] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [liveItems, setLiveItems] = useState<FaqItem[] | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void customFetch<FaqItem[]>("/api/faq")
-      .then((items) => { if (active && items.length) setLiveItems(items); })
-      .catch(() => { /* the reviewed bundled copy remains visible if the API is unavailable */ });
-    return () => { active = false; };
-  }, []);
-
-  const items = liveItems ?? faqItems;
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const platform = usePlatformContent();
+  const faq = useListFaqItems();
+  const items = faq.data ?? [];
   const categories = useMemo(() => [...new Set(items.map((f) => f.category))], [items]);
+  if (!platform.data || !faq.data) {
+    return <PlatformContentState loading={platform.isLoading || faq.isLoading} error={platform.isError || faq.isError} copy={platform.data?.content.site.platformState} />;
+  }
+  const copy = platform.data.content.pages.faq;
 
   const visible =
-    activeCategory === "All"
+    activeCategory === null || activeCategory === copy.allFilterLabel
       ? items
       : items.filter((f) => f.category === activeCategory);
 
@@ -55,33 +50,32 @@ export default function FAQ() {
   return (
     <div className="min-h-screen bg-background fade-in">
       <Seo
-        title="Frequently Asked Questions | SOSO Africa"
-        description="Answers to common questions about ordering, sizing, care, delivery, and the SOSO made-to-order process."
+        title={copy.seo.title}
+        description={copy.seo.description}
         path="/faq"
         structuredData={faqSchema}
       />
 
       <header className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-14 text-center border-b border-border/50 mb-12">
-        <p className="text-xs uppercase tracking-[0.3em] text-primary mb-4">Support</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-primary mb-4">{copy.eyebrow}</p>
         <h1 className="text-4xl md:text-5xl soso-display text-foreground mb-6 tracking-tight">
-          Frequently Asked Questions
+          {copy.title}
         </h1>
         <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">
-          Common questions about the SOSO ordering process, sizing, care, and delivery.
-          Can't find an answer? Ask a stylist directly.
+          {copy.intro}
         </p>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
         {/* Category filter */}
         <div className="flex flex-wrap gap-2 mb-10">
-          {["All", ...categories].map((cat) => (
+          {[copy.allFilterLabel, ...categories].map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setActiveCategory(cat)}
               className={`text-[11px] uppercase tracking-[0.2em] px-4 py-2 border transition-colors ${
-                activeCategory === cat
+                (activeCategory === null && cat === copy.allFilterLabel) || activeCategory === cat
                   ? "bg-primary text-primary-foreground border-primary"
                   : "border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"
               }`}
@@ -92,7 +86,7 @@ export default function FAQ() {
         </div>
 
         {/* FAQ accordion */}
-        <div className="divide-y divide-border/60" role="list" aria-label="Frequently asked questions">
+        <div className="divide-y divide-border/60" role="list" aria-label={copy.listAriaLabel}>
           {visible.map((item) => {
             const isOpen = open === item.id;
             return (
@@ -134,20 +128,20 @@ export default function FAQ() {
         {/* Still need help */}
         <div className="mt-16 pt-10 border-t border-border/50 text-center">
           <p className="text-muted-foreground mb-6 text-sm leading-relaxed">
-            Didn't find your answer? The SOSO team is happy to help — no account required.
+            {copy.helpText}
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <a
-              href="/shop"
+              href={copy.shopCta.href}
               className="text-xs font-semibold uppercase tracking-[0.2em] px-6 py-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              Browse the collection
+              {copy.shopCta.label}
             </a>
             <a
-              href="/policies"
+              href={copy.policiesCta.href}
               className="text-xs font-semibold uppercase tracking-[0.2em] px-6 py-3 border border-border text-foreground hover:border-primary/60 transition-colors"
             >
-              View policies
+              {copy.policiesCta.label}
             </a>
           </div>
         </div>

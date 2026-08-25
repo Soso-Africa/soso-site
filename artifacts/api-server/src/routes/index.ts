@@ -9,6 +9,7 @@ import sitemapRouter from "./sitemap";
 import staffAuthRouter from "./staff-auth";
 import staffContentRouter from "./staff-content";
 import staffRouter from "./staff";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(sitemapRouter);
 router.use(staffAuthRouter);
 router.use(staffRouter);
 router.use(staffContentRouter);
+router.use(storageRouter);
 
 export default router;

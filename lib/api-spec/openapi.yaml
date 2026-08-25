@@ -14,6 +14,8 @@ tags:
     description: Public SOSO storefront services
   - name: staff
     description: Authenticated staff operations
+  - name: storage
+    description: Staff image uploads and public object serving
 paths:
   /healthz:
     get:
@@ -269,6 +271,40 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/FaqItem"
+  /policies:
+    get:
+      operationId: listPolicies
+      tags: [storefront]
+      summary: List currently effective published policy summaries
+      responses:
+        "200":
+          description: Effective published policy summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PolicySummary"
+  /policies/{slug}:
+    get:
+      operationId: getPolicy
+      tags: [storefront]
+      summary: Get a currently effective published policy
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", maxLength: 160 }
+      responses:
+        "200":
+          description: Effective published policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyDocument"
+        "400": { description: "Invalid policy slug" }
+        "404": { description: "No effective policy is published" }
+        "500": { description: "Published policy content is invalid" }
   /redirects:
     get:
       operationId: getRedirect
@@ -288,6 +324,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RedirectLookup"
+  /content/platform:
+    get:
+      operationId: getPlatformContent
+      tags: [storefront]
+      summary: Get the published platform content document
+      responses:
+        "200":
+          description: Published platform content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishedPlatformContent"
+        "404": { description: "Platform content is not published" }
+  /content/site:
+    get:
+      operationId: getSiteContent
+      tags: [storefront]
+      summary: Get the compatibility site projection from published platform content
+      responses:
+        "200":
+          description: Published site globals
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [content]
+                properties:
+                  content: { type: object, additionalProperties: true }
   /staff/me:
     get:
       operationId: getStaffProfile
@@ -726,8 +790,284 @@ paths:
           description: Editor or owner access required
         "404":
           description: Article not found
+  /staff/content/platform:
+    get:
+      operationId: getStaffPlatformContent
+      tags: [staff]
+      summary: Get draft and published platform content
+      responses:
+        "200":
+          description: Platform content state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffPlatformContent" }
+        "403": { description: "Owner, administrator, or editor access required" }
+    put:
+      operationId: updateStaffPlatformContent
+      tags: [staff]
+      summary: Save a validated platform draft with optimistic concurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformContentUpdate" }
+      responses:
+        "200":
+          description: Updated platform content state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffPlatformContent" }
+        "400": { description: "Invalid complete platform document" }
+        "409": { description: "Draft was changed by another editor" }
+  /staff/content/platform/publish:
+    post:
+      operationId: publishStaffPlatformContent
+      tags: [staff]
+      summary: Publish the current validated platform draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformContentPublication" }
+      responses:
+        "200":
+          description: Published platform content state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffPlatformContent" }
+        "409": { description: "Draft was changed by another editor" }
+  /staff/content/platform/unpublish:
+    post:
+      operationId: unpublishStaffPlatformContent
+      tags: [staff]
+      summary: Remove the public platform document without deleting its draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformContentPublication" }
+      responses:
+        "200":
+          description: Unpublished platform content state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffPlatformContent" }
+        "409": { description: "Draft was changed by another editor" }
+  /staff/content/platform/revisions:
+    get:
+      operationId: listStaffPlatformContentRevisions
+      tags: [staff]
+      summary: List immutable platform content revisions
+      responses:
+        "200":
+          description: Revisions newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PlatformContentRevision" }
+  /staff/policies:
+    get:
+      operationId: listStaffPolicies
+      tags: [staff]
+      summary: List policy versions
+      responses:
+        "200":
+          description: Policy versions
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StaffPolicy" } } } }
+    post:
+      operationId: createStaffPolicy
+      tags: [staff]
+      summary: Create the next draft version of a policy
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/StaffPolicyInput" } } }
+      responses:
+        "201":
+          description: Created policy draft
+          content: { application/json: { schema: { $ref: "#/components/schemas/StaffPolicy" } } }
+  /staff/policies/{id}:
+    put:
+      operationId: updateStaffPolicy
+      tags: [staff]
+      summary: Update a draft policy version
+      parameters: [{ $ref: "#/components/parameters/StaffEntityId" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/StaffPolicyInput" } } }
+      responses:
+        "200":
+          description: Updated policy draft
+          content: { application/json: { schema: { $ref: "#/components/schemas/StaffPolicy" } } }
+        "409": { description: "Published policy versions are immutable" }
+    delete:
+      operationId: deleteStaffPolicy
+      tags: [staff]
+      summary: Archive a draft policy version
+      parameters: [{ $ref: "#/components/parameters/StaffEntityId" }]
+      responses:
+        "204": { description: "Policy draft archived" }
+        "409": { description: "Published policy versions cannot be archived" }
+  /staff/policies/{id}/publish:
+    post:
+      operationId: publishStaffPolicy
+      tags: [staff]
+      summary: Publish a policy with an effective date
+      parameters: [{ $ref: "#/components/parameters/StaffEntityId" }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StaffPolicyPublicationInput" }
+      responses:
+        "200":
+          description: Published policy
+          content: { application/json: { schema: { $ref: "#/components/schemas/StaffPolicy" } } }
+  /staff/policies/{id}/history:
+    get:
+      operationId: listStaffPolicyHistory
+      tags: [staff]
+      summary: List immutable policy revisions
+      parameters: [{ $ref: "#/components/parameters/StaffEntityId" }]
+      responses:
+        "200":
+          description: Policy revisions
+          content: { application/json: { schema: { type: array, items: { type: object, additionalProperties: true } } } }
+  /staff/redirects:
+    get:
+      operationId: listStaffRedirects
+      tags: [staff]
+      summary: List redirect drafts and publication state
+      responses:
+        "200":
+          description: Redirects
+          content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/StaffRedirect" } } } }
+    post:
+      operationId: createStaffRedirect
+      tags: [staff]
+      summary: Create an unpublished internal redirect
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/StaffRedirectInput" } } }
+      responses:
+        "201":
+          description: Redirect created
+          content: { application/json: { schema: { $ref: "#/components/schemas/StaffRedirect" } } }
+  /staff/redirects/{id}:
+    put:
+      operationId: updateStaffRedirect
+      tags: [staff]
+      summary: Update an internal redirect
+      parameters:
+        - { $ref: "#/components/parameters/StaffEntityId" }
+        - { $ref: "#/components/parameters/RedirectExpectedRevision" }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/StaffRedirectInput" } } }
+      responses:
+        "200":
+          description: Redirect updated
+          content: { application/json: { schema: { $ref: "#/components/schemas/StaffRedirect" } } }
+    delete:
+      operationId: deleteStaffRedirect
+      tags: [staff]
+      summary: Delete a redirect
+      parameters:
+        - { $ref: "#/components/parameters/StaffEntityId" }
+        - { $ref: "#/components/parameters/RedirectExpectedRevision" }
+      responses:
+        "204": { description: "Redirect deleted" }
+  /staff/redirects/{id}/publish:
+    post:
+      operationId: publishStaffRedirect
+      tags: [staff]
+      summary: Publish or unpublish a redirect
+      parameters:
+        - { $ref: "#/components/parameters/StaffEntityId" }
+        - { $ref: "#/components/parameters/RedirectExpectedRevision" }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StaffRedirectPublicationInput" }
+      responses:
+        "200":
+          description: Redirect publication state updated
+          content: { application/json: { schema: { $ref: "#/components/schemas/StaffRedirect" } } }
+  /staff/redirects/{id}/history:
+    get:
+      operationId: listStaffRedirectHistory
+      tags: [staff]
+      summary: List immutable redirect revisions
+      parameters: [{ $ref: "#/components/parameters/StaffEntityId" }]
+      responses:
+        "200":
+          description: Redirect revisions
+          content: { application/json: { schema: { type: array, items: { type: object, additionalProperties: true } } } }
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a signed direct-upload URL for a staff-managed image
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UploadUrlRequest" }
+      responses:
+        "200":
+          description: Signed upload URL and durable browser path
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadUrlResponse" }
+        "400": { description: "Invalid image metadata" }
+        "401": { description: "Staff authentication required" }
+        "403": { description: "Editorial staff role required" }
+        "500": { description: "Upload URL could not be created" }
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      summary: Publicly serve uploaded storefront media
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Immutable uploaded media
+          content:
+            "*/*":
+              schema: { type: string, format: binary }
+        "404": { description: "Object not found" }
+        "500": { description: "Object could not be served" }
+  /storage/public-objects/{filePath}:
+    get:
+      operationId: getPublicStorageObject
+      tags: [storage]
+      summary: Publicly serve an object from configured public search paths
+      parameters:
+        - name: filePath
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Immutable public media
+          content:
+            "*/*":
+              schema: { type: string, format: binary }
+        "404": { description: "Object not found" }
+        "500": { description: "Object could not be served" }
 components:
   parameters:
+    RedirectExpectedRevision:
+      name: X-SOSO-Expected-Revision
+      in: header
+      required: false
+      description: Last observed redirect updatedAt value used to reject stale mutations.
+      schema:
+        type: string
+        format: date-time
     StaffEntityId:
       name: id
       in: path
@@ -748,6 +1088,179 @@ components:
         type: string
         pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
   schemas:
+    UploadUrlRequest:
+      type: object
+      additionalProperties: false
+      required: [name, size, contentType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$"
+        size:
+          type: number
+          minimum: 1
+          maximum: 12582912
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/gif]
+    UploadUrlResponse:
+      type: object
+      additionalProperties: false
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string, minLength: 1 }
+        objectPath:
+          type: string
+          pattern: "^/api/storage/objects/uploads/"
+    PlatformContent:
+      type: object
+      description: Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.
+      additionalProperties: false
+      required: [site, homepage, pages, products, collections, sizeGuide, productCopy, supportCopy]
+      properties:
+        site: { type: object, additionalProperties: true }
+        homepage: { type: object, additionalProperties: true }
+        pages: { type: object, additionalProperties: true }
+        products: { type: array, items: { type: object, additionalProperties: true } }
+        collections: { type: array, items: { type: object, additionalProperties: true } }
+        sizeGuide: { type: object, additionalProperties: true }
+        productCopy: { type: object, additionalProperties: true }
+        supportCopy: { type: object, additionalProperties: true }
+    PublishedPlatformContent:
+      type: object
+      required: [content, publishedAt]
+      properties:
+        content: { $ref: "#/components/schemas/PlatformContent" }
+        publishedAt: { type: string, format: date-time }
+    StaffPlatformContent:
+      type: object
+      required: [key, draft, published, draftUpdatedAt]
+      properties:
+        key: { type: string, enum: [platform] }
+        draft: { $ref: "#/components/schemas/PlatformContent" }
+        published: { type: object, additionalProperties: true }
+        draftUpdatedAt: { type: string, format: date-time }
+        publishedAt: { type: ["string", "null"], format: date-time }
+        updatedByClerkUserId: { type: ["string", "null"] }
+        publishedByClerkUserId: { type: ["string", "null"] }
+    PlatformContentUpdate:
+      type: object
+      additionalProperties: false
+      required: [content, expectedDraftUpdatedAt]
+      properties:
+        content: { $ref: "#/components/schemas/PlatformContent" }
+        expectedDraftUpdatedAt: { type: string, format: date-time }
+    PlatformContentPublication:
+      type: object
+      additionalProperties: false
+      required: [expectedDraftUpdatedAt]
+      properties:
+        expectedDraftUpdatedAt: { type: string, format: date-time }
+    PlatformContentRevision:
+      type: object
+      required: [id, contentKey, event, contentHash, createdByClerkUserId, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        contentKey: { type: string, enum: [platform] }
+        event: { type: string, enum: [draft_saved, published, unpublished] }
+        snapshot: { type: ["object", "null"], additionalProperties: true }
+        contentHash: { type: string }
+        createdByClerkUserId: { type: string }
+        createdAt: { type: string, format: date-time }
+    StaffPolicyInput:
+      type: object
+      additionalProperties: false
+      required: [slug, title, summary, sections]
+      properties:
+        slug: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", maxLength: 160 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        summary: { type: string, minLength: 1, maxLength: 1000 }
+        sections:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PolicySection" }
+    PolicySection:
+      type: object
+      additionalProperties: false
+      required: [id, heading]
+      properties:
+        id: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", maxLength: 160 }
+        heading: { type: string, minLength: 1, maxLength: 240 }
+        paragraphs:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 10000 }
+        bullets:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 1000 }
+      anyOf:
+        - required: [paragraphs]
+        - required: [bullets]
+    PolicySummary:
+      type: object
+      additionalProperties: false
+      required: [slug, title, summary, version, effectiveAt]
+      properties:
+        slug: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", maxLength: 160 }
+        title: { type: string, minLength: 1, maxLength: 160 }
+        summary: { type: string, minLength: 1, maxLength: 1000 }
+        version: { type: number, minimum: 1 }
+        effectiveAt: { type: string, format: date-time }
+    PolicyDocument:
+      allOf:
+        - $ref: "#/components/schemas/PolicySummary"
+        - type: object
+          additionalProperties: false
+          required: [sections]
+          properties:
+            sections:
+              type: array
+              minItems: 1
+              items: { $ref: "#/components/schemas/PolicySection" }
+    StaffPolicy:
+      type: object
+      additionalProperties: true
+      required: [id, slug, title, summary, sections, version, status]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        slug: { type: string }
+        title: { type: string }
+        summary: { type: string }
+        sections:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/PolicySection" }
+        version: { type: number, minimum: 1 }
+        status: { type: string, enum: [draft, published, archived] }
+    StaffPolicyPublicationInput:
+      type: object
+      properties:
+        effectiveAt: { type: string, format: date-time }
+    StaffRedirectInput:
+      type: object
+      additionalProperties: false
+      required: [fromPath, toPath, statusCode]
+      properties:
+        fromPath: { type: string, pattern: "^/(?!/)", maxLength: 512 }
+        toPath: { type: string, pattern: "^/(?!/)", maxLength: 512 }
+        statusCode: { type: integer, enum: [301, 302, 307, 308] }
+    StaffRedirect:
+      allOf:
+        - $ref: "#/components/schemas/StaffRedirectInput"
+        - type: object
+          required: [id, isPublished, createdAt, updatedAt]
+          properties:
+            id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+            isPublished: { type: boolean }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    StaffRedirectPublicationInput:
+      type: object
+      properties:
+        published: { type: boolean }
     HealthStatus:
       type: object
       properties:
@@ -1002,18 +1515,18 @@ components:
       properties:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         email: { type: string, maxLength: 320 }
-        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+        role: { type: string, enum: [owner, administrator, operations, stylist, editor, analyst] }
     StaffAccessInput:
       type: object
       required: [clerkUserId, email, role]
       properties:
         clerkUserId: { type: string, minLength: 1, maxLength: 128 }
         email: { type: string, maxLength: 320 }
-        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+        role: { type: string, enum: [owner, administrator, operations, stylist, editor, analyst] }
     StaffAccessUpdate:
       type: object
       properties:
-        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+        role: { type: string, enum: [owner, administrator, operations, stylist, editor, analyst] }
         isActive: { type: boolean }
       minProperties: 1
     StaffAccessMapping:
@@ -1023,7 +1536,7 @@ components:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         clerkUserId: { type: string }
         email: { type: string, maxLength: 320 }
-        role: { type: string, enum: [owner, operations, stylist, editor, analyst] }
+        role: { type: string, enum: [owner, administrator, operations, stylist, editor, analyst] }
         isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }

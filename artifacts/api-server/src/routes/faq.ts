@@ -1,50 +1,100 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { z } from "zod";
 import { faqItemsTable, policyDocumentsTable, db } from "@workspace/db";
-import { eq, asc, and, desc } from "drizzle-orm";
+import { eq, asc, and, desc, isNotNull, lte } from "drizzle-orm";
 
 const router: IRouter = Router();
+const policySlug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(160);
+const policySection = z.object({
+  id: policySlug,
+  heading: z.string().trim().min(1).max(240),
+  paragraphs: z.array(z.string().trim().min(1).max(10_000)).min(1).optional(),
+  bullets: z.array(z.string().trim().min(1).max(1_000)).min(1).optional(),
+}).strict().refine((section) => Boolean(section.paragraphs?.length || section.bullets?.length));
+const publishedPolicy = z.object({
+  slug: policySlug,
+  title: z.string().trim().min(1).max(160),
+  summary: z.string().trim().min(1).max(1_000),
+  sections: z.array(policySection).min(1),
+  version: z.number().int().positive(),
+  effectiveAt: z.coerce.date(),
+}).strict();
+function toPublicPolicy(row: typeof policyDocumentsTable.$inferSelect) {
+  return publishedPolicy.safeParse({
+    slug: row.slug, title: row.title, summary: row.summary, sections: row.sections,
+    version: row.version, effectiveAt: row.effectiveAt,
+  });
+}
 
-const STATIC_FAQ_ITEMS = [
-  { id: "how-made-to-order-works", category: "Ordering", question: "How does the SOSO made-to-order process work?", answer: "Select a piece from the collection, choose your size or opt for Custom sizing, then proceed to secure payment. After payment is confirmed, the SOSO atelier contacts you directly to discuss making details — finish direction, measurements where needed, and next steps. Your garment is then made specifically for you." },
-  { id: "what-happens-after-payment", category: "Ordering", question: "What happens after I pay?", answer: "Once your payment is confirmed, you will receive a payment confirmation. The SOSO atelier will then reach out to you to confirm the production details for your piece — including any measurements, finish preferences, or styling choices. Made-to-order garments are not produced until after payment is received." },
-  { id: "standard-sizes", category: "Sizing", question: "What standard sizes are available?", answer: "SOSO garments are available in S, M, L, XL, and XXL. Each product page includes a fit guide with measurements to help you choose the right size. If your measurements fall between sizes or outside the standard range, Custom sizing is available." },
-  { id: "custom-sizing", category: "Sizing", question: "What is Custom sizing?", answer: "Selecting Custom means your garment will be made to your personal measurements. After payment, the atelier will collect the measurements required for your specific piece." },
-  { id: "stylist-help", category: "Sizing", question: "How do I get sizing help before I order?", answer: "You can ask a SOSO stylist a question at any point before checkout — use the 'Ask a stylist' option on the product page, during checkout, or from the homepage." },
-  { id: "change-after-payment", category: "Ordering", question: "Can I change my order after payment?", answer: "If you need to change any details after payment, contact the SOSO atelier as soon as possible. Because garments are made to order and production begins quickly, changes may not always be possible once making has started." },
-  { id: "care-guide", category: "Care", question: "How should I care for my SOSO garment?", answer: "Most SOSO garments should be hand-washed or gently machine-washed in cool water, then line-dried away from direct sunlight. Iron on a cool or medium setting, and store folded rather than hung to preserve shape." },
-  { id: "what-is-bespoke", category: "About SOSO", question: "What makes SOSO a bespoke house?", answer: "Every SOSO piece is made specifically for the person who orders it. Nothing is taken from a production rack. The atelier confirms details, finish preferences, and measurements after each payment." },
-  { id: "delivery-questions", category: "Delivery", question: "Where does SOSO deliver?", answer: "Delivery details, regions, and timelines will be confirmed by the atelier after your payment is received. If you have a specific delivery question before ordering, use the 'Ask a stylist' option." },
-  { id: "payment-security", category: "Payment", question: "Is my payment secure?", answer: "SOSO uses a secure, hosted payment process. Your card details are never stored by SOSO — they are handled entirely by the payment provider." },
-];
+type PublicFaqRow = Pick<typeof faqItemsTable.$inferSelect, "id" | "category" | "question" | "answer">;
 
-router.get("/faq", async (_req, res): Promise<void> => {
-  try {
-    const rows = await db
+async function listPublishedFaqItems(): Promise<PublicFaqRow[]> {
+  return db
       .select()
       .from(faqItemsTable)
       .where(eq(faqItemsTable.isPublished, true))
       .orderBy(asc(faqItemsTable.sortOrder), asc(faqItemsTable.createdAt));
+}
 
-    if (rows.length > 0) {
-      res.json(rows.map((r) => ({ id: r.id, category: r.category ?? "General", question: r.question, answer: r.answer })));
-      return;
-    }
-  } catch {
-    // fall through to static
+export function createFaqReadHandler(
+  readPublished: () => Promise<PublicFaqRow[]> = listPublishedFaqItems,
+) {
+  return async (_req: Request, res: Response): Promise<void> => {
+    const rows = await readPublished();
+  res.json(rows.map((r) => ({ id: r.id, category: r.category ?? "General", question: r.question, answer: r.answer })));
+  };
+}
+
+router.get("/faq", createFaqReadHandler());
+
+// Public policy responses only expose explicitly published, effective versions.
+router.get("/policies", async (_req, res): Promise<void> => {
+  const rows = await db.select().from(policyDocumentsTable)
+    .where(and(
+      eq(policyDocumentsTable.status, "published"),
+      isNotNull(policyDocumentsTable.effectiveAt),
+      lte(policyDocumentsTable.effectiveAt, new Date()),
+    ))
+    .orderBy(asc(policyDocumentsTable.slug), desc(policyDocumentsTable.version));
+  const latestBySlug = new Map<string, typeof rows[number]>();
+  for (const row of rows) if (!latestBySlug.has(row.slug)) latestBySlug.set(row.slug, row);
+
+  const policies = Array.from(latestBySlug.values()).map((row) => {
+    const parsed = toPublicPolicy(row);
+    if (!parsed.success) return null;
+    return {
+      slug: parsed.data.slug, title: parsed.data.title, summary: parsed.data.summary,
+      version: parsed.data.version, effectiveAt: parsed.data.effectiveAt,
+    };
+  });
+  if (policies.some((policy) => policy === null)) {
+    res.status(500).json({ error: "Published policy content is invalid" });
+    return;
   }
-  res.json(STATIC_FAQ_ITEMS);
+  res.json(policies);
 });
 
-// Public policy responses only expose an explicitly published, effective version.
 router.get("/policies/:slug", async (req, res): Promise<void> => {
+  const slug = policySlug.safeParse(req.params.slug);
+  if (!slug.success) { res.status(400).json({ error: "Invalid policy slug" }); return; }
   const [row] = await db.select().from(policyDocumentsTable)
-    .where(and(eq(policyDocumentsTable.slug, req.params.slug), eq(policyDocumentsTable.status, "published")))
+    .where(and(
+      eq(policyDocumentsTable.slug, slug.data),
+      eq(policyDocumentsTable.status, "published"),
+      isNotNull(policyDocumentsTable.effectiveAt),
+      lte(policyDocumentsTable.effectiveAt, new Date()),
+    ))
     .orderBy(desc(policyDocumentsTable.version)).limit(1);
-  if (!row || !row.effectiveAt || row.effectiveAt > new Date()) {
+  if (!row) {
     res.status(404).json({ error: "No effective policy is published" });
     return;
   }
-  res.json({ slug: row.slug, title: row.title, summary: row.summary, sections: row.sections, version: row.version, effectiveAt: row.effectiveAt });
+  const parsed = toPublicPolicy(row);
+  if (!parsed.success) {
+    res.status(500).json({ error: "Published policy content is invalid" });
+    return;
+  }
+  res.json(parsed.data);
 });
 
 export default router;

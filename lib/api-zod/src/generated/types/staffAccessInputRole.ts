@@ -11,6 +11,7 @@ export type StaffAccessInputRole = typeof StaffAccessInputRole[keyof typeof Staf
 
 export const StaffAccessInputRole = {
   owner: 'owner',
+  administrator: 'administrator',
   operations: 'operations',
   stylist: 'stylist',
   editor: 'editor',

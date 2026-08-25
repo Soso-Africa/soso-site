@@ -2,15 +2,15 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { WhatsAppIcon } from "@/components/Icons";
-import { resolvedSiteContent, useSiteContent } from "@/data/siteContent";
+import { usePlatformContent } from "@/data/platformContent";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [location] = useLocation();
   const { openDrawer, itemCount } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { data: siteData } = useSiteContent();
-  const site = resolvedSiteContent(siteData?.content);
+  const { data } = usePlatformContent();
+  const site = data?.content.site;
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -71,6 +71,8 @@ export function Navbar() {
     setMobileMenuOpen(true);
   };
 
+  if (!site) return null;
+
   return (
     <>
       <div className="text-center text-[11px] tracking-[0.22em] uppercase py-2 px-4" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}>
@@ -91,7 +93,7 @@ export function Navbar() {
         <button 
           className="md:hidden p-2 -ml-2 text-white" 
           onClick={() => mobileMenuOpen ? setMobileMenuOpen(false) : openMobileMenu()}
-          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-label={mobileMenuOpen ? site.header.closeMenuLabel : site.header.openMenuLabel}
           aria-expanded={mobileMenuOpen}
           aria-controls="soso-mobile-menu"
           ref={menuButtonRef}
@@ -102,13 +104,11 @@ export function Navbar() {
         </button>
 
         <nav className="hidden md:flex items-center gap-8 text-[12px] tracking-[0.18em] uppercase" style={{ color: "hsl(var(--secondary))" }}>
-          <Link href="/shop" className="soso-link">{site.navKaftansLabel}</Link>
-          <Link href="/shop" className="soso-link">{site.navAgbadasLabel}</Link>
-          <Link href="/shop" className="soso-link">{site.navShirtsLabel}</Link>
+          {site.navigation.map((link) => <Link key={`${link.href}-${link.label}`} href={link.href} className="soso-link">{link.label}</Link>)}
         </nav>
         
         <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center">
-          <img src="/images/soso/logo.png" alt="SOSO Africa" className="h-8 md:h-9" />
+          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9" />
         </Link>
         
         <div className="flex items-center gap-3 md:gap-5">
@@ -117,15 +117,15 @@ export function Navbar() {
             className="hidden lg:flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link" 
             style={{ color: "hsl(var(--primary))" }}
           >
-            <WhatsAppIcon size={16} /> Order via WhatsApp
+            <WhatsAppIcon size={16} /> {site.header.whatsappLabel}
           </a>
           <button 
             onClick={openDrawer} 
             className="flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link relative"
             style={{ color: "hsl(var(--secondary))" }}
-            aria-label="Open cart"
+            aria-label={site.header.openCartLabel}
           >
-            <span className="hidden sm:inline">Bag</span>
+            <span className="hidden sm:inline">{site.header.cartLabel}</span>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
               <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -142,22 +142,17 @@ export function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label="Main navigation" className="fixed inset-0 z-[100] md:hidden bg-black/90 backdrop-blur-md flex flex-col p-6 animate-in fade-in duration-300">
+        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-black/90 backdrop-blur-md flex flex-col p-6 animate-in fade-in duration-300">
           <div className="flex justify-between items-center mb-10">
-            <img src="/images/soso/logo.png" alt="SOSO Africa" className="h-8" />
-            <button type="button" aria-label="Close menu" className="text-white text-3xl opacity-70" onClick={() => setMobileMenuOpen(false)}>&times;</button>
+            <img src={site.logoUrl} alt={site.logoAlt} className="h-8" />
+            <button type="button" aria-label={site.header.closeMenuLabel} className="text-white text-3xl opacity-70" onClick={() => setMobileMenuOpen(false)}>&times;</button>
           </div>
           <nav className="flex flex-col gap-6 text-xl soso-display tracking-widest text-center">
-            <Link href="/" className="hover:text-[hsl(var(--primary))] transition-colors">Home</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">All Collection</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">{site.navKaftansLabel}</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">{site.navAgbadasLabel}</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">Two-Piece Sets</Link>
-            <Link href="/shop" className="hover:text-[hsl(var(--primary))] transition-colors">{site.navShirtsLabel}</Link>
+            {site.mobileNavigation.map((link) => <Link key={`${link.href}-${link.label}`} href={link.href} className="hover:text-[hsl(var(--primary))] transition-colors">{link.label}</Link>)}
           </nav>
           <div className="mt-auto flex flex-col gap-4">
-            <a href="/#whatsapp" className="w-full flex items-center justify-center gap-2 py-4 soso-btn-gold text-[12px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }} onClick={() => setMobileMenuOpen(false)}>
-              <WhatsAppIcon size={18} /> Chat with Specialist
+            <a href={site.whatsappUrl} className="w-full flex items-center justify-center gap-2 py-4 soso-btn-gold text-[12px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }} onClick={() => setMobileMenuOpen(false)}>
+              <WhatsAppIcon size={18} /> {site.header.mobileWhatsappLabel}
             </a>
           </div>
         </div>

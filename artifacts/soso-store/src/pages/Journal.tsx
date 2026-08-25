@@ -5,23 +5,27 @@ import { format } from 'date-fns';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { Seo } from '@/components/Seo';
 import { journalApproved } from '@/lib/seo';
-import { approvedJournalEntries } from '@/data/journalSeo';
+import { PlatformContentState, usePlatformContent } from '@/data/platformContent';
 
 export default function Journal() {
   const { data: posts, isLoading, isError } = useListJournalPosts();
+  const platform = usePlatformContent();
+  const platformStateCopy = platform.data?.content.site.platformState;
+  if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
+  const copy = platform.data.content.pages.journal;
 
   return (
     <div className="min-h-screen bg-background fade-in">
       <Seo
-        title="The Journal | SOSO Africa"
-        description="Reflections on bespoke tailoring, cultural heritage, and the evolving narrative of African luxury from SOSO Africa."
+        title={copy.seo.title}
+        description={copy.seo.description}
         path="/journal"
-        noIndex={!journalApproved || approvedJournalEntries.length === 0}
+        noIndex={!journalApproved}
       />
       <header className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16 text-center border-b border-border/50 mb-16">
-        <h1 className="text-5xl md:text-6xl soso-display mb-6 text-foreground tracking-tight">The Journal</h1>
+          <h1 className="text-5xl md:text-6xl soso-display mb-6 text-foreground tracking-tight">{copy.heading}</h1>
         <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-          Reflections on the craft of bespoke tailoring, cultural heritage, and the evolving narrative of African luxury.
+           {copy.intro}
         </p>
       </header>
 
@@ -29,15 +33,15 @@ export default function Journal() {
         {isLoading ? (
             <div className="flex flex-col items-center justify-center py-32" role="status" aria-live="polite">
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-6" />
-            <p className="text-muted-foreground uppercase tracking-widest text-sm">Curating articles...</p>
+            <p className="text-muted-foreground uppercase tracking-widest text-sm">{copy.loadingMessage}</p>
           </div>
         ) : isError ? (
             <div className="text-center py-32 border border-border bg-card" role="alert">
-            <p className="text-destructive uppercase tracking-widest font-medium">Unable to load the journal at this time.</p>
+            <p className="text-destructive uppercase tracking-widest font-medium">{copy.errorMessage}</p>
           </div>
         ) : !posts?.length ? (
           <div className="text-center py-32 border border-border bg-card">
-            <p className="text-muted-foreground uppercase tracking-widest font-medium">No articles published yet.</p>
+            <p className="text-muted-foreground uppercase tracking-widest font-medium">{copy.emptyMessage}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
@@ -53,7 +57,7 @@ export default function Journal() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-card border border-border">
-                        <span className="text-muted-foreground font-serif italic opacity-30 text-2xl tracking-widest">SOSO</span>
+                        <span className="text-muted-foreground font-serif italic opacity-30 text-2xl tracking-widest">{copy.fallbackMark}</span>
                       </div>
                     )}
                   </div>
@@ -73,7 +77,7 @@ export default function Journal() {
                       {post.excerpt}
                     </p>
                     <div className="mt-auto flex items-center gap-2 text-xs uppercase tracking-widest font-medium text-foreground group-hover:text-primary transition-colors">
-                      Read Article <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                       {copy.readCtaLabel} <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                     </div>
                   </div>
                 </article>

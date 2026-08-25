@@ -11,6 +11,7 @@ export type StaffProfileRole = typeof StaffProfileRole[keyof typeof StaffProfile
 
 export const StaffProfileRole = {
   owner: 'owner',
+  administrator: 'administrator',
   operations: 'operations',
   stylist: 'stylist',
   editor: 'editor',

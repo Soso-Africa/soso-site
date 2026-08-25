@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { Loader2, MessageCircle, X } from "lucide-react";
 import { useCreateEnquiry } from "@workspace/api-client-react";
 import { editorialOrigin, trackStorefrontEvent } from "./ConsentManager";
+import { usePlatformContent } from "@/data/platformContent";
 
 type StylistEnquiryDialogProps = {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export function StylistEnquiryDialog({
 }: StylistEnquiryDialogProps) {
   const formId = useId();
   const createEnquiry = useCreateEnquiry();
+  const platform = usePlatformContent();
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const dialogRef = useRef<HTMLElement>(null);
@@ -63,7 +65,8 @@ export function StylistEnquiryDialog({
     if (isOpen) trackStorefrontEvent("stylist_inquiry_started", { productSlug: productSlug || undefined, articleSlug: editorialOrigin() });
   }, [isOpen, productSlug]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !platform.data) return null;
+  const copy = platform.data.content.supportCopy.stylistDialog;
 
   const trapFocus = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== "Tab") return;
@@ -104,7 +107,7 @@ export function StylistEnquiryDialog({
       setSent(true);
       trackStorefrontEvent("stylist_inquiry_completed", { productSlug: productSlug || undefined, articleSlug: editorialOrigin() });
     } catch {
-      setError("We could not send your question just now. Please try again shortly.");
+      setError(copy.failureMessage);
     }
   };
 
@@ -126,12 +129,12 @@ export function StylistEnquiryDialog({
       >
         <div className="flex items-start justify-between gap-5">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.25em] text-[#b8912f]">Optional fit support</p>
+            <p className="text-[11px] uppercase tracking-[0.25em] text-[#b8912f]">{copy.eyebrow}</p>
             <h2 id={`${formId}-title`} className="mt-2 soso-display text-3xl text-[#f6f1e7]">
-              Ask a SOSO stylist
+              {copy.title}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-[#d8ceb9]">
-              {productName ? <>Ask about <span className="text-[#f6f1e7]">{productName}</span>, sizing, or your occasion.</> : <>Ask about sizing, an occasion, or a piece you have in mind.</>} This does not pause or replace secure checkout.
+              {productName ? copy.productPrompt.replace("{productName}", productName) : copy.generalPrompt} {copy.checkoutReassurance}
             </p>
           </div>
           <button
@@ -139,7 +142,7 @@ export function StylistEnquiryDialog({
             onClick={onClose}
             data-stylist-initial-focus
             disabled={createEnquiry.isPending}
-            aria-label="Close stylist enquiry"
+            aria-label={copy.closeLabel}
             className="shrink-0 text-[#d8ceb9] transition-colors hover:text-white disabled:opacity-50"
           >
             <X size={22} />
@@ -148,38 +151,38 @@ export function StylistEnquiryDialog({
 
         {sent ? (
           <div className="mt-8 border border-[#b8912f]/45 bg-[#b8912f]/10 p-5" role="status">
-            <p className="font-medium text-[#f6f1e7]">Your question has been sent.</p>
+            <p className="font-medium text-[#f6f1e7]">{copy.successTitle}</p>
             <p className="mt-2 text-sm leading-relaxed text-[#d8ceb9]">
-              A SOSO stylist can follow up using the details you shared. You can still continue to your bag whenever you are ready.
+              {copy.successBody}
             </p>
             <button type="button" onClick={onClose} className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-[#c9a54c] underline underline-offset-4">
-              Back to the piece
+              {copy.backLabel}
             </button>
           </div>
         ) : (
           <form onSubmit={submit} className="mt-7 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
-                Name <span className="opacity-60">(optional)</span>
+                {copy.nameLabel} <span className="opacity-60">({copy.optionalLabel})</span>
                 <input name="name" autoComplete="name" className="mt-2 w-full border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm text-white outline-none focus:border-[#b8912f]" />
               </label>
               <label className="text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
-                Phone <span className="opacity-60">(optional)</span>
+                {copy.phoneLabel} <span className="opacity-60">({copy.optionalLabel})</span>
                 <input name="phone" autoComplete="tel" inputMode="tel" className="mt-2 w-full border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm text-white outline-none focus:border-[#b8912f]" />
               </label>
             </div>
             <label className="block text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
-              Email <span className="opacity-60">(optional)</span>
+              {copy.emailLabel} <span className="opacity-60">({copy.optionalLabel})</span>
               <input name="email" type="email" autoComplete="email" className="mt-2 w-full border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm text-white outline-none focus:border-[#b8912f]" />
             </label>
             <label className="block text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
-              Your question
-              <textarea required name="message" minLength={8} maxLength={2000} rows={5} placeholder="Tell us what you would like to know." className="mt-2 w-full resize-y border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#d8ceb9]/45 focus:border-[#b8912f]" />
+              {copy.questionLabel}
+              <textarea required name="message" minLength={8} maxLength={2000} rows={5} placeholder={copy.questionPlaceholder} className="mt-2 w-full resize-y border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#d8ceb9]/45 focus:border-[#b8912f]" />
             </label>
             {error && <p role="alert" className="border border-red-300/35 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</p>}
             <button disabled={createEnquiry.isPending} className="flex w-full items-center justify-center gap-2 bg-[#b8912f] px-4 py-4 text-xs font-bold uppercase tracking-[0.18em] text-[#17130e] disabled:opacity-65">
               {createEnquiry.isPending ? <Loader2 className="animate-spin" size={16} /> : <MessageCircle size={16} />}
-              {createEnquiry.isPending ? "Sending…" : "Send question"}
+              {createEnquiry.isPending ? copy.pendingLabel : copy.submitLabel}
             </button>
           </form>
         )}

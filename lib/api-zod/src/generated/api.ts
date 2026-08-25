@@ -422,6 +422,83 @@ export const ListFaqItemsResponse = zod.array(ListFaqItemsResponseItem)
 
 
 /**
+ * @summary List currently effective published policy summaries
+ */
+export const listPoliciesResponseSlugMax = 160;
+
+
+export const listPoliciesResponseSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const listPoliciesResponseTitleMax = 160;
+
+export const listPoliciesResponseSummaryMax = 1000;
+
+
+
+
+export const ListPoliciesResponseItem = zod.object({
+  "slug": zod.string().max(listPoliciesResponseSlugMax).regex(listPoliciesResponseSlugRegExp),
+  "title": zod.string().min(1).max(listPoliciesResponseTitleMax),
+  "summary": zod.string().min(1).max(listPoliciesResponseSummaryMax),
+  "version": zod.number().min(1),
+  "effectiveAt": zod.coerce.date()
+})
+export const ListPoliciesResponse = zod.array(ListPoliciesResponseItem)
+
+
+/**
+ * @summary Get a currently effective published policy
+ */
+export const getPolicyPathSlugMax = 160;
+
+
+export const getPolicyPathSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+export const GetPolicyParams = zod.object({
+  "slug": zod.coerce.string().max(getPolicyPathSlugMax).regex(getPolicyPathSlugRegExp)
+})
+
+export const getPolicyResponseOneSlugMax = 160;
+
+
+export const getPolicyResponseOneSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const getPolicyResponseOneTitleMax = 160;
+
+export const getPolicyResponseOneSummaryMax = 1000;
+
+
+export const getPolicyResponseTwoSectionsItemThreeIdMax = 160;
+
+
+export const getPolicyResponseTwoSectionsItemThreeIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const getPolicyResponseTwoSectionsItemThreeHeadingMax = 240;
+
+export const getPolicyResponseTwoSectionsItemThreeParagraphsItemMax = 10000;
+
+
+export const getPolicyResponseTwoSectionsItemThreeBulletsItemMax = 1000;
+
+
+
+
+
+export const GetPolicyResponse = zod.object({
+  "slug": zod.string().max(getPolicyResponseOneSlugMax).regex(getPolicyResponseOneSlugRegExp),
+  "title": zod.string().min(1).max(getPolicyResponseOneTitleMax),
+  "summary": zod.string().min(1).max(getPolicyResponseOneSummaryMax),
+  "version": zod.number().min(1),
+  "effectiveAt": zod.coerce.date()
+}).and(zod.object({
+  "sections": zod.array(zod.union([zod.unknown(),zod.unknown()]).and(zod.object({
+  "id": zod.string().max(getPolicyResponseTwoSectionsItemThreeIdMax).regex(getPolicyResponseTwoSectionsItemThreeIdRegExp),
+  "heading": zod.string().min(1).max(getPolicyResponseTwoSectionsItemThreeHeadingMax),
+  "paragraphs": zod.array(zod.string().min(1).max(getPolicyResponseTwoSectionsItemThreeParagraphsItemMax)).min(1).optional(),
+  "bullets": zod.array(zod.string().min(1).max(getPolicyResponseTwoSectionsItemThreeBulletsItemMax)).min(1).optional()
+}))).min(1)
+}))
+
+
+/**
  * @summary Resolve a configured internal URL redirect
  */
 export const getRedirectQueryPathMax = 512;
@@ -442,6 +519,32 @@ export const GetRedirectResponse = zod.object({
 
 
 /**
+ * @summary Get the published platform content document
+ */
+export const GetPlatformContentResponse = zod.object({
+  "content": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "publishedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get the compatibility site projection from published platform content
+ */
+export const GetSiteContentResponse = zod.object({
+  "content": zod.record(zod.string(), zod.unknown())
+})
+
+
+/**
  * @summary Get the authenticated staff member's role
  */
 export const getStaffProfileResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -452,7 +555,7 @@ export const getStaffProfileResponseEmailMax = 320;
 export const GetStaffProfileResponse = zod.object({
   "id": zod.string().regex(getStaffProfileResponseIdRegExp),
   "email": zod.string().max(getStaffProfileResponseEmailMax),
-  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst'])
+  "role": zod.enum(['owner', 'administrator', 'operations', 'stylist', 'editor', 'analyst'])
 })
 
 
@@ -468,7 +571,7 @@ export const ListStaffAccessResponseItem = zod.object({
   "id": zod.string().regex(listStaffAccessResponseIdRegExp),
   "clerkUserId": zod.string(),
   "email": zod.string().max(listStaffAccessResponseEmailMax),
-  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']),
+  "role": zod.enum(['owner', 'administrator', 'operations', 'stylist', 'editor', 'analyst']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -488,7 +591,7 @@ export const createStaffAccessBodyEmailMax = 320;
 export const CreateStaffAccessBody = zod.object({
   "clerkUserId": zod.string().min(1).max(createStaffAccessBodyClerkUserIdMax),
   "email": zod.string().max(createStaffAccessBodyEmailMax),
-  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst'])
+  "role": zod.enum(['owner', 'administrator', 'operations', 'stylist', 'editor', 'analyst'])
 })
 
 export const createStaffAccessResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -500,7 +603,7 @@ export const CreateStaffAccessResponse = zod.object({
   "id": zod.string().regex(createStaffAccessResponseIdRegExp),
   "clerkUserId": zod.string(),
   "email": zod.string().max(createStaffAccessResponseEmailMax),
-  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']),
+  "role": zod.enum(['owner', 'administrator', 'operations', 'stylist', 'editor', 'analyst']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -518,7 +621,7 @@ export const UpdateStaffAccessParams = zod.object({
 })
 
 export const UpdateStaffAccessBody = zod.object({
-  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']).optional(),
+  "role": zod.enum(['owner', 'administrator', 'operations', 'stylist', 'editor', 'analyst']).optional(),
   "isActive": zod.boolean().optional()
 })
 
@@ -531,7 +634,7 @@ export const UpdateStaffAccessResponse = zod.object({
   "id": zod.string().regex(updateStaffAccessResponseIdRegExp),
   "clerkUserId": zod.string(),
   "email": zod.string().max(updateStaffAccessResponseEmailMax),
-  "role": zod.enum(['owner', 'operations', 'stylist', 'editor', 'analyst']),
+  "role": zod.enum(['owner', 'administrator', 'operations', 'stylist', 'editor', 'analyst']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -1260,5 +1363,638 @@ export const ListStaffJournalPostRevisionsResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListStaffJournalPostRevisionsResponse = zod.array(ListStaffJournalPostRevisionsResponseItem)
+
+
+/**
+ * @summary Get draft and published platform content
+ */
+export const GetStaffPlatformContentResponse = zod.object({
+  "key": zod.enum(['platform']),
+  "draft": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "published": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "updatedByClerkUserId": zod.string().nullish(),
+  "publishedByClerkUserId": zod.string().nullish()
+})
+
+
+/**
+ * @summary Save a validated platform draft with optimistic concurrency
+ */
+export const UpdateStaffPlatformContentBody = zod.object({
+  "content": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "expectedDraftUpdatedAt": zod.coerce.date()
+})
+
+export const UpdateStaffPlatformContentResponse = zod.object({
+  "key": zod.enum(['platform']),
+  "draft": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "published": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "updatedByClerkUserId": zod.string().nullish(),
+  "publishedByClerkUserId": zod.string().nullish()
+})
+
+
+/**
+ * @summary Publish the current validated platform draft
+ */
+export const PublishStaffPlatformContentBody = zod.object({
+  "expectedDraftUpdatedAt": zod.coerce.date()
+})
+
+export const PublishStaffPlatformContentResponse = zod.object({
+  "key": zod.enum(['platform']),
+  "draft": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "published": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "updatedByClerkUserId": zod.string().nullish(),
+  "publishedByClerkUserId": zod.string().nullish()
+})
+
+
+/**
+ * @summary Remove the public platform document without deleting its draft
+ */
+export const UnpublishStaffPlatformContentBody = zod.object({
+  "expectedDraftUpdatedAt": zod.coerce.date()
+})
+
+export const UnpublishStaffPlatformContentResponse = zod.object({
+  "key": zod.enum(['platform']),
+  "draft": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "published": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "updatedByClerkUserId": zod.string().nullish(),
+  "publishedByClerkUserId": zod.string().nullish()
+})
+
+
+/**
+ * @summary List immutable platform content revisions
+ */
+export const listStaffPlatformContentRevisionsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffPlatformContentRevisionsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffPlatformContentRevisionsResponseIdRegExp),
+  "contentKey": zod.enum(['platform']),
+  "event": zod.enum(['draft_saved', 'published', 'unpublished']),
+  "snapshot": zod.record(zod.string(), zod.unknown()).nullish(),
+  "contentHash": zod.string(),
+  "createdByClerkUserId": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListStaffPlatformContentRevisionsResponse = zod.array(ListStaffPlatformContentRevisionsResponseItem)
+
+
+/**
+ * @summary List policy versions
+ */
+export const listStaffPoliciesResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const listStaffPoliciesResponseSectionsItemThreeIdMax = 160;
+
+
+export const listStaffPoliciesResponseSectionsItemThreeIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const listStaffPoliciesResponseSectionsItemThreeHeadingMax = 240;
+
+export const listStaffPoliciesResponseSectionsItemThreeParagraphsItemMax = 10000;
+
+
+export const listStaffPoliciesResponseSectionsItemThreeBulletsItemMax = 1000;
+
+
+
+
+
+
+export const ListStaffPoliciesResponseItem = zod.object({
+  "id": zod.string().regex(listStaffPoliciesResponseIdRegExp),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "sections": zod.array(zod.union([zod.unknown(),zod.unknown()]).and(zod.object({
+  "id": zod.string().max(listStaffPoliciesResponseSectionsItemThreeIdMax).regex(listStaffPoliciesResponseSectionsItemThreeIdRegExp),
+  "heading": zod.string().min(1).max(listStaffPoliciesResponseSectionsItemThreeHeadingMax),
+  "paragraphs": zod.array(zod.string().min(1).max(listStaffPoliciesResponseSectionsItemThreeParagraphsItemMax)).min(1).optional(),
+  "bullets": zod.array(zod.string().min(1).max(listStaffPoliciesResponseSectionsItemThreeBulletsItemMax)).min(1).optional()
+}))).min(1),
+  "version": zod.number().min(1),
+  "status": zod.enum(['draft', 'published', 'archived'])
+})
+export const ListStaffPoliciesResponse = zod.array(ListStaffPoliciesResponseItem)
+
+
+/**
+ * @summary Create the next draft version of a policy
+ */
+export const createStaffPolicyBodySlugMax = 160;
+
+
+export const createStaffPolicyBodySlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const createStaffPolicyBodyTitleMax = 160;
+
+export const createStaffPolicyBodySummaryMax = 1000;
+
+export const createStaffPolicyBodySectionsItemThreeIdMax = 160;
+
+
+export const createStaffPolicyBodySectionsItemThreeIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const createStaffPolicyBodySectionsItemThreeHeadingMax = 240;
+
+export const createStaffPolicyBodySectionsItemThreeParagraphsItemMax = 10000;
+
+
+export const createStaffPolicyBodySectionsItemThreeBulletsItemMax = 1000;
+
+
+
+
+
+export const CreateStaffPolicyBody = zod.object({
+  "slug": zod.string().max(createStaffPolicyBodySlugMax).regex(createStaffPolicyBodySlugRegExp),
+  "title": zod.string().min(1).max(createStaffPolicyBodyTitleMax),
+  "summary": zod.string().min(1).max(createStaffPolicyBodySummaryMax),
+  "sections": zod.array(zod.union([zod.unknown(),zod.unknown()]).and(zod.object({
+  "id": zod.string().max(createStaffPolicyBodySectionsItemThreeIdMax).regex(createStaffPolicyBodySectionsItemThreeIdRegExp),
+  "heading": zod.string().min(1).max(createStaffPolicyBodySectionsItemThreeHeadingMax),
+  "paragraphs": zod.array(zod.string().min(1).max(createStaffPolicyBodySectionsItemThreeParagraphsItemMax)).min(1).optional(),
+  "bullets": zod.array(zod.string().min(1).max(createStaffPolicyBodySectionsItemThreeBulletsItemMax)).min(1).optional()
+}))).min(1)
+})
+
+export const createStaffPolicyResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const createStaffPolicyResponseSectionsItemThreeIdMax = 160;
+
+
+export const createStaffPolicyResponseSectionsItemThreeIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const createStaffPolicyResponseSectionsItemThreeHeadingMax = 240;
+
+export const createStaffPolicyResponseSectionsItemThreeParagraphsItemMax = 10000;
+
+
+export const createStaffPolicyResponseSectionsItemThreeBulletsItemMax = 1000;
+
+
+
+
+
+
+export const CreateStaffPolicyResponse = zod.object({
+  "id": zod.string().regex(createStaffPolicyResponseIdRegExp),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "sections": zod.array(zod.union([zod.unknown(),zod.unknown()]).and(zod.object({
+  "id": zod.string().max(createStaffPolicyResponseSectionsItemThreeIdMax).regex(createStaffPolicyResponseSectionsItemThreeIdRegExp),
+  "heading": zod.string().min(1).max(createStaffPolicyResponseSectionsItemThreeHeadingMax),
+  "paragraphs": zod.array(zod.string().min(1).max(createStaffPolicyResponseSectionsItemThreeParagraphsItemMax)).min(1).optional(),
+  "bullets": zod.array(zod.string().min(1).max(createStaffPolicyResponseSectionsItemThreeBulletsItemMax)).min(1).optional()
+}))).min(1),
+  "version": zod.number().min(1),
+  "status": zod.enum(['draft', 'published', 'archived'])
+})
+
+
+/**
+ * @summary Update a draft policy version
+ */
+export const updateStaffPolicyPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffPolicyParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffPolicyPathIdRegExp)
+})
+
+export const updateStaffPolicyBodySlugMax = 160;
+
+
+export const updateStaffPolicyBodySlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const updateStaffPolicyBodyTitleMax = 160;
+
+export const updateStaffPolicyBodySummaryMax = 1000;
+
+export const updateStaffPolicyBodySectionsItemThreeIdMax = 160;
+
+
+export const updateStaffPolicyBodySectionsItemThreeIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const updateStaffPolicyBodySectionsItemThreeHeadingMax = 240;
+
+export const updateStaffPolicyBodySectionsItemThreeParagraphsItemMax = 10000;
+
+
+export const updateStaffPolicyBodySectionsItemThreeBulletsItemMax = 1000;
+
+
+
+
+
+export const UpdateStaffPolicyBody = zod.object({
+  "slug": zod.string().max(updateStaffPolicyBodySlugMax).regex(updateStaffPolicyBodySlugRegExp),
+  "title": zod.string().min(1).max(updateStaffPolicyBodyTitleMax),
+  "summary": zod.string().min(1).max(updateStaffPolicyBodySummaryMax),
+  "sections": zod.array(zod.union([zod.unknown(),zod.unknown()]).and(zod.object({
+  "id": zod.string().max(updateStaffPolicyBodySectionsItemThreeIdMax).regex(updateStaffPolicyBodySectionsItemThreeIdRegExp),
+  "heading": zod.string().min(1).max(updateStaffPolicyBodySectionsItemThreeHeadingMax),
+  "paragraphs": zod.array(zod.string().min(1).max(updateStaffPolicyBodySectionsItemThreeParagraphsItemMax)).min(1).optional(),
+  "bullets": zod.array(zod.string().min(1).max(updateStaffPolicyBodySectionsItemThreeBulletsItemMax)).min(1).optional()
+}))).min(1)
+})
+
+export const updateStaffPolicyResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const updateStaffPolicyResponseSectionsItemThreeIdMax = 160;
+
+
+export const updateStaffPolicyResponseSectionsItemThreeIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const updateStaffPolicyResponseSectionsItemThreeHeadingMax = 240;
+
+export const updateStaffPolicyResponseSectionsItemThreeParagraphsItemMax = 10000;
+
+
+export const updateStaffPolicyResponseSectionsItemThreeBulletsItemMax = 1000;
+
+
+
+
+
+
+export const UpdateStaffPolicyResponse = zod.object({
+  "id": zod.string().regex(updateStaffPolicyResponseIdRegExp),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "sections": zod.array(zod.union([zod.unknown(),zod.unknown()]).and(zod.object({
+  "id": zod.string().max(updateStaffPolicyResponseSectionsItemThreeIdMax).regex(updateStaffPolicyResponseSectionsItemThreeIdRegExp),
+  "heading": zod.string().min(1).max(updateStaffPolicyResponseSectionsItemThreeHeadingMax),
+  "paragraphs": zod.array(zod.string().min(1).max(updateStaffPolicyResponseSectionsItemThreeParagraphsItemMax)).min(1).optional(),
+  "bullets": zod.array(zod.string().min(1).max(updateStaffPolicyResponseSectionsItemThreeBulletsItemMax)).min(1).optional()
+}))).min(1),
+  "version": zod.number().min(1),
+  "status": zod.enum(['draft', 'published', 'archived'])
+})
+
+
+/**
+ * @summary Archive a draft policy version
+ */
+export const deleteStaffPolicyPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const DeleteStaffPolicyParams = zod.object({
+  "id": zod.coerce.string().regex(deleteStaffPolicyPathIdRegExp)
+})
+
+export const DeleteStaffPolicyResponse = zod.void()
+
+
+/**
+ * @summary Publish a policy with an effective date
+ */
+export const publishStaffPolicyPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const PublishStaffPolicyParams = zod.object({
+  "id": zod.coerce.string().regex(publishStaffPolicyPathIdRegExp)
+})
+
+export const PublishStaffPolicyBody = zod.object({
+  "effectiveAt": zod.coerce.date().optional()
+})
+
+export const publishStaffPolicyResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const publishStaffPolicyResponseSectionsItemThreeIdMax = 160;
+
+
+export const publishStaffPolicyResponseSectionsItemThreeIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const publishStaffPolicyResponseSectionsItemThreeHeadingMax = 240;
+
+export const publishStaffPolicyResponseSectionsItemThreeParagraphsItemMax = 10000;
+
+
+export const publishStaffPolicyResponseSectionsItemThreeBulletsItemMax = 1000;
+
+
+
+
+
+
+export const PublishStaffPolicyResponse = zod.object({
+  "id": zod.string().regex(publishStaffPolicyResponseIdRegExp),
+  "slug": zod.string(),
+  "title": zod.string(),
+  "summary": zod.string(),
+  "sections": zod.array(zod.union([zod.unknown(),zod.unknown()]).and(zod.object({
+  "id": zod.string().max(publishStaffPolicyResponseSectionsItemThreeIdMax).regex(publishStaffPolicyResponseSectionsItemThreeIdRegExp),
+  "heading": zod.string().min(1).max(publishStaffPolicyResponseSectionsItemThreeHeadingMax),
+  "paragraphs": zod.array(zod.string().min(1).max(publishStaffPolicyResponseSectionsItemThreeParagraphsItemMax)).min(1).optional(),
+  "bullets": zod.array(zod.string().min(1).max(publishStaffPolicyResponseSectionsItemThreeBulletsItemMax)).min(1).optional()
+}))).min(1),
+  "version": zod.number().min(1),
+  "status": zod.enum(['draft', 'published', 'archived'])
+})
+
+
+/**
+ * @summary List immutable policy revisions
+ */
+export const listStaffPolicyHistoryPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffPolicyHistoryParams = zod.object({
+  "id": zod.coerce.string().regex(listStaffPolicyHistoryPathIdRegExp)
+})
+
+export const ListStaffPolicyHistoryResponseItem = zod.record(zod.string(), zod.unknown())
+export const ListStaffPolicyHistoryResponse = zod.array(ListStaffPolicyHistoryResponseItem)
+
+
+/**
+ * @summary List redirect drafts and publication state
+ */
+export const listStaffRedirectsResponseOneFromPathMax = 512;
+
+
+export const listStaffRedirectsResponseOneFromPathRegExp = new RegExp('^/(?!/)');
+export const listStaffRedirectsResponseOneToPathMax = 512;
+
+
+export const listStaffRedirectsResponseOneToPathRegExp = new RegExp('^/(?!/)');
+export const listStaffRedirectsResponseTwoIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffRedirectsResponseItem = zod.object({
+  "fromPath": zod.string().max(listStaffRedirectsResponseOneFromPathMax).regex(listStaffRedirectsResponseOneFromPathRegExp),
+  "toPath": zod.string().max(listStaffRedirectsResponseOneToPathMax).regex(listStaffRedirectsResponseOneToPathRegExp),
+  "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+}).and(zod.object({
+  "id": zod.string().regex(listStaffRedirectsResponseTwoIdRegExp),
+  "isPublished": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+export const ListStaffRedirectsResponse = zod.array(ListStaffRedirectsResponseItem)
+
+
+/**
+ * @summary Create an unpublished internal redirect
+ */
+export const createStaffRedirectBodyFromPathMax = 512;
+
+
+export const createStaffRedirectBodyFromPathRegExp = new RegExp('^/(?!/)');
+export const createStaffRedirectBodyToPathMax = 512;
+
+
+export const createStaffRedirectBodyToPathRegExp = new RegExp('^/(?!/)');
+
+
+export const CreateStaffRedirectBody = zod.object({
+  "fromPath": zod.string().max(createStaffRedirectBodyFromPathMax).regex(createStaffRedirectBodyFromPathRegExp),
+  "toPath": zod.string().max(createStaffRedirectBodyToPathMax).regex(createStaffRedirectBodyToPathRegExp),
+  "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+})
+
+export const createStaffRedirectResponseOneFromPathMax = 512;
+
+
+export const createStaffRedirectResponseOneFromPathRegExp = new RegExp('^/(?!/)');
+export const createStaffRedirectResponseOneToPathMax = 512;
+
+
+export const createStaffRedirectResponseOneToPathRegExp = new RegExp('^/(?!/)');
+export const createStaffRedirectResponseTwoIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const CreateStaffRedirectResponse = zod.object({
+  "fromPath": zod.string().max(createStaffRedirectResponseOneFromPathMax).regex(createStaffRedirectResponseOneFromPathRegExp),
+  "toPath": zod.string().max(createStaffRedirectResponseOneToPathMax).regex(createStaffRedirectResponseOneToPathRegExp),
+  "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+}).and(zod.object({
+  "id": zod.string().regex(createStaffRedirectResponseTwoIdRegExp),
+  "isPublished": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Update an internal redirect
+ */
+export const updateStaffRedirectPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffRedirectParams = zod.object({
+  "id": zod.coerce.string().regex(updateStaffRedirectPathIdRegExp)
+})
+
+export const UpdateStaffRedirectHeader = zod.object({
+  "X-SOSO-Expected-Revision": zod.date().optional().describe('Last observed redirect updatedAt value used to reject stale mutations.')
+})
+
+export const updateStaffRedirectBodyFromPathMax = 512;
+
+
+export const updateStaffRedirectBodyFromPathRegExp = new RegExp('^/(?!/)');
+export const updateStaffRedirectBodyToPathMax = 512;
+
+
+export const updateStaffRedirectBodyToPathRegExp = new RegExp('^/(?!/)');
+
+
+export const UpdateStaffRedirectBody = zod.object({
+  "fromPath": zod.string().max(updateStaffRedirectBodyFromPathMax).regex(updateStaffRedirectBodyFromPathRegExp),
+  "toPath": zod.string().max(updateStaffRedirectBodyToPathMax).regex(updateStaffRedirectBodyToPathRegExp),
+  "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+})
+
+export const updateStaffRedirectResponseOneFromPathMax = 512;
+
+
+export const updateStaffRedirectResponseOneFromPathRegExp = new RegExp('^/(?!/)');
+export const updateStaffRedirectResponseOneToPathMax = 512;
+
+
+export const updateStaffRedirectResponseOneToPathRegExp = new RegExp('^/(?!/)');
+export const updateStaffRedirectResponseTwoIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const UpdateStaffRedirectResponse = zod.object({
+  "fromPath": zod.string().max(updateStaffRedirectResponseOneFromPathMax).regex(updateStaffRedirectResponseOneFromPathRegExp),
+  "toPath": zod.string().max(updateStaffRedirectResponseOneToPathMax).regex(updateStaffRedirectResponseOneToPathRegExp),
+  "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+}).and(zod.object({
+  "id": zod.string().regex(updateStaffRedirectResponseTwoIdRegExp),
+  "isPublished": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary Delete a redirect
+ */
+export const deleteStaffRedirectPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const DeleteStaffRedirectParams = zod.object({
+  "id": zod.coerce.string().regex(deleteStaffRedirectPathIdRegExp)
+})
+
+export const DeleteStaffRedirectHeader = zod.object({
+  "X-SOSO-Expected-Revision": zod.date().optional().describe('Last observed redirect updatedAt value used to reject stale mutations.')
+})
+
+export const DeleteStaffRedirectResponse = zod.void()
+
+
+/**
+ * @summary Publish or unpublish a redirect
+ */
+export const publishStaffRedirectPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const PublishStaffRedirectParams = zod.object({
+  "id": zod.coerce.string().regex(publishStaffRedirectPathIdRegExp)
+})
+
+export const PublishStaffRedirectHeader = zod.object({
+  "X-SOSO-Expected-Revision": zod.date().optional().describe('Last observed redirect updatedAt value used to reject stale mutations.')
+})
+
+export const PublishStaffRedirectBody = zod.object({
+  "published": zod.boolean().optional()
+})
+
+export const publishStaffRedirectResponseOneFromPathMax = 512;
+
+
+export const publishStaffRedirectResponseOneFromPathRegExp = new RegExp('^/(?!/)');
+export const publishStaffRedirectResponseOneToPathMax = 512;
+
+
+export const publishStaffRedirectResponseOneToPathRegExp = new RegExp('^/(?!/)');
+export const publishStaffRedirectResponseTwoIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const PublishStaffRedirectResponse = zod.object({
+  "fromPath": zod.string().max(publishStaffRedirectResponseOneFromPathMax).regex(publishStaffRedirectResponseOneFromPathRegExp),
+  "toPath": zod.string().max(publishStaffRedirectResponseOneToPathMax).regex(publishStaffRedirectResponseOneToPathRegExp),
+  "statusCode": zod.union([zod.literal(301),zod.literal(302),zod.literal(307),zod.literal(308)])
+}).and(zod.object({
+  "id": zod.string().regex(publishStaffRedirectResponseTwoIdRegExp),
+  "isPublished": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}))
+
+
+/**
+ * @summary List immutable redirect revisions
+ */
+export const listStaffRedirectHistoryPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffRedirectHistoryParams = zod.object({
+  "id": zod.coerce.string().regex(listStaffRedirectHistoryPathIdRegExp)
+})
+
+export const ListStaffRedirectHistoryResponseItem = zod.record(zod.string(), zod.unknown())
+export const ListStaffRedirectHistoryResponse = zod.array(ListStaffRedirectHistoryResponseItem)
+
+
+/**
+ * @summary Request a signed direct-upload URL for a staff-managed image
+ */
+export const requestUploadUrlBodyNameMax = 160;
+
+
+export const requestUploadUrlBodyNameRegExp = new RegExp('^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$');
+export const requestUploadUrlBodySizeMax = 12582912;
+
+
+
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string().min(1).max(requestUploadUrlBodyNameMax).regex(requestUploadUrlBodyNameRegExp),
+  "size": zod.number().min(1).max(requestUploadUrlBodySizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+})
+
+
+export const requestUploadUrlResponseObjectPathRegExp = new RegExp('^/api/storage/objects/uploads');
+
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string().min(1),
+  "objectPath": zod.string().regex(requestUploadUrlResponseObjectPathRegExp)
+})
+
+
+/**
+ * @summary Publicly serve uploaded storefront media
+ */
+export const GetStorageObjectParams = zod.object({
+  "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectResponse = zod.unknown()
+
+
+/**
+ * @summary Publicly serve an object from configured public search paths
+ */
+export const GetPublicStorageObjectParams = zod.object({
+  "filePath": zod.coerce.string()
+})
+
+export const GetPublicStorageObjectResponse = zod.unknown()
 
 

@@ -14,6 +14,7 @@ import { ConsentManager } from '@/components/ConsentManager';
 import { Seo } from '@/components/Seo';
 import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
 import { customFetch } from '@workspace/api-client-react';
+import { usePlatformContent } from '@/data/platformContent';
 
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
@@ -52,6 +53,9 @@ function Router() {
           {(params) => <CollectionPage slug={params.slug ?? ""} />}
         </Route>
         <Route path="/policies" component={PolicyHub} />
+        <Route path="/policies/:slug">
+          {() => <Policy />}
+        </Route>
         <Route path="/privacy" component={Policy} />
         <Route path="/cookies" component={CookieRedirect} />
         <Route path="/terms" component={Policy} />
@@ -117,11 +121,12 @@ function App() {
 
 function AppShell() {
   const [location] = useLocation();
+  const platform = usePlatformContent();
   const staffOrAuthSurface = isPrivateStorefrontPath(location);
 
   return (
     <>
-      <a href="#main-content" className="soso-skip-link">Skip to content</a>
+      {platform.data && <a href="#main-content" className="soso-skip-link">{platform.data.content.site.skipLinkLabel}</a>}
       <div className="flex flex-col min-h-screen">
         {!staffOrAuthSurface && <Navbar />}
         {staffOrAuthSurface && (
@@ -194,12 +199,7 @@ function RedirectGuard({ children }: { children: ReactNode }) {
         aria-live="polite"
         role="status"
       >
-        <div>
-          <p className="soso-display text-2xl font-light">Preparing your visit</p>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Checking for the right SOSO page.
-          </p>
-        </div>
+        <div className="h-6 w-6 animate-pulse rounded-full bg-muted" aria-hidden="true" />
       </div>
     );
   }

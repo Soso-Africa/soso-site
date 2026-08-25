@@ -11,6 +11,7 @@ export type StaffAccessMappingRole = typeof StaffAccessMappingRole[keyof typeof 
 
 export const StaffAccessMappingRole = {
   owner: 'owner',
+  administrator: 'administrator',
   operations: 'operations',
   stylist: 'stylist',
   editor: 'editor',

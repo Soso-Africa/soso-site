@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { requireStaffRoles } from "../middlewares/staff";
 import {
@@ -7,7 +8,15 @@ import {
   buildFaqUpdateAuditMetadata,
   sortFaqHistoryNewestFirst,
   default as staffContentRouter,
+  PolicyInputSchema,
 } from "./staff-content";
+import publicContentRouter, { createFaqReadHandler } from "./faq";
+import {
+  DEFAULT_PLATFORM_CONTENT,
+  mergePlatformContentDefaults,
+  PlatformContentSchema,
+  platformContentHash,
+} from "../lib/platform-content";
 
 const actor = "clerk_staff_editor";
 const draft = {
@@ -127,4 +136,229 @@ test("FAQ history is registered as read-only and limited to owner/editor staff",
   );
   assert.equal(status, 403);
   assert.equal(continued, false);
+});
+
+test("deleting the last FAQ remains empty across subsequent public reads", async () => {
+  let rows = [{
+    id: "faq-last",
+    category: "Ordering",
+    question: "Last question?",
+    answer: "Last answer.",
+  }];
+  const responses: unknown[] = [];
+  const handler = createFaqReadHandler(async () => rows);
+  const response = { json(body: unknown) { responses.push(body); } };
+
+  await handler({} as never, response as never);
+  rows = [];
+  await handler({} as never, response as never);
+  await handler({} as never, response as never);
+
+  assert.equal((responses[0] as unknown[]).length, 1);
+  assert.deepEqual(responses[1], []);
+  assert.deepEqual(responses[2], []);
+});
+
+test("platform content validates the complete seeded document and hashes deterministically", () => {
+  assert.equal(PlatformContentSchema.safeParse(DEFAULT_PLATFORM_CONTENT).success, true);
+  assert.equal(platformContentHash(DEFAULT_PLATFORM_CONTENT), platformContentHash(structuredClone(DEFAULT_PLATFORM_CONTENT)));
+});
+
+test("platform content includes complete public shell, journal, checkout, and privacy copy groups", () => {
+  const { site, pages } = DEFAULT_PLATFORM_CONTENT;
+  assert.ok(site.header.openMenuLabel);
+  assert.ok(site.skipLinkLabel);
+  assert.ok(site.platformState.loadingMessage);
+  assert.ok(site.platformState.unavailableMessage);
+  assert.ok(site.cart.checkoutCta.href);
+  assert.ok(site.floatingCta.label);
+  assert.ok(site.consent.privacyLink.href);
+  assert.ok(site.footer.instagramAriaLabel);
+  assert.ok(pages.journal.loadingSeo.title);
+  assert.ok(pages.journal.notFoundMessage);
+  assert.ok(pages.policies.privacyRequest.submitLabel);
+  assert.ok(pages.policies.privacyRequest.invalidEmailMessage);
+  assert.ok(pages.faq.listAriaLabel);
+  assert.ok(pages.checkout.legalLinks.every((link) => link.label && link.href));
+  assert.ok(pages.paymentReturn.paidBody);
+  assert.ok(pages.paymentReturn.missingAttemptMessage);
+  assert.ok(pages.paymentReturn.statusUnavailableMessage);
+  assert.ok(Object.values(DEFAULT_PLATFORM_CONTENT.supportCopy.stylistDialog).every((value) => value.length > 0));
+  assert.ok(DEFAULT_PLATFORM_CONTENT.productCopy.detailImageAltSuffix);
+  assert.ok(DEFAULT_PLATFORM_CONTENT.productCopy.sizeGuideCloseLabel);
+  assert.ok(pages.notFound.cta.href);
+});
+
+test("platform schema upgrades fill missing fields without replacing edited content", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.site.announcement = "A merchant-edited announcement";
+  delete legacy.pages.about;
+  delete legacy.productCopy.addToBagLabel;
+  delete legacy.supportCopy.productHelp;
+  delete legacy.supportCopy.stylistDialog;
+  delete legacy.pages.paymentReturn.statusUnavailableMessage;
+  delete legacy.pages.policies.privacyRequest.invalidEmailMessage;
+  delete legacy.site.skipLinkLabel;
+  delete legacy.pages.faq.listAriaLabel;
+  delete legacy.productCopy.detailImageAltSuffix;
+  delete legacy.productCopy.sizeGuideCloseLabel;
+  delete legacy.site.consent;
+  delete legacy.pages.checkout;
+
+  const upgraded = mergePlatformContentDefaults(legacy);
+  const parsed = PlatformContentSchema.safeParse(upgraded);
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.equal(parsed.data.site.announcement, "A merchant-edited announcement");
+    assert.equal(parsed.data.productCopy.addToBagLabel, DEFAULT_PLATFORM_CONTENT.productCopy.addToBagLabel);
+    assert.equal(parsed.data.pages.about.hero.title, DEFAULT_PLATFORM_CONTENT.pages.about.hero.title);
+    assert.equal(parsed.data.site.consent.title, DEFAULT_PLATFORM_CONTENT.site.consent.title);
+    assert.equal(parsed.data.pages.checkout.title, DEFAULT_PLATFORM_CONTENT.pages.checkout.title);
+    assert.equal(parsed.data.supportCopy.stylistDialog.title, DEFAULT_PLATFORM_CONTENT.supportCopy.stylistDialog.title);
+    assert.equal(parsed.data.pages.paymentReturn.statusUnavailableMessage, DEFAULT_PLATFORM_CONTENT.pages.paymentReturn.statusUnavailableMessage);
+    assert.equal(parsed.data.pages.policies.privacyRequest.invalidEmailMessage, DEFAULT_PLATFORM_CONTENT.pages.policies.privacyRequest.invalidEmailMessage);
+    assert.equal(parsed.data.site.skipLinkLabel, DEFAULT_PLATFORM_CONTENT.site.skipLinkLabel);
+    assert.equal(parsed.data.pages.faq.listAriaLabel, DEFAULT_PLATFORM_CONTENT.pages.faq.listAriaLabel);
+    assert.equal(parsed.data.productCopy.detailImageAltSuffix, DEFAULT_PLATFORM_CONTENT.productCopy.detailImageAltSuffix);
+    assert.equal(parsed.data.productCopy.sizeGuideCloseLabel, DEFAULT_PLATFORM_CONTENT.productCopy.sizeGuideCloseLabel);
+  }
+});
+
+test("migrated public sources contain no bundled journal SEO or audited navigation/status literals", () => {
+  const storefrontRoot = new URL("../../../soso-store/", import.meta.url);
+  const journalPost = readFileSync(new URL("src/pages/JournalPost.tsx", storefrontRoot), "utf8");
+  const paymentReturn = readFileSync(new URL("src/pages/PaymentReturn.tsx", storefrontRoot), "utf8");
+  const policyHub = readFileSync(new URL("src/pages/PolicyHub.tsx", storefrontRoot), "utf8");
+  const platformState = readFileSync(new URL("src/data/platformContent.ts", storefrontRoot), "utf8");
+  const seoGenerator = readFileSync(new URL("scripts/generate-seo-assets.mjs", storefrontRoot), "utf8");
+
+  assert.equal(journalPost.includes("Back to Journal"), false);
+  assert.equal(journalPost.includes("SOSO Africa Journal"), false);
+  assert.equal(journalPost.includes("journalSeo"), false);
+  assert.equal(paymentReturn.includes("This payment return link is incomplete"), false);
+  assert.equal(policyHub.includes("Loading published policies"), false);
+  assert.equal(policyHub.includes("Published policies are temporarily unavailable"), false);
+  assert.equal(platformState.includes("Loading the published storefront"), false);
+  assert.equal(platformState.includes("Storefront content is not published"), false);
+  assert.equal(seoGenerator.includes("journal-seo"), false);
+  assert.match(seoGenerator, /from soso_journal_posts/);
+});
+
+test("every public platform state caller supplies editable copy and dialog/status copy stays out of runtime source", () => {
+  const sourceRoot = new URL("../../../soso-store/src/", import.meta.url);
+  const sourceFiles = readdirSync(sourceRoot, { recursive: true, encoding: "utf8" })
+    .filter((path) => path.endsWith(".tsx"));
+  const callers: string[] = [];
+  const publicBypassLiterals = [
+    "Secure payment did not open, and no payment has been taken.",
+    "Enter a valid email address so we can contact you about this request.",
+    "Preparing your visit",
+    "Checking for the right SOSO page.",
+    "Frequently asked questions",
+    "Skip to content",
+    '${product.name} detail',
+    'aria-label="Close"',
+  ];
+
+  for (const path of sourceFiles) {
+    const source = readFileSync(new URL(path, sourceRoot), "utf8");
+    const states = source.match(/<PlatformContentState\b[^>]*>/g) ?? [];
+    if (states.length > 0) callers.push(path);
+    for (const state of states) assert.match(state, /\bcopy=/, `${path} omits platform state copy`);
+    for (const phrase of publicBypassLiterals) {
+      assert.equal(source.includes(phrase), false, `${path} contains bundled public copy: ${phrase}`);
+    }
+  }
+
+  assert.deepEqual(callers.sort(), [
+    "pages/About.tsx", "pages/Checkout.tsx", "pages/CollectionPage.tsx", "pages/FAQ.tsx",
+    "pages/Home.tsx", "pages/Journal.tsx", "pages/JournalPost.tsx", "pages/PaymentReturn.tsx",
+    "pages/Policy.tsx", "pages/PolicyHub.tsx", "pages/ProductDetail.tsx", "pages/Shop.tsx",
+    "pages/not-found.tsx",
+  ]);
+
+  const dialog = readFileSync(new URL("components/StylistEnquiryDialog.tsx", sourceRoot), "utf8");
+  const paymentReturn = readFileSync(new URL("pages/PaymentReturn.tsx", sourceRoot), "utf8");
+  for (const phrase of [
+    "Optional fit support", "Ask a SOSO stylist", "This does not pause or replace secure checkout",
+    "Your question has been sent", "Tell us what you would like to know", "Send question",
+  ]) assert.equal(dialog.includes(phrase), false, `Bundled stylist phrase remains: ${phrase}`);
+  assert.equal(paymentReturn.includes("Payment status is unavailable"), false);
+});
+
+test("platform content rejects duplicate slugs, invalid references, unsafe media and non-positive prices", () => {
+  const invalid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  invalid.products[1]!.slug = invalid.products[0]!.slug;
+  invalid.products[0]!.category = "does-not-exist";
+  invalid.products[0]!.price = 0;
+  invalid.products[0]!.img = "https://example.com/image.jpg";
+  const parsed = PlatformContentSchema.safeParse(invalid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) assert.ok(parsed.error.issues.length >= 4);
+});
+
+test("administrator is accepted for content role gates while operations is denied", () => {
+  for (const role of ["administrator", "operations"] as const) {
+    let status: number | undefined;
+    let continued = false;
+    requireStaffRoles("owner", "administrator", "editor")(
+      { staff: { role }, log: { warn() {} } } as never,
+      { status(code: number) { status = code; return { json() {} }; } } as never,
+      () => { continued = true; },
+    );
+    assert.equal(continued, role === "administrator");
+    assert.equal(status, role === "operations" ? 403 : undefined);
+  }
+});
+
+test("policy lifecycle exposes PUT draft updates and direct draft publication only", () => {
+  const routes = (staffContentRouter as unknown as {
+    stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }>;
+  }).stack.map((layer) => layer.route).filter(Boolean);
+  const methodsFor = (path: string) => routes
+    .filter((route) => route?.path === path)
+    .flatMap((route) => Object.keys(route!.methods));
+
+  assert.deepEqual(methodsFor("/staff/policies/:id").sort(), ["delete", "put"]);
+  assert.deepEqual(methodsFor("/staff/policies/:id/publish"), ["post"]);
+  assert.equal(routes.some((route) => route?.path === "/staff/policies/:id/review"), false);
+  assert.equal(routes.some((route) => route?.path === "/staff/policies/:id/approve"), false);
+});
+
+test("policy sections reject invalid objects, empty arrays, and malformed content while accepting trimmed valid sections", () => {
+  const valid = {
+    slug: "privacy",
+    title: " Privacy notice ",
+    summary: " How we handle personal data. ",
+    sections: [{ id: "data-use", heading: " Data use ", paragraphs: [" We use data to process requests. "] }],
+  };
+  const parsed = PolicyInputSchema.safeParse(valid);
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.equal(parsed.data.title, "Privacy notice");
+    assert.deepEqual(parsed.data.sections[0]?.paragraphs, ["We use data to process requests."]);
+  }
+  assert.equal(PolicyInputSchema.safeParse({ ...valid, sections: {} }).success, false);
+  assert.equal(PolicyInputSchema.safeParse({ ...valid, sections: [] }).success, false);
+  assert.equal(PolicyInputSchema.safeParse({ ...valid, sections: [{ id: "bad id", heading: "", paragraphs: [] }] }).success, false);
+  assert.equal(PolicyInputSchema.safeParse({ ...valid, sections: [{ id: "valid", heading: "Valid", unknown: true }] }).success, false);
+});
+
+test("public policy list and detail routes are registered", () => {
+  const routes = (publicContentRouter as unknown as {
+    stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }>;
+  }).stack.map((layer) => layer.route).filter(Boolean);
+  const methodsFor = (path: string) => routes
+    .filter((route) => route?.path === path)
+    .flatMap((route) => Object.keys(route!.methods));
+  assert.deepEqual(methodsFor("/policies"), ["get"]);
+  assert.deepEqual(methodsFor("/policies/:slug"), ["get"]);
+});
+
+test("policy hub has no bundled cards or draft messaging", () => {
+  const source = readFileSync(new URL("../../../soso-store/src/pages/PolicyHub.tsx", import.meta.url), "utf8");
+  assert.equal(source.includes("const policyLinks"), false);
+  assert.equal(source.includes("Working drafts"), false);
+  assert.equal(source.includes("Read draft"), false);
+  assert.ok(source.includes('customFetch("/api/policies"'));
 });

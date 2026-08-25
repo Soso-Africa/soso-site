@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
-import { products } from "@/data/products";
 import { Reveal } from "@/components/Reveal";
 import { WhatsAppIcon } from "@/components/Icons";
 import { useCart } from "@/context/CartContext";
@@ -9,17 +8,16 @@ import { Seo } from "@/components/Seo";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { editorialOrigin, trackStorefrontEvent } from "@/components/ConsentManager";
 import { catalogApproved } from "@/lib/seo";
-import { CommerceConfigurationError, commerceGateway, commerceMode } from "@/lib/commerce";
+import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
   const [, setLocation] = useLocation();
   const { addItem } = useCart();
   
-  const [liveProduct, setLiveProduct] = useState<typeof products[number] | undefined>();
-  const [liveCatalogLoading, setLiveCatalogLoading] = useState(commerceMode === "justicesure-headless");
-  const previewProduct = products.find((p) => p.slug === params?.slug);
-  const product = commerceMode === "justicesure-headless" ? liveProduct : previewProduct;
+  const platform = usePlatformContent();
+  const platformContent = platform.data?.content;
+  const product = platformContent?.products.find((item) => item.slug === params?.slug);
   
   const [size, setSize] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -29,46 +27,32 @@ export default function ProductDetail() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (commerceMode !== "justicesure-headless") return;
-    let current = true;
-    setLiveCatalogLoading(true);
-    commerceGateway.getProduct(params?.slug ?? "")
-      .then((next) => {
-        if (current) setLiveProduct(next);
-      })
-      .catch((error) => {
-        if (current && error instanceof CommerceConfigurationError) setLiveProduct(undefined);
-      })
-      .finally(() => {
-        if (current) setLiveCatalogLoading(false);
-      });
-    return () => { current = false; };
-  }, [params?.slug]);
-
-  useEffect(() => {
     // Reset state on route change
     setSize(null);
     setImg(0);
     setLoaded(false);
     
-    if (!product && !liveCatalogLoading) {
+    if (!product && platform.data) {
       setLocation("/shop");
       return;
     }
     
     const t = setTimeout(() => setLoaded(true), 60);
     return () => clearTimeout(t);
-  }, [product, liveCatalogLoading, setLocation]);
+  }, [product, platform.data, setLocation]);
 
   useEffect(() => {
     if (product) trackStorefrontEvent("product_view", { productSlug: product.slug, articleSlug: editorialOrigin() });
   }, [product]);
 
   if (!product) {
-    return liveCatalogLoading ? <main className="px-6 py-24 text-center text-[hsl(var(--secondary))]">Loading the verified JusticeSure collection…</main> : null;
+    return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platform.data?.content.site.platformState} />;
   }
 
-  const gallery = [{ src: product.img, label: product.name }];
+  const gallery = product.images?.length ? product.images.map((image) => ({ src: image.src, label: image.alt })) : [{ src: product.img, label: product.name }];
+  const productCopy = platformContent!.productCopy;
+  const supportCopy = platformContent!.supportCopy;
+  const sizeGuide = platformContent!.sizeGuide;
 
   const needSize = size === null;
 
@@ -88,13 +72,16 @@ export default function ProductDetail() {
   };
 
   // 4 random products for Complete the look
-  const look = commerceMode === "catalog-preview" ? products.filter(p => p.slug !== product.slug).slice(0, 4) : [];
+  const relatedSlugs = product.relatedProductSlugs ?? [];
+  const look = platformContent!.products
+    .filter((item) => item.slug !== product.slug && (!relatedSlugs.length || relatedSlugs.includes(item.slug)))
+    .slice(0, 4);
 
   return (
     <div style={{ background: "hsl(var(--foreground))", color: "hsl(var(--background))" }} className="flex flex-col">
       <Seo
-        title={`${product.name} | SOSO Africa`}
-        description={`${product.description} View current price and speak to a SOSO stylist for fit assistance.`}
+        title={`${product.name} | ${productCopy.seoTitleSuffix}`}
+        description={`${product.description} ${productCopy.seoDescriptionSuffix}`}
         path={`/product/${product.slug}`}
         product={product}
         noIndex={!catalogApproved}
@@ -138,13 +125,13 @@ export default function ProductDetail() {
             transition: "opacity 1s cubic-bezier(.16,1,.3,1) .15s, transform 1s cubic-bezier(.16,1,.3,1) .15s",
           }}
         >
-          <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>{product.category} · Made in Abuja</p>
+          <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>{product.category} · {productCopy.categorySuffix}</p>
           <h1 className="soso-display text-5xl md:text-6xl font-light leading-[1.02]">{product.name}</h1>
           <p className="soso-display text-lg mt-2 opacity-70 italic">{product.note}</p>
 
           <div className="flex items-center gap-4 mt-5">
             <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
-            <span className="text-sm opacity-80">Made to order · atelier confirms after payment</span>
+            <span className="text-sm opacity-80">{productCopy.madeToOrderLabel}</span>
           </div>
 
           <p className="mt-6 text-[15px] leading-relaxed opacity-85 max-w-md">
@@ -154,9 +141,9 @@ export default function ProductDetail() {
           {/* Size */}
           <div className="mt-8">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-[12px] tracking-[0.2em] uppercase font-medium">Select size</span>
+              <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.sizeSelectorLabel}</span>
               <button onClick={() => { setGuideOpen(true); trackStorefrontEvent("size_guide_opened", { productSlug: product.slug }); }} className="text-[12px] underline underline-offset-4 hover:opacity-70" style={{ color: "hsl(var(--primary))" }}>
-                Size guide & fit help
+                {productCopy.sizePrompt}
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -182,8 +169,8 @@ export default function ProductDetail() {
             </div>
             <p className="text-[12px] mt-2 opacity-60">
               {size === "Custom"
-                ? "After payment, the atelier will follow up to discuss measurements and making details."
-                : "Between sizes? Use the size guide or ask a stylist before you add to bag."}
+                ? productCopy.customSizeHelp
+                : productCopy.standardSizeHelp}
             </p>
           </div>
 
@@ -197,7 +184,7 @@ export default function ProductDetail() {
                 color: needSize ? "#F7F3EB" : "hsl(var(--primary-foreground))",
               }}
             >
-              {needSize ? "Select a size to continue" : `Add to bag — ${naira(product.price)}`}
+              {needSize ? productCopy.sizeRequiredLabel : `${productCopy.addToBagLabel} — ${naira(product.price)}`}
             </button>
             <button
               type="button"
@@ -205,23 +192,19 @@ export default function ProductDetail() {
               className="w-full block text-center py-4 text-[13px] tracking-[0.2em] uppercase flex items-center justify-center gap-2 transition-colors duration-300 hover:bg-[#0f3d2e] hover:text-white"
               style={{ border: "1px solid #128C56", color: "#0f6b43" }}
             >
-              <WhatsAppIcon size={16} /> Ask about this piece
+              <WhatsAppIcon size={16} /> {supportCopy.productCtaLabel}
             </button>
             <p className="text-center text-[12px] opacity-60 mt-2">
-              Have a question before you pay? Speak to a stylist for fit or bespoke guidance.
+              {supportCopy.productHelp}
             </p>
           </div>
 
           {/* Trust strip */}
           <div className="grid grid-cols-3 gap-px mt-8" style={{ background: "#d8cfba" }}>
-            {[
-              ["Fit support", "Size guide and stylist help"],
-              ["Made to order", "Atelier confirms making details after payment"],
-              ["Order support", "Questions answered by a SOSO stylist"],
-            ].map(([a, b]) => (
-              <div key={a} className="p-4 text-center" style={{ background: "#EFE8DA" }}>
-                <p className="text-sm font-semibold">{a}</p>
-                <p className="text-[11px] opacity-60 mt-1 leading-snug">{b}</p>
+            {productCopy.trustItems.map((item) => (
+              <div key={item.title} className="p-4 text-center" style={{ background: "#EFE8DA" }}>
+                <p className="text-sm font-semibold">{item.title}</p>
+                <p className="text-[11px] opacity-60 mt-1 leading-snug">{item.body}</p>
               </div>
             ))}
           </div>
@@ -234,10 +217,10 @@ export default function ProductDetail() {
           {[0, 1].map((k) => (
             <span key={k} className="soso-display text-lg tracking-wide">
               {Array(4)
-                .fill("The Architect of the Modern Man")
+                .fill(productCopy.marqueeText)
                 .map((t, i) => (
                   <span key={i} className="mx-8">
-                    <span className="mr-8" style={{ color: "hsl(var(--primary))" }}>✦</span>
+                    <span className="mr-8" style={{ color: "hsl(var(--primary))" }}>{productCopy.marqueeSymbol}</span>
                     {t}
                   </span>
                 ))}
@@ -250,29 +233,21 @@ export default function ProductDetail() {
       <section className="max-w-[1280px] mx-auto px-6 md:px-12 py-20 grid md:grid-cols-2 gap-12 items-center">
         <Reveal>
           <div className="overflow-hidden imgzoom">
-            <img src={product.img} alt={`${product.name} detail`} className="w-full aspect-[4/5] object-cover" loading="lazy" />
+            <img src={product.img} alt={`${product.name} ${productCopy.detailImageAltSuffix}`} className="w-full aspect-[4/5] object-cover" loading="lazy" />
           </div>
         </Reveal>
         <div>
           <Reveal>
-            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>Before you order</p>
-            <h2 className="soso-display text-4xl md:text-5xl font-light leading-tight">A considered purchase starts with clear details.</h2>
+            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>{productCopy.detailsEyebrow}</p>
+            <h2 className="soso-display text-4xl md:text-5xl font-light leading-tight">{productCopy.detailsHeading}</h2>
           </Reveal>
           <Reveal delay={120}>
             <div className="mt-8 space-y-6 text-[15px] leading-relaxed opacity-85 max-w-md">
-              <p>
-                <span className="font-semibold">Product details.</span> The listed piece, price and size are ready to order. Ask a stylist if you need help before paying.
-              </p>
-              <p>
-                <span className="font-semibold">Fit.</span> Use the size guide as a starting point, then message a stylist if you would like a second opinion or a custom fit.
-              </p>
-              <p>
-                <span className="font-semibold">The making.</span> After payment, the atelier confirms the making details and follows up before production begins.
-              </p>
+              {productCopy.details.map((item) => <p key={item.title}><span className="font-semibold">{item.title}</span> {item.body}</p>)}
             </div>
           </Reveal>
            <Reveal delay={220}>
-             <button type="button" onClick={() => setStylistOpen(true)} className="inline-flex mt-8 text-sm text-[hsl(var(--primary))] underline underline-offset-4">Ask a stylist about this piece</button>
+              <button type="button" onClick={() => setStylistOpen(true)} className="inline-flex mt-8 text-sm text-[hsl(var(--primary))] underline underline-offset-4">{supportCopy.productDetailsCtaLabel}</button>
           </Reveal>
         </div>
       </section>
@@ -281,20 +256,15 @@ export default function ProductDetail() {
       <section style={{ background: "hsl(var(--background))", color: "hsl(var(--foreground))" }} className="py-20">
         <div className="max-w-[1280px] mx-auto px-6 md:px-12">
           <Reveal>
-            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>No surprises</p>
-            <h2 className="soso-display text-4xl md:text-5xl font-light text-white">Buying premium online should feel safe. Here it is, in writing.</h2>
+            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>{productCopy.assurancesEyebrow}</p>
+            <h2 className="soso-display text-4xl md:text-5xl font-light text-white">{productCopy.assurancesHeading}</h2>
           </Reveal>
           <div className="grid md:grid-cols-4 gap-px mt-12" style={{ background: "#2c2820" }}>
-             {[
-                ["Made to order", "SOSO can make the piece you choose. After payment, the atelier confirms the requested direction and production timing."],
-               ["Sizing", "The size guide is available above, with direct stylist support if you prefer to confirm measurements before ordering."],
-                ["Delivery & returns", "Delivery options and made-to-order returns guidance are confirmed in the purchase-support information."],
-                ["Order support", "A SOSO stylist can answer product, fitting and order questions if you need help before paying."],
-             ].map(([t, b], i) => (
-              <Reveal key={t} delay={i * 100}>
+             {productCopy.assurances.map((item, i) => (
+               <Reveal key={item.title} delay={i * 100}>
                 <div className="p-8 h-full" style={{ background: "#181613" }}>
-                  <p className="soso-display text-xl mb-3" style={{ color: "hsl(var(--primary))" }}>{t}</p>
-                  <p className="text-sm leading-relaxed opacity-75">{b}</p>
+                   <p className="soso-display text-xl mb-3" style={{ color: "hsl(var(--primary))" }}>{item.title}</p>
+                   <p className="text-sm leading-relaxed opacity-75">{item.body}</p>
                 </div>
               </Reveal>
             ))}
@@ -305,7 +275,7 @@ export default function ProductDetail() {
       {/* ————— COMPLETE THE LOOK ————— */}
       <section className="max-w-[1280px] mx-auto px-6 md:px-12 pb-24">
         <Reveal>
-          <h2 className="soso-display text-4xl font-light mb-10">Complete the wardrobe</h2>
+          <h2 className="soso-display text-4xl font-light mb-10">{productCopy.relatedHeading}</h2>
         </Reveal>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
           {look.map((p, i) => (
@@ -336,7 +306,7 @@ export default function ProductDetail() {
           className="px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all" 
           style={{ background: needSize ? "#2a2723" : "hsl(var(--primary))", color: needSize ? "#fff" : "hsl(var(--primary-foreground))" }}
         >
-          {needSize ? "Choose size" : "Add to bag"}
+          {needSize ? productCopy.mobileSizeRequiredLabel : productCopy.addToBagLabel}
         </button>
       </div>
 
@@ -344,30 +314,21 @@ export default function ProductDetail() {
       {guideOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" style={{ background: "rgba(18,17,16,.7)" }} onClick={() => setGuideOpen(false)}>
           <div className="max-w-lg w-full p-8 relative" style={{ background: "#F7F3EB" }} onClick={(e) => e.stopPropagation()}>
-            <button className="absolute top-4 right-5 text-2xl opacity-60 hover:opacity-100" onClick={() => setGuideOpen(false)} aria-label="Close">
+            <button className="absolute top-4 right-5 text-2xl opacity-60 hover:opacity-100" onClick={() => setGuideOpen(false)} aria-label={productCopy.sizeGuideCloseLabel}>
               ×
             </button>
-            <h3 className="soso-display text-3xl font-light">Fit guide</h3>
-            <p className="text-sm opacity-70 mt-2">Measurements in inches. Cut for a regal, relaxed drape.</p>
+            <h3 className="soso-display text-3xl font-light">{sizeGuide.title}</h3>
+            <p className="text-sm opacity-70 mt-2">{sizeGuide.intro}</p>
             <table className="w-full mt-6 text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-widest opacity-60">
-                  <th className="py-2">Size</th>
-                  <th>Chest</th>
-                  <th>Length</th>
-                  <th>Sleeve</th>
+                  {sizeGuide.columns.map((column, index) => <th key={column} className={index === 0 ? "py-2" : undefined}>{column}</th>)}
                 </tr>
               </thead>
               <tbody>
-                {[
-                  ["S", "38–40", "44", "24.5"],
-                  ["M", "41–43", "45", "25"],
-                  ["L", "44–46", "46", "25.5"],
-                  ["XL", "47–49", "47", "26"],
-                  ["XXL", "50–52", "48", "26.5"],
-                ].map((row) => (
-                  <tr key={row[0]} style={{ borderTop: "1px solid #ddd3bd" }}>
-                    {row.map((c, i) => (
+                {sizeGuide.rows.map((row) => (
+                  <tr key={row.size} style={{ borderTop: "1px solid #ddd3bd" }}>
+                    {[row.size, ...row.values].map((c, i) => (
                       <td key={i} className={`py-2.5 ${i === 0 ? "font-semibold" : "opacity-75"}`}>{c}</td>
                     ))}
                   </tr>
@@ -382,49 +343,48 @@ export default function ProductDetail() {
                 setFitAssistantSubmitted(true);
               }}
             >
-              <h4 className="font-semibold">Fit assistant</h4>
+               <h4 className="font-semibold">{productCopy.fitAssistant.title}</h4>
               <p className="mt-1 text-[12px] leading-relaxed opacity-75">
-                Share a few details to prepare for a stylist conversation. This is not a size recommendation and it will not select a size for you.
+                 {productCopy.fitAssistant.intro}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <label className="text-[11px] uppercase tracking-wider">
-                  Height
+                   {productCopy.fitAssistant.heightLabel}
                   <input required name="height" inputMode="decimal" maxLength={30} className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]" />
                 </label>
                 <label className="text-[11px] uppercase tracking-wider">
-                  Weight
+                   {productCopy.fitAssistant.weightLabel}
                   <input required name="weight" inputMode="decimal" maxLength={30} className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]" />
                 </label>
                 <label className="text-[11px] uppercase tracking-wider">
-                  Chest
+                   {productCopy.fitAssistant.chestLabel}
                   <input required name="chest" inputMode="decimal" maxLength={30} className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]" />
                 </label>
                 <label className="text-[11px] uppercase tracking-wider">
-                  Preferred fit
+                   {productCopy.fitAssistant.preferredFitLabel}
                   <select required name="preferredFit" defaultValue="" className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none focus:border-[#0f6b43]">
-                    <option value="" disabled>Select one</option>
-                    <option value="closer">Closer</option>
-                    <option value="balanced">Balanced</option>
-                    <option value="relaxed">Relaxed</option>
-                    <option value="unsure">Not sure</option>
+                     <option value="" disabled>{productCopy.fitAssistant.preferredFitPlaceholder}</option>
+                     {productCopy.fitAssistant.preferredFitOptions.map((option) => (
+                       <option key={option.value} value={option.value}>{option.label}</option>
+                     ))}
                   </select>
                 </label>
               </div>
               <label className="mt-3 block text-[11px] uppercase tracking-wider">
-                Occasion
-                <input required name="occasion" maxLength={120} placeholder="e.g. wedding or evening event" className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none placeholder:opacity-55 focus:border-[#0f6b43]" />
+                 {productCopy.fitAssistant.occasionLabel}
+                 <input required name="occasion" maxLength={120} placeholder={productCopy.fitAssistant.occasionPlaceholder} className="mt-1.5 w-full border border-[#cfc4ac] bg-[#F7F3EB] px-3 py-2 text-sm normal-case tracking-normal outline-none placeholder:opacity-55 focus:border-[#0f6b43]" />
               </label>
               <button type="submit" className="mt-4 border border-[#0f6b43] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0f6b43]">
-                Prepare details for a stylist
+                 {productCopy.fitAssistant.submitLabel}
               </button>
               {fitAssistantSubmitted && (
                 <p role="status" className="mt-3 text-[12px] leading-relaxed">
-                  Your details are ready to discuss. No size recommendation has been made, and these details are not sent automatically. A stylist can help you decide before you add to bag.
+                   {productCopy.fitAssistant.submittedMessage}
                 </p>
               )}
             </form>
             <div className="mt-4 p-4 text-sm" style={{ background: "#EFE8DA" }}>
-               Not sure? Ask a stylist for fit guidance, or choose <span className="font-semibold">Custom</span> when you need made-to-measure direction.
+               {sizeGuide.customHelp}
              </div>
             <button
               type="button"
@@ -435,7 +395,7 @@ export default function ProductDetail() {
               className="w-full mt-5 py-3.5 text-[12px] tracking-[0.2em] uppercase flex items-center justify-center gap-2"
               style={{ background: "#128C56", color: "#fff" }}
             >
-              <WhatsAppIcon size={16} /> Ask a stylist about fit
+               <WhatsAppIcon size={16} /> {supportCopy.fitCtaLabel}
             </button>
           </div>
         </div>
