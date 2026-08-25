@@ -288,4 +288,40 @@ export class CloudinaryStorageService {
       expectedType.startsWith("video/") ? "video" : "image",
     );
   }
+
+  async runDiagnostic(): Promise<CloudinaryMediaInspection> {
+    const diagnosticPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAE/wJ/l3xZ5QAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const upload = await this.createMediaUpload("storage-diagnostic.png", "image/png");
+    const form = new FormData();
+    for (const [key, value] of Object.entries(upload.uploadFields)) form.append(key, value);
+    form.append("file", new Blob([diagnosticPng], { type: "image/png" }), "storage-diagnostic.png");
+    let uploaded = false;
+    const relativePath = upload.objectPath.slice("/api/storage/objects/".length);
+    try {
+      const response = await fetch(upload.uploadURL, {
+        method: upload.uploadMethod,
+        body: form,
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!response.ok) {
+        throw new Error(`Cloudinary diagnostic upload failed (${response.status})`);
+      }
+      uploaded = true;
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          return await this.inspectUploadedMedia(relativePath);
+        } catch (error) {
+          lastError = error;
+          if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      }
+      throw lastError;
+    } finally {
+      if (uploaded) await this.deleteUploadedMedia(relativePath);
+    }
+  }
 }

@@ -8,7 +8,7 @@ import {
   cloudinaryUploadPolicyForContentType,
   MediaNotFoundError,
 } from "../lib/cloudinary-storage";
-import { detectMediaContentType, parseMediaByteRange } from "./storage";
+import { detectMediaContentType, parseMediaByteRange, storageDiagnosticTokenMatches } from "./storage";
 
 test("stored media detection accepts only approved image and video signatures", () => {
   assert.equal(detectMediaContentType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "image/png");
@@ -79,6 +79,14 @@ test("Cloudinary upload policies enforce separate formats and byte limits", () =
     maxFileSize: 8 * 1024 * 1024,
   });
   assert.throws(() => cloudinaryUploadPolicyForContentType("image/svg+xml"));
+});
+
+test("the storage diagnostic requires an exact high-entropy bootstrap token", () => {
+  const token = "a".repeat(32);
+  assert.equal(storageDiagnosticTokenMatches(token, token), true);
+  assert.equal(storageDiagnosticTokenMatches(token, `${token.slice(0, -1)}b`), false);
+  assert.equal(storageDiagnosticTokenMatches("short", "short"), false);
+  assert.equal(storageDiagnosticTokenMatches(token, ""), false);
 });
 
 test("legacy storage paths resolve only to SOSO-owned Cloudinary delivery URLs", () => {
