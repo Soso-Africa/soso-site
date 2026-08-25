@@ -40,6 +40,7 @@ function Router() {
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/women"><Redirect to="/shop?department=women" /></Route>
         <Route path="/shop" component={Shop} />
         <Route path="/product/:slug" component={ProductDetail} />
         <Route path="/checkout" component={Checkout} />
