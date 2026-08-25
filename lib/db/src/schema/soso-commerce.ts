@@ -483,6 +483,34 @@ export const siteContentRevisionsTable = pgTable(
   (table) => [index("soso_site_content_revisions_key_created_idx").on(table.contentKey, table.createdAt)],
 );
 
+export const marketingPixelSettingsTable = pgTable(
+  "soso_marketing_pixel_settings",
+  {
+    key: text("key").primaryKey(),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    revision: integer("revision").notNull().default(1),
+    settings: jsonb("settings").$type<Record<string, unknown>>().notNull(),
+    updatedByClerkUserId: text("updated_by_clerk_user_id").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const marketingPixelSettingRevisionsTable = pgTable(
+  "soso_marketing_pixel_setting_revisions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    settingsKey: text("settings_key").notNull().references(() => marketingPixelSettingsTable.key, { onDelete: "cascade" }),
+    revision: integer("revision").notNull(),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+    createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("soso_marketing_pixel_revisions_key_revision_idx").on(table.settingsKey, table.revision),
+    index("soso_marketing_pixel_revisions_key_created_idx").on(table.settingsKey, table.createdAt),
+  ],
+);
+
 export const redirectsTable = pgTable(
   "soso_redirects",
   {
@@ -548,6 +576,8 @@ export type FaqItem = typeof faqItemsTable.$inferSelect;
 export type PolicyDocument = typeof policyDocumentsTable.$inferSelect;
 export type SiteContent = typeof siteContentTable.$inferSelect;
 export type SiteContentRevision = typeof siteContentRevisionsTable.$inferSelect;
+export type MarketingPixelSettings = typeof marketingPixelSettingsTable.$inferSelect;
+export type MarketingPixelSettingRevision = typeof marketingPixelSettingRevisionsTable.$inferSelect;
 export type Redirect = typeof redirectsTable.$inferSelect;
 export type StaffUser = typeof staffUsersTable.$inferSelect;
 export type StaffSession = typeof staffSessionsTable.$inferSelect;

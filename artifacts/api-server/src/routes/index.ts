@@ -3,6 +3,7 @@ import analyticsRouter from "./analytics";
 import contentRouter from "./content";
 import faqRouter from "./faq";
 import healthRouter from "./health";
+import marketingPixelsRouter from "./marketing-pixels";
 import paymentRouter from "./payment";
 import redirectsRouter from "./redirects";
 import sitemapRouter from "./sitemap";
@@ -14,6 +15,7 @@ import storageRouter from "./storage";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(marketingPixelsRouter);
 router.use(analyticsRouter);
 router.use(contentRouter);
 router.use(faqRouter);

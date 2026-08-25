@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { usePlatformContent } from "@/data/platformContent";
 import {
+  getGetPublicMarketingPixelsQueryKey,
+  useGetPublicMarketingPixels,
+} from "@workspace/api-client-react";
+import {
+  isMarketingPixelEligiblePath,
+  marketingConsentAllowsActivation,
+  marketingConfigFromSuccessfulRefetch,
+  marketingPixels,
+} from "@/lib/marketing-pixels";
+import {
   nextMeasurementGrantGeneration,
   pageViewRecordAfterSend,
   shouldRecordPageViewForGrant,
@@ -163,6 +173,9 @@ function updateConsentSource(consent: ConsentState | null): void {
     nowAllowed,
   );
   consentSource = consent;
+  if (typeof window !== "undefined") {
+    marketingPixels.setContext(consent === "marketing", window.location.pathname);
+  }
 }
 
 updateConsentSource(typeof window === "undefined" ? null : readConsent());
@@ -346,6 +359,7 @@ export function trackStorefrontEvent(
 ) {
   if (typeof window === "undefined") return;
   sendConsentedEvent(eventName, properties);
+  marketingPixels.track(eventName, properties);
 }
 
 /**
@@ -473,6 +487,83 @@ export function ConsentManager() {
   const [pathname] = useLocation();
   const bannerViewedRef = useRef(false);
   const landingAttributionRef = useRef<Attribution | null>(null);
+  const marketingContextActiveRef = useRef(false);
+  const marketingConfigReadyRef = useRef(false);
+  const marketingRequestGenerationRef = useRef(0);
+  const consentSaveGenerationRef = useRef(0);
+  const marketingEligible = isMarketingPixelEligiblePath(pathname);
+  const marketingConfig = useGetPublicMarketingPixels({
+    query: {
+      queryKey: getGetPublicMarketingPixelsQueryKey(),
+      enabled: consent === "marketing" && marketingEligible,
+      staleTime: 0,
+      refetchOnWindowFocus: true,
+      refetchInterval: 60_000,
+    },
+  });
+
+  useEffect(() => {
+    const shouldActivate = marketingConsentAllowsActivation(
+      consent,
+      consentSource,
+      marketingEligible,
+    );
+    if (!shouldActivate) {
+      marketingRequestGenerationRef.current += 1;
+      marketingContextActiveRef.current = false;
+      marketingConfigReadyRef.current = false;
+      marketingPixels.setContext(false, pathname);
+      return;
+    }
+
+    if (marketingConfig.isError) {
+      marketingRequestGenerationRef.current += 1;
+      marketingContextActiveRef.current = false;
+      marketingConfigReadyRef.current = false;
+      marketingPixels.setContext(false, pathname);
+      return;
+    }
+
+    if (!marketingContextActiveRef.current) {
+      const requestGeneration = marketingRequestGenerationRef.current + 1;
+      marketingRequestGenerationRef.current = requestGeneration;
+      marketingContextActiveRef.current = true;
+      marketingConfigReadyRef.current = false;
+      // Never reactivate from cached settings after a revocation or private
+      // surface. Fetch the current public projection before loading a vendor.
+      marketingPixels.setContext(false, pathname);
+      marketingPixels.configure(null);
+      marketingPixels.setContext(true, pathname);
+      void marketingConfig.refetch().then((result) => {
+        const freshConfig = marketingConfigFromSuccessfulRefetch(result);
+        if (
+          !freshConfig
+          ||
+          marketingRequestGenerationRef.current !== requestGeneration
+          || consentSource !== "marketing"
+          || !isMarketingPixelEligiblePath(window.location.pathname)
+        ) return;
+        marketingConfigReadyRef.current = true;
+        marketingPixels.setContext(true, window.location.pathname);
+        marketingPixels.configure(freshConfig);
+      }).catch(() => {
+        // A missing configuration response keeps every provider off.
+      });
+      return;
+    }
+
+    marketingPixels.setContext(true, pathname);
+    if (marketingConfigReadyRef.current && marketingConfig.data) {
+      marketingPixels.configure(marketingConfig.data);
+    }
+  }, [consent, consentSource, marketingConfig.data, marketingConfig.isError, marketingEligible, pathname]);
+
+  useEffect(() => () => {
+    marketingRequestGenerationRef.current += 1;
+    marketingContextActiveRef.current = false;
+    marketingConfigReadyRef.current = false;
+    marketingPixels.setContext(false, window.location.pathname);
+  }, []);
 
   useEffect(() => {
     reconcileConsentUi(setConsent, setVisible);
@@ -545,14 +636,26 @@ export function ConsentManager() {
 
   const save = async (state: ConsentState) => {
     const previousConsent = consentSource;
+    const saveGeneration = consentSaveGenerationRef.current + 1;
+    consentSaveGenerationRef.current = saveGeneration;
     setVisible(false);
+    if (state === "essential_only" && (previousConsent === "analytics" || previousConsent === "marketing")) {
+      sendConsentedEvent("marketing_opt_out");
+    }
+    if (previousConsent === "marketing" && state !== "marketing") {
+      // Withdrawal is synchronously authoritative. No route change, cached
+      // query result, or older consent request may reopen the vendor gate.
+      marketingRequestGenerationRef.current += 1;
+      marketingContextActiveRef.current = false;
+      marketingConfigReadyRef.current = false;
+      marketingPixels.setContext(false, window.location.pathname);
+      storageSet("local", CONSENT_KEY, state);
+      updateConsentSource(state);
+      setConsent(state);
+    }
 
     if (state === "essential_only") {
-      // Fire marketing_opt_out if downgrading from analytics/marketing
-      if (previousConsent === "analytics" || previousConsent === "marketing") {
-        sendConsentedEvent("marketing_opt_out");
-      }
-       storageSet("local", CONSENT_KEY, state);
+      storageSet("local", CONSENT_KEY, state);
       updateConsentSource(state);
       setConsent(state);
       void fetch(apiUrl("/consent"), {
@@ -578,8 +681,9 @@ export function ConsentManager() {
         }),
       });
       if (!response.ok) throw new Error("Consent could not be recorded");
-       storageSet("local", CONSENT_KEY, state);
-       updateConsentSource(state);
+      if (consentSaveGenerationRef.current !== saveGeneration) return;
+      storageSet("local", CONSENT_KEY, state);
+      updateConsentSource(state);
       persistFirstTouchAttribution(landingAttributionRef.current ?? capturedAttribution());
       setConsent(state);
       // Fire consent_updated if changing an existing preference
@@ -587,8 +691,9 @@ export function ConsentManager() {
         sendConsentedEvent("consent_updated", { previous: previousConsent, current: state });
       }
     } catch {
-       storageSet("local", CONSENT_KEY, "essential_only");
-       updateConsentSource("essential_only");
+      if (consentSaveGenerationRef.current !== saveGeneration) return;
+      storageSet("local", CONSENT_KEY, "essential_only");
+      updateConsentSource("essential_only");
       setConsent("essential_only");
       setVisible(true);
     }
@@ -626,6 +731,12 @@ export function ConsentManager() {
         >
           {copy.analyticsLabel}
         </button>
+        <button
+          onClick={() => void save("marketing")}
+          className="border border-[#b8912f]/70 px-4 py-3 text-[#f6f1e7] transition hover:bg-[#b8912f]/10"
+        >
+          {copy.marketingLabel}
+        </button>
       </div>
       <details className="mt-3 text-[10px] text-[#a09070]">
         <summary className="cursor-pointer hover:text-[#c8b89a] select-none">{copy.manageLabel}</summary>
@@ -643,8 +754,13 @@ export function ConsentManager() {
             />
             <span>{copy.measurementDescription}</span>
           </label>
-           <label className="flex items-center gap-2 opacity-70">
-             <input type="checkbox" checked={false} disabled readOnly className="accent-[#b8912f]" />
+           <label className="flex items-center gap-2">
+             <input
+               type="checkbox"
+               checked={consent === "marketing"}
+               onChange={(e) => void save(e.target.checked ? "marketing" : "analytics")}
+               className="accent-[#b8912f]"
+             />
               <span>{copy.marketingDescription}</span>
            </label>
         </div>

@@ -817,6 +817,108 @@ export interface StaffProfile {
   role: StaffProfileRole;
 }
 
+export interface MetaPixelSetting {
+  /**
+     * @nullable
+     * @pattern ^[0-9]{5,20}$
+     */
+  pixelId: string | null;
+  enabled: boolean;
+}
+
+export interface GoogleAdsTagSetting {
+  /**
+     * @nullable
+     * @pattern ^AW-[0-9]{6,20}$
+     */
+  pixelId: string | null;
+  enabled: boolean;
+}
+
+export interface XPixelSetting {
+  /**
+     * @nullable
+     * @pattern ^[A-Za-z0-9]{5,20}$
+     */
+  pixelId: string | null;
+  enabled: boolean;
+}
+
+export interface TikTokPixelSetting {
+  /**
+     * @nullable
+     * @pattern ^[A-Za-z0-9]{10,30}$
+     */
+  pixelId: string | null;
+  enabled: boolean;
+}
+
+export type MarketingPixelSettingsSchemaVersion = typeof MarketingPixelSettingsSchemaVersion[keyof typeof MarketingPixelSettingsSchemaVersion];
+
+
+export const MarketingPixelSettingsSchemaVersion = {
+  NUMBER_1: 1,
+} as const;
+
+export interface MarketingPixelSettings {
+  schemaVersion: MarketingPixelSettingsSchemaVersion;
+  meta: MetaPixelSetting;
+  googleAds: GoogleAdsTagSetting;
+  x: XPixelSetting;
+  tiktok: TikTokPixelSetting;
+}
+
+export interface MarketingPixelSettingsUpdate {
+  settings: MarketingPixelSettings;
+  /** @minimum 0 */
+  expectedRevision: number;
+}
+
+export interface StaffMarketingPixelSettings {
+  settings: MarketingPixelSettings;
+  /** @minimum 0 */
+  revision: number;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  updatedByClerkUserId: string | null;
+}
+
+export interface MarketingPixelSettingsRevision {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  /** @minimum 1 */
+  revision: number;
+  settings: MarketingPixelSettings;
+  createdByClerkUserId: string;
+  createdAt: string;
+}
+
+export interface PublicMarketingPixelProvider {
+  pixelId: string;
+}
+
+export interface PublicMarketingPixelProviders {
+  meta: PublicMarketingPixelProvider | null;
+  googleAds: PublicMarketingPixelProvider | null;
+  x: PublicMarketingPixelProvider | null;
+  tiktok: PublicMarketingPixelProvider | null;
+}
+
+export type PublicMarketingPixelSettingsSchemaVersion = typeof PublicMarketingPixelSettingsSchemaVersion[keyof typeof PublicMarketingPixelSettingsSchemaVersion];
+
+
+export const PublicMarketingPixelSettingsSchemaVersion = {
+  NUMBER_1: 1,
+} as const;
+
+export interface PublicMarketingPixelSettings {
+  schemaVersion: PublicMarketingPixelSettingsSchemaVersion;
+  /** @minimum 0 */
+  revision: number;
+  providers: PublicMarketingPixelProviders;
+}
+
 export type StaffAccessInputRole = typeof StaffAccessInputRole[keyof typeof StaffAccessInputRole];
 
 

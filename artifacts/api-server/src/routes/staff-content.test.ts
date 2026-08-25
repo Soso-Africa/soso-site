@@ -265,6 +265,21 @@ test("platform schema upgrades fill missing fields without replacing edited cont
   }
 });
 
+test("platform schema upgrades only the known legacy marketing consent copy", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.site.consent.body = "Necessary storage keeps your bag and privacy choice working. Optional measurement helps SOSO understand which pages are useful; it stays off until you choose it.";
+  legacy.site.consent.marketingDescription = "Marketing — no marketing technology or pixels are currently active.";
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.site.consent.body, DEFAULT_PLATFORM_CONTENT.site.consent.body);
+  assert.equal(upgraded.site.consent.marketingDescription, DEFAULT_PLATFORM_CONTENT.site.consent.marketingDescription);
+
+  legacy.site.consent.body = "Merchant-edited consent body";
+  legacy.site.consent.marketingDescription = "Merchant-edited marketing explanation";
+  const preserved = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(preserved.site.consent.body, "Merchant-edited consent body");
+  assert.equal(preserved.site.consent.marketingDescription, "Merchant-edited marketing explanation");
+});
+
 test("migrated public sources contain no bundled journal SEO or audited navigation/status literals", () => {
   const storefrontRoot = new URL("../../../soso-store/", import.meta.url);
   const journalPost = readFileSync(new URL("src/pages/JournalPost.tsx", storefrontRoot), "utf8");

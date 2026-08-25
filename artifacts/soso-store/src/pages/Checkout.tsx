@@ -30,7 +30,12 @@ export default function Checkout() {
     setState("processing");
     setMessage("");
     const form = new FormData(event.currentTarget);
-    trackStorefrontEvent("checkout_started", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
+    trackStorefrontEvent("checkout_started", {
+      itemIds: items.map((item) => item.commerceVariantId ?? item.commerceProductId ?? item.slug),
+      value: cartTotal,
+      currency: "NGN",
+      itemCount: items.reduce((count, item) => count + item.quantity, 0),
+    });
     trackStorefrontEvent("checkout_form_completed", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
     trackStorefrontEvent("payment_clicked", { itemCount: items.reduce((count, item) => count + item.quantity, 0) });
     trackStorefrontEvent("cta_clicked", { ctaLabel: "proceed_to_payment" });

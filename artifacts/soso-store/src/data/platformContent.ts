@@ -47,7 +47,7 @@ export type PlatformContent = {
     header: { openMenuLabel: string; closeMenuLabel: string; mainNavigationLabel: string; whatsappLabel: string; cartLabel: string; openCartLabel: string; mobileWhatsappLabel: string };
     cart: { title: string; closeLabel: string; emptyMessage: string; continueShoppingLabel: string; sizeLabel: string; removeLabel: string; subtotalLabel: string; helpText: string; checkoutCta: ContentLink; stylistCta: ContentLink };
     floatingCta: ContentLink;
-    consent: { regionLabel: string; title: string; body: string; essentialLabel: string; analyticsLabel: string; manageLabel: string; necessaryDescription: string; measurementDescription: string; marketingDescription: string; footerText: string; privacyLink: ContentLink };
+    consent: { regionLabel: string; title: string; body: string; essentialLabel: string; analyticsLabel: string; marketingLabel: string; manageLabel: string; necessaryDescription: string; measurementDescription: string; marketingDescription: string; footerText: string; privacyLink: ContentLink };
     footer: {
       description: string;
       columns: { heading: string; links: ContentLink[] }[];

@@ -42,7 +42,16 @@ export default function ProductDetail() {
   }, [product, platform.data, setLocation]);
 
   useEffect(() => {
-    if (product) trackStorefrontEvent("product_view", { productSlug: product.slug, articleSlug: editorialOrigin() });
+    if (product) trackStorefrontEvent("product_view", {
+      productSlug: product.slug,
+      commerceProductId: product.commerceProductId,
+      itemIds: [product.commerceProductId ?? product.slug],
+      value: product.price,
+      currency: "NGN",
+      quantity: 1,
+      itemCount: 1,
+      articleSlug: editorialOrigin(),
+    });
   }, [product]);
 
   if (!product) {
@@ -67,7 +76,6 @@ export default function ProductDetail() {
       commerceProductId: product.commerceProductId,
       commerceVariantId: product.commerceVariantIds?.[size ?? ""],
     });
-    trackStorefrontEvent("add_to_bag", { productSlug: product.slug, selectedSize: size ?? undefined, articleSlug: editorialOrigin() });
     trackStorefrontEvent("cta_clicked", { ctaLabel: "add_to_bag", productSlug: product.slug, articleSlug: editorialOrigin() });
   };
 

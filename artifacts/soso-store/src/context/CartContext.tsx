@@ -90,7 +90,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const closeDrawer = () => setIsDrawerOpen(false);
 
   const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
-    trackStorefrontEvent('add_to_bag', { productSlug: newItem.slug, selectedSize: newItem.size });
+    trackStorefrontEvent('add_to_bag', {
+      productSlug: newItem.slug,
+      commerceProductId: newItem.commerceProductId,
+      itemIds: [newItem.commerceVariantId ?? newItem.commerceProductId ?? newItem.slug],
+      value: newItem.price,
+      currency: 'NGN',
+      quantity: 1,
+      itemCount: 1,
+    });
     setItems(current => {
       const existing = current.find(i => i.slug === newItem.slug && i.size === newItem.size);
       if (existing) {

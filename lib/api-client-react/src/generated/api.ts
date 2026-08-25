@@ -49,6 +49,8 @@ import type {
   ListStaffOrdersParams,
   ListStaffPolicyHistory200Item,
   ListStaffRedirectHistory200Item,
+  MarketingPixelSettingsRevision,
+  MarketingPixelSettingsUpdate,
   PlatformContentPublication,
   PlatformContentRevision,
   PlatformContentUpdate,
@@ -56,6 +58,7 @@ import type {
   PolicySummary,
   PrivacyRequestAcknowledgement,
   PrivacyRequestInput,
+  PublicMarketingPixelSettings,
   PublishedPlatformContent,
   RedirectLookup,
   StaffAccessInput,
@@ -69,6 +72,7 @@ import type {
   StaffJournalPostInput,
   StaffJournalPostRevision,
   StaffJournalPostUpdate,
+  StaffMarketingPixelSettings,
   StaffNotification,
   StaffNotificationAcknowledgement,
   StaffOrder,
@@ -3595,6 +3599,308 @@ export function useListStaffPlatformContentRevisions<TData = Awaited<ReturnType<
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListStaffPlatformContentRevisionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPublicMarketingPixelsUrl = () => {
+
+
+
+
+  return `/api/marketing-pixels`
+}
+
+/**
+ * @summary Get valid enabled public marketing pixel identifiers
+ */
+export const getPublicMarketingPixels = async ( options?: Parameters<typeof customFetch>[1]): Promise<PublicMarketingPixelSettings> => {
+
+  return customFetch<PublicMarketingPixelSettings>(getGetPublicMarketingPixelsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPublicMarketingPixelsQueryKey = () => {
+    return [
+    `/api/marketing-pixels`
+    ] as const;
+    }
+
+
+export const getGetPublicMarketingPixelsQueryOptions = <TData = Awaited<ReturnType<typeof getPublicMarketingPixels>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMarketingPixels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPublicMarketingPixelsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPublicMarketingPixels>>> = ({ signal }) => getPublicMarketingPixels({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPublicMarketingPixels>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetPublicMarketingPixelsQueryResult = NonNullable<Awaited<ReturnType<typeof getPublicMarketingPixels>>>
+export type GetPublicMarketingPixelsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get valid enabled public marketing pixel identifiers
+ */
+
+export function useGetPublicMarketingPixels<TData = Awaited<ReturnType<typeof getPublicMarketingPixels>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getPublicMarketingPixels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetPublicMarketingPixelsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStaffMarketingPixelsUrl = () => {
+
+
+
+
+  return `/api/staff/marketing-pixels`
+}
+
+/**
+ * @summary Get governed marketing pixel settings
+ */
+export const getStaffMarketingPixels = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffMarketingPixelSettings> => {
+
+  return customFetch<StaffMarketingPixelSettings>(getGetStaffMarketingPixelsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffMarketingPixelsQueryKey = () => {
+    return [
+    `/api/staff/marketing-pixels`
+    ] as const;
+    }
+
+
+export const getGetStaffMarketingPixelsQueryOptions = <TData = Awaited<ReturnType<typeof getStaffMarketingPixels>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffMarketingPixels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffMarketingPixelsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffMarketingPixels>>> = ({ signal }) => getStaffMarketingPixels({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffMarketingPixels>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffMarketingPixelsQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffMarketingPixels>>>
+export type GetStaffMarketingPixelsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get governed marketing pixel settings
+ */
+
+export function useGetStaffMarketingPixels<TData = Awaited<ReturnType<typeof getStaffMarketingPixels>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffMarketingPixels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffMarketingPixelsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateStaffMarketingPixelsUrl = () => {
+
+
+
+
+  return `/api/staff/marketing-pixels`
+}
+
+/**
+ * @summary Replace governed marketing pixel settings with optimistic concurrency
+ */
+export const updateStaffMarketingPixels = async (marketingPixelSettingsUpdate: MarketingPixelSettingsUpdate, options?: Parameters<typeof customFetch>[1]): Promise<StaffMarketingPixelSettings> => {
+
+  return customFetch<StaffMarketingPixelSettings>(getUpdateStaffMarketingPixelsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(marketingPixelSettingsUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateStaffMarketingPixelsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffMarketingPixels>>, TError,{data: BodyType<MarketingPixelSettingsUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateStaffMarketingPixels>>, TError,{data: BodyType<MarketingPixelSettingsUpdate>}, TContext> => {
+
+const mutationKey = ['updateStaffMarketingPixels'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateStaffMarketingPixels>>, {data: BodyType<MarketingPixelSettingsUpdate>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateStaffMarketingPixels(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateStaffMarketingPixelsMutationResult = NonNullable<Awaited<ReturnType<typeof updateStaffMarketingPixels>>>
+    export type UpdateStaffMarketingPixelsMutationBody = BodyType<MarketingPixelSettingsUpdate>
+    export type UpdateStaffMarketingPixelsMutationError = ErrorType<void>
+
+    /**
+ * @summary Replace governed marketing pixel settings with optimistic concurrency
+ */
+export const useUpdateStaffMarketingPixels = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateStaffMarketingPixels>>, TError,{data: BodyType<MarketingPixelSettingsUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateStaffMarketingPixels>>,
+        TError,
+        {data: BodyType<MarketingPixelSettingsUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateStaffMarketingPixelsMutationOptions(options));
+    }
+
+export const getListStaffMarketingPixelRevisionsUrl = () => {
+
+
+
+
+  return `/api/staff/marketing-pixels/history`
+}
+
+/**
+ * @summary List immutable marketing pixel setting revisions
+ */
+export const listStaffMarketingPixelRevisions = async ( options?: Parameters<typeof customFetch>[1]): Promise<MarketingPixelSettingsRevision[]> => {
+
+  return customFetch<MarketingPixelSettingsRevision[]>(getListStaffMarketingPixelRevisionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffMarketingPixelRevisionsQueryKey = () => {
+    return [
+    `/api/staff/marketing-pixels/history`
+    ] as const;
+    }
+
+
+export const getListStaffMarketingPixelRevisionsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffMarketingPixelRevisions>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffMarketingPixelRevisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffMarketingPixelRevisionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffMarketingPixelRevisions>>> = ({ signal }) => listStaffMarketingPixelRevisions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffMarketingPixelRevisions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffMarketingPixelRevisionsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffMarketingPixelRevisions>>>
+export type ListStaffMarketingPixelRevisionsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List immutable marketing pixel setting revisions
+ */
+
+export function useListStaffMarketingPixelRevisions<TData = Awaited<ReturnType<typeof listStaffMarketingPixelRevisions>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffMarketingPixelRevisions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffMarketingPixelRevisionsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

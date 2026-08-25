@@ -34,6 +34,10 @@ import {
   type StaffOrder,
   type StaffOrderUpdateStatus,
   type StaffPrivacyRequest,
+  useGetStaffMarketingPixels,
+  useUpdateStaffMarketingPixels,
+  useListStaffMarketingPixelRevisions,
+  type MarketingPixelSettings,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import {
@@ -69,6 +73,7 @@ import {
   KeyRound,
   Smartphone,
   Tablet,
+  Target,
   Trash2,
   Truck,
   TriangleAlert,
@@ -119,7 +124,7 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "platform" | "faq" | "policies" | "redirects" | "analytics" | "staff";
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "platform" | "faq" | "policies" | "redirects" | "marketing-pixels" | "analytics" | "staff";
 type StaffNavGroup = {
   label: string;
   items: { id: StaffTab; label: string; icon: React.ElementType }[];
@@ -155,6 +160,7 @@ export default function Staff() {
     availableTabs.add("journal"); availableTabs.add("platform"); availableTabs.add("faq"); availableTabs.add("policies");
   }
   if (profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "operations") availableTabs.add("redirects");
+  if (profile?.role === "owner" || profile?.role === "administrator") availableTabs.add("marketing-pixels");
   if (canSeeAnalytics) availableTabs.add("analytics");
   if (profile?.role === "owner") availableTabs.add("staff");
 
@@ -193,6 +199,7 @@ export default function Staff() {
     { label: "Governance", items: [
       ...(isEditorial ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
       ...((profile.role === "owner" || profile.role === "administrator" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
+      ...((profile.role === "owner" || profile.role === "administrator") ? [staffNavItem("marketing-pixels", "Marketing pixels", Target)] : []),
     ] },
     { label: "Intelligence", items: canSeeAnalytics ? [staffNavItem("analytics", "Analytics", BarChart3)] : [] },
     { label: "Administration", items: profile.role === "owner" ? [staffNavItem("staff", "Staff access", Users)] : [] },
@@ -257,6 +264,7 @@ export default function Staff() {
         {activeTab === "faq" && <FaqManagementSection />}
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
         {activeTab === "redirects" && <RedirectsManagementSection />}
+        {activeTab === "marketing-pixels" && <MarketingPixelsSection />}
         {activeTab === "analytics" && <><AnalyticsSection funnel={funnel.data} auditEvents={audit.data} loading={funnel.isLoading || audit.isLoading} range={range} role={profile.role} onExported={() => void audit.refetch()} /><ExperimentLog /></>}
         {activeTab === "staff" && <StaffAccessSection />}
       </section>
@@ -1765,6 +1773,223 @@ function RoleCapabilityBanner({ role }: { role: string }) {
 
 function SectionHeading({ icon: Icon, title, description }: { icon: typeof Package; title: string; description: string }) {
   return <div className="mb-4"><div className="flex items-center gap-2"><Icon size={18} className="text-primary" /><h2 className="text-lg soso-display">{title}</h2></div><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p></div>;
+}
+
+function MarketingPixelsSection() {
+  const pixels = useGetStaffMarketingPixels({ query: { queryKey: ["staff-marketing-pixels"], refetchInterval: 60_000 } });
+  const revisions = useListStaffMarketingPixelRevisions({ query: { queryKey: ["staff-marketing-pixel-revisions"], refetchInterval: 60_000 } });
+  const updatePixels = useUpdateStaffMarketingPixels();
+
+  const [settings, setSettings] = useState<MarketingPixelSettings>({
+    schemaVersion: 1,
+    meta: { pixelId: null, enabled: false },
+    googleAds: { pixelId: null, enabled: false },
+    x: { pixelId: null, enabled: false },
+    tiktok: { pixelId: null, enabled: false },
+  });
+
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (pixels.data && (baseRevision === null || (!dirty && baseRevision !== pixels.data.revision))) {
+      setSettings(pixels.data.settings);
+      setBaseRevision(pixels.data.revision);
+    }
+  }, [baseRevision, dirty, pixels.data]);
+
+  const [notice, setNotice] = useState<{ message: string; isError: boolean } | null>(null);
+
+  const isValidId = (provider: keyof Omit<MarketingPixelSettings, "schemaVersion">, id: string | null) => {
+    if (!id) return false;
+    if (provider === "meta") return /^[0-9]{5,20}$/.test(id);
+    if (provider === "googleAds") return /^AW-[0-9]{6,20}$/.test(id);
+    if (provider === "x") return /^[A-Za-z0-9]{5,20}$/.test(id);
+    if (provider === "tiktok") return /^[A-Za-z0-9]{10,30}$/.test(id);
+    return false;
+  };
+
+  const handleChange = (provider: keyof Omit<MarketingPixelSettings, "schemaVersion">, field: "pixelId" | "enabled", value: string | boolean) => {
+    setDirty(true);
+    setNotice(null);
+    setSettings((prev) => {
+      const nextId = field === "pixelId" ? (value === "" ? null : (value as string)) : prev[provider].pixelId;
+      let nextEnabled = field === "enabled" ? (value as boolean) : prev[provider].enabled;
+
+      if (field === "pixelId") {
+        if (!isValidId(provider, nextId)) nextEnabled = false;
+      }
+
+      return {
+        ...prev,
+        [provider]: {
+          ...prev[provider],
+          pixelId: nextId,
+          enabled: nextEnabled,
+        }
+      };
+    });
+  };
+
+  const handleToggle = (provider: keyof Omit<MarketingPixelSettings, "schemaVersion">, checked: boolean) => {
+    if (checked && !isValidId(provider, settings[provider].pixelId)) {
+      setNotice({ message: "Enter a valid identifier before enabling this provider.", isError: true });
+      return;
+    }
+    handleChange(provider, "enabled", checked);
+  };
+
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (baseRevision === null) return;
+    const invalidProviders = providers.filter(({ key }) => (
+      Boolean(settings[key].pixelId) && !isValidId(key, settings[key].pixelId)
+    ));
+    if (invalidProviders.length > 0) {
+      setNotice({
+        message: `Correct the ${invalidProviders.map(({ label }) => label).join(", ")} identifier before saving.`,
+        isError: true,
+      });
+      return;
+    }
+    setNotice(null);
+    updatePixels.mutate({
+      data: {
+        settings,
+        expectedRevision: baseRevision
+      }
+    }, {
+      onSuccess: (updated) => {
+        setNotice({ message: "Marketing pixels configuration saved.", isError: false });
+        setSettings(updated.settings);
+        setBaseRevision(updated.revision);
+        setDirty(false);
+        void pixels.refetch();
+        void revisions.refetch();
+      },
+      onError: (error) => {
+        setNotice({ message: errorMessage(error, "Failed to save marketing pixels configuration."), isError: true });
+      }
+    });
+  };
+
+  const reload = () => {
+    if (!pixels.data) return;
+    setSettings(pixels.data.settings);
+    setBaseRevision(pixels.data.revision);
+    setDirty(false);
+    setNotice(null);
+  };
+
+  const providers: { key: keyof Omit<MarketingPixelSettings, "schemaVersion">; label: string; format: string }[] = [
+    { key: "meta", label: "Meta Pixel", format: "Digits only, e.g. 123456789012345" },
+    { key: "googleAds", label: "Google Ads Tag", format: "Starts with AW-, e.g. AW-123456789" },
+    { key: "x", label: "X (Twitter) Pixel", format: "Alphanumeric, e.g. a1b2c" },
+    { key: "tiktok", label: "TikTok Pixel", format: "Alphanumeric, e.g. C123ABCD456EFGH789IJ" },
+  ];
+
+  return (
+    <section className="mt-12 border-t border-border pt-10">
+      <SectionHeading icon={Target} title="Marketing pixels" description="Manage identifiers for third-party advertising trackers. These are strictly public tag identifiers (like AW-123456) and never API keys, access tokens, secrets, or raw script snippets." />
+      {notice && (
+        <div data-testid="status-pixels-notice" className={`mb-6 p-4 text-sm border ${notice.isError ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-primary/25 bg-primary/5"}`}>
+          {notice.message}
+        </div>
+      )}
+      <div className="grid lg:grid-cols-[1fr_320px] gap-6 items-start">
+        <form onSubmit={save} className="space-y-6">
+          <fieldset disabled={pixels.isLoading || updatePixels.isPending} className="space-y-6 border-0 p-0 m-0">
+            <div className="border border-border bg-card p-5 space-y-6">
+              {providers.map((p) => {
+                const config = settings[p.key];
+                const invalid = Boolean(config.pixelId) && !isValidId(p.key, config.pixelId);
+                return (
+                  <div key={p.key} className="grid sm:grid-cols-[1fr_auto] gap-4 items-start border-b border-border pb-6 last:border-0 last:pb-0">
+                    <div>
+                      <label className="block text-sm font-medium">{p.label}</label>
+                      <p className="text-xs text-muted-foreground mt-1 mb-3">{p.format}</p>
+                      <input
+                        type="text"
+                        data-testid={`input-pixel-${p.key}`}
+                        value={config.pixelId ?? ""}
+                        onChange={(e) => handleChange(p.key, "pixelId", e.target.value)}
+                        placeholder="e.g. 123456"
+                        aria-invalid={invalid}
+                        aria-describedby={invalid ? `pixel-error-${p.key}` : undefined}
+                        className="staff-input"
+                      />
+                      {invalid && (
+                        <p id={`pixel-error-${p.key}`} data-testid={`error-pixel-${p.key}`} className="mt-2 text-xs text-destructive">
+                          Enter an identifier in the format shown above. Script snippets, URLs, and credentials are not accepted.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-col sm:items-end gap-2 pt-1 sm:pt-8">
+                      <label className="flex items-center gap-2 text-xs font-medium cursor-pointer uppercase tracking-wider">
+                        <input
+                          type="checkbox"
+                          data-testid={`toggle-pixel-${p.key}`}
+                          checked={config.enabled}
+                          onChange={(e) => handleToggle(p.key, e.target.checked)}
+                          className="w-4 h-4 accent-primary"
+                        />
+                        Enable Tracker
+                      </label>
+                      <div data-testid={`status-pixel-${p.key}`} className="text-[10px] uppercase tracking-wider font-semibold">
+                        {config.enabled ? <span className="text-green-500">Active</span> : config.pixelId ? <span className="text-primary">Configured</span> : <span className="text-muted-foreground">Inactive</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                data-testid="button-save-pixels"
+                disabled={updatePixels.isPending || pixels.isLoading}
+                className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"
+              >
+                <Save size={15} /> Save Configuration
+              </button>
+              <button
+                type="button"
+                data-testid="button-reload-pixels"
+                onClick={reload}
+                disabled={updatePixels.isPending || pixels.isLoading}
+                className="flex min-h-10 items-center gap-2 border border-border px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"
+              >
+                <History size={15} /> Revert Changes
+              </button>
+            </div>
+          </fieldset>
+        </form>
+
+        <div className="border border-border bg-card">
+          <div className="p-4 border-b border-border bg-muted/20">
+            <h3 className="text-xs font-semibold uppercase tracking-wider">Revision History</h3>
+            {pixels.data?.updatedAt && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Current revision {pixels.data.revision}, updated {format(new Date(pixels.data.updatedAt), "d MMM yyyy, HH:mm")}.
+              </p>
+            )}
+          </div>
+          <div className="divide-y divide-border overflow-y-auto max-h-[500px]">
+            {revisions.isLoading ? <LoadingRows /> : !revisions.data?.length ? <Empty label="No revisions recorded yet." /> : revisions.data.map((rev) => (
+              <div key={rev.id} data-testid={`row-pixel-revision-${rev.id}`} className="p-4 flex flex-col gap-1 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs">Revision {rev.revision}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-widest">{format(new Date(rev.createdAt), "HH:mm")}</span>
+                </div>
+                <span className="text-xs text-muted-foreground">{format(new Date(rev.createdAt), "d MMMM yyyy")}</span>
+                <span className="text-[10px] text-primary truncate mt-1">By {rev.createdByClerkUserId}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function InputLabel({ label, children }: { label: string; children: React.ReactNode }) {

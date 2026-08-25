@@ -27,7 +27,7 @@ export const PlatformContentSchema = z.object({
     header: z.object({ openMenuLabel: copy, closeMenuLabel: copy, mainNavigationLabel: copy, whatsappLabel: copy, cartLabel: copy, openCartLabel: copy, mobileWhatsappLabel: copy }).strict(),
     cart: z.object({ title: copy, closeLabel: copy, emptyMessage: copy, continueShoppingLabel: copy, sizeLabel: copy, removeLabel: copy, subtotalLabel: copy, helpText: copy, checkoutCta: link, stylistCta: link }).strict(),
     floatingCta: link,
-    consent: z.object({ regionLabel: copy, title: copy, body: copy, essentialLabel: copy, analyticsLabel: copy, manageLabel: copy, necessaryDescription: copy, measurementDescription: copy, marketingDescription: copy, footerText: copy, privacyLink: link }).strict(),
+    consent: z.object({ regionLabel: copy, title: copy, body: copy, essentialLabel: copy, analyticsLabel: copy, marketingLabel: copy, manageLabel: copy, necessaryDescription: copy, measurementDescription: copy, marketingDescription: copy, footerText: copy, privacyLink: link }).strict(),
     footer: z.object({
       description: copy,
       columns: z.array(z.object({ heading: copy, links: z.array(link).min(1) }).strict()).min(1),
@@ -177,7 +177,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     header: { openMenuLabel: "Open menu", closeMenuLabel: "Close menu", mainNavigationLabel: "Main navigation", whatsappLabel: "Order via WhatsApp", cartLabel: "Bag", openCartLabel: "Open cart", mobileWhatsappLabel: "Chat with Specialist" },
     cart: { title: "Your Bag", closeLabel: "Close cart", emptyMessage: "Your bag is empty.", continueShoppingLabel: "Continue Shopping", sizeLabel: "Size:", removeLabel: "Remove", subtotalLabel: "Subtotal", helpText: "Shipping and taxes calculated at checkout. Need help first? Ask a stylist.", checkoutCta: { label: "Proceed to payment", href: "/checkout" }, stylistCta: { label: "Ask a stylist", href: "/#whatsapp" } },
     floatingCta: { label: "Explore pieces", href: "/shop" },
-    consent: { regionLabel: "Privacy choices", title: "Your privacy choices", body: "Necessary storage keeps your bag and privacy choice working. Optional measurement helps SOSO understand which pages are useful; it stays off until you choose it.", essentialLabel: "Necessary only", analyticsLabel: "Allow measurement", manageLabel: "Manage preference cookies", necessaryDescription: "Necessary — bag, session, consent preference. Always active.", measurementDescription: "Measurement — anonymous page and product journey counts.", marketingDescription: "Marketing — no marketing technology or pixels are currently active.", footerText: "You can change your choice at any time from the footer.", privacyLink: { label: "Privacy notice", href: "/privacy" } },
+    consent: { regionLabel: "Privacy choices", title: "Your privacy choices", body: "Necessary storage keeps your bag and privacy choice working. Optional measurement helps SOSO understand which pages are useful; marketing pixels stay off unless you grant marketing consent.", essentialLabel: "Necessary only", analyticsLabel: "Allow measurement", marketingLabel: "Allow marketing", manageLabel: "Manage preference cookies", necessaryDescription: "Necessary — bag, session, consent preference. Always active.", measurementDescription: "Measurement — anonymous page and product journey counts.", marketingDescription: "Marketing — retargeting pixels from configured advertising providers.", footerText: "You can change your choice at any time from the footer.", privacyLink: { label: "Privacy notice", href: "/privacy" } },
     footer: {
       description: "Bespoke menswear house, Abuja. Kaftans, agbadas, dashikis and shirting — made to order for the individual.",
       columns: [
@@ -397,7 +397,19 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     return value === undefined ? defaults : value;
   };
 
-  return mergeMissing(DEFAULT_PLATFORM_CONTENT, current);
+  const merged = mergeMissing(DEFAULT_PLATFORM_CONTENT, current);
+  if (merged && typeof merged === "object") {
+    const consent = (merged as {
+      site?: { consent?: { body?: unknown; marketingDescription?: unknown } };
+    }).site?.consent;
+    if (consent?.body === "Necessary storage keeps your bag and privacy choice working. Optional measurement helps SOSO understand which pages are useful; it stays off until you choose it.") {
+      consent.body = DEFAULT_PLATFORM_CONTENT.site.consent.body;
+    }
+    if (consent?.marketingDescription === "Marketing — no marketing technology or pixels are currently active.") {
+      consent.marketingDescription = DEFAULT_PLATFORM_CONTENT.site.consent.marketingDescription;
+    }
+  }
+  return merged;
 }
 
 export async function ensurePlatformContent() {
@@ -416,8 +428,8 @@ export async function ensurePlatformContent() {
   const mergedDraft = mergePlatformContentDefaults(current.draft);
   const parsedMergedDraft = PlatformContentSchema.safeParse(mergedDraft);
   if (
-    !PlatformContentSchema.safeParse(current.draft).success
-    && parsedMergedDraft.success
+    parsedMergedDraft.success
+    && platformContentHash(current.draft) !== platformContentHash(parsedMergedDraft.data)
   ) {
     updates.draft = parsedMergedDraft.data;
     updates.draftUpdatedAt = now;
@@ -427,8 +439,8 @@ export async function ensurePlatformContent() {
     const mergedPublished = mergePlatformContentDefaults(current.published);
     const parsedMergedPublished = PlatformContentSchema.safeParse(mergedPublished);
     if (
-      !PlatformContentSchema.safeParse(current.published).success
-      && parsedMergedPublished.success
+      parsedMergedPublished.success
+      && platformContentHash(current.published) !== platformContentHash(parsedMergedPublished.data)
     ) {
       updates.published = parsedMergedPublished.data;
       updates.publishedAt = now;

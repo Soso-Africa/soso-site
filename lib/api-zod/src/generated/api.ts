@@ -1549,6 +1549,177 @@ export const ListStaffPlatformContentRevisionsResponse = zod.array(ListStaffPlat
 
 
 /**
+ * @summary Get valid enabled public marketing pixel identifiers
+ */
+export const getPublicMarketingPixelsResponseRevisionMin = 0;
+
+
+
+export const GetPublicMarketingPixelsResponse = zod.object({
+  "schemaVersion": zod.literal(1),
+  "revision": zod.number().min(getPublicMarketingPixelsResponseRevisionMin),
+  "providers": zod.object({
+  "meta": zod.union([zod.object({
+  "pixelId": zod.string()
+}),zod.null()]),
+  "googleAds": zod.union([zod.object({
+  "pixelId": zod.string()
+}),zod.null()]),
+  "x": zod.union([zod.object({
+  "pixelId": zod.string()
+}),zod.null()]),
+  "tiktok": zod.union([zod.object({
+  "pixelId": zod.string()
+}),zod.null()])
+})
+})
+
+
+/**
+ * @summary Get governed marketing pixel settings
+ */
+export const getStaffMarketingPixelsResponseSettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const getStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const getStaffMarketingPixelsResponseSettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
+export const getStaffMarketingPixelsResponseSettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
+export const getStaffMarketingPixelsResponseRevisionMin = 0;
+
+
+
+export const GetStaffMarketingPixelsResponse = zod.object({
+  "settings": zod.object({
+  "schemaVersion": zod.literal(1),
+  "meta": zod.object({
+  "pixelId": zod.string().regex(getStaffMarketingPixelsResponseSettingsMetaPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "googleAds": zod.object({
+  "pixelId": zod.string().regex(getStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "x": zod.object({
+  "pixelId": zod.string().regex(getStaffMarketingPixelsResponseSettingsXPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "tiktok": zod.object({
+  "pixelId": zod.string().regex(getStaffMarketingPixelsResponseSettingsTiktokPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+})
+}),
+  "revision": zod.number().min(getStaffMarketingPixelsResponseRevisionMin),
+  "updatedAt": zod.coerce.date().nullable(),
+  "updatedByClerkUserId": zod.string().nullable()
+})
+
+
+/**
+ * @summary Replace governed marketing pixel settings with optimistic concurrency
+ */
+export const updateStaffMarketingPixelsBodySettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const updateStaffMarketingPixelsBodySettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const updateStaffMarketingPixelsBodySettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
+export const updateStaffMarketingPixelsBodySettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
+export const updateStaffMarketingPixelsBodyExpectedRevisionMin = 0;
+
+
+
+export const UpdateStaffMarketingPixelsBody = zod.object({
+  "settings": zod.object({
+  "schemaVersion": zod.literal(1),
+  "meta": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsBodySettingsMetaPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "googleAds": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsBodySettingsGoogleAdsPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "x": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsBodySettingsXPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "tiktok": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsBodySettingsTiktokPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+})
+}),
+  "expectedRevision": zod.number().min(updateStaffMarketingPixelsBodyExpectedRevisionMin)
+})
+
+export const updateStaffMarketingPixelsResponseSettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const updateStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const updateStaffMarketingPixelsResponseSettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
+export const updateStaffMarketingPixelsResponseSettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
+export const updateStaffMarketingPixelsResponseRevisionMin = 0;
+
+
+
+export const UpdateStaffMarketingPixelsResponse = zod.object({
+  "settings": zod.object({
+  "schemaVersion": zod.literal(1),
+  "meta": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsResponseSettingsMetaPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "googleAds": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "x": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsResponseSettingsXPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "tiktok": zod.object({
+  "pixelId": zod.string().regex(updateStaffMarketingPixelsResponseSettingsTiktokPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+})
+}),
+  "revision": zod.number().min(updateStaffMarketingPixelsResponseRevisionMin),
+  "updatedAt": zod.coerce.date().nullable(),
+  "updatedByClerkUserId": zod.string().nullable()
+})
+
+
+/**
+ * @summary List immutable marketing pixel setting revisions
+ */
+export const listStaffMarketingPixelRevisionsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+export const listStaffMarketingPixelRevisionsResponseSettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const listStaffMarketingPixelRevisionsResponseSettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const listStaffMarketingPixelRevisionsResponseSettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
+export const listStaffMarketingPixelRevisionsResponseSettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
+
+
+export const ListStaffMarketingPixelRevisionsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffMarketingPixelRevisionsResponseIdRegExp),
+  "revision": zod.number().min(1),
+  "settings": zod.object({
+  "schemaVersion": zod.literal(1),
+  "meta": zod.object({
+  "pixelId": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsMetaPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "googleAds": zod.object({
+  "pixelId": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsGoogleAdsPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "x": zod.object({
+  "pixelId": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsXPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+}),
+  "tiktok": zod.object({
+  "pixelId": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsTiktokPixelIdRegExp).nullable(),
+  "enabled": zod.boolean()
+})
+}),
+  "createdByClerkUserId": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListStaffMarketingPixelRevisionsResponse = zod.array(ListStaffMarketingPixelRevisionsResponseItem)
+
+
+/**
  * @summary List policy versions
  */
 export const listStaffPoliciesResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');

@@ -897,6 +897,61 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PlatformContentRevision" }
+  /marketing-pixels:
+    get:
+      operationId: getPublicMarketingPixels
+      tags: [content]
+      summary: Get valid enabled public marketing pixel identifiers
+      responses:
+        "200":
+          description: Fail-closed public marketing pixel configuration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMarketingPixelSettings" }
+  /staff/marketing-pixels:
+    get:
+      operationId: getStaffMarketingPixels
+      tags: [staff]
+      summary: Get governed marketing pixel settings
+      responses:
+        "200":
+          description: Current marketing pixel settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffMarketingPixelSettings" }
+        "403": { description: "Owner or administrator access required" }
+    put:
+      operationId: updateStaffMarketingPixels
+      tags: [staff]
+      summary: Replace governed marketing pixel settings with optimistic concurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MarketingPixelSettingsUpdate" }
+      responses:
+        "200":
+          description: Updated marketing pixel settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffMarketingPixelSettings" }
+        "400": { description: "Missing, malformed, or unsupported provider identifier" }
+        "403": { description: "Owner or administrator access required" }
+        "409": { description: "Settings changed while they were being edited" }
+  /staff/marketing-pixels/history:
+    get:
+      operationId: listStaffMarketingPixelRevisions
+      tags: [staff]
+      summary: List immutable marketing pixel setting revisions
+      responses:
+        "200":
+          description: Marketing pixel revision history, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/MarketingPixelSettingsRevision" }
+        "403": { description: "Owner or administrator access required" }
   /staff/policies:
     get:
       operationId: listStaffPolicies
@@ -1585,6 +1640,110 @@ components:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         email: { type: string, maxLength: 320 }
         role: { type: string, enum: [owner, administrator, operations, stylist, editor, analyst] }
+    MetaPixelSetting:
+      type: object
+      additionalProperties: false
+      required: [pixelId, enabled]
+      properties:
+        pixelId:
+          type: ["string", "null"]
+          pattern: "^[0-9]{5,20}$"
+        enabled: { type: boolean }
+    GoogleAdsTagSetting:
+      type: object
+      additionalProperties: false
+      required: [pixelId, enabled]
+      properties:
+        pixelId:
+          type: ["string", "null"]
+          pattern: "^AW-[0-9]{6,20}$"
+        enabled: { type: boolean }
+    XPixelSetting:
+      type: object
+      additionalProperties: false
+      required: [pixelId, enabled]
+      properties:
+        pixelId:
+          type: ["string", "null"]
+          pattern: "^[A-Za-z0-9]{5,20}$"
+        enabled: { type: boolean }
+    TikTokPixelSetting:
+      type: object
+      additionalProperties: false
+      required: [pixelId, enabled]
+      properties:
+        pixelId:
+          type: ["string", "null"]
+          pattern: "^[A-Za-z0-9]{10,30}$"
+        enabled: { type: boolean }
+    MarketingPixelSettings:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, meta, googleAds, x, tiktok]
+      properties:
+        schemaVersion: { type: number, enum: [1] }
+        meta: { $ref: "#/components/schemas/MetaPixelSetting" }
+        googleAds: { $ref: "#/components/schemas/GoogleAdsTagSetting" }
+        x: { $ref: "#/components/schemas/XPixelSetting" }
+        tiktok: { $ref: "#/components/schemas/TikTokPixelSetting" }
+    MarketingPixelSettingsUpdate:
+      type: object
+      additionalProperties: false
+      required: [settings, expectedRevision]
+      properties:
+        settings: { $ref: "#/components/schemas/MarketingPixelSettings" }
+        expectedRevision: { type: number, minimum: 0 }
+    StaffMarketingPixelSettings:
+      type: object
+      required: [settings, revision, updatedAt, updatedByClerkUserId]
+      properties:
+        settings: { $ref: "#/components/schemas/MarketingPixelSettings" }
+        revision: { type: number, minimum: 0 }
+        updatedAt: { type: ["string", "null"], format: date-time }
+        updatedByClerkUserId: { type: ["string", "null"] }
+    MarketingPixelSettingsRevision:
+      type: object
+      required: [id, revision, settings, createdByClerkUserId, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        revision: { type: number, minimum: 1 }
+        settings: { $ref: "#/components/schemas/MarketingPixelSettings" }
+        createdByClerkUserId: { type: string }
+        createdAt: { type: string, format: date-time }
+    PublicMarketingPixelProvider:
+      type: object
+      additionalProperties: false
+      required: [pixelId]
+      properties:
+        pixelId: { type: string }
+    PublicMarketingPixelProviders:
+      type: object
+      additionalProperties: false
+      required: [meta, googleAds, x, tiktok]
+      properties:
+        meta:
+          anyOf:
+            - $ref: "#/components/schemas/PublicMarketingPixelProvider"
+            - type: "null"
+        googleAds:
+          anyOf:
+            - $ref: "#/components/schemas/PublicMarketingPixelProvider"
+            - type: "null"
+        x:
+          anyOf:
+            - $ref: "#/components/schemas/PublicMarketingPixelProvider"
+            - type: "null"
+        tiktok:
+          anyOf:
+            - $ref: "#/components/schemas/PublicMarketingPixelProvider"
+            - type: "null"
+    PublicMarketingPixelSettings:
+      type: object
+      required: [schemaVersion, revision, providers]
+      properties:
+        schemaVersion: { type: number, enum: [1] }
+        revision: { type: number, minimum: 0 }
+        providers: { $ref: "#/components/schemas/PublicMarketingPixelProviders" }
     StaffAccessInput:
       type: object
       required: [clerkUserId, email, role]

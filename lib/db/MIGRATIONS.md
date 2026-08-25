@@ -9,8 +9,8 @@ pnpm --filter @workspace/db run migrate:soso-content
 ```
 
 The command runs the checked-in SOSO migrations in filename order inside one
-transaction, currently `0001_soso_content_cms.sql` followed by
-`0002_faq_history_pagination.sql`, and rolls the batch back on failure. Each SQL
+transaction, currently `0001_soso_content_cms.sql` through
+`0003_marketing_pixel_settings.sql`, and rolls the batch back on failure. Each SQL
 migration is idempotent, so the command can be run again safely.
 
 For subsequent schema changes, compare the Drizzle schema with the current
