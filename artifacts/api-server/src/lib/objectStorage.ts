@@ -67,16 +67,18 @@ async function signPutUrl(bucketName: string, objectName: string): Promise<strin
 }
 
 export class ObjectStorageService {
-  async createImageUpload(filename: string, contentType: string): Promise<{ uploadURL: string; objectPath: string }> {
+  async createMediaUpload(filename: string, contentType: string): Promise<{ uploadURL: string; objectPath: string }> {
     const extensions: Record<string, string> = {
       "image/jpeg": "jpg",
       "image/png": "png",
       "image/webp": "webp",
       "image/gif": "gif",
+      "video/mp4": "mp4",
+      "video/webm": "webm",
     };
     const extension = extensions[contentType];
-    if (!extension) throw new Error("Unsupported image content type");
-    const stem = filename.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 120) || "image";
+    if (!extension) throw new Error("Unsupported media content type");
+    const stem = filename.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 120) || "media";
     const safeFilename = `${stem}.${extension}`;
     const privateDir = requiredEnvironmentPath("PRIVATE_OBJECT_DIR").replace(/\/+$/, "");
     const relativePath = `uploads/${randomUUID()}-${safeFilename}`;

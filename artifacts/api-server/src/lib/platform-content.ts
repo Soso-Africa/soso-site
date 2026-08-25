@@ -26,6 +26,45 @@ const image = z.object({
   alt: z.string().min(1).max(300),
   provenance: imageProvenance,
 }).strict();
+const heroImagePath = localPath.refine(
+  (value) => /\.(?:jpe?g|png|webp)$/i.test(value),
+  "Hero image must be a local static JPEG, PNG, or WebP asset",
+);
+const videoPath = localPath.refine(
+  (value) => /\.(?:mp4|webm)$/i.test(value),
+  "Hero video must be a local MP4 or WebM asset",
+);
+const homepageHero = z.object({
+  eyebrow: copy, title: copy, accent: copy, suffix: copy, description: copy,
+  mediaMode: z.enum(["image", "video"]),
+  imageUrl: heroImagePath,
+  mobileImageUrl: heroImagePath,
+  imageAlt: z.string().min(1).max(300),
+  videoUrl: videoPath.optional(),
+  mobileVideoUrl: videoPath.optional(),
+  playLabel: copy.min(1),
+  pauseLabel: copy.min(1),
+  primaryCta: link,
+  stylistCtaLabel: copy,
+  assurances: z.array(copy).min(1),
+}).strict().superRefine((hero, ctx) => {
+  if (hero.mediaMode === "video") {
+    if (!hero.videoUrl) {
+      ctx.addIssue({ code: "custom", message: "Video heroes require a desktop video", path: ["videoUrl"] });
+    }
+    if (!hero.mobileVideoUrl) {
+      ctx.addIssue({ code: "custom", message: "Video heroes require a mobile video", path: ["mobileVideoUrl"] });
+    }
+    return;
+  }
+  if (hero.videoUrl !== undefined || hero.mobileVideoUrl !== undefined) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Image heroes must not include video assets; switch mediaMode to video first",
+      path: ["mediaMode"],
+    });
+  }
+});
 
 export const PlatformContentSchema = z.object({
   site: z.object({
@@ -46,11 +85,7 @@ export const PlatformContentSchema = z.object({
   }).strict(),
   homepage: z.object({
     seo,
-    hero: z.object({
-      eyebrow: copy, title: copy, accent: copy, suffix: copy, description: copy,
-      imageUrl: localPath, imageAlt: z.string().min(1), primaryCta: link,
-      stylistCtaLabel: copy, assurances: z.array(copy).min(1),
-    }).strict(),
+    hero: homepageHero,
     trustItems: z.array(copyItem).min(1),
     featured: z.object({ eyebrow: copy, title: copy, link, productSlugs: z.array(slug).min(1) }).strict(),
     occasions: z.object({ eyebrow: copy, title: copy, items: z.array(copyItem).min(1) }).strict(),
@@ -277,7 +312,12 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     hero: {
       eyebrow: "New season · Ready now & made immediately", title: "Dress like the man", accent: "make way", suffix: "for.",
       description: "Shop premium kaftans, agbadas and refined separates in Standard sizes or Custom. Buy directly, with fit guidance and optional stylist support when you want it.",
-      imageUrl: "/images/soso/vault-black.jpg", imageAlt: "Black SOSO Africa kaftan",
+      mediaMode: "image",
+      imageUrl: "/images/soso/vault-black.jpg",
+      mobileImageUrl: "/images/soso/vault-black.jpg",
+      imageAlt: "Black SOSO Africa kaftan",
+      playLabel: "Play hero motion",
+      pauseLabel: "Pause hero motion",
       primaryCta: { label: "Shop the Collection", href: "/shop" }, stylistCtaLabel: "Ask a stylist",
       assurances: ["Standard and Custom purchase routes", "Dispatch within five days", "Optional stylist support"],
     },
@@ -490,7 +530,18 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     return value === undefined ? defaults : value;
   };
 
-  const merged = mergeMissing(DEFAULT_PLATFORM_CONTENT, current);
+  let upgradeSource = current;
+  if (current && typeof current === "object" && !Array.isArray(current)) {
+    upgradeSource = structuredClone(current);
+    const hero = (upgradeSource as {
+      homepage?: { hero?: Record<string, unknown> };
+    }).homepage?.hero;
+    if (hero && typeof hero.imageUrl === "string") {
+      if (hero.mediaMode === undefined) hero.mediaMode = "image";
+      if (hero.mobileImageUrl === undefined) hero.mobileImageUrl = hero.imageUrl;
+    }
+  }
+  const merged = mergeMissing(DEFAULT_PLATFORM_CONTENT, upgradeSource);
   if (merged && typeof merged === "object") {
     const setKnownCopy = (path: string[], previous: string, next: string) => {
       let target = merged as Record<string, unknown>;

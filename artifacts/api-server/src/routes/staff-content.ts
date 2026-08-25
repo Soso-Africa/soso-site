@@ -26,6 +26,7 @@ import {
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { ensurePlatformContent, platformContentHash, PlatformContentSchema } from "../lib/platform-content";
+import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
 
@@ -133,6 +134,11 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
     res.status(400).json({ error: "Provide complete valid platform content and expectedDraftUpdatedAt", issues: parsed.success ? undefined : parsed.error.issues });
     return;
   }
+  const mediaIssues = await validateHomepageHeroMediaAssets(parsed.data);
+  if (mediaIssues.length > 0) {
+    res.status(400).json({ error: "Homepage hero media did not pass publishing checks", issues: mediaIssues });
+    return;
+  }
   await ensurePlatformContent();
   const now = new Date();
   const result = await db.transaction(async (tx) => {
@@ -161,6 +167,19 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
   const expected = expectedDraftDate(req.body?.expectedDraftUpdatedAt);
   if (!expected) { res.status(400).json({ error: "expectedDraftUpdatedAt is required" }); return; }
   await ensurePlatformContent();
+  const [candidate] = await db.select().from(siteContentTable)
+    .where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).limit(1);
+  if (!candidate) { res.status(409).json({ error: "Platform content changed before it could be published." }); return; }
+  const candidateContent = PlatformContentSchema.safeParse(candidate.draft);
+  if (!candidateContent.success) {
+    res.status(400).json({ error: "The current draft is invalid", issues: candidateContent.error.issues });
+    return;
+  }
+  const mediaIssues = await validateHomepageHeroMediaAssets(candidateContent.data);
+  if (mediaIssues.length > 0) {
+    res.status(400).json({ error: "Homepage hero media did not pass publishing checks", issues: mediaIssues });
+    return;
+  }
   const result = await db.transaction(async (tx) => {
     const [current] = await tx.select().from(siteContentTable)
       .where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).limit(1);

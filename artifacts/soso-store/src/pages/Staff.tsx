@@ -341,8 +341,8 @@ function PlatformContentManagementSection() {
   const [saving, setSaving] = useState(false);
   const [revisions, setRevisions] = useState<PlatformRevision[]>([]);
   const [uploadedObjectPath, setUploadedObjectPath] = useState("");
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
   const jsonEditorRef = useRef<HTMLTextAreaElement>(null);
 
   const sectionValue = (document: PlatformContent, selected: PlatformSection): unknown => {
@@ -431,8 +431,8 @@ function PlatformContentManagementSection() {
     } catch (error) { setStatus(errorMessage(error, `Content could not be ${kind}ed.`)); }
     finally { setSaving(false); }
   };
-  const uploadImage = async (file: File) => {
-    setUploadingImage(true);
+  const uploadMedia = async (file: File) => {
+    setUploadingMedia(true);
     setUploadedObjectPath("");
     try {
       const signed = await customFetch<{ uploadURL: string; objectPath: string }>("/api/storage/uploads/request-url", {
@@ -446,14 +446,14 @@ function PlatformContentManagementSection() {
         headers: { "Content-Type": file.type },
         body: file,
       });
-      if (!uploaded.ok) throw new Error(`Image upload failed (${uploaded.status}).`);
+      if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
       setUploadedObjectPath(signed.objectPath);
-      setStatus("Image uploaded. Copy or insert its durable path, then save the document.");
+      setStatus("Media uploaded. Copy or insert its durable path, then save the document.");
     } catch (error) {
-      setStatus(errorMessage(error, "Image could not be uploaded."));
+      setStatus(errorMessage(error, "Media could not be uploaded."));
     } finally {
-      setUploadingImage(false);
-      if (imageInputRef.current) imageInputRef.current.value = "";
+      setUploadingMedia(false);
+      if (mediaInputRef.current) mediaInputRef.current.value = "";
     }
   };
   const insertUploadedPath = () => {
@@ -487,13 +487,22 @@ function PlatformContentManagementSection() {
           <li>Keep image alt text and provenance with every product image.</li>
         </ul>
       </div>}
+      {section === "homepage" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
+        <p className="font-semibold text-primary">Homepage hero media checks</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+          <li>Use mediaMode image with imageUrl, mobileImageUrl and imageAlt for a still hero. Do not include video fields.</li>
+          <li>Use mediaMode video only with local MP4 or WebM paths in both videoUrl and mobileVideoUrl.</li>
+          <li>imageUrl and mobileImageUrl remain the required approved poster and fallback for motion, reduced-motion, data-saving and failed playback. Use a static JPEG, PNG or WebP—animated images are rejected.</li>
+          <li>Keep poster images at or under 512 KB and each motion file at or under 8 MB. playLabel and pauseLabel must clearly describe the control.</li>
+        </ul>
+      </div>}
       <div className="mt-5 border border-border bg-muted/20 p-4">
         <div className="flex flex-wrap items-center gap-3">
           <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 border border-border px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary">
-            <ImageUp size={15} /> {uploadingImage ? "Uploading…" : "Upload image"}
-            <input ref={imageInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploadingImage} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadImage(file); }} />
+            <ImageUp size={15} /> {uploadingMedia ? "Uploading…" : "Upload media"}
+            <input ref={mediaInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" disabled={uploadingMedia} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadMedia(file); }} />
           </label>
-          <span className="text-xs text-muted-foreground">JPEG, PNG, WebP or GIF · 12 MB maximum</span>
+          <span className="text-xs text-muted-foreground">JPEG, PNG, WebP or GIF up to 12 MB · MP4 or WebM up to 8 MB</span>
         </div>
         {uploadedObjectPath && <div className="mt-3 flex flex-wrap items-center gap-2">
           <code className="max-w-full overflow-x-auto border border-border bg-background px-3 py-2 text-xs">{uploadedObjectPath}</code>

@@ -2187,7 +2187,7 @@ export const requestUploadUrlBodySizeMax = 12582912;
 export const RequestUploadUrlBody = zod.object({
   "name": zod.string().min(1).max(requestUploadUrlBodyNameMax).regex(requestUploadUrlBodyNameRegExp),
   "size": zod.number().min(1).max(requestUploadUrlBodySizeMax),
-  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+  "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'])
 })
 
 

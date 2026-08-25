@@ -18,3 +18,4 @@
 - [Staff access serialization](staff-access-serialization.md) — serialize owner-affecting access mutations and revalidate the acting owner inside the same database transaction.
 - [Opaque ad SDK destination changes](opaque-ad-sdk-destination-changes.md) — never hot-swap pixel IDs in a loaded vendor SDK; revoke now and activate the replacement only in a fresh page context.
 - [TikTok browser pixel bootstrap](tiktok-pixel-bootstrap.md) — TikTok needs per-ID loader metadata and an sdkid/lib URL; a generic events.js script cannot discover the governed destination.
+- [Governed motion media identity](governed-motion-media-identity.md) — validate stored hero bytes, MIME, extension, animation state, and budgets together before publication.

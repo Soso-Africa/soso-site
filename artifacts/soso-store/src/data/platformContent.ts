@@ -77,7 +77,10 @@ export type PlatformContent = {
     seo: SeoCopy;
     hero: {
       eyebrow: string; title: string; accent: string; suffix: string; description: string;
-      imageUrl: string; imageAlt: string; primaryCta: ContentLink; stylistCtaLabel: string;
+      mediaMode: "image" | "video";
+      imageUrl: string; mobileImageUrl: string; imageAlt: string;
+      videoUrl?: string; mobileVideoUrl?: string; playLabel: string; pauseLabel: string;
+      primaryCta: ContentLink; stylistCtaLabel: string;
       assurances: string[];
     };
     trustItems: CopyItem[];

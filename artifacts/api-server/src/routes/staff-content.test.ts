@@ -24,6 +24,7 @@ import {
   PlatformContentSchema,
   platformContentHash,
 } from "../lib/platform-content";
+import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 
 const actor = "clerk_staff_editor";
 const draft = {
@@ -325,6 +326,12 @@ test("platform schema upgrades fill missing fields without replacing edited cont
   delete legacy.productCopy.sizeGuideCloseLabel;
   delete legacy.site.consent;
   delete legacy.pages.checkout;
+  legacy.homepage.hero.imageUrl = "/images/soso/merchant-hero.jpg";
+  legacy.homepage.hero.imageAlt = "Merchant seasonal campaign";
+  delete legacy.homepage.hero.mediaMode;
+  delete legacy.homepage.hero.mobileImageUrl;
+  delete legacy.homepage.hero.playLabel;
+  delete legacy.homepage.hero.pauseLabel;
   legacy.products[0].colour = "Merchant-edited midnight black";
   delete legacy.products[0].fabric;
   delete legacy.products[0].fit;
@@ -351,6 +358,10 @@ test("platform schema upgrades fill missing fields without replacing edited cont
     assert.equal(parsed.data.pages.paymentReturn.statusUnavailableMessage, DEFAULT_PLATFORM_CONTENT.pages.paymentReturn.statusUnavailableMessage);
     assert.equal(parsed.data.pages.policies.privacyRequest.invalidEmailMessage, DEFAULT_PLATFORM_CONTENT.pages.policies.privacyRequest.invalidEmailMessage);
     assert.equal(parsed.data.site.skipLinkLabel, DEFAULT_PLATFORM_CONTENT.site.skipLinkLabel);
+    assert.equal(parsed.data.homepage.hero.mediaMode, "image");
+    assert.equal(parsed.data.homepage.hero.imageUrl, "/images/soso/merchant-hero.jpg");
+    assert.equal(parsed.data.homepage.hero.mobileImageUrl, "/images/soso/merchant-hero.jpg");
+    assert.equal(parsed.data.homepage.hero.imageAlt, "Merchant seasonal campaign");
     assert.equal(parsed.data.pages.faq.listAriaLabel, DEFAULT_PLATFORM_CONTENT.pages.faq.listAriaLabel);
     assert.equal(parsed.data.productCopy.detailImageAltSuffix, DEFAULT_PLATFORM_CONTENT.productCopy.detailImageAltSuffix);
     assert.equal(parsed.data.productCopy.sizeGuideCloseLabel, DEFAULT_PLATFORM_CONTENT.productCopy.sizeGuideCloseLabel);
@@ -361,6 +372,76 @@ test("platform schema upgrades fill missing fields without replacing edited cont
     assert.equal(parsed.data.products[0]!.dispatchMessage, "Dispatch within five days");
     assert.equal(parsed.data.products[0]!.images[0]!.provenance.source, "SOSO Africa supplied asset");
   }
+});
+
+test("homepage hero schema validates complete governed image and video combinations", () => {
+  const still = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  assert.equal(PlatformContentSchema.safeParse(still).success, true);
+
+  const video = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  video.homepage.hero.mediaMode = "video";
+  video.homepage.hero.videoUrl = "/api/storage/objects/uploads/hero-desktop.mp4";
+  video.homepage.hero.mobileVideoUrl = "/api/storage/objects/uploads/hero-mobile.webm";
+  assert.equal(PlatformContentSchema.safeParse(video).success, true);
+
+  delete video.homepage.hero.mobileVideoUrl;
+  assert.equal(PlatformContentSchema.safeParse(video).success, false);
+
+  video.homepage.hero.mediaMode = "image";
+  video.homepage.hero.mobileVideoUrl = "/api/storage/objects/uploads/hero-mobile.webm";
+  assert.equal(PlatformContentSchema.safeParse(video).success, false);
+
+  const externalVideo = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  externalVideo.homepage.hero.mediaMode = "video";
+  externalVideo.homepage.hero.videoUrl = "https://example.com/hero.mp4";
+  externalVideo.homepage.hero.mobileVideoUrl = "/media/hero-mobile.webm";
+  assert.equal(PlatformContentSchema.safeParse(externalVideo).success, false);
+});
+
+test("homepage hero publishing checks enforce uploaded poster and video identity and budgets", async () => {
+  const video = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  video.homepage.hero.mediaMode = "video";
+  video.homepage.hero.imageUrl = "/api/storage/objects/uploads/hero-desktop.jpg";
+  video.homepage.hero.mobileImageUrl = "/api/storage/objects/uploads/hero-mobile.jpg";
+  video.homepage.hero.videoUrl = "/api/storage/objects/uploads/hero-desktop.mp4";
+  video.homepage.hero.mobileVideoUrl = "/api/storage/objects/uploads/hero-mobile.webm";
+
+  const validIssues = await validateHomepageHeroMediaAssets(video, async (path) => ({
+    contentType: path.endsWith(".jpg") ? "image/jpeg" : path.endsWith(".mp4") ? "video/mp4" : "video/webm",
+    declaredContentType: path.endsWith(".jpg") ? "image/jpeg" : path.endsWith(".mp4") ? "video/mp4" : "video/webm",
+    size: path.endsWith(".jpg") ? 500_000 : 2_000_000,
+  }));
+  assert.deepEqual(validIssues, []);
+
+  const invalidIssues = await validateHomepageHeroMediaAssets(video, async (path) => ({
+    contentType: path.endsWith(".jpg") ? "video/mp4" : "video/webm",
+    declaredContentType: "application/octet-stream",
+    size: path.endsWith(".jpg") ? 600_000 : 9_000_000,
+  }));
+  assert.equal(invalidIssues.length, 8);
+  assert.ok(invalidIssues.some((issue) => issue.path.at(-1) === "imageUrl" && /budget/.test(issue.message)));
+  assert.ok(invalidIssues.some((issue) => issue.path.at(-1) === "videoUrl" && /must match/.test(issue.message)));
+
+  const crossExtensionIssues = await validateHomepageHeroMediaAssets(video, async (path) => ({
+    contentType: path.endsWith(".jpg") ? "image/jpeg" : path.endsWith(".mp4") ? "video/webm" : "video/mp4",
+    declaredContentType: path.endsWith(".jpg") ? "image/jpeg" : path.endsWith(".mp4") ? "video/webm" : "video/mp4",
+    size: path.endsWith(".jpg") ? 500_000 : 2_000_000,
+  }));
+  assert.deepEqual(
+    crossExtensionIssues.map((issue) => issue.path.at(-1)).sort(),
+    ["mobileVideoUrl", "videoUrl"],
+  );
+
+  const animatedPosterIssues = await validateHomepageHeroMediaAssets(video, async (path) => ({
+    contentType: path.endsWith(".jpg") ? "image/jpeg" : path.endsWith(".mp4") ? "video/mp4" : "video/webm",
+    declaredContentType: path.endsWith(".jpg") ? "image/jpeg" : path.endsWith(".mp4") ? "video/mp4" : "video/webm",
+    size: path.endsWith(".jpg") ? 500_000 : 2_000_000,
+    animated: path.endsWith(".jpg"),
+  }));
+  assert.deepEqual(
+    animatedPosterIssues.map((issue) => issue.path.at(-1)).sort(),
+    ["imageUrl", "mobileImageUrl"],
+  );
 });
 
 test("platform schema upgrades only the known legacy marketing consent copy", () => {

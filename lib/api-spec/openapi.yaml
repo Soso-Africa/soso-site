@@ -1092,7 +1092,7 @@ paths:
     post:
       operationId: requestUploadUrl
       tags: [storage]
-      summary: Request a signed direct-upload URL for a staff-managed image
+      summary: Request a signed direct-upload URL for staff-managed storefront media
       requestBody:
         required: true
         content:
@@ -1104,7 +1104,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UploadUrlResponse" }
-        "400": { description: "Invalid image metadata" }
+        "400": { description: "Invalid image or video metadata" }
         "401": { description: "Staff authentication required" }
         "403": { description: "Editorial staff role required" }
         "500": { description: "Upload URL could not be created" }
@@ -1190,7 +1190,7 @@ components:
           maximum: 12582912
         contentType:
           type: string
-          enum: [image/jpeg, image/png, image/webp, image/gif]
+          enum: [image/jpeg, image/png, image/webp, image/gif, video/mp4, video/webm]
     UploadUrlResponse:
       type: object
       additionalProperties: false

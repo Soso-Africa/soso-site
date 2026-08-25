@@ -7,6 +7,7 @@ import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { indexingEnabled } from "@/lib/seo";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 import { ProductCard } from "@/components/ProductCard";
+import { HomeHeroMedia } from "@/components/HomeHeroMedia";
 
 export default function Home() {
   const [stylistOpen, setStylistOpen] = useState(false);
@@ -21,8 +22,8 @@ export default function Home() {
   return <div className="flex flex-col">
     <Seo title={homepage.seo.title} description={homepage.seo.description} noIndex={!indexingEnabled} />
     <section className="relative overflow-hidden" style={{ minHeight: "min(780px, calc(86dvh - 72px))" }}>
-      <div className="absolute inset-0">
-        <img src={homepage.hero.imageUrl} alt={homepage.hero.imageAlt} className="w-full h-full object-cover object-top opacity-55" loading="eager" fetchPriority="high" />
+      <HomeHeroMedia hero={homepage.hero} />
+      <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-background/20" />
       </div>
       <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-12 flex flex-col justify-center py-16" style={{ minHeight: "min(780px, calc(86dvh - 72px))" }}>
