@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { trackStorefrontEvent } from '@/components/ConsentManager';
+import { changeCartLineSelection } from '@/lib/purchasing';
 
 export type CartItem = {
   slug: string;
@@ -20,6 +21,7 @@ type CartContextType = {
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
   removeItem: (slug: string, size: string) => void;
   updateQuantity: (slug: string, size: string, quantity: number) => void;
+  updateSize: (slug: string, oldSize: string, newSize: string, newCommerceVariantId?: string) => void;
   clearCart: () => void;
   cartTotal: number;
   itemCount: number;
@@ -126,6 +128,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const updateSize = (slug: string, oldSize: string, newSize: string, newCommerceVariantId?: string) => {
+    setItems((current) => changeCartLineSelection(
+      current,
+      slug,
+      oldSize,
+      newSize,
+      newCommerceVariantId,
+    ));
+  };
+
   const clearCart = () => setItems([]);
 
   const cartTotal = items.reduce((total, item) => total + (item.price * item.quantity), 0);
@@ -140,6 +152,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       addItem,
       removeItem,
       updateQuantity,
+      updateSize,
       clearCart,
       cartTotal,
       itemCount

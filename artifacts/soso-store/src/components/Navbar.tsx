@@ -4,6 +4,7 @@ import { useCart } from "@/context/CartContext";
 import { WhatsAppIcon } from "@/components/Icons";
 import { usePlatformContent } from "@/data/platformContent";
 import { Search } from "lucide-react";
+import { HeaderSearch } from "./HeaderSearch";
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -113,14 +114,7 @@ export function Navbar() {
         </Link>
         
         <div className="flex items-center gap-3 md:gap-5">
-          <Link
-            href="/shop"
-            className="flex min-h-10 min-w-10 items-center justify-center text-secondary transition-colors hover:text-primary"
-            aria-label="Search and refine the collection"
-            data-testid="link-catalogue-search"
-          >
-            <Search size={18} aria-hidden="true" />
-          </Link>
+          <HeaderSearch />
           <a
             href={site.whatsappUrl}
             className="hidden lg:flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link" 

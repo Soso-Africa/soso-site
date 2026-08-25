@@ -26,6 +26,10 @@ const image = z.object({
   alt: z.string().min(1).max(300),
   provenance: imageProvenance,
 }).strict();
+const searchSuggestion = z.object({
+  label: z.string().min(1).max(120),
+  href: localPath,
+}).strict();
 const heroImagePath = localPath.refine(
   (value) => /\.(?:jpe?g|png|webp)$/i.test(value),
   "Hero image must be a local static JPEG, PNG, or WebP asset",
@@ -73,7 +77,12 @@ export const PlatformContentSchema = z.object({
     instagramUrl: href, whatsappUrl: href,
     navigation: z.array(link).min(1), mobileNavigation: z.array(link).min(1),
     platformState: z.object({ loadingMessage: copy.min(1), unavailableMessage: copy.min(1) }).strict(),
-    header: z.object({ openMenuLabel: copy, closeMenuLabel: copy, mainNavigationLabel: copy, whatsappLabel: copy, cartLabel: copy, openCartLabel: copy, mobileWhatsappLabel: copy }).strict(),
+    header: z.object({
+      openMenuLabel: copy, closeMenuLabel: copy, mainNavigationLabel: copy, whatsappLabel: copy,
+      cartLabel: copy, openCartLabel: copy, mobileWhatsappLabel: copy,
+      searchLabel: copy.min(1), searchPlaceholder: copy.min(1), closeSearchLabel: copy.min(1),
+      searchSuggestionsLabel: copy.min(1), searchSuggestions: z.array(searchSuggestion),
+    }).strict(),
     cart: z.object({ title: copy, closeLabel: copy, emptyMessage: copy, continueShoppingLabel: copy, sizeLabel: copy, removeLabel: copy, subtotalLabel: copy, helpText: copy, checkoutCta: link, stylistCta: link }).strict(),
     floatingCta: link,
     consent: z.object({ regionLabel: copy, title: copy, body: copy, essentialLabel: copy, analyticsLabel: copy, marketingLabel: copy, manageLabel: copy, necessaryDescription: copy, measurementDescription: copy, marketingDescription: copy, footerText: copy, privacyLink: link }).strict(),
@@ -156,10 +165,40 @@ export const PlatformContentSchema = z.object({
     fulfilmentState: z.enum(["ready_now", "made_immediately", "unavailable"]),
     dispatchMessage: copy.min(1),
     unavailableMessage: copy.min(1).optional(),
+    composition: copy.min(1).optional(),
+    care: copy.min(1).optional(),
+    delivery: copy.min(1).optional(),
+    returns: copy.min(1).optional(),
     featured: z.boolean().optional(), relatedProductSlugs: z.array(slug).optional(),
     commerceProductId: z.string().uuid().optional(),
     commerceVariantIds: z.record(z.string(), z.string().uuid()).optional(),
   }).strict().superRefine((product, ctx) => {
+    const reportDuplicates = (values: string[], path: string) => {
+      const seen = new Set<string>();
+      values.forEach((value, index) => {
+        if (seen.has(value)) ctx.addIssue({ code: "custom", message: `Duplicate ${path} value: ${value}`, path: [path, index] });
+        seen.add(value);
+      });
+    };
+    reportDuplicates(product.sizes, "sizes");
+    reportDuplicates(product.standardSizes, "standardSizes");
+    reportDuplicates(product.readyNowSizes, "readyNowSizes");
+    const selectableSizes = new Set(product.sizes);
+    product.standardSizes.forEach((size, index) => {
+      if (!selectableSizes.has(size)) {
+        ctx.addIssue({ code: "custom", message: "Standard sizes must be selectable sizes", path: ["standardSizes", index] });
+      }
+    });
+    const customSizeIndex = product.sizes.findIndex((size) => size.toLocaleLowerCase() === "custom");
+    if (product.customEligible && customSizeIndex < 0) {
+      ctx.addIssue({ code: "custom", message: "Custom eligibility requires a Custom selectable size", path: ["sizes"] });
+    }
+    if (!product.customEligible && customSizeIndex >= 0) {
+      ctx.addIssue({ code: "custom", message: "Custom selectable size requires Custom eligibility", path: ["sizes", customSizeIndex] });
+    }
+    if (product.standardEligible && product.standardSizes.length === 0 && product.fulfilmentState !== "unavailable") {
+      ctx.addIssue({ code: "custom", message: "Standard eligibility requires at least one Standard size", path: ["standardSizes"] });
+    }
     if (product.fulfilmentState === "ready_now" && product.readyNowSizes.length === 0) {
       ctx.addIssue({ code: "custom", message: "Ready-now products require at least one ready-now size", path: ["readyNowSizes"] });
     }
@@ -174,12 +213,30 @@ export const PlatformContentSchema = z.object({
     if (product.fulfilmentState !== "unavailable" && !product.standardEligible && !product.customEligible) {
       ctx.addIssue({ code: "custom", message: "Available products require Standard or Custom eligibility", path: ["standardEligible"] });
     }
+    if (product.fulfilmentState === "unavailable") {
+      if (product.readyNowSizes.length > 0) {
+        ctx.addIssue({ code: "custom", message: "Unavailable products cannot advertise ready-now sizes", path: ["readyNowSizes"] });
+      }
+      if (!product.unavailableMessage) {
+        ctx.addIssue({ code: "custom", message: "Unavailable products require an unavailable message", path: ["unavailableMessage"] });
+      }
+    } else if (product.unavailableMessage !== undefined) {
+      ctx.addIssue({ code: "custom", message: "Only unavailable products may include an unavailable message", path: ["unavailableMessage"] });
+    }
     const standards = new Set(product.standardSizes);
     product.readyNowSizes.forEach((size, index) => {
       if (!standards.has(size)) ctx.addIssue({ code: "custom", message: "Ready-now sizes must be Standard sizes", path: ["readyNowSizes", index] });
     });
     if (product.commerceVariantIds && !product.commerceProductId) {
       ctx.addIssue({ code: "custom", message: "Commerce variants require a commerce product ID", path: ["commerceProductId"] });
+    }
+    if (product.commerceVariantIds) {
+      const allowedVariants = new Set([...product.standardSizes, ...(product.customEligible ? ["Custom"] : [])]);
+      Object.keys(product.commerceVariantIds).forEach((size) => {
+        if (!allowedVariants.has(size)) {
+          ctx.addIssue({ code: "custom", message: `Commerce variant is configured for an ineligible size: ${size}`, path: ["commerceVariantIds", size] });
+        }
+      });
     }
     if (product.fulfilmentState !== "unavailable" && product.commerceProductId) {
       product.standardSizes.forEach((size) => {
@@ -244,11 +301,38 @@ export const PlatformContentSchema = z.object({
   duplicateSlugs(content.collections.map((item) => item.slug), "collections");
   const products = new Set(content.products.map((item) => item.slug));
   const collectionCategories = new Set(content.collections.map((item) => item.category));
+  const collectionSlugs = new Set(content.collections.map((item) => item.slug));
   content.products.forEach((product, index) => {
     if (!collectionCategories.has(product.category)) ctx.addIssue({ code: "custom", message: `Unknown product collection category: ${product.category}`, path: ["products", index, "category"] });
+    if (!product.images.some((item) => item.src === product.img)) {
+      ctx.addIssue({ code: "custom", message: "Primary product image must be included in the approved images", path: ["products", index, "img"] });
+    }
+    const imageSources = new Set<string>();
+    product.images.forEach((item, imageIndex) => {
+      if (imageSources.has(item.src)) ctx.addIssue({ code: "custom", message: `Duplicate approved product image: ${item.src}`, path: ["products", index, "images", imageIndex, "src"] });
+      imageSources.add(item.src);
+    });
+    const relationships = new Set<string>();
     product.relatedProductSlugs?.forEach((related, relatedIndex) => {
       if (!products.has(related) || related === product.slug) ctx.addIssue({ code: "custom", message: `Invalid related product: ${related}`, path: ["products", index, "relatedProductSlugs", relatedIndex] });
+      if (relationships.has(related)) ctx.addIssue({ code: "custom", message: `Duplicate related product: ${related}`, path: ["products", index, "relatedProductSlugs", relatedIndex] });
+      relationships.add(related);
     });
+  });
+  const suggestions = new Set<string>();
+  content.site.header.searchSuggestions.forEach((suggestion, index) => {
+    if (suggestions.has(suggestion.href)) {
+      ctx.addIssue({ code: "custom", message: `Duplicate search suggestion target: ${suggestion.href}`, path: ["site", "header", "searchSuggestions", index, "href"] });
+    }
+    suggestions.add(suggestion.href);
+    let safe = suggestion.href === "/shop" || suggestion.href.startsWith("/shop?");
+    const productMatch = suggestion.href.match(/^\/product\/([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+    const collectionMatch = suggestion.href.match(/^\/collections\/([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+    if (productMatch) safe = products.has(productMatch[1]!);
+    if (collectionMatch) safe = collectionSlugs.has(collectionMatch[1]!);
+    if (!safe) {
+      ctx.addIssue({ code: "custom", message: `Unsafe or unknown search suggestion target: ${suggestion.href}`, path: ["site", "header", "searchSuggestions", index, "href"] });
+    }
   });
   content.homepage.featured.productSlugs.forEach((value, index) => {
     if (!products.has(value)) ctx.addIssue({ code: "custom", message: `Unknown featured product: ${value}`, path: ["homepage", "featured", "productSlugs", index] });
@@ -293,7 +377,18 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     navigation: [{ label: "Shop", href: "/shop" }, { label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }, { label: "Journal", href: "/journal" }],
     mobileNavigation: [{ label: "Shop", href: "/shop" }, { label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }, { label: "FAQ", href: "/faq" }],
     platformState: { loadingMessage: "Loading the published storefront…", unavailableMessage: "Storefront content is not published or is temporarily unavailable." },
-    header: { openMenuLabel: "Open menu", closeMenuLabel: "Close menu", mainNavigationLabel: "Main navigation", whatsappLabel: "Order via WhatsApp", cartLabel: "Bag", openCartLabel: "Open cart", mobileWhatsappLabel: "Chat with Specialist" },
+    header: {
+      openMenuLabel: "Open menu", closeMenuLabel: "Close menu", mainNavigationLabel: "Main navigation",
+      whatsappLabel: "Order via WhatsApp", cartLabel: "Bag", openCartLabel: "Open cart",
+      mobileWhatsappLabel: "Chat with Specialist", searchLabel: "Search", searchPlaceholder: "Search pieces",
+      closeSearchLabel: "Close search", searchSuggestionsLabel: "Popular searches",
+      searchSuggestions: [
+        { label: "Shop all pieces", href: "/shop" },
+        { label: "Kaftans", href: "/collections/kaftans" },
+        { label: "Agbadas", href: "/collections/agbadas" },
+        { label: "Shirts", href: "/collections/shirts" },
+      ],
+    },
     cart: { title: "Your Bag", closeLabel: "Close cart", emptyMessage: "Your bag is empty.", continueShoppingLabel: "Continue Shopping", sizeLabel: "Size:", removeLabel: "Remove", subtotalLabel: "Subtotal", helpText: "Shipping and taxes calculated at checkout. Need help first? Ask a stylist.", checkoutCta: { label: "Proceed to payment", href: "/checkout" }, stylistCta: { label: "Ask a stylist", href: "/#whatsapp" } },
     floatingCta: { label: "Explore pieces", href: "/shop" },
     consent: { regionLabel: "Privacy choices", title: "Your privacy choices", body: "Necessary storage keeps your bag and privacy choice working. Optional measurement helps SOSO understand which pages are useful; marketing pixels stay off unless you grant marketing consent.", essentialLabel: "Necessary only", analyticsLabel: "Allow measurement", marketingLabel: "Allow marketing", manageLabel: "Manage preference cookies", necessaryDescription: "Necessary — bag, session, consent preference. Always active.", measurementDescription: "Measurement — anonymous page and product journey counts.", marketingDescription: "Marketing — retargeting pixels from configured advertising providers.", footerText: "You can change your choice at any time from the footer.", privacyLink: { label: "Privacy notice", href: "/privacy" } },
@@ -602,6 +697,17 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
   return merged;
 }
 
+export function mergePublishedPlatformContentDefaults(current: unknown, publishedAt: Date | string | null): unknown {
+  if (
+    !publishedAt
+    || !current
+    || typeof current !== "object"
+    || Array.isArray(current)
+    || Object.keys(current).length === 0
+  ) return current;
+  return mergePlatformContentDefaults(current);
+}
+
 export async function ensurePlatformContent() {
   const now = new Date();
   await db.insert(siteContentTable).values({
@@ -625,8 +731,8 @@ export async function ensurePlatformContent() {
     updates.draftUpdatedAt = now;
   }
 
-  if (current.publishedAt && Object.keys(current.published).length > 0) {
-    const mergedPublished = mergePlatformContentDefaults(current.published);
+  const mergedPublished = mergePublishedPlatformContentDefaults(current.published, current.publishedAt);
+  if (mergedPublished !== current.published) {
     const parsedMergedPublished = PlatformContentSchema.safeParse(mergedPublished);
     if (
       parsedMergedPublished.success

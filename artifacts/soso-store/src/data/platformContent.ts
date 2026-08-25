@@ -35,6 +35,10 @@ export type CatalogProduct = {
   fulfilmentState: "ready_now" | "made_immediately" | "unavailable";
   dispatchMessage: string;
   unavailableMessage?: string;
+  composition?: string;
+  care?: string;
+  delivery?: string;
+  returns?: string;
 };
 export type PlatformCollection = {
   slug: string;
@@ -60,7 +64,12 @@ export type PlatformContent = {
     navigation: ContentLink[];
     mobileNavigation: ContentLink[];
     platformState: { loadingMessage: string; unavailableMessage: string };
-    header: { openMenuLabel: string; closeMenuLabel: string; mainNavigationLabel: string; whatsappLabel: string; cartLabel: string; openCartLabel: string; mobileWhatsappLabel: string };
+    header: {
+      openMenuLabel: string; closeMenuLabel: string; mainNavigationLabel: string; whatsappLabel: string;
+      cartLabel: string; openCartLabel: string; mobileWhatsappLabel: string;
+      searchLabel: string; searchPlaceholder: string; closeSearchLabel: string; searchSuggestionsLabel: string;
+      searchSuggestions: { label: string; href: string }[];
+    };
     cart: { title: string; closeLabel: string; emptyMessage: string; continueShoppingLabel: string; sizeLabel: string; removeLabel: string; subtotalLabel: string; helpText: string; checkoutCta: ContentLink; stylistCta: ContentLink };
     floatingCta: ContentLink;
     consent: { regionLabel: string; title: string; body: string; essentialLabel: string; analyticsLabel: string; marketingLabel: string; manageLabel: string; necessaryDescription: string; measurementDescription: string; marketingDescription: string; footerText: string; privacyLink: ContentLink };

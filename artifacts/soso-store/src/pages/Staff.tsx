@@ -481,13 +481,23 @@ function PlatformContentManagementSection() {
     </div>
     <div className="border border-border bg-card p-5">
       <div className="flex flex-wrap gap-2">{platformSections.map((item) => <button key={item.id} type="button" onClick={() => selectSection(item.id)} className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${section === item.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{item.label}</button>)}</div>
+      {section === "site" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
+        <p className="font-semibold text-primary">Site navigation and search checks</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+          <li>Curate header searchSuggestions with unique, safe links to the shop or a published product or collection.</li>
+          <li>Keep the search label, placeholder, close label, and suggestions heading clear for keyboard and screen-reader shoppers.</li>
+        </ul>
+      </div>}
       {section === "catalogue" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
         <p className="font-semibold text-primary">Hybrid catalogue publishing checks</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
           <li>Set colour, fabric, fit, searchableTerms, merchandising priority, and Standard/Custom eligibility for every piece.</li>
+          <li>Add product-specific composition, care, delivery, and returns copy when the piece needs guidance beyond the shared defaults.</li>
           <li>Use readyNowSizes only for Standard sizes physically ready now. An empty list stays purchasable when fulfilmentState is made_immediately.</li>
           <li>Use unavailable only when SOSO genuinely cannot fulfil the piece, and keep dispatchMessage about dispatch rather than delivery.</li>
-          <li>Keep image alt text and provenance with every product image.</li>
+          <li>Keep image alt text and provenance with every approved primary or alternate image, include the primary img in images, and use only verified bundled or SOSO App Storage image paths.</li>
+          <li>Configure relatedProductSlugs with unique published product slugs only; do not reference the same piece.</li>
+          <li>When commerceProductId is present, map every eligible Standard size and Custom choice to its current commerce variant ID. Never map unavailable or ineligible choices.</li>
         </ul>
       </div>}
       {section === "homepage" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { Reveal } from "@/components/Reveal";
 import { WhatsAppIcon } from "@/components/Icons";
@@ -10,6 +10,10 @@ import { editorialOrigin, trackStorefrontEvent } from "@/components/ConsentManag
 import { catalogApproved } from "@/lib/seo";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 import { ProductCard } from "@/components/ProductCard";
+import useEmblaCarousel from "embla-carousel-react";
+import { ChevronLeft, ChevronRight, ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
+import * as Accordion from "@radix-ui/react-accordion";
+import { isMappedPurchaseChoice, mappedPurchaseChoices } from "@/lib/purchasing";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
@@ -26,13 +30,50 @@ export default function ProductDetail() {
   const [stylistOpen, setStylistOpen] = useState(false);
   const [img, setImg] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const [returnToResults] = useState(() => {
+    try {
+      const stored = window.sessionStorage.getItem("soso-return-to");
+      return stored?.startsWith("/shop") ? stored : "/shop";
+    } catch {
+      return "/shop";
+    }
+  });
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
+
+  const scrollPrev = useCallback(() => {
+    if (emblaApi) emblaApi.scrollPrev();
+  }, [emblaApi]);
+
+  const scrollNext = useCallback(() => {
+    if (emblaApi) emblaApi.scrollNext();
+  }, [emblaApi]);
+
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    setZoomed(false);
+    setImg(emblaApi.selectedScrollSnap());
+  }, [emblaApi, setImg]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    onSelect();
+    emblaApi.on('select', onSelect);
+    emblaApi.on('reInit', onSelect);
+  }, [emblaApi, onSelect]);
+
+  useEffect(() => {
+    if (emblaApi) emblaApi.scrollTo(img);
+  }, [img, emblaApi]);
 
   useEffect(() => {
     // Reset state on route change
     setSize(null);
     setImg(0);
+    setZoomed(false);
     setLoaded(false);
-    
+
     if (!product && platform.data) {
       setLocation("/shop");
       return;
@@ -66,10 +107,20 @@ export default function ProductDetail() {
   const supportCopy = platformContent!.supportCopy;
   const sizeGuide = platformContent!.sizeGuide;
 
+  const purchaseChoices = mappedPurchaseChoices(product);
+  const validStandardSizes = purchaseChoices.filter((choice) => choice !== "Custom");
+  const customIsMappable = purchaseChoices.includes("Custom");
+  const hasMappedChoices = purchaseChoices.length > 0;
+
   const needSize = size === null;
+  const isPurchasable = isMappedPurchaseChoice(product, size);
+  const isUnavailable = product.fulfilmentState === "unavailable";
 
   const handleAddToCart = () => {
-    if (needSize || product.fulfilmentState === "unavailable") return;
+    if (needSize || isUnavailable || !isPurchasable || !size) return;
+    const variantId = product.commerceVariantIds?.[size];
+    if (!variantId) return;
+
     addItem({
       slug: product.slug,
       name: product.name,
@@ -77,16 +128,28 @@ export default function ProductDetail() {
       price: product.price,
       size: size,
       commerceProductId: product.commerceProductId,
-      commerceVariantId: product.commerceVariantIds?.[size ?? ""],
+      commerceVariantId: variantId,
     });
     trackStorefrontEvent("cta_clicked", { ctaLabel: "add_to_bag", productSlug: product.slug, articleSlug: editorialOrigin() });
   };
 
-  // 4 random products for Complete the look
+  // Details
+  const productSpecificDetails: { title: string; body: string }[] = [];
+  if (product.composition) productSpecificDetails.push({ title: "Composition", body: product.composition });
+  if (product.care) productSpecificDetails.push({ title: "Care", body: product.care });
+  const detailsToUse = productSpecificDetails.length > 0 ? productSpecificDetails : productCopy.details;
+
+  // Assurances
+  const productSpecificAssurances: { title: string; body: string }[] = [];
+  if (product.delivery) productSpecificAssurances.push({ title: "Delivery", body: product.delivery });
+  if (product.returns) productSpecificAssurances.push({ title: "Returns", body: product.returns });
+  const assurancesToUse = productSpecificAssurances.length > 0 ? productSpecificAssurances : productCopy.assurances;
+
+  // Only configured related pieces
   const relatedSlugs = product.relatedProductSlugs ?? [];
-  const look = platformContent!.products
-    .filter((item) => item.slug !== product.slug && (!relatedSlugs.length || relatedSlugs.includes(item.slug)))
-    .slice(0, 4);
+  const look = relatedSlugs.length > 0
+    ? platformContent!.products.filter((item) => relatedSlugs.includes(item.slug)).slice(0, 4)
+    : [];
 
   return (
     <div style={{ background: "hsl(var(--foreground))", color: "hsl(var(--background))" }} className="flex flex-col">
@@ -99,6 +162,28 @@ export default function ProductDetail() {
       />
       {/* ————— HERO / BUY BLOCK ————— */}
       <div className="max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
+        {/* Breadcrumbs (Mobile & Desktop) */}
+        <div className="md:col-span-2">
+          <nav aria-label="Breadcrumb" className="text-[10px] uppercase tracking-widest text-secondary">
+            <ol className="flex items-center gap-2 flex-wrap">
+              <li><Link href="/" className="hover:text-primary">Home</Link></li>
+              <li>/</li>
+              <li><Link href={returnToResults} className="hover:text-primary">Shop</Link></li>
+              <li>/</li>
+              <li><Link href={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-primary">{product.category}</Link></li>
+              <li>/</li>
+              <li className="text-white" aria-current="page">{product.name}</li>
+            </ol>
+          </nav>
+          <Link
+            href={returnToResults}
+            className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-widest text-primary hover:underline"
+            data-testid="link-return-to-results"
+          >
+            <ChevronLeft size={14} /> Return to results
+          </Link>
+        </div>
+
         {/* Gallery */}
         <div
           style={{
@@ -107,26 +192,69 @@ export default function ProductDetail() {
             transition: "opacity 1s cubic-bezier(.16,1,.3,1), transform 1s cubic-bezier(.16,1,.3,1)",
           }}
         >
-          <div className="relative overflow-hidden imgzoom" style={{ background: "hsl(var(--background))" }}>
-            <img src={gallery[img].src} alt={gallery[img].label} className="w-full aspect-[2/3] object-cover" />
+          <div className="soso-gallery relative overflow-hidden group bg-background" ref={emblaRef}>
+            <div className="flex touch-pan-y">
+              {gallery.map((g, i) => (
+                <div key={i} className="flex-[0_0_100%] min-w-0 relative overflow-hidden">
+                  <img
+                    src={g.src}
+                    alt={g.label}
+                    className="w-full aspect-[2/3] object-cover transition-transform duration-500"
+                    style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)" }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Gallery Navigation Controls */}
+            {gallery.length > 1 && (
+              <>
+                <button
+                  onClick={scrollPrev}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
+                  aria-label="Previous image"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  onClick={scrollNext}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
+                  aria-label="Next image"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </>
+            )}
+
             <div className="absolute top-4 left-4 text-[10px] tracking-[0.25em] uppercase px-3 py-1.5" style={{ background: "rgba(18,17,16,.75)", color: "hsl(var(--primary))", backdropFilter: "blur(4px)" }}>
               {product.tag}
             </div>
+            <button
+              type="button"
+              onClick={() => setZoomed((value) => !value)}
+              className="absolute bottom-4 right-4 flex min-h-10 min-w-10 items-center justify-center bg-background/85 text-foreground backdrop-blur-sm"
+              aria-label={zoomed ? "Zoom out of product image" : "Zoom in on product image"}
+              aria-pressed={zoomed}
+              data-testid="button-gallery-zoom"
+            >
+              {zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
+            </button>
           </div>
-          <div className="flex gap-3 mt-3">
+          <div className="flex gap-3 mt-3 overflow-x-auto pb-2 snap-x">
             {gallery.map((g, i) => (
               <button
                 key={i}
                 onClick={() => { setImg(i); if (i !== img) trackStorefrontEvent("product_image_viewed", { productSlug: product.slug, imageIndex: i }); }}
-                className="w-20 overflow-hidden"
+                className="w-20 shrink-0 snap-start overflow-hidden relative"
                 style={{ outline: i === img ? `2px solid hsl(var(--primary))` : "1px solid #d8cfba", outlineOffset: 2 }}
-                aria-label={g.label}
+                aria-label={`View ${g.label}`}
+                aria-current={i === img}
               >
                 <img src={g.src} alt={g.label} className="aspect-[3/4] object-cover w-full" />
               </button>
             ))}
           </div>
-          {gallery[img].provenance && <p className="mt-3 text-[10px] uppercase tracking-wider opacity-55">
+          {gallery[img]?.provenance && <p className="mt-3 text-[10px] uppercase tracking-wider opacity-55">
             Image: {gallery[img].provenance.credit || gallery[img].provenance.source}
           </p>}
         </div>
@@ -178,7 +306,12 @@ export default function ProductDetail() {
           {/* Sizing / Purchase Options */}
           {product.fulfilmentState !== "unavailable" && (
             <div className="mt-8 space-y-8">
-              {product.standardEligible && (
+              {!hasMappedChoices && (
+                <p role="status" className="border border-black/10 p-4 text-sm opacity-75" data-testid="status-product-unmapped">
+                  Online purchase options are not mapped for this piece yet. Fit guidance and stylist support remain available.
+                </p>
+              )}
+              {product.standardEligible && validStandardSizes.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.sizeSelectorLabel}</span>
@@ -187,7 +320,7 @@ export default function ProductDetail() {
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {product.standardSizes?.map((s) => {
+                    {validStandardSizes.map((s) => {
                       const isReadyNow = product.readyNowSizes?.includes(s);
                       return (
                         <button
@@ -226,7 +359,7 @@ export default function ProductDetail() {
               )}
               {!product.standardEligible && <p className="border border-black/10 p-4 text-sm opacity-65">{productCopy.standardUnavailableMessage}</p>}
 
-              {product.customEligible && (
+              {product.customEligible && customIsMappable && (
                 <div className="pt-5 border-t border-black/10 dark:border-white/10">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[12px] tracking-[0.2em] uppercase font-medium">Custom</span>
@@ -265,19 +398,21 @@ export default function ProductDetail() {
           <div className="mt-8 space-y-3">
             <button
               onClick={handleAddToCart}
-              disabled={needSize || product.fulfilmentState === "unavailable"}
-              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 ${!needSize && product.fulfilmentState !== "unavailable" ? "hover:-translate-y-px" : "cursor-not-allowed opacity-50"}`}
+              disabled={needSize || isUnavailable || !isPurchasable}
+              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 ${!needSize && !isUnavailable && isPurchasable ? "hover:-translate-y-px" : "cursor-not-allowed opacity-50"}`}
               style={{
-                background: needSize || product.fulfilmentState === "unavailable" ? "#2a2723" : "hsl(var(--primary))",
-                color: needSize || product.fulfilmentState === "unavailable" ? "#F7F3EB" : "hsl(var(--primary-foreground))",
+                background: needSize || isUnavailable || !isPurchasable ? "#2a2723" : "hsl(var(--primary))",
+                color: needSize || isUnavailable || !isPurchasable ? "#F7F3EB" : "hsl(var(--primary-foreground))",
               }}
               data-testid="button-add-to-cart"
             >
-              {product.fulfilmentState === "unavailable"
+              {isUnavailable
                 ? productCopy.unavailableLabel
                 : needSize
                   ? productCopy.sizeRequiredLabel
-                  : `${productCopy.addToBagLabel} — ${naira(product.price)}`}
+                  : !isPurchasable
+                    ? "Unavailable in size"
+                    : `${productCopy.addToBagLabel} — ${naira(product.price)}`}
             </button>
             <button
               type="button"
@@ -301,6 +436,44 @@ export default function ProductDetail() {
               </div>
             ))}
           </div>
+
+          {/* Details & Assurances Accordion */}
+          <div className="mt-8 border-t border-black/10 dark:border-white/10">
+            <Accordion.Root type="multiple" className="w-full">
+              <Accordion.Item value="details" className="border-b border-black/10 dark:border-white/10">
+                <Accordion.Header>
+                  <Accordion.Trigger className="w-full flex items-center justify-between py-5 text-[12px] tracking-[0.2em] uppercase font-semibold hover:text-primary transition-colors group">
+                    Composition & Care
+                    <ChevronDown size={16} className="transition-transform duration-300 group-data-[state=open]:rotate-180" />
+                  </Accordion.Trigger>
+                </Accordion.Header>
+                <Accordion.Content className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+                  <div className="pb-5 space-y-4 text-sm opacity-85">
+                    {detailsToUse.map((item) => <p key={item.title}><span className="font-semibold">{item.title}</span> {item.body}</p>)}
+                  </div>
+                </Accordion.Content>
+              </Accordion.Item>
+
+              <Accordion.Item value="delivery" className="border-b border-black/10 dark:border-white/10">
+                <Accordion.Header>
+                  <Accordion.Trigger className="w-full flex items-center justify-between py-5 text-[12px] tracking-[0.2em] uppercase font-semibold hover:text-primary transition-colors group">
+                    Delivery & Returns
+                    <ChevronDown size={16} className="transition-transform duration-300 group-data-[state=open]:rotate-180" />
+                  </Accordion.Trigger>
+                </Accordion.Header>
+                <Accordion.Content className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
+                  <div className="pb-5 space-y-4 text-sm opacity-85">
+                    {assurancesToUse.map((item) => (
+                      <div key={item.title}>
+                        <p className="font-semibold text-primary">{item.title}</p>
+                        <p className="mt-1">{item.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Accordion.Content>
+              </Accordion.Item>
+            </Accordion.Root>
+          </div>
         </div>
       </div>
 
@@ -322,62 +495,21 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      {/* ————— PRODUCT NOTES ————— */}
-      <section className="max-w-[1280px] mx-auto px-6 md:px-12 py-20 grid md:grid-cols-2 gap-12 items-center">
-        <Reveal>
-          <div className="overflow-hidden imgzoom">
-            <img src={product.img} alt={`${product.name} ${productCopy.detailImageAltSuffix}`} className="w-full aspect-[4/5] object-cover" loading="lazy" />
-          </div>
-        </Reveal>
-        <div>
+      {/* ————— COMPLETE THE LOOK ————— */}
+      {look.length > 0 && (
+        <section className="max-w-[1440px] mx-auto px-6 md:px-12 py-24">
           <Reveal>
-            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>{productCopy.detailsEyebrow}</p>
-            <h2 className="soso-display text-4xl md:text-5xl font-light leading-tight">{productCopy.detailsHeading}</h2>
+            <h2 className="soso-display text-4xl font-light mb-10">Style with</h2>
           </Reveal>
-          <Reveal delay={120}>
-            <div className="mt-8 space-y-6 text-[15px] leading-relaxed opacity-85 max-w-md">
-              {productCopy.details.map((item) => <p key={item.title}><span className="font-semibold">{item.title}</span> {item.body}</p>)}
-            </div>
-          </Reveal>
-           <Reveal delay={220}>
-              <button type="button" onClick={() => setStylistOpen(true)} className="inline-flex mt-8 text-sm text-[hsl(var(--primary))] underline underline-offset-4">{supportCopy.productDetailsCtaLabel}</button>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ————— DELIVERY & RETURNS ————— */}
-      <section style={{ background: "hsl(var(--background))", color: "hsl(var(--foreground))" }} className="py-20">
-        <div className="max-w-[1280px] mx-auto px-6 md:px-12">
-          <Reveal>
-            <p className="text-[11px] tracking-[0.3em] uppercase mb-4" style={{ color: "hsl(var(--primary))" }}>{productCopy.assurancesEyebrow}</p>
-            <h2 className="soso-display text-4xl md:text-5xl font-light text-white">{productCopy.assurancesHeading}</h2>
-          </Reveal>
-          <div className="grid md:grid-cols-4 gap-px mt-12" style={{ background: "#2c2820" }}>
-             {productCopy.assurances.map((item, i) => (
-               <Reveal key={item.title} delay={i * 100}>
-                <div className="p-8 h-full" style={{ background: "#181613" }}>
-                   <p className="soso-display text-xl mb-3" style={{ color: "hsl(var(--primary))" }}>{item.title}</p>
-                   <p className="text-sm leading-relaxed opacity-75">{item.body}</p>
-                </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {look.map((p, i) => (
+              <Reveal key={p.name} delay={i * 90}>
+                <ProductCard product={p} testIdPrefix="related" ctaLabel="Quick Shop" />
               </Reveal>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ————— COMPLETE THE LOOK ————— */}
-      <section className="max-w-[1440px] mx-auto px-6 md:px-12 pb-24">
-        <Reveal>
-          <h2 className="soso-display text-4xl font-light mb-10">{productCopy.relatedHeading}</h2>
-        </Reveal>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {look.map((p, i) => (
-            <Reveal key={p.name} delay={i * 90}>
-              <ProductCard product={p} testIdPrefix="related" />
-            </Reveal>
-          ))}
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Sticky mobile buy bar */}
       <div
@@ -390,12 +522,12 @@ export default function ProductDetail() {
         </div>
         <button 
           onClick={handleAddToCart}
-          disabled={needSize || product.fulfilmentState === "unavailable"}
-          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all ${needSize || product.fulfilmentState === "unavailable" ? "opacity-50 cursor-not-allowed" : ""}`}
-          style={{ background: needSize || product.fulfilmentState === "unavailable" ? "#2a2723" : "hsl(var(--primary))", color: needSize || product.fulfilmentState === "unavailable" ? "#fff" : "hsl(var(--primary-foreground))" }}
+          disabled={needSize || isUnavailable || !isPurchasable}
+          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all ${needSize || isUnavailable || !isPurchasable ? "opacity-50 cursor-not-allowed" : ""}`}
+          style={{ background: needSize || isUnavailable || !isPurchasable ? "#2a2723" : "hsl(var(--primary))", color: needSize || isUnavailable || !isPurchasable ? "#fff" : "hsl(var(--primary-foreground))" }}
           data-testid="button-mobile-add-to-cart"
         >
-          {product.fulfilmentState === "unavailable" ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : productCopy.addToBagLabel}
+          {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : !isPurchasable ? "Unavailable" : productCopy.addToBagLabel}
         </button>
       </div>
 

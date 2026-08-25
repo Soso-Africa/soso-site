@@ -4,9 +4,10 @@ import { naira } from "@/lib/utils";
 import { Link } from "wouter";
 import { WhatsAppIcon } from "@/components/Icons";
 import { usePlatformContent } from "@/data/platformContent";
+import { mappedPurchaseChoices } from "@/lib/purchasing";
 
 export function CartDrawer() {
-  const { isDrawerOpen, closeDrawer, items, removeItem, updateQuantity, cartTotal } = useCart();
+  const { isDrawerOpen, closeDrawer, items, removeItem, updateQuantity, updateSize, cartTotal } = useCart();
   const { data } = usePlatformContent();
   const drawerRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -104,7 +105,14 @@ export function CartDrawer() {
               </button>
             </div>
           ) : (
-            items.map((item) => (
+            items.map((item) => {
+              const product = data.content.products.find(p => p.slug === item.slug);
+              const mappedSizes = product ? mappedPurchaseChoices(product) : [];
+              const sizes = mappedSizes.includes(item.size)
+                ? mappedSizes
+                : [item.size, ...mappedSizes];
+
+              return (
               <div key={`${item.slug}-${item.size}`} className="flex gap-4">
                 <Link href={`/product/${item.slug}`} onClick={closeDrawer}>
                   <img 
@@ -124,7 +132,42 @@ export function CartDrawer() {
                       <Link href={`/product/${item.slug}`} onClick={closeDrawer} className="soso-display text-lg hover:underline underline-offset-4">
                         {item.name}
                       </Link>
-                       <p className="text-[12px] opacity-70 mt-1 uppercase tracking-widest">{copy.sizeLabel} {item.size}</p>
+                       <div className="flex items-center gap-2 mt-1">
+                         <span className="text-[12px] opacity-70 uppercase tracking-widest">{copy.sizeLabel}</span>
+                          <select
+                           value={item.size}
+                           onChange={(e) => {
+                             const newSize = e.target.value;
+                             const variantId = product?.commerceVariantIds?.[newSize];
+                              if (!variantId || !mappedSizes.includes(newSize)) return;
+                             updateSize(item.slug, item.size, newSize, variantId);
+                           }}
+                           className="bg-transparent text-[12px] opacity-70 uppercase tracking-widest outline-none cursor-pointer hover:text-primary border-b border-transparent hover:border-primary pb-0.5"
+                           aria-label={`Change size for ${item.name}`}
+                           data-testid={`select-cart-size-${item.slug}`}
+                         >
+                            {sizes.map((size) => (
+                              <option
+                                key={size}
+                                value={size}
+                                disabled={!mappedSizes.includes(size)}
+                                className="bg-background text-foreground"
+                              >
+                                {size}{mappedSizes.includes(size) ? "" : " — unavailable"}
+                              </option>
+                           ))}
+                         </select>
+                       </div>
+                       {product?.fulfilmentState === "ready_now" && product.readyNowSizes?.includes(item.size) ? (
+                          <p className="text-[9px] uppercase tracking-wider text-green-500 mt-1">Ready Now</p>
+                       ) : product?.fulfilmentState === "made_immediately" || item.size === "Custom" || (product?.standardEligible && product.standardSizes?.includes(item.size)) ? (
+                          <p className="text-[9px] uppercase tracking-wider text-primary/80 mt-1">Made Immediately</p>
+                       ) : null}
+                        {product && (
+                          <p className="mt-1 text-[10px] leading-relaxed text-secondary/70" data-testid={`text-cart-dispatch-${item.slug}`}>
+                            {product.dispatchMessage}
+                          </p>
+                        )}
                     </div>
                     <button 
                       onClick={() => removeItem(item.slug, item.size)}
@@ -139,13 +182,15 @@ export function CartDrawer() {
                       <button 
                         onClick={() => updateQuantity(item.slug, item.size, item.quantity - 1)}
                         className="w-8 h-8 flex items-center justify-center hover:bg-white/5 transition-colors"
+                        aria-label={`Decrease quantity for ${item.name}`}
                       >
                         &minus;
                       </button>
-                      <span className="w-8 text-center text-sm">{item.quantity}</span>
+                      <span className="w-8 text-center text-sm" aria-label={`Quantity for ${item.name}`}>{item.quantity}</span>
                       <button 
                         onClick={() => updateQuantity(item.slug, item.size, item.quantity + 1)}
                         className="w-8 h-8 flex items-center justify-center hover:bg-white/5 transition-colors"
+                        aria-label={`Increase quantity for ${item.name}`}
                       >
                         +
                       </button>
@@ -156,7 +201,7 @@ export function CartDrawer() {
                   </div>
                 </div>
               </div>
-            ))
+            )})
           )}
         </div>
 

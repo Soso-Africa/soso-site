@@ -136,7 +136,8 @@
 .soso-card img { transition: transform 1.1s cubic-bezier(0.16,1,0.3,1); }
 .soso-card:hover img { transform: scale(1.05); }
 .soso-card .soso-cta-row { opacity: 0; transform: translateY(8px); transition: all .45s cubic-bezier(0.16,1,0.3,1); }
-.soso-card:hover .soso-cta-row { opacity: 1; transform: translateY(0); }
+.soso-card:hover .soso-cta-row,
+.soso-card:focus-within .soso-cta-row { opacity: 1; transform: translateY(0); }
 .soso-btn-gold { transition: all .3s ease; }
 .soso-btn-gold:hover { background-color: #D4B45A !important; transform: translateY(-1px); }
 .soso-btn-ghost:hover { background-color: rgba(246,241,231,0.08); }
@@ -211,6 +212,13 @@ html { scroll-behavior: smooth; }
 
 .soso-skip-link:focus {
   transform: translateY(0);
+}
+
+@media (hover: none) {
+  .soso-card .soso-cta-row {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

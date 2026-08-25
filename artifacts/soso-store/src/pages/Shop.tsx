@@ -96,8 +96,16 @@ export default function Shop() {
     || activeColour !== all
     || minPrice != null
     || maxPrice != null
-    || activeSort !== "featured",
   );
+
+  let activeFiltersCount = 0;
+  if (searchQuery) activeFiltersCount++;
+  if (activeCategory !== all) activeFiltersCount++;
+  if (activeFulfilment !== all) activeFiltersCount++;
+  if (activeSize !== all) activeFiltersCount++;
+  if (activeColour !== all) activeFiltersCount++;
+  if (minPrice != null) activeFiltersCount++;
+  if (maxPrice != null) activeFiltersCount++;
 
   if (!platform.data) {
     return <PlatformContentState
@@ -224,7 +232,9 @@ export default function Shop() {
               onClick={() => setMobileFiltersOpen(true)}
               className="inline-flex items-center gap-2 border border-white/10 bg-[#1a1712] px-4 py-3 text-[11px] uppercase tracking-wider lg:hidden"
               data-testid="button-open-filters"
-            ><Filter className="h-4 w-4 text-primary" /> Refine {hasRefinements && <span className="h-2 w-2 rounded-full bg-primary" />}</button>
+            >
+              <Filter className="h-4 w-4 text-primary" /> Refine {activeFiltersCount > 0 && <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">{activeFiltersCount}</span>}
+            </button>
           </div>
         </div>
 
@@ -253,14 +263,57 @@ export default function Shop() {
         </div>
       </section>
 
-      <div className="mb-6 flex items-center justify-between gap-4 text-xs text-secondary">
-        <p role="status" data-testid="status-result-count">{filteredProducts.length} {filteredProducts.length === 1 ? "piece" : "pieces"}</p>
-        {hasRefinements && <button
-          type="button"
-          onClick={resetFilters}
-          className="uppercase tracking-widest text-primary underline-offset-4 hover:underline"
-          data-testid="button-reset-filters"
-        >Reset all</button>}
+      <div className="mb-6 flex flex-col gap-4">
+        {hasRefinements && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest text-secondary/70 mr-2">Active Filters:</span>
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11px] text-white">
+                Search: {searchQuery}
+                <button type="button" onClick={() => updateParams({ q: null })} aria-label="Remove search filter" className="hover:text-primary"><X size={12} /></button>
+              </span>
+            )}
+            {activeCategory !== all && (
+              <span className="inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11px] text-white">
+                Category: {activeCategory}
+                <button type="button" onClick={() => updateParams({ category: null })} aria-label="Remove category filter" className="hover:text-primary"><X size={12} /></button>
+              </span>
+            )}
+            {activeFulfilment !== all && (
+              <span className="inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11px] text-white">
+                Fulfilment: {fulfilmentOptions.find(o => o.value === activeFulfilment)?.label}
+                <button type="button" onClick={() => updateParams({ fulfilment: null })} aria-label="Remove fulfilment filter" className="hover:text-primary"><X size={12} /></button>
+              </span>
+            )}
+            {activeSize !== all && (
+              <span className="inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11px] text-white">
+                Size: {activeSize}
+                <button type="button" onClick={() => updateParams({ size: null })} aria-label="Remove size filter" className="hover:text-primary"><X size={12} /></button>
+              </span>
+            )}
+            {activeColour !== all && (
+              <span className="inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11px] text-white">
+                Colour: {activeColour}
+                <button type="button" onClick={() => updateParams({ colour: null })} aria-label="Remove colour filter" className="hover:text-primary"><X size={12} /></button>
+              </span>
+            )}
+            {(minPrice != null || maxPrice != null) && (
+              <span className="inline-flex items-center gap-1.5 border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11px] text-white">
+                Price: {minPrice != null ? `₦${minPrice}` : "0"} - {maxPrice != null ? `₦${maxPrice}` : "Max"}
+                <button type="button" onClick={() => updateParams({ minPrice: null, maxPrice: null })} aria-label="Remove price filter" className="hover:text-primary"><X size={12} /></button>
+              </span>
+            )}
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-4 text-xs text-secondary">
+          <p role="status" data-testid="status-result-count">{filteredProducts.length} {filteredProducts.length === 1 ? "piece" : "pieces"}</p>
+          {hasRefinements && <button
+            type="button"
+            onClick={resetFilters}
+            className="uppercase tracking-widest text-primary underline-offset-4 hover:underline"
+            data-testid="button-reset-filters"
+          >Clear all</button>}
+        </div>
       </div>
 
       {filteredProducts.length === 0 ? <div className="border border-white/5 bg-white/5 py-24 text-center">
@@ -272,7 +325,7 @@ export default function Shop() {
         </button>
       </div> : <div className="grid grid-cols-1 gap-x-6 gap-y-12 pb-24 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {filteredProducts.map((product, index) => <Reveal key={product.slug} delay={(index % 4) * 80}>
-          <ProductCard product={product} ctaLabel={copy.productCtaLabel} />
+          <ProductCard product={product} ctaLabel="Quick Shop" />
         </Reveal>)}
       </div>}
     </main>

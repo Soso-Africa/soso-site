@@ -27,6 +27,7 @@ import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { ensurePlatformContent, platformContentHash, PlatformContentSchema } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
+import { validateProductMediaAssets } from "../lib/product-media-validation";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
 
@@ -134,9 +135,12 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
     res.status(400).json({ error: "Provide complete valid platform content and expectedDraftUpdatedAt", issues: parsed.success ? undefined : parsed.error.issues });
     return;
   }
-  const mediaIssues = await validateHomepageHeroMediaAssets(parsed.data);
+  const mediaIssues = [
+    ...await validateHomepageHeroMediaAssets(parsed.data),
+    ...await validateProductMediaAssets(parsed.data),
+  ];
   if (mediaIssues.length > 0) {
-    res.status(400).json({ error: "Homepage hero media did not pass publishing checks", issues: mediaIssues });
+    res.status(400).json({ error: "Storefront media did not pass publishing checks", issues: mediaIssues });
     return;
   }
   await ensurePlatformContent();
@@ -175,9 +179,12 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     res.status(400).json({ error: "The current draft is invalid", issues: candidateContent.error.issues });
     return;
   }
-  const mediaIssues = await validateHomepageHeroMediaAssets(candidateContent.data);
+  const mediaIssues = [
+    ...await validateHomepageHeroMediaAssets(candidateContent.data),
+    ...await validateProductMediaAssets(candidateContent.data),
+  ];
   if (mediaIssues.length > 0) {
-    res.status(400).json({ error: "Homepage hero media did not pass publishing checks", issues: mediaIssues });
+    res.status(400).json({ error: "Storefront media did not pass publishing checks", issues: mediaIssues });
     return;
   }
   const result = await db.transaction(async (tx) => {

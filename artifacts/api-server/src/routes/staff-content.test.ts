@@ -21,10 +21,12 @@ import {
   DEFAULT_PLATFORM_CONTENT,
   isProductUnavailable,
   mergePlatformContentDefaults,
+  mergePublishedPlatformContentDefaults,
   PlatformContentSchema,
   platformContentHash,
 } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
+import { validateProductMediaAssets } from "../lib/product-media-validation";
 
 const actor = "clerk_staff_editor";
 const draft = {
@@ -210,6 +212,8 @@ test("platform content validates the complete seeded document and hashes determi
 test("platform content includes complete public shell, journal, checkout, and privacy copy groups", () => {
   const { site, pages } = DEFAULT_PLATFORM_CONTENT;
   assert.ok(site.header.openMenuLabel);
+  assert.ok(site.header.searchLabel);
+  assert.ok(site.header.searchSuggestions.length > 0);
   assert.ok(site.skipLinkLabel);
   assert.ok(site.platformState.loadingMessage);
   assert.ok(site.platformState.unavailableMessage);
@@ -268,9 +272,12 @@ test("hybrid catalogue schema validates honest explicit fulfilment combinations"
 
   const trulyUnavailable = structuredClone(DEFAULT_PLATFORM_CONTENT);
   trulyUnavailable.products[0]!.fulfilmentState = "unavailable";
-  assert.equal(PlatformContentSchema.safeParse(trulyUnavailable).success, true);
+  assert.equal(PlatformContentSchema.safeParse(trulyUnavailable).success, false);
   trulyUnavailable.products[0]!.unavailableMessage = "This piece is not currently available.";
   assert.equal(PlatformContentSchema.safeParse(trulyUnavailable).success, true);
+
+  trulyUnavailable.products[0]!.readyNowSizes = ["S"];
+  assert.equal(PlatformContentSchema.safeParse(trulyUnavailable).success, false);
 
   const makeableWithoutPurchaseRoute = structuredClone(DEFAULT_PLATFORM_CONTENT);
   makeableWithoutPurchaseRoute.products[0]!.standardEligible = false;
@@ -292,6 +299,125 @@ test("hybrid catalogue schema validates honest explicit fulfilment combinations"
   incompleteCommerceMapping.products[0]!.standardSizes = ["S"];
   incompleteCommerceMapping.products[0]!.commerceVariantIds.Custom = "618626e6-f359-4167-853c-2370df34c686";
   assert.equal(PlatformContentSchema.safeParse(incompleteCommerceMapping).success, true);
+});
+
+test("catalogue governance validates selectable sizes, variant keys, approved imagery, and relationships", () => {
+  const invalid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const first = invalid.products[0]!;
+  first.standardSizes.push(first.standardSizes[0]!);
+  first.sizes = first.sizes.filter((size) => size !== "M");
+  first.images.push(structuredClone(first.images[0]!));
+  first.img = "/images/soso/not-approved.jpg";
+  first.relatedProductSlugs = [invalid.products[1]!.slug, invalid.products[1]!.slug, "unknown-piece"];
+  first.commerceProductId = "0efebec6-2687-4d2f-9350-f67282534d30";
+  first.commerceVariantIds = Object.fromEntries([
+    ...first.standardSizes.map((size) => [size, "a725a2f5-5cdd-46e7-a36d-c0c5beef6a31"]),
+    ["Custom", "618626e6-f359-4167-853c-2370df34c686"],
+    ["Not a size", "85295825-896a-481f-bb47-5db698168739"],
+  ]);
+
+  const parsed = PlatformContentSchema.safeParse(invalid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    const messages = parsed.error.issues.map((issue) => issue.message);
+    assert.ok(messages.some((message) => message.includes("Duplicate standardSizes")));
+    assert.ok(messages.some((message) => message.includes("selectable sizes")));
+    assert.ok(messages.some((message) => message.includes("approved images")));
+    assert.ok(messages.some((message) => message.includes("Duplicate approved product image")));
+    assert.ok(messages.some((message) => message.includes("Duplicate related product")));
+    assert.ok(messages.some((message) => message.includes("Invalid related product")));
+    assert.ok(messages.some((message) => message.includes("ineligible size")));
+  }
+});
+
+test("product image publishing checks verify existence, image identity, extension, and budget", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.products[0]!.images = [
+    content.products[0]!.images[0]!,
+    {
+      src: "/api/storage/objects/uploads/vault-alternate.webp",
+      alt: "Alternate view of the Vault kaftan",
+      provenance: { source: "SOSO Africa supplied asset", rights: "Approved for SOSO storefront use" },
+    },
+  ];
+
+  const validIssues = await validateProductMediaAssets(content, async (path) => ({
+    contentType: path.endsWith(".webp") ? "image/webp" : "image/jpeg",
+    declaredContentType: path.endsWith(".webp") ? "image/webp" : "image/jpeg",
+    size: 350_000,
+  }));
+  assert.deepEqual(validIssues, []);
+
+  const missingIssues = await validateProductMediaAssets(content, async () => null);
+  assert.equal(missingIssues.length, new Set(content.products.flatMap((product) => product.images.map((image) => image.src))).size);
+  assert.ok(missingIssues.every((issue) => issue.message.includes("verified bundled or SOSO App Storage")));
+
+  const invalidIssues = await validateProductMediaAssets(content, async (path) => ({
+    contentType: "video/mp4",
+    declaredContentType: "application/octet-stream",
+    size: path.endsWith(".webp") ? 13 * 1024 * 1024 : 350_000,
+  }));
+  assert.ok(invalidIssues.some((issue) => issue.message.includes("publishing budget")));
+  assert.ok(invalidIssues.some((issue) => issue.message.includes("bytes, MIME type")));
+
+  const unreadableIssues = await validateProductMediaAssets(content, async () => {
+    throw new Error("Object not found");
+  });
+  assert.ok(unreadableIssues.every((issue) => issue.message.includes("could not be verified")));
+});
+
+test("header search suggestions only publish unique safe catalogue targets", () => {
+  const valid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  valid.site.header.searchSuggestions = [
+    { label: "All pieces", href: "/shop?search=occasion" },
+    { label: "Vault", href: `/product/${valid.products[0]!.slug}` },
+    { label: "Kaftans", href: `/collections/${valid.collections[0]!.slug}` },
+  ];
+  assert.equal(PlatformContentSchema.safeParse(valid).success, true);
+
+  valid.site.header.searchSuggestions.push(
+    { label: "Duplicate Vault", href: `/product/${valid.products[0]!.slug}` },
+    { label: "Unknown product", href: "/product/not-published" },
+    { label: "Unrelated internal route", href: "/checkout" },
+  );
+  const parsed = PlatformContentSchema.safeParse(valid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.ok(parsed.error.issues.some((issue) => issue.message.includes("Duplicate search suggestion target")));
+    assert.ok(parsed.error.issues.filter((issue) => issue.message.includes("Unsafe or unknown")).length >= 2);
+  }
+});
+
+test("optional product detail copy validates and survives default upgrades without replacing merchant edits", () => {
+  const governed = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  governed.products[0]!.composition = "100% atelier-selected cotton.";
+  governed.products[0]!.care = "Dry clean only.";
+  governed.products[0]!.delivery = "Dispatch estimate is shown above.";
+  governed.products[0]!.returns = "See the published returns policy.";
+  const upgraded = mergePlatformContentDefaults(governed) as typeof governed;
+  assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
+  assert.equal(upgraded.products[0]!.composition, "100% atelier-selected cotton.");
+  assert.equal(upgraded.products[0]!.care, "Dry clean only.");
+
+  const omitted = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  delete omitted.site.header.searchLabel;
+  delete omitted.site.header.searchSuggestions;
+  delete omitted.products[0].composition;
+  const merged = mergePlatformContentDefaults(omitted) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.deepEqual(merged.site.header.searchSuggestions, DEFAULT_PLATFORM_CONTENT.site.header.searchSuggestions);
+  assert.equal(merged.products[0]!.composition, undefined);
+});
+
+test("legacy upgrades never populate an unpublished platform document", () => {
+  const unpublished = {};
+  assert.equal(mergePublishedPlatformContentDefaults(unpublished, null), unpublished);
+
+  const staleUnpublishedCopy = { site: { name: "Retired storefront" } };
+  assert.equal(mergePublishedPlatformContentDefaults(staleUnpublishedCopy, null), staleUnpublishedCopy);
+
+  const published = mergePublishedPlatformContentDefaults(staleUnpublishedCopy, new Date());
+  assert.notEqual(published, staleUnpublishedCopy);
+  assert.equal((published as typeof DEFAULT_PLATFORM_CONTENT).site.name, "Retired storefront");
 });
 
 test("known bespoke-only defaults upgrade to hybrid copy without replacing merchant edits", () => {
