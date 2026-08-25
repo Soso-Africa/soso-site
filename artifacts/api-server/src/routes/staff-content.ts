@@ -6,6 +6,8 @@ import {
   ListStaffJournalPostRevisionsParams,
   ListStaffJournalPostRevisionsResponse,
   ListStaffJournalPostsResponse,
+  ListStaffFaqHistoryQueryParams,
+  ListStaffFaqHistoryResponse,
   UpdateStaffJournalPostBody,
   UpdateStaffJournalPostParams,
   UpdateStaffJournalPostResponse,
@@ -653,19 +655,116 @@ router.delete("/staff/faq/:id", requireStaffRoles("owner", "administrator", "edi
   res.status(204).send();
 });
 
-router.get("/staff/faq/:id/history", requireStaffRoles("owner", "administrator", "editor"), async (req, res): Promise<void> => {
-  const [item] = await db.select({ id: faqItemsTable.id }).from(faqItemsTable).where(eq(faqItemsTable.id, req.params.id as string)).limit(1);
-  const events = await db.select({
+const faqHistoryCursorSchema = z.object({
+  id: z.string().uuid(),
+}).strict();
+
+type FaqHistoryCursor = z.infer<typeof faqHistoryCursorSchema>;
+
+export function encodeFaqHistoryCursor(cursor: FaqHistoryCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+export function decodeFaqHistoryCursor(cursor: string): FaqHistoryCursor {
+  try {
+    return faqHistoryCursorSchema.parse(JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")));
+  } catch {
+    throw new Error("Invalid FAQ history cursor");
+  }
+}
+
+export function buildFaqHistoryPage<T extends { id: string; createdAt: Date }>(events: readonly T[], limit: number) {
+  const hasMore = events.length > limit;
+  const items = hasMore ? events.slice(0, limit) : [...events];
+  const lastItem = items.at(-1);
+  return {
+    items,
+    nextCursor: hasMore && lastItem
+      ? encodeFaqHistoryCursor({ id: lastItem.id })
+      : null,
+  };
+}
+
+export async function queryFaqHistoryEvents(
+  faqId: string,
+  limit: number,
+  cursor?: FaqHistoryCursor,
+) {
+  const filters = [
+    eq(auditLogsTable.entityType, "faq_item"),
+    eq(auditLogsTable.entityId, faqId),
+  ];
+  if (cursor) {
+    const [cursorEvent] = await db.select({
+      createdAt: sql<string>`${auditLogsTable.createdAt}::text`,
+    }).from(auditLogsTable).where(and(
+      eq(auditLogsTable.entityType, "faq_item"),
+      eq(auditLogsTable.entityId, faqId),
+      eq(auditLogsTable.id, cursor.id),
+    )).limit(1);
+    if (!cursorEvent) throw new Error("FAQ history cursor not found");
+    filters.push(sql`(
+      ${auditLogsTable.createdAt},
+      ${auditLogsTable.id}
+    ) < (
+      ${cursorEvent.createdAt}::timestamptz,
+      ${cursor.id}::uuid
+    )`);
+  }
+
+  return db.select({
     id: auditLogsTable.id,
     actorClerkUserId: auditLogsTable.actorClerkUserId,
     action: auditLogsTable.action,
     metadata: auditLogsTable.metadata,
     createdAt: auditLogsTable.createdAt,
   }).from(auditLogsTable)
-    .where(eq(auditLogsTable.entityId, req.params.id as string))
-    .orderBy(desc(auditLogsTable.createdAt));
-  if (!item && !events.length) { res.status(404).json({ error: "FAQ item not found" }); return; }
-  res.json(sortFaqHistoryNewestFirst(events));
+    .where(and(...filters))
+    .orderBy(desc(auditLogsTable.createdAt), desc(auditLogsTable.id))
+    .limit(limit + 1);
+}
+
+router.get("/staff/faq-history", requireStaffRoles("owner", "administrator", "editor"), async (req, res): Promise<void> => {
+  const query = ListStaffFaqHistoryQueryParams.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: "Invalid FAQ history query" });
+    return;
+  }
+
+  let cursor: FaqHistoryCursor | undefined;
+  if (query.data.cursor) {
+    try {
+      cursor = decodeFaqHistoryCursor(query.data.cursor);
+    } catch {
+      res.status(400).json({ error: "Invalid FAQ history cursor" });
+      return;
+    }
+  }
+
+  let events;
+  try {
+    events = await queryFaqHistoryEvents(query.data.id, query.data.limit, cursor);
+  } catch {
+    res.status(400).json({ error: "Invalid FAQ history cursor" });
+    return;
+  }
+  const [item] = await db.select({ id: faqItemsTable.id }).from(faqItemsTable)
+    .where(eq(faqItemsTable.id, query.data.id)).limit(1);
+
+  if (!item && !events.length) {
+    const [existingHistory] = await db.select({ id: auditLogsTable.id }).from(auditLogsTable)
+      .where(and(
+        eq(auditLogsTable.entityType, "faq_item"),
+        eq(auditLogsTable.entityId, query.data.id),
+      ))
+      .limit(1);
+    if (!existingHistory) {
+      res.status(404).json({ error: "FAQ item not found" });
+      return;
+    }
+  }
+
+  res.json(ListStaffFaqHistoryResponse.parse(buildFaqHistoryPage(events, query.data.limit)));
 });
 
 export default router;
@@ -681,18 +780,6 @@ export const buildFaqUpdateAuditMetadata = (
     to: current.isPublished ? "published" : "draft",
   },
 });
-
-export type FaqHistoryEvent = {
-  id: string;
-  actorClerkUserId: string;
-  action: string;
-  metadata: unknown;
-  createdAt: Date;
-};
-
-export function sortFaqHistoryNewestFirst<T extends Pick<FaqHistoryEvent, "createdAt">>(events: readonly T[]): T[] {
-  return [...events].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-}
 
 export const buildFaqDeleteAuditMetadata = (row: typeof faqItemsTable.$inferSelect) => ({
   previousSnapshot: faqSnapshot(row),

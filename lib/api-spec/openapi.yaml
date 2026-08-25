@@ -271,6 +271,37 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/FaqItem"
+  /staff/faq-history:
+    get:
+      operationId: listStaffFaqHistory
+      tags: [staff]
+      summary: List immutable FAQ audit records with cursor pagination
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "200":
+          description: FAQ audit records, newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FaqHistoryPage"
+        "400":
+          description: Invalid pagination query
+        "403":
+          description: Owner, administrator, or editor access required
+        "404":
+          description: FAQ item and history not found
   /policies:
     get:
       operationId: listPolicies
@@ -1392,6 +1423,44 @@ components:
         question: { type: string }
         answer: { type: string }
         category: { type: string }
+    FaqHistorySnapshot:
+      type: object
+      required: [question, answer, category, sortOrder, isPublished]
+      properties:
+        question: { type: string }
+        answer: { type: string }
+        category: { type: ["string", "null"] }
+        sortOrder: { type: number }
+        isPublished: { type: boolean }
+    FaqHistoryTransition:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: ["string", "null"] }
+        to: { type: string }
+    FaqHistoryMetadata:
+      type: object
+      properties:
+        snapshot: { $ref: "#/components/schemas/FaqHistorySnapshot" }
+        previousSnapshot: { $ref: "#/components/schemas/FaqHistorySnapshot" }
+        transition: { $ref: "#/components/schemas/FaqHistoryTransition" }
+    FaqHistoryEvent:
+      type: object
+      required: [id, actorClerkUserId, action, metadata, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        actorClerkUserId: { type: string }
+        action: { type: string }
+        metadata: { $ref: "#/components/schemas/FaqHistoryMetadata" }
+        createdAt: { type: string, format: date-time }
+    FaqHistoryPage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/FaqHistoryEvent" }
+        nextCursor: { type: ["string", "null"] }
     JournalPostSummary:
       type: object
       required: [slug, title, excerpt, authorName, publishedAt]

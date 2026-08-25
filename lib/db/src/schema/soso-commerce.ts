@@ -523,7 +523,10 @@ export const auditLogsTable = pgTable(
     metadata: jsonb("metadata").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("soso_audit_logs_entity_created_idx").on(table.entityType, table.createdAt)],
+  (table) => [
+    index("soso_audit_logs_entity_created_idx").on(table.entityType, table.createdAt),
+    index("soso_audit_logs_entity_id_created_idx").on(table.entityType, table.entityId, table.createdAt, table.id),
+  ],
 );
 
 export const insertStaffUserSchema = createInsertSchema(staffUsersTable).omit({ id: true, createdAt: true, updatedAt: true });

@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
+import { auditLogsTable, db } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import { requireStaffRoles } from "../middlewares/staff";
 import {
   buildFaqCreateAuditMetadata,
   buildFaqDeleteAuditMetadata,
+  buildFaqHistoryPage,
   buildFaqUpdateAuditMetadata,
-  sortFaqHistoryNewestFirst,
+  decodeFaqHistoryCursor,
+  encodeFaqHistoryCursor,
+  queryFaqHistoryEvents,
   default as staffContentRouter,
   PolicyInputSchema,
 } from "./staff-content";
@@ -87,27 +93,62 @@ test("FAQ delete audit metadata preserves the last snapshot and records deletion
   });
 });
 
-test("FAQ history is newest first and retains actor and timestamp fields", () => {
+test("FAQ history pages are bounded and use a stable opaque cursor", () => {
   const oldest = {
-    id: "audit-created",
+    id: "00000000-0000-4000-8000-000000000001",
     actorClerkUserId: actor,
     action: "faq.created",
     metadata: buildFaqCreateAuditMetadata(draft),
     createdAt: new Date("2026-08-24T10:00:00.000Z"),
   };
   const newest = {
-    id: "audit-deleted",
+    id: "00000000-0000-4000-8000-000000000002",
     actorClerkUserId: "clerk_staff_owner",
     action: "faq.deleted",
     metadata: buildFaqDeleteAuditMetadata(published),
     createdAt: new Date("2026-08-24T10:04:00.000Z"),
   };
-  const history = sortFaqHistoryNewestFirst([oldest, newest]);
+  const page = buildFaqHistoryPage([newest, oldest], 1);
+  const cursor = decodeFaqHistoryCursor(page.nextCursor!);
 
-  assert.deepEqual(history.map((event) => event.id), ["audit-deleted", "audit-created"]);
-  assert.equal(history[0]?.actorClerkUserId, "clerk_staff_owner");
-  assert.ok(history[0]?.createdAt instanceof Date);
-  assert.equal(history[0]?.createdAt.toISOString(), "2026-08-24T10:04:00.000Z");
+  assert.deepEqual(page.items.map((event) => event.id), [newest.id]);
+  assert.deepEqual(cursor, { id: newest.id });
+  assert.equal(encodeFaqHistoryCursor(cursor), page.nextCursor);
+  assert.throws(() => decodeFaqHistoryCursor("not-a-valid-cursor"), /Invalid FAQ history cursor/);
+});
+
+test("FAQ cursor pagination preserves equal microsecond timestamps across page boundaries", async () => {
+  const entityId = randomUUID();
+  const ids = [
+    "10000000-0000-4000-8000-000000000001",
+    "10000000-0000-4000-8000-000000000002",
+    "10000000-0000-4000-8000-000000000003",
+  ];
+  const createdAt = "2026-08-25 12:34:56.123456+00";
+
+  try {
+    for (const id of ids) {
+      await db.execute(sql`
+        insert into "soso_audit_logs"
+          ("id", "actor_clerk_user_id", "action", "entity_type", "entity_id", "metadata", "created_at")
+        values
+          (${id}::uuid, ${actor}, 'faq.updated', 'faq_item', ${entityId}, '{}'::jsonb,
+           ${createdAt}::timestamptz)
+      `);
+    }
+
+    const firstRows = await queryFaqHistoryEvents(entityId, 2);
+    const firstPage = buildFaqHistoryPage(firstRows, 2);
+    const secondRows = await queryFaqHistoryEvents(entityId, 2, decodeFaqHistoryCursor(firstPage.nextCursor!));
+    const secondPage = buildFaqHistoryPage(secondRows, 2);
+    const combined = [...firstPage.items, ...secondPage.items].map((event) => event.id);
+
+    assert.deepEqual(combined, [...ids].sort().reverse());
+    assert.equal(new Set(combined).size, 3);
+    assert.equal(secondPage.nextCursor, null);
+  } finally {
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, entityId));
+  }
 });
 
 test("FAQ history is registered as read-only and limited to owner/editor staff", () => {
@@ -116,7 +157,7 @@ test("FAQ history is registered as read-only and limited to owner/editor staff",
   }).stack;
   const historyRoute = routerStack
     .map((layer) => layer.route)
-    .find((route) => route?.path === "/staff/faq/:id/history");
+    .find((route) => route?.path === "/staff/faq-history");
 
   assert.ok(historyRoute);
   assert.deepEqual(Object.keys(historyRoute.methods), ["get"]);

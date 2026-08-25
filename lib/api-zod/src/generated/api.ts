@@ -422,6 +422,57 @@ export const ListFaqItemsResponse = zod.array(ListFaqItemsResponseItem)
 
 
 /**
+ * @summary List immutable FAQ audit records with cursor pagination
+ */
+export const listStaffFaqHistoryQueryIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const listStaffFaqHistoryQueryLimitDefault = 20;
+export const listStaffFaqHistoryQueryLimitMax = 50;
+
+export const listStaffFaqHistoryQueryCursorMax = 500;
+
+
+
+export const ListStaffFaqHistoryQueryParams = zod.object({
+  "id": zod.coerce.string().regex(listStaffFaqHistoryQueryIdRegExp),
+  "limit": zod.coerce.number().int().min(1).max(listStaffFaqHistoryQueryLimitMax).default(listStaffFaqHistoryQueryLimitDefault),
+  "cursor": zod.coerce.string().min(1).max(listStaffFaqHistoryQueryCursorMax).optional()
+})
+
+export const listStaffFaqHistoryResponseItemsItemIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const ListStaffFaqHistoryResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.string().regex(listStaffFaqHistoryResponseItemsItemIdRegExp),
+  "actorClerkUserId": zod.string(),
+  "action": zod.string(),
+  "metadata": zod.object({
+  "snapshot": zod.object({
+  "question": zod.string(),
+  "answer": zod.string(),
+  "category": zod.string().nullable(),
+  "sortOrder": zod.number(),
+  "isPublished": zod.boolean()
+}).optional(),
+  "previousSnapshot": zod.object({
+  "question": zod.string(),
+  "answer": zod.string(),
+  "category": zod.string().nullable(),
+  "sortOrder": zod.number(),
+  "isPublished": zod.boolean()
+}).optional(),
+  "transition": zod.object({
+  "from": zod.string().nullable(),
+  "to": zod.string()
+}).optional()
+}),
+  "createdAt": zod.coerce.date()
+})),
+  "nextCursor": zod.string().nullable()
+})
+
+
+/**
  * @summary List currently effective published policy summaries
  */
 export const listPoliciesResponseSlugMax = 160;

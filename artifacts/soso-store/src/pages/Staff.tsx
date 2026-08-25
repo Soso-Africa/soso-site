@@ -17,6 +17,7 @@ import {
   useListStaffNotifications,
   useListStaffOrders,
   useListStaffPrivacyRequests,
+  listStaffFaqHistory,
   useUpdateStaffEnquiry,
   useUpdateStaffJournalPost,
   useUpdateStaffOrder,
@@ -24,6 +25,8 @@ import {
   type StaffJournalPost,
   type StaffJournalPostInput,
   type Enquiry,
+  type FaqHistoryEvent,
+  type FaqHistorySnapshot,
   type StaffAuditEvent,
   type StaffFunnel,
   type StaffNotification,
@@ -1247,8 +1250,33 @@ function JournalManagementSection() {
 }
 
 type FaqRow = { id: string; question: string; answer: string; category: string | null; sortOrder: number; isPublished: boolean; createdAt: string; updatedAt: string };
-type FaqHistoryEvent = { id: string; actorClerkUserId: string; action: string; metadata: { snapshot?: FaqRow; previousSnapshot?: FaqRow; transition?: { from: string | null; to: string } }; createdAt: string };
 type RedirectRow = { id: string; fromPath: string; toPath: string; statusCode: number; isPublished: boolean; createdAt: string; updatedAt: string };
+
+const FAQ_HISTORY_PAGE_SIZE = 20;
+
+function changedFaqFields(event: FaqHistoryEvent): string[] {
+  const previous = event.metadata.previousSnapshot;
+  const current = event.metadata.snapshot;
+  if (!previous || !current) return [];
+  const fields: Array<[keyof FaqHistorySnapshot, string]> = [
+    ["question", "question"],
+    ["answer", "answer"],
+    ["category", "category"],
+    ["sortOrder", "sort order"],
+    ["isPublished", "status"],
+  ];
+  return fields.filter(([key]) => previous[key] !== current[key]).map(([, label]) => label);
+}
+
+function FaqHistorySnapshotView({ title, snapshot }: { title: string; snapshot: FaqHistorySnapshot }) {
+  return <div className="border border-border bg-card p-3 text-muted-foreground">
+    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-foreground">{title}</p>
+    <p><span className="font-medium text-foreground">Question:</span> {snapshot.question}</p>
+    <p className="mt-1 whitespace-pre-wrap"><span className="font-medium text-foreground">Answer:</span> {snapshot.answer}</p>
+    <p className="mt-1"><span className="font-medium text-foreground">Category:</span> {snapshot.category || "Uncategorised"}</p>
+    <p className="mt-1"><span className="font-medium text-foreground">Order:</span> {snapshot.sortOrder} · {snapshot.isPublished ? "Published" : "Draft"}</p>
+  </div>;
+}
 
 function useCrudFetch<T>(path: string, enabled: boolean) {
   const [data, setData] = useState<T[] | null>(null);
@@ -1271,8 +1299,12 @@ function FaqManagementSection() {
   const [editing, setEditing] = useState<Partial<FaqRow> | null>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [history, setHistory] = useState<FaqHistoryEvent[] | null>(null);
+  const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(null);
+  const [historyCursor, setHistoryCursor] = useState<string | undefined>();
+  const [historyBackStack, setHistoryBackStack] = useState<Array<string | undefined>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
+  const historyRequestRef = useRef(0);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1310,16 +1342,58 @@ function FaqManagementSection() {
     }
   };
 
-  const showHistory = async (id: string) => {
-    if (historyId === id) { setHistoryId(null); return; }
-    setHistoryId(id); setHistory(null); setHistoryError(""); setHistoryLoading(true);
+  const loadHistoryPage = async (
+    id: string,
+    cursor: string | undefined,
+    backStack: Array<string | undefined>,
+  ) => {
+    const requestId = ++historyRequestRef.current;
+    setHistoryLoading(true);
+    setHistoryError("");
     try {
-      setHistory(await customFetch<FaqHistoryEvent[]>(`/api/staff/faq/${id}/history`));
+      const page = await listStaffFaqHistory({ id, limit: FAQ_HISTORY_PAGE_SIZE, cursor });
+      if (historyRequestRef.current !== requestId) return;
+      setHistory(page.items);
+      setHistoryNextCursor(page.nextCursor);
+      setHistoryCursor(cursor);
+      setHistoryBackStack(backStack);
     } catch (err) {
+      if (historyRequestRef.current !== requestId) return;
       setHistoryError(errorMessage(err, "History could not be loaded."));
     } finally {
-      setHistoryLoading(false);
+      if (historyRequestRef.current === requestId) setHistoryLoading(false);
     }
+  };
+
+  const showHistory = async (id: string) => {
+    if (historyId === id) {
+      historyRequestRef.current += 1;
+      setHistoryId(null);
+      setHistory(null);
+      setHistoryNextCursor(null);
+      setHistoryCursor(undefined);
+      setHistoryBackStack([]);
+      setHistoryLoading(false);
+      setHistoryError("");
+      return;
+    }
+    setHistoryId(id);
+    setHistory(null);
+    setHistoryNextCursor(null);
+    setHistoryCursor(undefined);
+    setHistoryBackStack([]);
+    await loadHistoryPage(id, undefined, []);
+  };
+
+  const loadOlderHistory = async () => {
+    if (!historyId || !historyNextCursor || historyLoading) return;
+    await loadHistoryPage(historyId, historyNextCursor, [...historyBackStack, historyCursor]);
+  };
+
+  const loadNewerHistory = async () => {
+    if (!historyId || !historyBackStack.length || historyLoading) return;
+    const cursor = historyBackStack.at(-1);
+    await loadHistoryPage(historyId, cursor, historyBackStack.slice(0, -1));
   };
 
   return (
@@ -1374,15 +1448,22 @@ function FaqManagementSection() {
                 </div>
               </div>
               {historyId === item.id && <div className="border-t border-border bg-muted/20 px-4 py-4 sm:pl-8">
-                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Change history</p>
-                <p className="mt-1 text-xs text-muted-foreground">Read-only audit records. Previous snapshots are shown for review; they cannot be restored here.</p>
-                {historyLoading && <p className="mt-3 text-xs text-muted-foreground">Loading history…</p>}
-                {historyError && <p className="mt-3 text-xs text-destructive">{historyError}</p>}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-primary">Change history</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Newest changes appear first. Audit records are read-only and cannot be restored here.</p>
+                  </div>
+                  {history && <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Page {historyBackStack.length + 1} · {history.length} records</span>}
+                </div>
+                {historyLoading && !history && <p className="mt-3 text-xs text-muted-foreground">Loading history…</p>}
+                {historyError && <p role="alert" className="mt-3 text-xs text-destructive">{historyError}</p>}
                 {!historyLoading && !historyError && !history?.length && <p className="mt-3 text-xs text-muted-foreground">No audit records are available.</p>}
                 <div className="mt-3 space-y-3">
                   {history?.map((event) => {
                     const transition = event.metadata?.transition;
-                    const snapshot = event.metadata?.snapshot ?? event.metadata?.previousSnapshot;
+                    const previous = event.metadata?.previousSnapshot;
+                    const current = event.metadata?.snapshot;
+                    const changedFields = changedFaqFields(event);
                     return <div key={event.id} className="border-l-2 border-primary/30 pl-3 text-xs">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-semibold">{event.action.replace("faq.", "").replace(".", " ")}</span>
@@ -1390,14 +1471,36 @@ function FaqManagementSection() {
                         <time className="text-muted-foreground">{format(new Date(event.createdAt), "d MMM yyyy, HH:mm")}</time>
                       </div>
                       <p className="mt-1 text-muted-foreground">By {event.actorClerkUserId}</p>
-                      {snapshot && <div className="mt-2 border border-border bg-card p-2 text-muted-foreground">
-                        <p><span className="font-medium text-foreground">Question:</span> {snapshot.question}</p>
-                        <p className="mt-1 whitespace-pre-wrap"><span className="font-medium text-foreground">Answer:</span> {snapshot.answer}</p>
-                        {snapshot.category && <p className="mt-1"><span className="font-medium text-foreground">Category:</span> {snapshot.category}</p>}
-                      </div>}
+                      {changedFields.length > 0 && <p className="mt-1 text-foreground">Changed: {changedFields.join(", ")}</p>}
+                      {(previous || current) && <details className="mt-2">
+                        <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-primary">Review snapshot</summary>
+                        <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                          {previous && <FaqHistorySnapshotView title={current ? "Before" : "Last saved state"} snapshot={previous} />}
+                          {current && <FaqHistorySnapshotView title={previous ? "After" : "Created state"} snapshot={current} />}
+                        </div>
+                      </details>}
                     </div>;
                   })}
                 </div>
+                {(historyBackStack.length > 0 || historyNextCursor) && <div className="mt-4 flex flex-wrap items-center gap-2">
+                  {historyBackStack.length > 0 && <button
+                    type="button"
+                    disabled={historyLoading}
+                    onClick={() => void loadNewerHistory()}
+                    className="inline-flex min-h-9 items-center border border-border px-3 text-xs font-semibold hover:border-primary disabled:opacity-50"
+                  >
+                    Newer changes
+                  </button>}
+                  {historyNextCursor && <button
+                    type="button"
+                    disabled={historyLoading}
+                    onClick={() => void loadOlderHistory()}
+                    className="inline-flex min-h-9 items-center border border-border px-3 text-xs font-semibold hover:border-primary disabled:opacity-50"
+                  >
+                    Older changes
+                  </button>}
+                  {historyLoading && <span className="text-xs text-muted-foreground">Loading page…</span>}
+                </div>}
               </div>}
               </React.Fragment>
             ))}

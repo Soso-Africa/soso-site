@@ -8,8 +8,10 @@ reviewed SQL migration with the production `DATABASE_URL`:
 pnpm --filter @workspace/db run migrate:soso-content
 ```
 
-The command runs `migrations/0001_soso_content_cms.sql` in a transaction and
-rolls it back on failure. The SQL is idempotent, so it can be run again safely.
+The command runs the checked-in SOSO migrations in filename order inside one
+transaction, currently `0001_soso_content_cms.sql` followed by
+`0002_faq_history_pagination.sql`, and rolls the batch back on failure. Each SQL
+migration is idempotent, so the command can be run again safely.
 
 For subsequent schema changes, compare the Drizzle schema with the current
 production base, review the generated schema diff, and check in a new additive,

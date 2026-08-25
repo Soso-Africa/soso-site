@@ -34,6 +34,7 @@ import type {
   ConsentRecord,
   Enquiry,
   EnquiryInput,
+  FaqHistoryPage,
   FaqItem,
   GetRedirectParams,
   GetSiteContent200,
@@ -44,6 +45,7 @@ import type {
   JournalPost,
   JournalPostSummary,
   ListStaffAuditEventsParams,
+  ListStaffFaqHistoryParams,
   ListStaffOrdersParams,
   ListStaffPolicyHistory200Item,
   ListStaffRedirectHistory200Item,
@@ -1069,6 +1071,90 @@ export function useListFaqItems<TData = Awaited<ReturnType<typeof listFaqItems>>
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListFaqItemsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStaffFaqHistoryUrl = (params: ListStaffFaqHistoryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/faq-history?${stringifiedParams}` : `/api/staff/faq-history`
+}
+
+/**
+ * @summary List immutable FAQ audit records with cursor pagination
+ */
+export const listStaffFaqHistory = async (params: ListStaffFaqHistoryParams, options?: Parameters<typeof customFetch>[1]): Promise<FaqHistoryPage> => {
+
+  return customFetch<FaqHistoryPage>(getListStaffFaqHistoryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffFaqHistoryQueryKey = (params?: ListStaffFaqHistoryParams,) => {
+    return [
+    `/api/staff/faq-history`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListStaffFaqHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listStaffFaqHistory>>, TError = ErrorType<void>>(params: ListStaffFaqHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffFaqHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffFaqHistoryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffFaqHistory>>> = ({ signal }) => listStaffFaqHistory(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffFaqHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffFaqHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffFaqHistory>>>
+export type ListStaffFaqHistoryQueryError = ErrorType<void>
+
+
+/**
+ * @summary List immutable FAQ audit records with cursor pagination
+ */
+
+export function useListStaffFaqHistory<TData = Awaited<ReturnType<typeof listStaffFaqHistory>>, TError = ErrorType<void>>(
+ params: ListStaffFaqHistoryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffFaqHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffFaqHistoryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -464,6 +464,42 @@ export interface FaqItem {
   category: string;
 }
 
+export interface FaqHistorySnapshot {
+  question: string;
+  answer: string;
+  /** @nullable */
+  category: string | null;
+  sortOrder: number;
+  isPublished: boolean;
+}
+
+export interface FaqHistoryTransition {
+  /** @nullable */
+  from: string | null;
+  to: string;
+}
+
+export interface FaqHistoryMetadata {
+  snapshot?: FaqHistorySnapshot;
+  previousSnapshot?: FaqHistorySnapshot;
+  transition?: FaqHistoryTransition;
+}
+
+export interface FaqHistoryEvent {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  actorClerkUserId: string;
+  action: string;
+  metadata: FaqHistoryMetadata;
+  createdAt: string;
+}
+
+export interface FaqHistoryPage {
+  items: FaqHistoryEvent[];
+  /** @nullable */
+  nextCursor: string | null;
+}
+
 export interface JournalPostSummary {
   slug: string;
   title: string;
@@ -1470,6 +1506,23 @@ export type RedirectExpectedRevisionParameter = string;
 export type StaffDateFromParameter = string;
 
 export type StaffDateToParameter = string;
+
+export type ListStaffFaqHistoryParams = {
+/**
+ * @pattern ^[0-9a-fA-F-]{36}$
+ */
+id: string;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
+/**
+ * @minLength 1
+ * @maxLength 500
+ */
+cursor?: string;
+};
 
 export type GetRedirectParams = {
 /**
