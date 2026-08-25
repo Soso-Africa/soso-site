@@ -143,7 +143,7 @@ export function CartDrawer() {
                              updateSize(item.slug, item.size, newSize, variantId);
                            }}
                            className="bg-transparent text-[12px] opacity-70 uppercase tracking-widest outline-none cursor-pointer hover:text-primary border-b border-transparent hover:border-primary pb-0.5"
-                           aria-label={`Change size for ${item.name}`}
+                            aria-label={copy.changeSizeLabel}
                            data-testid={`select-cart-size-${item.slug}`}
                          >
                             {sizes.map((size) => (
@@ -153,15 +153,15 @@ export function CartDrawer() {
                                 disabled={!mappedSizes.includes(size)}
                                 className="bg-background text-foreground"
                               >
-                                {size}{mappedSizes.includes(size) ? "" : " — unavailable"}
+                                {size}{mappedSizes.includes(size) ? "" : ` — ${copy.unavailableSizeSuffix}`}
                               </option>
                            ))}
                          </select>
                        </div>
                        {product?.fulfilmentState === "ready_now" && product.readyNowSizes?.includes(item.size) ? (
-                          <p className="text-[9px] uppercase tracking-wider text-green-500 mt-1">Ready Now</p>
+                           <p className="text-[9px] uppercase tracking-wider text-green-500 mt-1">{copy.readyNowLabel}</p>
                        ) : product?.fulfilmentState === "made_immediately" || item.size === "Custom" || (product?.standardEligible && product.standardSizes?.includes(item.size)) ? (
-                          <p className="text-[9px] uppercase tracking-wider text-primary/80 mt-1">Made Immediately</p>
+                           <p className="text-[9px] uppercase tracking-wider text-primary/80 mt-1">{copy.madeImmediatelyLabel}</p>
                        ) : null}
                         {product && (
                           <p className="mt-1 text-[10px] leading-relaxed text-secondary/70" data-testid={`text-cart-dispatch-${item.slug}`}>
@@ -182,15 +182,15 @@ export function CartDrawer() {
                       <button 
                         onClick={() => updateQuantity(item.slug, item.size, item.quantity - 1)}
                         className="w-8 h-8 flex items-center justify-center hover:bg-white/5 transition-colors"
-                        aria-label={`Decrease quantity for ${item.name}`}
+                         aria-label={copy.decreaseQuantityLabel}
                       >
                         &minus;
                       </button>
-                      <span className="w-8 text-center text-sm" aria-label={`Quantity for ${item.name}`}>{item.quantity}</span>
+                       <span className="w-8 text-center text-sm" aria-label={copy.quantityLabel}>{item.quantity}</span>
                       <button 
                         onClick={() => updateQuantity(item.slug, item.size, item.quantity + 1)}
                         className="w-8 h-8 flex items-center justify-center hover:bg-white/5 transition-colors"
-                        aria-label={`Increase quantity for ${item.name}`}
+                         aria-label={copy.increaseQuantityLabel}
                       >
                         +
                       </button>

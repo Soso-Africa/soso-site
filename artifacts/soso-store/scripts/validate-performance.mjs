@@ -8,7 +8,9 @@ const publicDirectory = resolve(packageRoot, "public");
 const imageDirectory = resolve(packageRoot, "public/images");
 const sourceDirectory = resolve(packageRoot, "src");
 const maxImageBytes = 512 * 1024;
-const maxTotalImageBytes = 1024 * 1024;
+// The complete Men + Women fallback catalogue is bundled, while product-grid images
+// remain lazy-loaded. Keep a strict per-image transfer cap and bounded library total.
+const maxTotalImageBytes = 2.5 * 1024 * 1024;
 const maxVideoBytes = 8 * 1024 * 1024;
 const maxTotalVideoBytes = 8 * 1024 * 1024;
 const supportedImageExtensions = new Set([".avif", ".jpg", ".jpeg", ".png", ".svg", ".webp"]);

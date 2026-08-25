@@ -14,6 +14,7 @@ export function Navbar() {
   const { data } = usePlatformContent();
 
   const site = data?.content.site;
+  const navigationCopy = data?.content.interfaceCopy.navigation;
   const products = data?.content.products || [];
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -23,6 +24,24 @@ export function Navbar() {
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [announcementIndex, setAnnouncementIndex] = useState(0);
+  const [isAnnouncementHovered, setIsAnnouncementHovered] = useState(false);
+
+  useEffect(() => {
+    const itemCount = site?.announcementItems?.length ?? 0;
+    if (itemCount <= 1) {
+      setAnnouncementIndex(0);
+      return;
+    }
+    setAnnouncementIndex((previous) => previous % itemCount);
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion || isAnnouncementHovered) return;
+
+    const interval = setInterval(() => {
+      setAnnouncementIndex((prev) => (prev + 1) % itemCount);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [site?.announcementItems, isAnnouncementHovered]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -117,7 +136,7 @@ export function Navbar() {
     if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
   };
 
-  if (!site) return null;
+  if (!site || !navigationCopy) return null;
 
   const hasMegaMenu = !!(site.megaMenu && site.megaMenu.length > 0);
   const visibleGroups = site.megaMenu?.filter(g => g.visible) || [];
@@ -137,8 +156,26 @@ export function Navbar() {
 
   return (
     <>
-      <div className="text-center text-[11px] tracking-[0.22em] uppercase py-2 px-4" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}>
-        {site.announcement}
+      <div
+        className="relative flex h-[34px] items-center justify-center overflow-hidden px-4 py-2 text-center text-[11px] uppercase tracking-[0.22em]"
+        style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}
+        onMouseEnter={() => setIsAnnouncementHovered(true)}
+        onMouseLeave={() => setIsAnnouncementHovered(false)}
+      >
+        {(() => {
+          const items = site.announcementItems?.length ? site.announcementItems : [site.announcement];
+          return items.map((item, i) => (
+            <div
+              key={i}
+              className={`absolute w-full px-4 transition-opacity duration-700 ease-in-out motion-reduce:transition-none ${
+                i === announcementIndex ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+              }`}
+              aria-hidden={i !== announcementIndex}
+            >
+              {item}
+            </div>
+          ));
+        })()}
       </div>
 
       <header
@@ -201,7 +238,7 @@ export function Navbar() {
                     style={{ backgroundColor: "rgba(16,14,11,0.98)", backdropFilter: "blur(20px)" }}
                     onMouseEnter={handlePanelMouseEnter}
                   >
-                    <DesktopMegaMenuPanel group={group} products={products} onClick={() => setActiveGroupId(null)} />
+                    <DesktopMegaMenuPanel group={group} products={products} featuredLabel={navigationCopy.featuredLabel} onClick={() => setActiveGroupId(null)} />
                   </div>
                 </div>
               );
@@ -279,7 +316,7 @@ export function Navbar() {
             {hasMegaMenu && (
               <div className="flex flex-col">
                 {visibleGroups.map(group => (
-                  <MobileMenuGroup key={group.id} group={group} products={products} onClick={() => setMobileMenuOpen(false)} />
+                  <MobileMenuGroup key={group.id} group={group} products={products} navigationCopy={navigationCopy} onClick={() => setMobileMenuOpen(false)} />
                 ))}
               </div>
             )}
@@ -311,7 +348,7 @@ export function Navbar() {
   );
 }
 
-function DesktopMegaMenuPanel({ group, products, onClick }: { group: MegaMenuGroup, products: CatalogProduct[], onClick: () => void }) {
+function DesktopMegaMenuPanel({ group, products, featuredLabel, onClick }: { group: MegaMenuGroup, products: CatalogProduct[], featuredLabel: string, onClick: () => void }) {
   const featuredProducts = group.featuredProductSlugs
     .map(slug => products.find(p => p.slug === slug))
     .filter((product): product is CatalogProduct => Boolean(product))
@@ -362,7 +399,7 @@ function DesktopMegaMenuPanel({ group, products, onClick }: { group: MegaMenuGro
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-[12px] font-medium tracking-[0.1em] text-foreground group-hover:text-[hsl(var(--primary))] transition-colors uppercase">{product.name}</p>
-                <p className="text-[10px] tracking-[0.15em] text-foreground/60 uppercase">{product.merchandising?.label || product.category || 'Featured'}</p>
+                <p className="text-[10px] tracking-[0.15em] text-foreground/60 uppercase">{product.merchandising.label ?? product.category ?? featuredLabel}</p>
               </div>
             </Link>
           ))}
@@ -372,7 +409,7 @@ function DesktopMegaMenuPanel({ group, products, onClick }: { group: MegaMenuGro
   );
 }
 
-function MobileMenuGroup({ group, products, onClick }: { group: MegaMenuGroup, products: CatalogProduct[], onClick: () => void }) {
+function MobileMenuGroup({ group, products, navigationCopy, onClick }: { group: MegaMenuGroup, products: CatalogProduct[], navigationCopy: { shopAllLabel: string; featuredLabel: string }, onClick: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const featuredProducts = group.featuredProductSlugs
     .map(slug => products.find(p => p.slug === slug))
@@ -410,7 +447,7 @@ function MobileMenuGroup({ group, products, onClick }: { group: MegaMenuGroup, p
               ))}
               {/* Direct group link */}
               <Link href={group.href} className="text-[11px] font-bold tracking-[0.2em] uppercase text-[hsl(var(--primary))] py-2 mt-2 flex items-center gap-2 w-fit" onClick={onClick}>
-                Shop All {group.label} <span aria-hidden="true">&rarr;</span>
+                {navigationCopy.shopAllLabel} {group.label} <span aria-hidden="true">&rarr;</span>
               </Link>
             </div>
 
@@ -424,7 +461,7 @@ function MobileMenuGroup({ group, products, onClick }: { group: MegaMenuGroup, p
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[10px] uppercase tracking-[0.1em] text-foreground truncate">{product.name}</span>
-                      <span className="text-[9px] uppercase tracking-[0.15em] text-[hsl(var(--primary))] mt-0.5">{product.merchandising?.label || 'Featured'}</span>
+                      <span className="text-[9px] uppercase tracking-[0.15em] text-[hsl(var(--primary))] mt-0.5">{product.merchandising.label ?? navigationCopy.featuredLabel}</span>
                     </div>
                   </Link>
                 ))}

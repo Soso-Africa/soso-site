@@ -131,17 +131,32 @@ test("staff login and logout cookies are secure in production", async () => {
 test("staff login, bootstrap guard, status, logout, reset, disable, and session expiry are enforced", async () => {
   const email = `auth-test-${randomBytes(8).toString("hex")}@example.com`;
   const clerkUserId = `auth-test-${randomBytes(8).toString("hex")}`;
+  const unrelatedEmail = `auth-unrelated-${randomBytes(8).toString("hex")}@example.com`;
+  const unrelatedClerkUserId = `auth-unrelated-${randomBytes(8).toString("hex")}`;
   let userId: string | undefined;
+  let unrelatedUserId: string | undefined;
   let server: Server | undefined;
 
   try {
-    const inserted = await db.insert(staffUsersTable).values({
-      clerkUserId,
-      email,
-      role: "owner",
-      isActive: true,
-    }).returning({ id: staffUsersTable.id });
+    const inserted = await db.insert(staffUsersTable).values([
+      {
+        clerkUserId,
+        email,
+        role: "owner",
+        isActive: true,
+      },
+      // This deliberately remains passwordless. It models independently
+      // created staff fixtures and ensures bootstrap is not based on a global
+      // passwordless-user query.
+      {
+        clerkUserId: unrelatedClerkUserId,
+        email: unrelatedEmail,
+        role: "administrator",
+        isActive: true,
+      },
+    ]).returning({ id: staffUsersTable.id, email: staffUsersTable.email });
     userId = inserted[0]!.id;
+    unrelatedUserId = inserted[1]!.id;
     const running = await listen();
     server = running.server;
 
@@ -158,6 +173,13 @@ test("staff login, bootstrap guard, status, logout, reset, disable, and session 
     });
     assert.equal(invalidBootstrap.status, 400);
     assert.equal(invalidBootstrap.cookie, undefined);
+
+    const ineligibleBootstrap = await request(running.baseUrl, "/api/staff-auth/bootstrap", {
+      method: "POST",
+      body: { token: process.env.STAFF_BOOTSTRAP_TOKEN, email: unrelatedEmail, password },
+    });
+    assert.equal(ineligibleBootstrap.status, 403);
+    assert.equal(ineligibleBootstrap.cookie, undefined);
 
     const bootstrap = await request(running.baseUrl, "/api/staff-auth/bootstrap", {
       method: "POST",
@@ -252,8 +274,9 @@ test("staff login, bootstrap guard, status, logout, reset, disable, and session 
       await db.delete(staffSessionsTable).where(eq(staffSessionsTable.staffUserId, userId));
       await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, userId));
       await db.delete(staffUsersTable).where(eq(staffUsersTable.id, userId));
-    } else {
-      await db.delete(staffUsersTable).where(and(eq(staffUsersTable.email, email), eq(staffUsersTable.clerkUserId, clerkUserId)));
     }
+    if (unrelatedUserId) await db.delete(staffUsersTable).where(eq(staffUsersTable.id, unrelatedUserId));
+    await db.delete(staffUsersTable).where(and(eq(staffUsersTable.email, email), eq(staffUsersTable.clerkUserId, clerkUserId)));
+    await db.delete(staffUsersTable).where(and(eq(staffUsersTable.email, unrelatedEmail), eq(staffUsersTable.clerkUserId, unrelatedClerkUserId)));
   }
 });

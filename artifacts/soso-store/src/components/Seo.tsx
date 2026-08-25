@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { CatalogProduct } from "@/data/platformContent";
+import { usePlatformContent, type CatalogProduct, type PlatformContent } from "@/data/platformContent";
 import { absoluteUrl, indexingEnabled, siteUrl, socialImageUrl } from "@/lib/seo";
 
 type SeoProps = {
@@ -55,34 +55,35 @@ function injectSchema(id: string, data: Record<string, unknown> | null) {
   document.head.appendChild(script);
 }
 
+type StructuredSite = Pick<PlatformContent["site"], "name" | "structuredData">;
+
 /** Organization schema — injected once at app level */
-export function buildOrganizationSchema(): Record<string, unknown> {
+export function buildOrganizationSchema(site: StructuredSite): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "ClothingStore",
-    name: "SOSO Africa",
-    description:
-      "SOSO Africa is a bespoke menswear house based in Abuja, Nigeria, specialising in kaftans, agbadas, dashikis, and shirting made to order for the individual.",
+    name: site.name,
+    description: site.structuredData.organizationDescription,
     url: siteUrl || undefined,
     address: {
       "@type": "PostalAddress",
-      addressLocality: "Abuja",
-      addressCountry: "NG",
+      addressLocality: site.structuredData.locality,
+        addressCountry: site.structuredData.country,
     },
-    brand: { "@type": "Brand", name: "SOSO Africa" },
+      areaServed: { "@type": "Country", name: site.structuredData.country, identifier: site.structuredData.countryCode },
+    brand: { "@type": "Brand", name: site.name },
     ...(socialImageUrl() ? { image: socialImageUrl() } : {}),
   };
 }
 
 /** WebSite schema with potential SearchAction */
-export function buildWebsiteSchema(): Record<string, unknown> {
+export function buildWebsiteSchema(site: StructuredSite): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "SOSO Africa",
+    name: site.name,
     url: siteUrl || undefined,
-    description:
-      "Premium made-to-order African menswear from Abuja. Kaftans, agbadas, dashikis, and shirting — made for the individual.",
+    description: site.structuredData.websiteDescription,
   };
 }
 
@@ -97,6 +98,9 @@ export function Seo({
   article,
   breadcrumbs,
 }: SeoProps) {
+  const { data } = usePlatformContent();
+  const site = data?.content.site;
+
   useEffect(() => {
     const pageIsIndexable = Boolean(siteUrl && indexingEnabled && !noIndex);
     document.title = title;
@@ -141,7 +145,7 @@ export function Seo({
 
     // Page schema (product, article, or supplied)
     const productSchema =
-      product && pageIsIndexable
+      product && site && pageIsIndexable
         ? {
             "@context": "https://schema.org",
             "@type": "Product",
@@ -149,19 +153,19 @@ export function Seo({
             description: product.description,
             image: absoluteUrl(product.img),
             url: absoluteUrl(path),
-            brand: { "@type": "Brand", name: "SOSO Africa" },
+            brand: { "@type": "Brand", name: site.name },
             offers: {
               "@type": "Offer",
               priceCurrency: "NGN",
               price: product.price,
               availability: "https://schema.org/PreOrder",
-              seller: { "@type": "Organization", name: "SOSO Africa" },
+              seller: { "@type": "Organization", name: site.name },
             },
           }
         : null;
 
     const articleSchema =
-      type === "article" && article && pageIsIndexable
+      type === "article" && article && site && pageIsIndexable
         ? {
             "@context": "https://schema.org",
             "@type": "BlogPosting",
@@ -169,23 +173,25 @@ export function Seo({
             description,
             datePublished: article.publishedAt,
             dateModified: article.modifiedAt ?? article.publishedAt,
-            author: { "@type": "Person", name: article.authorName ?? "SOSO Africa" },
-            publisher: { "@type": "Organization", name: "SOSO Africa" },
+            author: { "@type": "Person", name: article.authorName ?? site.name },
+            publisher: { "@type": "Organization", name: site.name },
             mainEntityOfPage: absoluteUrl(path),
             ...(article.imageUrl ? { image: article.imageUrl } : {}),
           }
         : null;
 
     injectSchema("soso-page-schema", pageIsIndexable ? structuredData ?? articleSchema ?? productSchema : null);
+    injectSchema("soso-organization-schema", site ? buildOrganizationSchema(site) : null);
+    injectSchema("soso-website-schema", site ? buildWebsiteSchema(site) : null);
 
     // Breadcrumb schema
     const breadcrumbSchema =
-      breadcrumbs && pageIsIndexable
+      breadcrumbs && pageIsIndexable && site
         ? {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: [
-              { "@type": "ListItem", position: 1, name: "SOSO Africa", item: siteUrl },
+              { "@type": "ListItem", position: 1, name: site.name, item: siteUrl },
               ...breadcrumbs.map((b, i) => ({
                 "@type": "ListItem",
                 position: i + 2,
@@ -200,8 +206,10 @@ export function Seo({
     return () => {
       document.getElementById("soso-page-schema")?.remove();
       document.getElementById("soso-breadcrumb-schema")?.remove();
+      document.getElementById("soso-organization-schema")?.remove();
+      document.getElementById("soso-website-schema")?.remove();
     };
-  }, [description, noIndex, path, product, structuredData, title, type, article, breadcrumbs]);
+  }, [description, noIndex, path, product, structuredData, title, type, article, breadcrumbs, site]);
 
   return null;
 }

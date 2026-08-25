@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Search, X, ArrowRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { usePlatformContent } from "@/data/platformContent";
@@ -18,7 +19,12 @@ export function HeaderSearch() {
   const collections = data?.content.collections ?? [];
 
   const siteHeader = data?.content.site.header;
-  const searchSuggestions = siteHeader?.searchSuggestions ?? [];
+  const searchCopy = data?.content.interfaceCopy.search;
+  if (!siteHeader || !searchCopy) return null;
+
+  const searchSuggestions = siteHeader.searchSuggestions;
+  const closeSearchLabel = siteHeader.closeSearchLabel;
+  const compactCloseSearchLabel = closeSearchLabel.split(/\s+/)[0] || closeSearchLabel;
 
   useEffect(() => {
     if (isOpen) {
@@ -102,18 +108,18 @@ export function HeaderSearch() {
       <button
         onClick={() => setIsOpen(true)}
         className="flex min-h-10 min-w-10 items-center justify-center text-secondary transition-colors hover:text-primary"
-        aria-label={siteHeader?.searchLabel ?? "Search the collection"}
+        aria-label={siteHeader.searchLabel}
         data-testid="button-header-search"
       >
         <Search size={18} aria-hidden="true" />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div 
           ref={containerRef}
           role="dialog"
           aria-modal="true"
-          aria-label={siteHeader?.searchLabel ?? "Search"}
+          aria-label={siteHeader.searchLabel}
           className="fixed inset-0 z-[100] flex flex-col bg-background/95 backdrop-blur-md animate-in fade-in duration-200"
         >
           <div className="w-full border-b border-white/10 bg-background px-4 md:px-6 lg:px-12 py-4 flex items-center gap-4">
@@ -121,9 +127,9 @@ export function HeaderSearch() {
             <input
               ref={inputRef}
               type="text"
-              aria-label={siteHeader?.searchLabel ?? "Search the collection"}
-              placeholder={siteHeader?.searchPlaceholder ?? "Search products, collections, colours..."}
-              className="flex-1 bg-transparent text-lg text-white outline-none placeholder:text-secondary/50"
+              aria-label={siteHeader.searchLabel}
+              placeholder={siteHeader.searchPlaceholder}
+              className="min-w-0 flex-1 bg-transparent text-lg text-white outline-none placeholder:text-secondary/50"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -138,8 +144,8 @@ export function HeaderSearch() {
             {query && (
               <button 
                 onClick={() => setQuery("")}
-                className="p-2 text-secondary hover:text-white"
-                aria-label="Clear search"
+                className="shrink-0 p-2 text-secondary hover:text-white"
+                aria-label={siteHeader.clearSearchLabel}
                 data-testid="button-clear-search-input"
               >
                 <X size={18} />
@@ -147,19 +153,21 @@ export function HeaderSearch() {
             )}
             <button 
               onClick={() => setIsOpen(false)}
-              className="text-sm font-semibold uppercase tracking-widest text-primary ml-2 md:ml-4 hover:opacity-80"
+              className="ml-1 shrink-0 text-sm font-semibold uppercase tracking-widest text-primary hover:opacity-80 md:ml-4"
+              aria-label={closeSearchLabel}
               data-testid="button-close-search"
             >
-              {siteHeader?.closeSearchLabel ?? "Close"}
+              <span className="sm:hidden">{compactCloseSearchLabel}</span>
+              <span className="hidden sm:inline">{closeSearchLabel}</span>
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 md:px-6 lg:px-12 py-8">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-6 lg:px-12">
             <div className="max-w-screen-xl mx-auto">
               {!q && searchSuggestions.length > 0 && (
                 <div>
                   <h3 className="text-[11px] uppercase tracking-[0.2em] text-secondary/70 mb-6">
-                    {siteHeader?.searchSuggestionsLabel ?? "Suggested searches"}
+                    {siteHeader.searchSuggestionsLabel}
                   </h3>
                   <div className="flex flex-wrap gap-3">
                     {searchSuggestions.map((suggestion, index) => (
@@ -184,8 +192,8 @@ export function HeaderSearch() {
 
               {q && searchResults.length === 0 && collectionResults.length === 0 && (
                 <div className="text-center py-20">
-                  <p className="text-lg text-secondary">No matches found for &ldquo;{query}&rdquo;</p>
-                  <p className="text-sm text-secondary/70 mt-2">Try checking the spelling or use different keywords.</p>
+                  <p className="text-lg text-secondary">{searchCopy.emptyResultsMessage}</p>
+                  <p className="text-sm text-secondary/70 mt-2">{searchCopy.emptyResultsHelp}</p>
                   <button 
                     onClick={() => {
                         setLocation(`/shop?q=${encodeURIComponent(query.trim())}`);
@@ -194,7 +202,7 @@ export function HeaderSearch() {
                     className="mt-6 inline-flex items-center gap-2 text-[11px] uppercase tracking-widest text-primary border border-primary px-6 py-3 hover:bg-primary hover:text-primary-foreground transition-colors"
                     data-testid="button-search-entire-catalogue"
                   >
-                    Search entire catalogue <ArrowRight size={14} />
+                    {searchCopy.searchCatalogueLabel} <ArrowRight size={14} />
                   </button>
                 </div>
               )}
@@ -203,14 +211,14 @@ export function HeaderSearch() {
                 <div className="grid md:grid-cols-12 gap-10">
                   <div className="md:col-span-8">
                     <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-[11px] uppercase tracking-[0.2em] text-secondary/70">Products</h3>
+                      <h3 className="text-[11px] uppercase tracking-[0.2em] text-secondary/70">{searchCopy.productsHeading}</h3>
                       <Link 
                         href={`/shop?q=${encodeURIComponent(q)}`} 
                         onClick={() => setIsOpen(false)} 
                         className="text-[11px] uppercase tracking-widest text-primary flex items-center gap-1 hover:underline underline-offset-4"
                         data-testid="link-view-all-products"
                       >
-                        View all <ArrowRight size={12} />
+                        {searchCopy.viewAllLabel} <ArrowRight size={12} />
                       </Link>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
@@ -237,7 +245,7 @@ export function HeaderSearch() {
                   
                   {collectionResults.length > 0 && (
                     <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-white/10 pt-8 md:pt-0 md:pl-10">
-                      <h3 className="text-[11px] uppercase tracking-[0.2em] text-secondary/70 mb-6">Collections</h3>
+                      <h3 className="text-[11px] uppercase tracking-[0.2em] text-secondary/70 mb-6">{searchCopy.collectionsHeading}</h3>
                       <div className="space-y-4">
                         {collectionResults.map((c) => (
                           <Link key={c.slug} href={`/collections/${c.slug}`} onClick={() => setIsOpen(false)} className="block p-4 border border-white/10 hover:border-primary transition-colors group" data-testid={`link-search-collection-${c.slug}`}>
@@ -252,7 +260,8 @@ export function HeaderSearch() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

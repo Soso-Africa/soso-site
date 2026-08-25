@@ -102,21 +102,30 @@ router.post("/staff-auth/bootstrap", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Provide the setup token and a password with 12+ characters, uppercase, lowercase, and a number." });
     return;
   }
-  const [existingCredential] = await db.select({ id: staffUsersTable.id }).from(staffUsersTable).where(isNull(staffUsersTable.passwordHash)).limit(1);
-  if (!existingCredential) {
-    res.status(409).json({ error: "Initial owner setup is no longer available." });
-    return;
-  }
-  const [owner] = await db.select().from(staffUsersTable).where(and(eq(staffUsersTable.email, email), eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true), isNull(staffUsersTable.passwordHash))).limit(1);
+  // Bootstrap eligibility is scoped to the owner identified by the request. A
+  // passwordless record for another staff member must not affect this owner's
+  // result (or make a repeat bootstrap look like an ineligible email).
+  const [owner] = await db.select().from(staffUsersTable).where(and(eq(staffUsersTable.email, email), eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true))).limit(1);
   if (!owner) {
     res.status(403).json({ error: "This email address is not eligible for initial owner setup." });
     return;
   }
+  if (owner.passwordHash) {
+    res.status(409).json({ error: "Initial owner setup is no longer available." });
+    return;
+  }
   const passwordHash = await hashPassword(password);
-  await db.update(staffUsersTable).set({ passwordHash, passwordChangedAt: new Date() }).where(eq(staffUsersTable.id, owner.id));
-  await createSession(owner.id, res);
-  await db.insert(auditLogsTable).values({ actorClerkUserId: owner.id, action: "staff_auth.bootstrap_completed", entityType: "staff_user", entityId: owner.id });
-  res.status(201).json({ id: owner.id, email: owner.email, role: owner.role });
+  const [bootstrappedOwner] = await db.update(staffUsersTable)
+    .set({ passwordHash, passwordChangedAt: new Date() })
+    .where(and(eq(staffUsersTable.id, owner.id), eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true), isNull(staffUsersTable.passwordHash)))
+    .returning();
+  if (!bootstrappedOwner) {
+    res.status(409).json({ error: "Initial owner setup is no longer available." });
+    return;
+  }
+  await createSession(bootstrappedOwner.id, res);
+  await db.insert(auditLogsTable).values({ actorClerkUserId: bootstrappedOwner.id, action: "staff_auth.bootstrap_completed", entityType: "staff_user", entityId: bootstrappedOwner.id });
+  res.status(201).json({ id: bootstrappedOwner.id, email: bootstrappedOwner.email, role: bootstrappedOwner.role });
 });
 
 export async function setManagedStaffPassword(staffUserId: string, password: string): Promise<void> {

@@ -44,7 +44,7 @@ export default function SignInPage() {
           {notice && <p role="alert" className="mt-4 text-sm text-destructive">{notice}</p>}
           <button disabled={submitting} className="mt-6 min-h-12 w-full bg-primary text-xs font-semibold uppercase tracking-widest text-primary-foreground disabled:opacity-50">{submitting ? "Signing in…" : initialSetup ? "Create owner account" : "Sign in"}</button>
           <button type="button" onClick={() => { setInitialSetup(!initialSetup); setNotice(""); }} className="mt-4 w-full text-xs text-primary underline underline-offset-4">{initialSetup ? "Back to staff sign in" : "First SOSO owner setup"}</button>
-          <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{initialSetup ? "Use this once only, with the setup token stored in Replit Secrets." : "Access is issued by a SOSO owner. Contact an owner if you need an account or password reset."}</p>
+          <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground">{initialSetup ? "Use this once only, with the setup token stored in the production environment-variable settings." : "Access is issued by a SOSO owner. Contact an owner if you need an account or password reset."}</p>
         </form>
       </div>
     </div>

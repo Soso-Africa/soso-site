@@ -7,6 +7,13 @@ export function Footer() {
   const { data } = usePlatformContent();
   const site = data?.content.site;
   if (!site) return null;
+  const socialLinks = [
+    ["Facebook", site.socialLinks.facebookUrl],
+    ["Twitter", site.socialLinks.twitterUrl],
+    ["YouTube", site.socialLinks.youtubeUrl],
+    ["TikTok", site.socialLinks.tiktokUrl],
+    ["LinkedIn", site.socialLinks.linkedinUrl],
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]));
   return (
     <footer className="px-6 lg:px-12 py-14" style={{ borderTop: `1px solid rgba(184,145,47,0.2)` }}>
       <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-10">
@@ -17,19 +24,32 @@ export function Footer() {
           <p className="text-[13px] max-w-sm leading-relaxed mb-6" style={{ color: "hsl(var(--secondary))" }}>
             {site.footer.description}
           </p>
-          {/* Social links — update with real handles when available */}
-          <div className="flex gap-4">
-            <a
-              href={site.instagramUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={site.footer.instagramAriaLabel}
-              className="text-[11px] uppercase tracking-[0.2em] soso-link"
-              style={{ color: "hsl(var(--primary))" }}
-            >
-              {site.footer.instagramLabel}
-            </a>
-            {site.contactEmail && <a href={`mailto:${site.contactEmail}`} className="text-[11px] uppercase tracking-[0.2em] soso-link" style={{ color: "hsl(var(--primary))" }}>{site.contactEmail}</a>}
+          {site.hqAddress && (
+            <address className="mb-6 max-w-sm whitespace-pre-wrap text-[13px] not-italic leading-relaxed" style={{ color: "hsl(var(--secondary))" }}>
+              {site.hqAddress}
+            </address>
+          )}
+          <div className="flex flex-wrap gap-4">
+            {site.instagramUrl && (
+              <a
+                href={site.instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={site.footer.instagramAriaLabel}
+                className="text-[11px] uppercase tracking-[0.2em] soso-link"
+                style={{ color: "hsl(var(--primary))" }}
+              >
+                {site.footer.instagramLabel}
+              </a>
+            )}
+            {socialLinks.map(([label, href]) => (
+              <a key={label} href={href} target="_blank" rel="noopener noreferrer" className="text-[11px] uppercase tracking-[0.2em] soso-link" style={{ color: "hsl(var(--primary))" }}>
+                {label}
+              </a>
+            ))}
+            {site.contactEmail && (
+              <a href={`mailto:${site.contactEmail}`} className="text-[11px] uppercase tracking-[0.2em] soso-link" style={{ color: "hsl(var(--primary))" }}>{site.contactEmail}</a>
+            )}
           </div>
         </div>
         {site.footer.columns.map((column) => <div key={column.heading}>

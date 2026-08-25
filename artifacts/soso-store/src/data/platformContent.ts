@@ -18,7 +18,7 @@ export type CatalogProduct = {
   slug: string;
   name: string;
   img: string;
-  images?: {
+  images: {
     src: string;
     alt: string;
     provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
@@ -69,6 +69,15 @@ export type PlatformContent = {
     logoUrl: string;
     logoAlt: string;
     announcement: string;
+    announcementItems: string[];
+    hqAddress: string;
+    socialLinks: {
+      facebookUrl: string;
+      twitterUrl: string;
+      youtubeUrl: string;
+      tiktokUrl: string;
+      linkedinUrl: string;
+    };
     skipLinkLabel: string;
     contactEmail: string;
     contactPhone: string;
@@ -81,10 +90,10 @@ export type PlatformContent = {
     header: {
       openMenuLabel: string; closeMenuLabel: string; mainNavigationLabel: string; whatsappLabel: string;
       cartLabel: string; openCartLabel: string; mobileWhatsappLabel: string;
-      searchLabel: string; searchPlaceholder: string; closeSearchLabel: string; searchSuggestionsLabel: string;
+      searchLabel: string; searchPlaceholder: string; closeSearchLabel: string; clearSearchLabel: string; searchSuggestionsLabel: string;
       searchSuggestions: { label: string; href: string }[];
     };
-    cart: { title: string; closeLabel: string; emptyMessage: string; continueShoppingLabel: string; sizeLabel: string; removeLabel: string; subtotalLabel: string; helpText: string; checkoutCta: ContentLink; stylistCta: ContentLink };
+    cart: { title: string; closeLabel: string; emptyMessage: string; continueShoppingLabel: string; sizeLabel: string; removeLabel: string; subtotalLabel: string; helpText: string; checkoutCta: ContentLink; stylistCta: ContentLink; changeSizeLabel: string; unavailableSizeSuffix: string; readyNowLabel: string; madeImmediatelyLabel: string; decreaseQuantityLabel: string; increaseQuantityLabel: string; quantityLabel: string };
     floatingCta: ContentLink;
     consent: { regionLabel: string; title: string; body: string; essentialLabel: string; analyticsLabel: string; marketingLabel: string; manageLabel: string; necessaryDescription: string; measurementDescription: string; marketingDescription: string; footerText: string; privacyLink: ContentLink };
     footer: {
@@ -95,6 +104,7 @@ export type PlatformContent = {
       checkoutNote: string;
       instagramLabel: string; instagramAriaLabel: string; cookieChoicesLabel: string;
     };
+    structuredData: { organizationDescription: string; locality: string; country: string; countryCode: string; websiteDescription: string };
   };
   homepage: {
     seo: SeoCopy;
@@ -121,6 +131,15 @@ export type PlatformContent = {
       collectionNotFoundCta: ContentLink; collectionEmptyMessage: string; allCollectionsLabel: string;
       searchLabel: string; searchPlaceholder: string; noSearchResultsMessage: string;
       newLabel: string; readyNowLabel: string; madeImmediatelyLabel: string; unavailableLabel: string;
+      departmentLabels: Record<ProductDepartment, string>;
+      departmentsAriaLabel: string; controlsAriaLabel: string; sizeFilterLabel: string; colourFilterLabel: string;
+      minimumPriceLabel: string; maximumPriceLabel: string; clearSearchLabel: string; sortLabel: string;
+      sortOptions: { featured: string; newest: string; priceAscending: string; priceDescending: string };
+      refineLabel: string; refineProductsTitle: string; closeFiltersLabel: string; categoryLabel: string; fulfilmentLabel: string;
+      activeFiltersLabel: string; searchFilterLabel: string; removeSearchFilterLabel: string; removeCategoryFilterLabel: string;
+      removeFulfilmentFilterLabel: string; removeSizeFilterLabel: string; removeColourFilterLabel: string; removePriceFilterLabel: string;
+      priceFilterLabel: string; maximumPriceValueLabel: string; resultCountSingular: string; resultCountPlural: string;
+      clearAllLabel: string; resetFiltersLabel: string; resetLabel: string; viewResultsLabel: string;
       departments: Record<ProductDepartment, { seo: SeoCopy; eyebrow: string; title: string; intro: string }>;
     };
     faq: {
@@ -146,7 +165,23 @@ export type PlatformContent = {
       privacyRequest: { eyebrow: string; title: string; body: string; acceptedMessage: string; anotherLabel: string; requestTypeLabel: string; accessLabel: string; deletionLabel: string; emailLabel: string; nameLabel: string; optionalLabel: string; submitLabel: string; submittingLabel: string; invalidEmailMessage: string; submitError: string };
     };
     checkout: { seo: SeoCopy; backCta: ContentLink; eyebrow: string; title: string; intro: string; emptyMessage: string; emptyCta: ContentLink; nameLabel: string; phoneLabel: string; emailLabel: string; addressLabel: string; notesLabel: string; optionalLabel: string; deliveryNote: string; paymentUnavailableMessage: string; retryLabel: string; returnToBagLabel: string; processingLabel: string; paymentLabel: string; secureNote: string; legalLinks: ContentLink[]; stylistLabel: string; bagTitle: string; sizeQuantityLabel: string; subtotalLabel: string; stylistCtaLabel: string };
-    paymentReturn: { seo: SeoCopy; eyebrow: string; missingAttemptMessage: string; statusUnavailableMessage: string; paidTitle: string; cancelledTitle: string; pendingTitle: string; paidBody: string; cancelledBody: string; pendingBody: string; orderReferenceLabel: string; authoritativeTotalLabel: string; errorSuffix: string; pendingNotice: string; retryHelp: string; reviewLabel: string; sizeLabel: string; quantityLabel: string; returnBagCta: ContentLink; continueCta: ContentLink; retryCta: ContentLink; returnCheckoutCta: ContentLink };
+    paymentReturn: {
+      seo: SeoCopy; eyebrow: string; missingAttemptMessage: string; statusUnavailableMessage: string;
+      paidTitle: string; cancelledTitle: string; pendingTitle: string; paidBody: string; cancelledBody: string;
+      pendingBody: string; orderReferenceLabel: string; authoritativeTotalLabel: string; errorSuffix: string;
+      pendingNotice: string; retryHelp: string; reviewLabel: string; sizeLabel: string; quantityLabel: string;
+      measurementSyncError: string; noticeLabel: string; measurementsTitle: string;
+      requiredMeasurementsGuidance: string; optionalMeasurementsGuidance: string;
+      measurementInvalidErrorTemplate: string; measurementRangeErrorTemplate: string;
+      measurementConflictError: string; measurementSubmitError: string;
+      measurementStatusLabels: Record<"needed" | "submitted" | "clarification_requested" | "confirmed" | "cancelled", string>;
+      atelierNoteLabel: string; productionExceptionLabel: string; unitLabel: string; unitsGroupAriaLabel: string;
+      measurementFieldLabels: Record<"height" | "chest" | "waist" | "hips" | "shoulder" | "sleeve" | "garmentLength", string>;
+      lineLabel: string; baseSizeLabel: string; additionalNotesLabel: string; optionalLabel: string;
+      centimetersUnitLabel: string; inchesUnitLabel: string; optionalContextPlaceholder: string; submittingMeasurementsLabel: string;
+      submitMeasurementsLabel: string; updateMeasurementsLabel: string;
+      returnBagCta: ContentLink; continueCta: ContentLink; retryCta: ContentLink; returnCheckoutCta: ContentLink;
+    };
     notFound: { seo: SeoCopy; title: string; body: string; cta: ContentLink };
   };
   products: CatalogProduct[];
@@ -180,6 +215,14 @@ export type PlatformContent = {
     sizeRequiredLabel: string;
     mobileSizeRequiredLabel: string;
     addToBagLabel: string;
+    newLabel: string; viewProductLabel: string; quickShopTitle: string; closeQuickShopLabel: string;
+    customSizingLabel: string; selectedLabel: string; unmappedPurchaseMessage: string; onlinePurchaseUnavailableLabel: string;
+    unavailableInSizeLabel: string; viewFullDetailsLabel: string; homeBreadcrumbLabel: string; shopBreadcrumbLabel: string;
+    productUnmappedPurchaseMessage: string; addToBagPriceSeparator: string;
+    breadcrumbAriaLabel: string; returnToResultsLabel: string; previousImageLabel: string; nextImageLabel: string;
+    zoomInImageLabel: string; zoomOutImageLabel: string; imageCreditLabel: string; customLabel: string;
+    compositionCareHeading: string; deliveryReturnsHeading: string;
+    compositionLabel: string; careLabel: string; deliveryLabel: string; returnsLabel: string;
     trustItems: CopyItem[];
     marqueeText: string;
     marqueeSymbol: string;
@@ -207,6 +250,10 @@ export type PlatformContent = {
       optionalLabel: string; questionLabel: string; questionPlaceholder: string;
       submitLabel: string; pendingLabel: string; failureMessage: string;
     };
+  };
+  interfaceCopy: {
+    navigation: { shopAllLabel: string; featuredLabel: string };
+    search: { emptyResultsMessage: string; emptyResultsHelp: string; searchCatalogueLabel: string; productsHeading: string; collectionsHeading: string; viewAllLabel: string };
   };
 };
 

@@ -90,6 +90,14 @@ export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
     slug: `${slugBase}-${product.id.slice(0, 8)}`,
     name: product.name,
     img: images[0] ?? "",
+    images: images.map((src, index) => ({
+      src,
+      alt: `${product.name} ${index + 1}`,
+      provenance: {
+        source: "JusticeSure Commerce catalogue",
+        rights: "Supplied for SOSO storefront use",
+      },
+    })),
     price: price / 100,
     tag: product.inStock === false ? "Currently unavailable" : "JusticeSure collection",
     note: product.inStock === false ? "Currently unavailable for secure checkout" : "Live price and availability",

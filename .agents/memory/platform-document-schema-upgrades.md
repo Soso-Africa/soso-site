@@ -12,3 +12,7 @@ Content migrations that add catalogue records must be version-gated and one-time
 **Why:** An unconditional “append missing defaults” pass can silently recreate products that staff intentionally retired or renamed, while a read-triggered update bypasses publication controls.
 
 **How to apply:** Upgrade draft and published snapshots independently. Never apply publication defaults when the record is intentionally unpublished, and never silently repair invalid edited values beyond adding fields that did not exist in the earlier schema. Detect known legacy object shapes by semantic fields rather than serialized object equality, because PostgreSQL JSONB may reorder keys.
+
+When replacing one editable scalar with a repeatable collection, seed the new collection from the merchant’s current scalar rather than the shipped default. Additions inside editable arrays must be version-gated so staff can remove them after the upgrade without having them silently restored.
+
+**Why:** Generic default merging preserves arrays wholesale, while unconditional insertion turns a one-time launch addition into a permanent override of later staff choices.

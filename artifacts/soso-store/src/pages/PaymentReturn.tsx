@@ -17,8 +17,14 @@ import {
   type CustomerMeasurementStatus
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { PlatformContent } from "@/data/platformContent";
 
 const CM_BOUNDS = { height: [120, 230], chest: [50, 180], waist: [50, 180], hips: [50, 180], shoulder: [25, 70], sleeve: [35, 100], garmentLength: [40, 180] };
+const measurementFields = ["height", "chest", "waist", "hips", "shoulder", "sleeve", "garmentLength"] as const;
+
+function interpolate(template: string, values: Record<string, string | number>) {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+}
 
 function getBounds(unit: CustomerMeasurementInputUnit) {
   if (unit === "cm") return CM_BOUNDS;
@@ -65,8 +71,6 @@ export default function PaymentReturn() {
 
   const paid = status?.status === "paid" || status?.status === "fulfilled";
   const cancelled = status?.status === "cancelled" || status?.status === "refunded";
-  const errorMessage = paymentError ? (paymentError as Error).message || "Unable to retrieve status." : (!attemptId ? "Missing payment attempt." : "");
-
   const { data: measurementsData, error: measurementsError } = useGetCustomerMeasurements({
     query: {
       queryKey: [...getGetCustomerMeasurementsQueryKey(), attemptId],
@@ -80,8 +84,9 @@ export default function PaymentReturn() {
 
   if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
   const copy = platform.data.content.pages.paymentReturn;
+  const errorMessage = paymentError ? copy.statusUnavailableMessage : (!attemptId ? copy.missingAttemptMessage : "");
 
-  const mDataError = measurementsError ? ((measurementsError as Error).message || "Failed to sync atelier requirements.") : null;
+  const mDataError = measurementsError ? copy.measurementSyncError : null;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-16 md:py-24">
@@ -135,7 +140,7 @@ export default function PaymentReturn() {
 
       {mDataError && (
         <div role="alert" className="mt-5 border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed text-white">
-          <p className="flex items-center gap-2 font-semibold text-primary"><AlertTriangle size={16} /> Notice</p>
+          <p className="flex items-center gap-2 font-semibold text-primary"><AlertTriangle size={16} /> {copy.noticeLabel}</p>
           <p className="mt-1">{mDataError}</p>
         </div>
       )}
@@ -145,12 +150,12 @@ export default function PaymentReturn() {
           <div className="mb-6">
             <h2 className="soso-display text-2xl text-white flex items-center gap-3">
               <Ruler size={24} className="text-primary" />
-              Atelier Measurements
+              {copy.measurementsTitle}
             </h2>
             <p className="mt-2 text-sm text-secondary">
               {measurementsData.measurementsRequired
-                ? "Please provide measurements for your Custom pieces. We begin production only after your measurements are confirmed."
-                : "Your Custom measurements remain available here with their current atelier status."}
+                ? copy.requiredMeasurementsGuidance
+                : copy.optionalMeasurementsGuidance}
             </p>
             {measurementsData.dispatchGuidance && (
               <div role="status" data-testid="status-measurements-guidance" className="mt-4 flex items-start gap-2 bg-primary/10 border border-primary/20 p-4 text-xs text-primary">
@@ -162,7 +167,7 @@ export default function PaymentReturn() {
 
           <div className="space-y-8">
             {measurementsData.items.map((item) => (
-              <MeasurementItemForm key={item.id} item={item} attemptId={attemptId!} />
+              <MeasurementItemForm key={item.id} item={item} attemptId={attemptId!} copy={copy} />
             ))}
           </div>
         </section>
@@ -171,7 +176,11 @@ export default function PaymentReturn() {
   );
 }
 
-function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; attemptId: string }) {
+function MeasurementItemForm({ item, attemptId, copy }: {
+  item: CustomerMeasurement;
+  attemptId: string;
+  copy: PlatformContent["pages"]["paymentReturn"];
+}) {
   const queryClient = useQueryClient();
   const updateMutation = useUpdateCustomerMeasurement({
     request: {
@@ -211,14 +220,15 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
     };
 
     // Validate
-    for (const [key, val] of Object.entries(parsedValues)) {
+    for (const [key, val] of Object.entries(parsedValues) as [typeof measurementFields[number], number][]) {
+      const label = copy.measurementFieldLabels[key];
       if (isNaN(val)) {
-        setError(`Please provide a valid number for ${key.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+        setError(interpolate(copy.measurementInvalidErrorTemplate, { label }));
         return;
       }
       const [min, max] = bounds[key as keyof typeof bounds];
       if (val < min || val > max) {
-        setError(`${key.replace(/([A-Z])/g, ' $1').toLowerCase()} must be between ${min} and ${max} ${unit}`);
+        setError(interpolate(copy.measurementRangeErrorTemplate, { label, min, max, unit }));
         return;
       }
     }
@@ -236,22 +246,14 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
       queryClient.invalidateQueries({ queryKey: getGetCustomerMeasurementsQueryKey() });
     } catch (err: any) {
       if (err?.response?.status === 409 || err?.status === 409) {
-        setError("This measurement was updated elsewhere. Please refresh the page to see the latest version.");
+        setError(copy.measurementConflictError);
       } else {
-        setError(err.message || "Failed to submit measurements.");
+        setError(copy.measurementSubmitError);
       }
     }
   };
 
-  const getStatusText = (status: CustomerMeasurementStatus) => {
-    switch (status) {
-      case "needed": return "Measurements Needed";
-      case "submitted": return "Submitted (Awaiting Review)";
-      case "clarification_requested": return "Clarification Requested";
-      case "confirmed": return "Confirmed by Atelier";
-      case "cancelled": return "Cancelled";
-    }
-  };
+  const getStatusText = (status: CustomerMeasurementStatus) => copy.measurementStatusLabels[status];
 
   const getStatusColor = (status: CustomerMeasurementStatus) => {
     switch (status) {
@@ -269,7 +271,7 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
         <div>
           <h3 className="soso-display text-xl">{item.productName}</h3>
           <p className="text-xs text-muted-foreground mt-1 tracking-wider uppercase">
-            Line {item.lineNumber} {item.selectedSize ? `— Base size: ${item.selectedSize}` : ""}
+             {copy.lineLabel} {item.lineNumber} {item.selectedSize ? `— ${copy.baseSizeLabel} ${item.selectedSize}` : ""}
           </p>
         </div>
         <div role="status" data-testid={`status-measurement-${item.id}`} className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider border ${getStatusColor(item.status)}`}>
@@ -279,14 +281,14 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
 
       {item.clarificationNote && (
         <div className="mb-6 bg-amber-500/10 border border-amber-500/30 p-4 text-amber-100 text-sm">
-          <p className="font-semibold text-xs uppercase tracking-wider text-amber-500 mb-1">Atelier Note</p>
+           <p className="font-semibold text-xs uppercase tracking-wider text-amber-500 mb-1">{copy.atelierNoteLabel}</p>
           {item.clarificationNote}
         </div>
       )}
 
       {item.productionException && (
         <div className="mb-6 bg-red-500/10 border border-red-500/30 p-4 text-red-100 text-sm">
-          <p className="font-semibold text-xs uppercase tracking-wider text-red-500 mb-1">Production Exception</p>
+           <p className="font-semibold text-xs uppercase tracking-wider text-red-500 mb-1">{copy.productionExceptionLabel}</p>
           {item.productionException}
         </div>
       )}
@@ -294,8 +296,8 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
       <form onSubmit={handleSave}>
         {!locked && (
           <div className="mb-6 flex gap-4 items-center">
-            <span className="text-sm text-secondary">Unit:</span>
-            <div className="flex bg-[#1c1914] border border-border p-1" role="group" aria-label="Measurement units">
+            <span className="text-sm text-secondary">{copy.unitLabel}</span>
+            <div className="flex bg-[#1c1914] border border-border p-1" role="group" aria-label={copy.unitsGroupAriaLabel}>
               <button
                 type="button"
                 className={`px-4 py-1 text-xs uppercase tracking-widest font-semibold transition-colors ${unit === "cm" ? "bg-primary text-primary-foreground" : "text-secondary hover:text-primary"}`}
@@ -304,7 +306,7 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
                 aria-pressed={unit === "cm"}
                 data-testid={`btn-unit-cm-${item.id}`}
               >
-                CM
+                {copy.centimetersUnitLabel}
               </button>
               <button
                 type="button"
@@ -314,52 +316,47 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
                 aria-pressed={unit === "in"}
                 data-testid={`btn-unit-in-${item.id}`}
               >
-                IN
+                {copy.inchesUnitLabel}
               </button>
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-          {[
-            { key: "height", label: "Height" },
-            { key: "chest", label: "Chest" },
-            { key: "waist", label: "Waist" },
-            { key: "hips", label: "Hips" },
-            { key: "shoulder", label: "Shoulder" },
-            { key: "sleeve", label: "Sleeve" },
-            { key: "garmentLength", label: "Garment Length" },
-          ].map((field) => (
-            <div key={field.key}>
-              <label htmlFor={`input-${field.key}-${item.id}`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                {field.label} ({unit})
-              </label>
-              <input
-                id={`input-${field.key}-${item.id}`}
-                type="number"
-                step="any"
-                inputMode="decimal"
-                disabled={locked || updateMutation.isPending}
-                value={values[field.key as keyof typeof values]}
-                onChange={(e) => setValues(v => ({ ...v, [field.key]: e.target.value }))}
-                className="w-full h-10 border border-border bg-[#1c1914] px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
-                min={bounds[field.key as keyof typeof bounds][0]}
-                max={bounds[field.key as keyof typeof bounds][1]}
-                required
-                data-testid={`input-${field.key}-${item.id}`}
-              />
-              {!locked && (
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {bounds[field.key as keyof typeof bounds][0].toFixed(1)}–{bounds[field.key as keyof typeof bounds][1].toFixed(1)}
-                </p>
-              )}
-            </div>
-          ))}
+          {measurementFields.map((key) => {
+            const field = { key, label: copy.measurementFieldLabels[key] };
+            return (
+              <div key={field.key}>
+                <label htmlFor={`input-${field.key}-${item.id}`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                  {field.label} ({unit})
+                </label>
+                <input
+                  id={`input-${field.key}-${item.id}`}
+                  type="number"
+                  step="any"
+                  inputMode="decimal"
+                  disabled={locked || updateMutation.isPending}
+                  value={values[field.key as keyof typeof values]}
+                  onChange={(e) => setValues(v => ({ ...v, [field.key]: e.target.value }))}
+                  className="w-full h-10 border border-border bg-[#1c1914] px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                  min={bounds[field.key as keyof typeof bounds][0]}
+                  max={bounds[field.key as keyof typeof bounds][1]}
+                  required
+                  data-testid={`input-${field.key}-${item.id}`}
+                />
+                {!locked && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {bounds[field.key as keyof typeof bounds][0].toFixed(1)}–{bounds[field.key as keyof typeof bounds][1].toFixed(1)}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="mt-6">
           <label htmlFor={`input-note-${item.id}`} className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-            Additional Notes for Atelier (Optional)
+             {copy.additionalNotesLabel} ({copy.optionalLabel})
           </label>
           <textarea
             id={`input-note-${item.id}`}
@@ -368,7 +365,7 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             className="w-full border border-border bg-[#1c1914] p-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-y disabled:opacity-50"
-            placeholder="Optional context about these measurements"
+            placeholder={copy.optionalContextPlaceholder}
             data-testid={`input-note-${item.id}`}
           />
         </div>
@@ -389,7 +386,7 @@ function MeasurementItemForm({ item, attemptId }: { item: CustomerMeasurement; a
               style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}
               data-testid={`btn-submit-${item.id}`}
             >
-              {updateMutation.isPending ? "Submitting..." : item.status === "needed" ? "Submit Measurements" : "Update Measurements"}
+              {updateMutation.isPending ? copy.submittingMeasurementsLabel : item.status === "needed" ? copy.submitMeasurementsLabel : copy.updateMeasurementsLabel}
             </button>
           </div>
         )}

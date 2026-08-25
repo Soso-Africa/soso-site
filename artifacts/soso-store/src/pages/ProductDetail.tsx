@@ -102,7 +102,7 @@ export default function ProductDetail() {
 
   const gallery = product.images?.length
     ? product.images.map((image) => ({ src: image.src, label: image.alt, provenance: image.provenance }))
-    : [{ src: product.img, label: product.name, provenance: null }];
+    : [{ src: product.img, label: `${product.name} ${platformContent!.productCopy.detailImageAltSuffix}`, provenance: null }];
   const productCopy = platformContent!.productCopy;
   const supportCopy = platformContent!.supportCopy;
   const sizeGuide = platformContent!.sizeGuide;
@@ -135,14 +135,14 @@ export default function ProductDetail() {
 
   // Details
   const productSpecificDetails: { title: string; body: string }[] = [];
-  if (product.composition) productSpecificDetails.push({ title: "Composition", body: product.composition });
-  if (product.care) productSpecificDetails.push({ title: "Care", body: product.care });
+  if (product.composition) productSpecificDetails.push({ title: productCopy.compositionLabel, body: product.composition });
+  if (product.care) productSpecificDetails.push({ title: productCopy.careLabel, body: product.care });
   const detailsToUse = productSpecificDetails.length > 0 ? productSpecificDetails : productCopy.details;
 
   // Assurances
   const productSpecificAssurances: { title: string; body: string }[] = [];
-  if (product.delivery) productSpecificAssurances.push({ title: "Delivery", body: product.delivery });
-  if (product.returns) productSpecificAssurances.push({ title: "Returns", body: product.returns });
+  if (product.delivery) productSpecificAssurances.push({ title: productCopy.deliveryLabel, body: product.delivery });
+  if (product.returns) productSpecificAssurances.push({ title: productCopy.returnsLabel, body: product.returns });
   const assurancesToUse = productSpecificAssurances.length > 0 ? productSpecificAssurances : productCopy.assurances;
 
   // Only configured related pieces
@@ -164,11 +164,11 @@ export default function ProductDetail() {
       <div className="max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
         {/* Breadcrumbs (Mobile & Desktop) */}
         <div className="md:col-span-2">
-          <nav aria-label="Breadcrumb" className="text-[10px] uppercase tracking-widest text-secondary">
+          <nav aria-label={productCopy.breadcrumbAriaLabel} className="text-[10px] uppercase tracking-widest text-secondary">
             <ol className="flex items-center gap-2 flex-wrap">
-              <li><Link href="/" className="hover:text-primary">Home</Link></li>
+              <li><Link href="/" className="hover:text-primary">{productCopy.homeBreadcrumbLabel}</Link></li>
               <li>/</li>
-              <li><Link href={returnToResults} className="hover:text-primary">Shop</Link></li>
+              <li><Link href={returnToResults} className="hover:text-primary">{productCopy.shopBreadcrumbLabel}</Link></li>
               <li>/</li>
               <li><Link href={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-primary">{product.category}</Link></li>
               <li>/</li>
@@ -180,7 +180,7 @@ export default function ProductDetail() {
             className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-widest text-primary hover:underline"
             data-testid="link-return-to-results"
           >
-            <ChevronLeft size={14} /> Return to results
+            <ChevronLeft size={14} /> {productCopy.returnToResultsLabel}
           </Link>
         </div>
 
@@ -212,14 +212,14 @@ export default function ProductDetail() {
                 <button
                   onClick={scrollPrev}
                   className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
-                  aria-label="Previous image"
+                  aria-label={productCopy.previousImageLabel}
                 >
                   <ChevronLeft size={20} />
                 </button>
                 <button
                   onClick={scrollNext}
                   className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
-                  aria-label="Next image"
+                  aria-label={productCopy.nextImageLabel}
                 >
                   <ChevronRight size={20} />
                 </button>
@@ -233,7 +233,7 @@ export default function ProductDetail() {
               type="button"
               onClick={() => setZoomed((value) => !value)}
               className="absolute bottom-4 right-4 flex min-h-10 min-w-10 items-center justify-center bg-background/85 text-foreground backdrop-blur-sm"
-              aria-label={zoomed ? "Zoom out of product image" : "Zoom in on product image"}
+              aria-label={zoomed ? productCopy.zoomOutImageLabel : productCopy.zoomInImageLabel}
               aria-pressed={zoomed}
               data-testid="button-gallery-zoom"
             >
@@ -247,7 +247,7 @@ export default function ProductDetail() {
                 onClick={() => { setImg(i); if (i !== img) trackStorefrontEvent("product_image_viewed", { productSlug: product.slug, imageIndex: i }); }}
                 className="w-20 shrink-0 snap-start overflow-hidden relative"
                 style={{ outline: i === img ? `2px solid hsl(var(--primary))` : "1px solid #d8cfba", outlineOffset: 2 }}
-                aria-label={`View ${g.label}`}
+                aria-label={`${productCopy.viewProductLabel}: ${g.label}`}
                 aria-current={i === img}
               >
                 <img src={g.src} alt={g.label} className="aspect-[3/4] object-cover w-full" />
@@ -255,7 +255,7 @@ export default function ProductDetail() {
             ))}
           </div>
           {gallery[img]?.provenance && <p className="mt-3 text-[10px] uppercase tracking-wider opacity-55">
-            Image: {gallery[img].provenance.credit || gallery[img].provenance.source}
+            {productCopy.imageCreditLabel}: {gallery[img].provenance.credit || gallery[img].provenance.source}
           </p>}
         </div>
 
@@ -276,7 +276,7 @@ export default function ProductDetail() {
             <div className="flex items-center gap-4">
               <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
               {product.fulfilmentState === "ready_now" && (
-                <span className="text-[10px] uppercase tracking-widest text-green-600/90 font-bold border border-green-600/20 px-2 py-1" data-testid="status-ready-now">Ready Now</span>
+                <span className="text-[10px] uppercase tracking-widest text-green-600/90 font-bold border border-green-600/20 px-2 py-1" data-testid="status-ready-now">{productCopy.readyNowLabel}</span>
               )}
             </div>
             {product.fulfilmentState === "unavailable" ? (
@@ -308,7 +308,7 @@ export default function ProductDetail() {
             <div className="mt-8 space-y-8">
               {!hasMappedChoices && (
                 <p role="status" className="border border-black/10 p-4 text-sm opacity-75" data-testid="status-product-unmapped">
-                  Online purchase options are not mapped for this piece yet. Fit guidance and stylist support remain available.
+                  {productCopy.productUnmappedPurchaseMessage}
                 </p>
               )}
               {product.standardEligible && validStandardSizes.length > 0 && (
@@ -362,7 +362,7 @@ export default function ProductDetail() {
               {product.customEligible && customIsMappable && (
                 <div className="pt-5 border-t border-black/10 dark:border-white/10">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[12px] tracking-[0.2em] uppercase font-medium">Custom</span>
+                    <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.customLabel}</span>
                   </div>
                   <button
                     type="button"
@@ -379,14 +379,14 @@ export default function ProductDetail() {
                     }
                     data-testid="button-size-custom"
                   >
-                    <span>Custom atelier sizing</span>
-                    {size === "Custom" && <span className="text-[10px] uppercase tracking-widest">Selected</span>}
+                    <span>{productCopy.customSizingLabel}</span>
+                    {size === "Custom" && <span className="text-[10px] uppercase tracking-widest">{productCopy.selectedLabel}</span>}
                   </button>
                   <p className="text-[12px] mt-2 opacity-60">
                     {productCopy.customSizeHelp}
                   </p>
                   {size === "Custom" && <p role="status" className="mt-2 text-xs font-medium" data-testid="status-selected-custom-fulfilment">
-                    {productCopy.madeImmediatelyLabel} · {product.dispatchMessage}
+                    {productCopy.madeToOrderLabel} · {product.dispatchMessage}
                   </p>}
                 </div>
               )}
@@ -411,8 +411,8 @@ export default function ProductDetail() {
                 : needSize
                   ? productCopy.sizeRequiredLabel
                   : !isPurchasable
-                    ? "Unavailable in size"
-                    : `${productCopy.addToBagLabel} — ${naira(product.price)}`}
+                    ? productCopy.unavailableInSizeLabel
+                    : `${productCopy.addToBagLabel}${productCopy.addToBagPriceSeparator}${naira(product.price)}`}
             </button>
             <button
               type="button"
@@ -438,18 +438,22 @@ export default function ProductDetail() {
           </div>
 
           {/* Details & Assurances Accordion */}
-          <div className="mt-8 border-t border-black/10 dark:border-white/10">
+            <div className="mt-8 border-t border-black/10 dark:border-white/10">
             <Accordion.Root type="multiple" className="w-full">
               <Accordion.Item value="details" className="border-b border-black/10 dark:border-white/10">
                 <Accordion.Header>
                   <Accordion.Trigger className="w-full flex items-center justify-between py-5 text-[12px] tracking-[0.2em] uppercase font-semibold hover:text-primary transition-colors group">
-                    Composition & Care
+                      <span>
+                        <span className="block text-[10px] font-normal text-secondary/70">{productCopy.detailsEyebrow}</span>
+                        {productCopy.compositionCareHeading}
+                      </span>
                     <ChevronDown size={16} className="transition-transform duration-300 group-data-[state=open]:rotate-180" />
                   </Accordion.Trigger>
                 </Accordion.Header>
                 <Accordion.Content className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-                  <div className="pb-5 space-y-4 text-sm opacity-85">
-                    {detailsToUse.map((item) => <p key={item.title}><span className="font-semibold">{item.title}</span> {item.body}</p>)}
+                    <div className="pb-5 space-y-4 text-sm opacity-85">
+                     <p className="font-semibold">{productCopy.detailsHeading}</p>
+                     {detailsToUse.map((item) => <p key={`${item.title}-${item.body}`}><span className="font-semibold">{item.title}</span> {item.body}</p>)}
                   </div>
                 </Accordion.Content>
               </Accordion.Item>
@@ -457,12 +461,16 @@ export default function ProductDetail() {
               <Accordion.Item value="delivery" className="border-b border-black/10 dark:border-white/10">
                 <Accordion.Header>
                   <Accordion.Trigger className="w-full flex items-center justify-between py-5 text-[12px] tracking-[0.2em] uppercase font-semibold hover:text-primary transition-colors group">
-                    Delivery & Returns
+                      <span>
+                        <span className="block text-[10px] font-normal text-secondary/70">{productCopy.assurancesEyebrow}</span>
+                        {productCopy.deliveryReturnsHeading}
+                      </span>
                     <ChevronDown size={16} className="transition-transform duration-300 group-data-[state=open]:rotate-180" />
                   </Accordion.Trigger>
                 </Accordion.Header>
                 <Accordion.Content className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-                  <div className="pb-5 space-y-4 text-sm opacity-85">
+                    <div className="pb-5 space-y-4 text-sm opacity-85">
+                     <p className="font-semibold">{productCopy.assurancesHeading}</p>
                     {assurancesToUse.map((item) => (
                       <div key={item.title}>
                         <p className="font-semibold text-primary">{item.title}</p>
@@ -499,12 +507,12 @@ export default function ProductDetail() {
       {look.length > 0 && (
         <section className="max-w-[1440px] mx-auto px-6 md:px-12 py-24">
           <Reveal>
-            <h2 className="soso-display text-4xl font-light mb-10">Style with</h2>
+            <h2 className="soso-display text-4xl font-light mb-10">{productCopy.relatedHeading}</h2>
           </Reveal>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {look.map((p, i) => (
               <Reveal key={p.name} delay={i * 90}>
-                <ProductCard product={p} testIdPrefix="related" ctaLabel="Quick Shop" />
+                <ProductCard product={p} testIdPrefix="related" ctaLabel={productCopy.quickShopTitle} />
               </Reveal>
             ))}
           </div>
@@ -527,7 +535,7 @@ export default function ProductDetail() {
           style={{ background: needSize || isUnavailable || !isPurchasable ? "#2a2723" : "hsl(var(--primary))", color: needSize || isUnavailable || !isPurchasable ? "#fff" : "hsl(var(--primary-foreground))" }}
           data-testid="button-mobile-add-to-cart"
         >
-          {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : !isPurchasable ? "Unavailable" : productCopy.addToBagLabel}
+          {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : !isPurchasable ? productCopy.unavailableInSizeLabel : productCopy.addToBagLabel}
         </button>
       </div>
 

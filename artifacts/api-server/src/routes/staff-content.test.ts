@@ -246,6 +246,9 @@ test("platform content includes complete public shell, journal, checkout, and pr
   assert.ok(pages.paymentReturn.paidBody);
   assert.ok(pages.paymentReturn.missingAttemptMessage);
   assert.ok(pages.paymentReturn.statusUnavailableMessage);
+  assert.ok(pages.paymentReturn.measurementSyncError);
+  assert.ok(pages.paymentReturn.measurementRangeErrorTemplate.includes("{label}"));
+  assert.ok(Object.values(pages.paymentReturn.measurementStatusLabels).every(Boolean));
   assert.ok(Object.values(DEFAULT_PLATFORM_CONTENT.supportCopy.stylistDialog).every((value) => value.length > 0));
   assert.ok(DEFAULT_PLATFORM_CONTENT.productCopy.detailImageAltSuffix);
   assert.ok(DEFAULT_PLATFORM_CONTENT.productCopy.sizeGuideCloseLabel);
@@ -421,6 +424,28 @@ test("mega menus reject unsafe links, empty visible departments, and mismatched 
   }
 });
 
+test("site settings validate governed ticker, address, and social links", () => {
+  const valid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  assert.equal(PlatformContentSchema.safeParse(valid).success, true);
+  assert.equal(
+    valid.site.megaMenu.find((group) => group.id === "men")?.columns
+      .flatMap((column) => column.links)
+      .some((link) => link.href === "/shop?department=men&sort=newest"),
+    true,
+  );
+
+  valid.site.announcementItems = [""];
+  valid.site.hqAddress = "";
+  valid.site.socialLinks.facebookUrl = "http://facebook.com/soso";
+  const parsed = PlatformContentSchema.safeParse(valid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "site.announcementItems.0"));
+    assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "site.hqAddress"));
+    assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "site.socialLinks.facebookUrl"));
+  }
+});
+
 test("the women launch upgrade appends missing catalogue content without replacing men edits", () => {
   const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
   legacy.contentVersion = 1;
@@ -463,7 +488,7 @@ test("the women launch upgrade does not restore products or collections after st
 
   const upgradedRetired = mergePlatformContentDefaults(retired) as typeof retired;
   assert.equal(PlatformContentSchema.safeParse(upgradedRetired).success, true);
-  assert.equal(upgradedRetired.contentVersion, 2);
+  assert.equal(upgradedRetired.contentVersion, 4);
   assert.equal(upgradedRetired.products.some((product) => product.department === "women"), false);
   assert.equal(upgradedRetired.collections.some((collection) => collection.department === "women"), false);
   assert.equal(upgradedRetired.site.megaMenu.find((group) => group.id === "women")?.visible, false);
@@ -498,6 +523,39 @@ test("optional product detail copy validates and survives default upgrades witho
   const merged = mergePlatformContentDefaults(omitted) as typeof DEFAULT_PLATFORM_CONTENT;
   assert.deepEqual(merged.site.header.searchSuggestions, DEFAULT_PLATFORM_CONTENT.site.header.searchSuggestions);
   assert.equal(merged.products[0]!.composition, undefined);
+});
+
+test("product detail labels are required, defaulted, and preserve merchant edits", () => {
+  const missingLabels = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  delete missingLabels.productCopy.compositionLabel;
+  delete missingLabels.productCopy.careLabel;
+  delete missingLabels.productCopy.deliveryLabel;
+  delete missingLabels.productCopy.returnsLabel;
+  assert.equal(PlatformContentSchema.safeParse(missingLabels).success, false);
+
+  const merged = mergePlatformContentDefaults(missingLabels) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(PlatformContentSchema.safeParse(merged).success, true);
+  assert.equal(merged.productCopy.compositionLabel, DEFAULT_PLATFORM_CONTENT.productCopy.compositionLabel);
+  assert.equal(merged.productCopy.careLabel, DEFAULT_PLATFORM_CONTENT.productCopy.careLabel);
+  assert.equal(merged.productCopy.deliveryLabel, DEFAULT_PLATFORM_CONTENT.productCopy.deliveryLabel);
+  assert.equal(merged.productCopy.returnsLabel, DEFAULT_PLATFORM_CONTENT.productCopy.returnsLabel);
+
+  const merchantEdited = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  merchantEdited.productCopy.compositionLabel = "Materials";
+  merchantEdited.productCopy.careLabel = "Garment care";
+  merchantEdited.productCopy.deliveryLabel = "Shipping";
+  merchantEdited.productCopy.returnsLabel = "Exchanges";
+  assert.deepEqual(mergePlatformContentDefaults(merchantEdited), merchantEdited);
+});
+
+test("product detail source reads governed labels for product-specific detail copy", () => {
+  const source = readFileSync(new URL("../../../soso-store/src/pages/ProductDetail.tsx", import.meta.url), "utf8");
+  for (const label of ["compositionLabel", "careLabel", "deliveryLabel", "returnsLabel"]) {
+    assert.ok(source.includes(`productCopy.${label}`), `ProductDetail omits governed ${label}`);
+  }
+  for (const literal of ['title: "Composition"', 'title: "Care"', 'title: "Delivery"', 'title: "Returns"']) {
+    assert.equal(source.includes(literal), false, `ProductDetail hardcodes ${literal}`);
+  }
 });
 
 test("legacy upgrades never populate an unpublished platform document", () => {
@@ -551,7 +609,11 @@ test("known shipped hero defaults become quieter without replacing merchant camp
 
 test("platform schema upgrades fill missing fields without replacing edited content", () => {
   const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = 2;
   legacy.site.announcement = "A merchant-edited announcement";
+  delete legacy.site.announcementItems;
+  delete legacy.site.hqAddress;
+  delete legacy.site.socialLinks;
   delete legacy.site.megaMenu;
   delete legacy.pages.shop.departments;
   delete legacy.pages.about;
@@ -591,7 +653,17 @@ test("platform schema upgrades fill missing fields without replacing edited cont
   const parsed = PlatformContentSchema.safeParse(upgraded);
   assert.equal(parsed.success, true);
   if (parsed.success) {
+    assert.equal(parsed.data.contentVersion, 4);
     assert.equal(parsed.data.site.announcement, "A merchant-edited announcement");
+    assert.equal(parsed.data.site.announcementItems[0], "A merchant-edited announcement");
+    assert.equal(parsed.data.site.hqAddress, DEFAULT_PLATFORM_CONTENT.site.hqAddress);
+    assert.deepEqual(parsed.data.site.socialLinks, DEFAULT_PLATFORM_CONTENT.site.socialLinks);
+    assert.equal(
+      parsed.data.site.megaMenu.find((group) => group.id === "men")?.columns
+        .flatMap((column) => column.links)
+        .some((link) => link.href === "/shop?department=men&sort=newest"),
+      true,
+    );
     assert.deepEqual(parsed.data.site.megaMenu, DEFAULT_PLATFORM_CONTENT.site.megaMenu);
     assert.equal(parsed.data.pages.shop.departments.women.title, DEFAULT_PLATFORM_CONTENT.pages.shop.departments.women.title);
     assert.equal(parsed.data.productCopy.addToBagLabel, DEFAULT_PLATFORM_CONTENT.productCopy.addToBagLabel);
@@ -617,6 +689,95 @@ test("platform schema upgrades fill missing fields without replacing edited cont
     assert.deepEqual(parsed.data.products[0]!.readyNowSizes, []);
     assert.equal(parsed.data.products[0]!.dispatchMessage, "Dispatch within five days");
     assert.equal(parsed.data.products[0]!.images[0]!.provenance.source, "SOSO Africa supplied asset");
+  }
+});
+
+test("payment return measurement copy is strict and v4 default merging preserves staff edits", () => {
+  for (const key of [
+    "measurementSyncError",
+    "noticeLabel",
+    "requiredMeasurementsGuidance",
+    "optionalMeasurementsGuidance",
+    "measurementRangeErrorTemplate",
+    "measurementConflictError",
+    "measurementSubmitError",
+    "atelierNoteLabel",
+    "productionExceptionLabel",
+    "unitLabel",
+    "unitsGroupAriaLabel",
+    "optionalContextPlaceholder",
+    "submittingMeasurementsLabel",
+    "submitMeasurementsLabel",
+    "updateMeasurementsLabel",
+  ]) {
+    const incomplete = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+    delete incomplete.pages.paymentReturn[key];
+    const parsed = PlatformContentSchema.safeParse(incomplete);
+    assert.equal(parsed.success, false, `${key} must be required`);
+  }
+  const incompleteStatus = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  delete incompleteStatus.pages.paymentReturn.measurementStatusLabels.confirmed;
+  assert.equal(PlatformContentSchema.safeParse(incompleteStatus).success, false);
+  const incompleteFieldLabel = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  delete incompleteFieldLabel.pages.paymentReturn.measurementFieldLabels.height;
+  assert.equal(PlatformContentSchema.safeParse(incompleteFieldLabel).success, false);
+  const invalidTemplate = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  invalidTemplate.pages.paymentReturn.measurementRangeErrorTemplate = "{label} must be valid";
+  assert.equal(PlatformContentSchema.safeParse(invalidTemplate).success, false);
+
+  const migratedV4 = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  migratedV4.pages.paymentReturn.measurementSyncError = "Merchant measurement sync notice.";
+  migratedV4.pages.paymentReturn.measurementStatusLabels.needed = "Merchant review needed";
+  delete migratedV4.pages.paymentReturn.measurementConflictError;
+  delete migratedV4.pages.paymentReturn.measurementFieldLabels.sleeve;
+
+  const upgraded = mergePlatformContentDefaults(migratedV4) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.contentVersion, 4);
+  assert.equal(upgraded.pages.paymentReturn.measurementSyncError, "Merchant measurement sync notice.");
+  assert.equal(upgraded.pages.paymentReturn.measurementStatusLabels.needed, "Merchant review needed");
+  assert.equal(upgraded.pages.paymentReturn.measurementConflictError, DEFAULT_PLATFORM_CONTENT.pages.paymentReturn.measurementConflictError);
+  assert.equal(upgraded.pages.paymentReturn.measurementFieldLabels.sleeve, DEFAULT_PLATFORM_CONTENT.pages.paymentReturn.measurementFieldLabels.sleeve);
+  assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
+});
+
+test("version 4 adds governed interface copy without restoring v3 menu or ticker choices", () => {
+  const version3 = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  version3.contentVersion = 3;
+  version3.site.announcementItems = ["Merchant ticker only"];
+  version3.site.megaMenu = version3.site.megaMenu.filter((group: { id: string }) => group.id !== "accessories");
+  version3.site.header.clearSearchLabel = "Merchant clear search";
+  version3.pages.shop.sortOptions.featured = "Merchant picks";
+  version3.productCopy.quickShopTitle = "Merchant quick shop";
+  version3.interfaceCopy = undefined;
+  delete version3.site.structuredData;
+  delete version3.site.cart.quantityLabel;
+  delete version3.pages.shop.departmentLabels;
+  delete version3.productCopy.viewFullDetailsLabel;
+
+  const upgraded = mergePlatformContentDefaults(version3);
+  const parsed = PlatformContentSchema.safeParse(upgraded);
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.equal(parsed.data.contentVersion, 4);
+    assert.deepEqual(parsed.data.site.announcementItems, ["Merchant ticker only"]);
+    assert.equal(parsed.data.site.megaMenu.some((group) => group.id === "accessories"), false);
+    assert.equal(parsed.data.site.header.clearSearchLabel, "Merchant clear search");
+    assert.equal(parsed.data.pages.shop.sortOptions.featured, "Merchant picks");
+    assert.equal(parsed.data.productCopy.quickShopTitle, "Merchant quick shop");
+    assert.equal(parsed.data.productCopy.viewFullDetailsLabel, DEFAULT_PLATFORM_CONTENT.productCopy.viewFullDetailsLabel);
+    assert.equal(parsed.data.interfaceCopy.search.productsHeading, DEFAULT_PLATFORM_CONTENT.interfaceCopy.search.productsHeading);
+  }
+});
+
+test("version 4 interface fields are required, strict, and non-blank", () => {
+  const invalid = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  invalid.pages.shop.sortOptions.featured = "  ";
+  invalid.interfaceCopy.search.unexpected = "not allowed";
+  const parsed = PlatformContentSchema.safeParse(invalid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "pages.shop.sortOptions.featured"));
+    assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "interfaceCopy.search"));
   }
 });
 

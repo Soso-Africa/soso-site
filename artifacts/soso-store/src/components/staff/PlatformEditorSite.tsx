@@ -19,6 +19,35 @@ export function PlatformEditorSite({
 }) {
   const suggestions = data.header?.searchSuggestions || [];
   const megaMenu = data.megaMenu || [];
+  const announcementItems = data.announcementItems;
+
+  const updateAnnouncementItem = (index: number, value: string) => {
+    const items = [...announcementItems];
+    items[index] = value;
+    onChange({ ...data, announcementItems: items });
+  };
+
+  const addAnnouncementItem = () => {
+    if (announcementItems.length >= 8) return;
+    onChange({ ...data, announcementItems: [...announcementItems, ""] });
+  };
+
+  const removeAnnouncementItem = (index: number) => {
+    if (announcementItems.length <= 1) return;
+    const items = [...announcementItems];
+    items.splice(index, 1);
+    onChange({ ...data, announcementItems: items });
+  };
+
+  const updateSocialLink = (field: keyof SiteData["socialLinks"], value: string) => {
+    onChange({
+      ...data,
+      socialLinks: {
+        ...data.socialLinks,
+        [field]: value
+      }
+    });
+  };
 
   const updateSuggestions = (newSuggestions: { label: string; href: string }[]) => {
     onChange({
@@ -225,6 +254,134 @@ export function PlatformEditorSite({
 
   return (
     <div className="mt-5 space-y-5">
+      <section className="border border-border bg-card p-5" aria-labelledby="site-info-editor-heading">
+        <h3 id="site-info-editor-heading" className="mb-4 text-xs font-semibold uppercase tracking-wider text-primary">Global Site Info</h3>
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">HQ Address</span>
+            <textarea
+              value={data.hqAddress}
+              onChange={(e) => onChange({ ...data, hqAddress: e.target.value })}
+              className="staff-input text-xs"
+              placeholder="Enter the site address"
+              rows={3}
+              required
+              maxLength={300}
+              data-testid="input-site-hq-address"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="border border-border bg-card p-5" aria-labelledby="announcements-editor-heading">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 id="announcements-editor-heading" className="text-xs font-semibold uppercase tracking-wider text-primary">Announcement Strip (Max 8)</h3>
+        </div>
+        <div className="space-y-3">
+          {announcementItems.map((item, index) => (
+            <div key={index} className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={item}
+                onChange={(e) => updateAnnouncementItem(index, e.target.value)}
+                className="staff-input text-xs flex-1"
+                 placeholder="Enter announcement text"
+                 required
+                 maxLength={180}
+                data-testid={`input-announcement-item-${index}`}
+              />
+              <button
+                type="button"
+                onClick={() => removeAnnouncementItem(index)}
+                disabled={announcementItems.length <= 1}
+                className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:hover:bg-transparent"
+                aria-label={`Remove announcement ${index + 1}`}
+                data-testid={`button-remove-announcement-${index}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+          {announcementItems.length < 8 && (
+            <button
+              type="button"
+              onClick={addAnnouncementItem}
+              className="inline-flex min-h-10 items-center gap-2 border border-border px-4 text-xs font-semibold uppercase tracking-wider hover:border-primary hover:text-primary"
+              data-testid="button-add-announcement"
+            >
+              <Plus size={15} /> Add Announcement
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="border border-border bg-card p-5" aria-labelledby="social-links-editor-heading">
+        <h3 id="social-links-editor-heading" className="mb-4 text-xs font-semibold uppercase tracking-wider text-primary">Social Links</h3>
+        <p className="mb-4 text-xs text-muted-foreground">Use complete HTTPS links. Leave a field blank to hide that network from the storefront.</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Facebook URL</span>
+            <input
+              type="url"
+              value={data.socialLinks.facebookUrl}
+              onChange={(e) => updateSocialLink("facebookUrl", e.target.value)}
+              className="staff-input text-xs"
+              placeholder="https://facebook.com/..."
+              pattern="https://.*"
+              data-testid="input-social-facebook"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Twitter (X) URL</span>
+            <input
+              type="url"
+              value={data.socialLinks.twitterUrl}
+              onChange={(e) => updateSocialLink("twitterUrl", e.target.value)}
+              className="staff-input text-xs"
+              placeholder="https://twitter.com/..."
+              pattern="https://.*"
+              data-testid="input-social-twitter"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">YouTube URL</span>
+            <input
+              type="url"
+              value={data.socialLinks.youtubeUrl}
+              onChange={(e) => updateSocialLink("youtubeUrl", e.target.value)}
+              className="staff-input text-xs"
+              placeholder="https://youtube.com/..."
+              pattern="https://.*"
+              data-testid="input-social-youtube"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">TikTok URL</span>
+            <input
+              type="url"
+              value={data.socialLinks.tiktokUrl}
+              onChange={(e) => updateSocialLink("tiktokUrl", e.target.value)}
+              className="staff-input text-xs"
+              placeholder="https://tiktok.com/..."
+              pattern="https://.*"
+              data-testid="input-social-tiktok"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">LinkedIn URL</span>
+            <input
+              type="url"
+              value={data.socialLinks.linkedinUrl}
+              onChange={(e) => updateSocialLink("linkedinUrl", e.target.value)}
+              className="staff-input text-xs"
+              placeholder="https://linkedin.com/in/..."
+              pattern="https://.*"
+              data-testid="input-social-linkedin"
+            />
+          </label>
+        </div>
+      </section>
+
       <section className="border border-border bg-card p-5" aria-labelledby="mega-menu-editor-heading">
         <div className="mb-4 flex items-center justify-between gap-4">
           <h3 id="mega-menu-editor-heading" className="text-xs font-semibold uppercase tracking-wider text-primary">Mega Menu</h3>

@@ -5,30 +5,21 @@
 Deploy `Soso-Africa/soso-site` as **one Vercel project from the repository root**.
 
 - The Vite storefront is built to `artifacts/soso-store/dist/public`.
- - `api/[...path].mjs` exposes the compiled Express application as a Vercel Function for `/api/*`.
+- `api/handler.js` exposes the compiled Express application as a Vercel Function for `/api` and `/api/*`.
 - The storefront intentionally uses same-origin API paths, so do not set `VITE_API_BASE_URL` for this deployment.
 - The Vercel rewrite keeps client-side route refreshes working and explicitly excludes `/api` so API requests always reach the serverless function.
 
 Do not point Vercel at `artifacts/soso-store` as the project root: the API and workspace packages are required by the full-stack deployment.
 
-## Clerk hosting decision
+## Authentication decision
 
-SOSO currently uses **Replit-managed Clerk**. Replit provisions those Development and Production keys automatically, and the project is confirmed to be in the managed mode. Replit-managed Clerk is designed for Replit hosting: its live keys are not exportable for external hosts such as Vercel.
+SOSO staff authentication is self-contained and does not use Clerk at runtime. Staff credentials are hashed with scrypt, sessions are stored in PostgreSQL, and the browser receives a secure same-origin HTTP-only cookie.
 
-Choose one of these hosting paths before putting SOSO on Vercel:
-
-1. **Keep Replit-managed Clerk and host on Replit.** Replit automatically switches from Development/test keys to Production/live keys when the app is published.
-2. **Host on Vercel and use an external Clerk instance.** Create and configure your own Clerk Development and Production environments, then migrate the app's authentication configuration. Store that provider's keys in Vercel as described below. Do not replace or edit the existing Replit-managed keys in the Replit Secrets pane.
-
-Until option 2 is completed, Vercel can only be treated as an unauthenticated storefront experiment; it is not a valid full-stack SOSO deployment because staff authentication cannot be carried over from Replit-managed Clerk.
-
-SOSO staff sign-in uses secure, same-origin HTTP-only session cookies. A Vercel Preview URL works for testing; production should use the approved SOSO domain and HTTPS.
+Create the first owner with the one-time `STAFF_BOOTSTRAP_TOKEN`, verify owner login and role administration, then remove or rotate the bootstrap token. Production must use HTTPS so the secure cookie is never sent over an unencrypted connection. Clerk keys and `SESSION_SECRET` are not runtime requirements for this authentication system.
 
 ## Database decision
 
-The Replit development database is currently reachable, but this project does not have a Replit production database yet. Replit creates its production database when the project is published through Replit; there is no separate database-creation action. Publishing through Replit would also create a second hosted deployment, which is not required if Vercel is the chosen host.
-
-For a Vercel-hosted production app, use a production PostgreSQL database with a connection string that Vercel Functions can reach over the network. Keep it separate from the development database and from any preview database. Put its `DATABASE_URL` only in Vercel's encrypted Production environment variable store; never commit it or paste it into source files. Before launch, run the schema through the project's approved production migration path and verify connectivity with `/api/healthz`.
+Production uses a network-reachable PostgreSQL database outside Replit (currently Neon). Keep it separate from development and Preview. Put its pooled/serverless-safe `DATABASE_URL` only in Vercel's encrypted Production environment variable store; never commit it or paste it into source files. The build reads published content to generate governed SEO assets, so the Production database must permit both Vercel build-time and Function connectivity. Apply the approved migrations before launch and verify connectivity with `/api/readyz`.
 
 ## Import steps
 
@@ -36,8 +27,8 @@ For a Vercel-hosted production app, use a production PostgreSQL database with a 
 2. Keep the **Root Directory** as the repository root.
 3. Allow the committed `vercel.json` to supply the install command, build command, and output directory.
 4. Add the environment variables below before deploying a preview.
-5. Deploy a preview first and confirm `GET /api/healthz`, a storefront deep link, Clerk sign-in, and one staff route behave as expected.
-6. Add and verify the owned production domain in both Vercel and external Clerk before enabling Production Clerk keys and the Clerk proxy. Do not enable SEO or commerce release switches as part of the hosting setup.
+5. Deploy a preview first and confirm `GET /api/healthz`, `GET /api/readyz`, a storefront deep link, staff sign-in, and one authenticated staff route behave as expected.
+6. Add and verify the owned production domain in Vercel. Do not enable SEO or commerce release switches as part of the hosting setup.
 
 Vercel must have GitHub application access to the `Soso-Africa` organization. If the repository cannot be selected during import, an organization owner must grant Vercel access in GitHub's third-party application settings.
 
@@ -45,17 +36,17 @@ Vercel must have GitHub application access to the `Soso-Africa` organization. If
 
 Vite values are embedded into the client bundle at build time. Change a `VITE_*` value only through Vercel environment settings and redeploy; never place secrets in a `VITE_*` variable.
 
-### Required for the full-stack preview and production deployment after external Clerk setup
-
-The Clerk values below must come from the external Clerk instance created for the Vercel deployment. They cannot be copied from Replit-managed Clerk.
+### Required for the full-stack preview and production deployment
 
 | Variable | Environments | Purpose |
 | --- | --- | --- |
-| `SESSION_SECRET` | Preview, Production | Required server session signing secret. |
 | `STAFF_BOOTSTRAP_TOKEN` | Preview, Production | One-time secret used only when creating the first SOSO owner password; remove after setup. |
 | `DATABASE_URL` | Preview, Production | PostgreSQL connection used by the API. Use a network-reachable database and a pooled/serverless-safe connection string. |
+| `CLOUDINARY_CLOUD_NAME` | Preview, Production | Cloudinary cloud identifier used by the server to authorize and resolve staff media. |
+| `CLOUDINARY_API_KEY` | Preview, Production | Sensitive Cloudinary API key used only in short-lived signed upload authorizations. |
+| `CLOUDINARY_API_SECRET` | Preview, Production | Sensitive server-only Cloudinary signing secret. Never expose this through a `VITE_*` variable. |
 
-No third-party authentication proxy or browser key is required.
+No Clerk, Replit authentication proxy, Replit storage value, or browser authentication key is required.
 
 Before Preview validation, apply the Drizzle schema to the exact PostgreSQL target configured in Vercel Preview. Run the migration from a private environment where that target `DATABASE_URL` is available:
 
@@ -71,9 +62,6 @@ Do not paste the connection string into chat, source control, or a `VITE_*` vari
 | --- | --- |
 | `PRIVACY_POLICY_VERSION` | Labels recorded privacy-request policy versions. |
 | `LOG_LEVEL` | Server log verbosity; use `info` unless troubleshooting. |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud identifier used by the server to authorize and resolve staff media. |
-| `CLOUDINARY_API_KEY` | Sensitive Cloudinary API key used only in short-lived signed upload authorizations. |
-| `CLOUDINARY_API_SECRET` | Sensitive server-only Cloudinary signing secret. Never expose this through a `VITE_*` variable. |
 
 SOSO media uploads are signed by the API and sent directly from the staff browser to Cloudinary. The app does not require a public unsigned upload preset or any Replit Object Storage variables.
 
@@ -88,9 +76,10 @@ With these launch-only values unset, the storefront remains deliberately noindex
 
 ## Post-deploy checks
 
-1. Request `/api/healthz` and expect only `{"status":"ok"}`.
+1. Request `/api/healthz` and expect only `{"status":"ok"}`. Then request `/api/readyz` and expect `{"status":"ok","database":"ok"}`; this second check proves PostgreSQL connectivity.
 2. Open `/shop` directly in a new browser tab and confirm the storefront loads rather than returning a 404.
-3. Open `/staff` unauthenticated and confirm the Clerk sign-in boundary appears without staff data. The Clerk sign-in controls themselves must load; a branded page shell without the email/social controls is a failed sign-in check.
+3. Open `/staff` unauthenticated and confirm the SOSO staff sign-in boundary appears without staff data. Verify owner login, secure cookie persistence, logout, and role authorization.
 4. Request `/api/redirects?path=/shop` and expect `{"redirect":null}` before staff configure any redirects. A 500 requires the Preview database schema/permissions to be corrected before proceeding.
 5. Confirm `/robots.txt` still disallows crawling and no XML sitemap is emitted while release switches remain off. Vercel’s SPA rewrite can return the noindex HTML shell for `/sitemap.xml`; confirm the response is not XML and contains no `<urlset>` sitemap.
-6. Record the Vercel preview URL, deployment timestamp, tested routes, and database target in the release record. A successful deployment does not satisfy the separate JusticeSure, legal, SEO, roster, backup, or real-device launch gates.
+6. Confirm the build log reports both the Cloudinary production storage diagnostic and the non-Replit runtime scan as passed.
+7. Record the Vercel preview URL, deployment timestamp, tested routes, and database target in the release record. A successful deployment does not satisfy the separate JusticeSure, legal, SEO, roster, backup, or real-device launch gates.

@@ -9,7 +9,16 @@ const href = z.string().max(1024).refine((value) => {
   if (value.startsWith("/") && !value.startsWith("//")) return true;
   try { return new URL(value).protocol === "https:"; } catch { return false; }
 }, "Must be an internal path or HTTPS URL");
+const httpsUrl = z.string().max(1024).refine((value) => {
+  try { return new URL(value).protocol === "https:"; } catch { return false; }
+}, "Must be an HTTPS URL");
+const optionalHttpsUrl = z.union([z.literal(""), httpsUrl]);
 const copy = z.string().max(10_000);
+const interfaceLabel = z.string().trim().min(1).max(300);
+const measurementRangeErrorTemplate = interfaceLabel.refine(
+  (value) => ["{label}", "{min}", "{max}", "{unit}"].every((token) => value.includes(token)),
+  "Measurement range error template must include {label}, {min}, {max}, and {unit}",
+);
 const seo = z.object({ title: z.string().min(1).max(160), description: z.string().min(1).max(320) }).strict();
 const link = z.object({ label: z.string().min(1).max(120), href, external: z.boolean().optional() }).strict();
 const copyItem = z.object({
@@ -86,7 +95,17 @@ const homepageHero = z.object({
 export const PlatformContentSchema = z.object({
   contentVersion: z.number().int().positive(),
   site: z.object({
-    name: copy, logoUrl: localPath, logoAlt: z.string().min(1), announcement: copy, skipLinkLabel: copy.min(1),
+    name: copy, logoUrl: localPath, logoAlt: z.string().min(1), announcement: copy,
+    announcementItems: z.array(z.string().trim().min(1).max(180)).min(1).max(8),
+    hqAddress: z.string().trim().min(1).max(300),
+    socialLinks: z.object({
+      facebookUrl: optionalHttpsUrl,
+      twitterUrl: optionalHttpsUrl,
+      youtubeUrl: optionalHttpsUrl,
+      tiktokUrl: optionalHttpsUrl,
+      linkedinUrl: optionalHttpsUrl,
+    }).strict(),
+    skipLinkLabel: copy.min(1),
     contactEmail: z.union([z.literal(""), z.string().email()]), contactPhone: z.string().max(40),
     instagramUrl: href, whatsappUrl: href,
     navigation: z.array(link).min(1), mobileNavigation: z.array(link).min(1),
@@ -96,9 +115,9 @@ export const PlatformContentSchema = z.object({
       openMenuLabel: copy, closeMenuLabel: copy, mainNavigationLabel: copy, whatsappLabel: copy,
       cartLabel: copy, openCartLabel: copy, mobileWhatsappLabel: copy,
       searchLabel: copy.min(1), searchPlaceholder: copy.min(1), closeSearchLabel: copy.min(1),
-      searchSuggestionsLabel: copy.min(1), searchSuggestions: z.array(searchSuggestion),
+      clearSearchLabel: interfaceLabel, searchSuggestionsLabel: copy.min(1), searchSuggestions: z.array(searchSuggestion),
     }).strict(),
-    cart: z.object({ title: copy, closeLabel: copy, emptyMessage: copy, continueShoppingLabel: copy, sizeLabel: copy, removeLabel: copy, subtotalLabel: copy, helpText: copy, checkoutCta: link, stylistCta: link }).strict(),
+    cart: z.object({ title: copy, closeLabel: copy, emptyMessage: copy, continueShoppingLabel: copy, sizeLabel: copy, removeLabel: copy, subtotalLabel: copy, helpText: copy, checkoutCta: link, stylistCta: link, changeSizeLabel: interfaceLabel, unavailableSizeSuffix: interfaceLabel, readyNowLabel: interfaceLabel, madeImmediatelyLabel: interfaceLabel, decreaseQuantityLabel: interfaceLabel, increaseQuantityLabel: interfaceLabel, quantityLabel: interfaceLabel }).strict(),
     floatingCta: link,
     consent: z.object({ regionLabel: copy, title: copy, body: copy, essentialLabel: copy, analyticsLabel: copy, marketingLabel: copy, manageLabel: copy, necessaryDescription: copy, measurementDescription: copy, marketingDescription: copy, footerText: copy, privacyLink: link }).strict(),
     footer: z.object({
@@ -106,6 +125,7 @@ export const PlatformContentSchema = z.object({
       columns: z.array(z.object({ heading: copy, links: z.array(link).min(1) }).strict()).min(1),
       legalLinks: z.array(link).min(1), copyright: copy, checkoutNote: copy, instagramLabel: copy, instagramAriaLabel: copy, cookieChoicesLabel: copy,
     }).strict(),
+    structuredData: z.object({ organizationDescription: interfaceLabel, locality: interfaceLabel, country: interfaceLabel, countryCode: z.string().regex(/^[A-Z]{2}$/), websiteDescription: interfaceLabel }).strict(),
   }).strict(),
   homepage: z.object({
     seo,
@@ -131,6 +151,15 @@ export const PlatformContentSchema = z.object({
       searchLabel: copy.min(1), searchPlaceholder: copy.min(1), noSearchResultsMessage: copy.min(1),
       newLabel: copy.min(1), readyNowLabel: copy.min(1), madeImmediatelyLabel: copy.min(1),
       unavailableLabel: copy.min(1),
+      departmentLabels: z.object({ men: interfaceLabel, women: interfaceLabel, accessories: interfaceLabel }).strict(),
+      departmentsAriaLabel: interfaceLabel, controlsAriaLabel: interfaceLabel, sizeFilterLabel: interfaceLabel, colourFilterLabel: interfaceLabel,
+      minimumPriceLabel: interfaceLabel, maximumPriceLabel: interfaceLabel, clearSearchLabel: interfaceLabel, sortLabel: interfaceLabel,
+      sortOptions: z.object({ featured: interfaceLabel, newest: interfaceLabel, priceAscending: interfaceLabel, priceDescending: interfaceLabel }).strict(),
+      refineLabel: interfaceLabel, refineProductsTitle: interfaceLabel, closeFiltersLabel: interfaceLabel, categoryLabel: interfaceLabel, fulfilmentLabel: interfaceLabel,
+      activeFiltersLabel: interfaceLabel, searchFilterLabel: interfaceLabel, removeSearchFilterLabel: interfaceLabel, removeCategoryFilterLabel: interfaceLabel,
+      removeFulfilmentFilterLabel: interfaceLabel, removeSizeFilterLabel: interfaceLabel, removeColourFilterLabel: interfaceLabel, removePriceFilterLabel: interfaceLabel,
+      priceFilterLabel: interfaceLabel, maximumPriceValueLabel: interfaceLabel, resultCountSingular: interfaceLabel, resultCountPlural: interfaceLabel,
+      clearAllLabel: interfaceLabel, resetFiltersLabel: interfaceLabel, resetLabel: interfaceLabel, viewResultsLabel: interfaceLabel,
       departments: z.object({
         men: z.object({ seo, eyebrow: copy, title: copy, intro: copy }).strict(),
         women: z.object({ seo, eyebrow: copy, title: copy, intro: copy }).strict(),
@@ -166,6 +195,24 @@ export const PlatformContentSchema = z.object({
       paidTitle: copy, cancelledTitle: copy, pendingTitle: copy, paidBody: copy, cancelledBody: copy,
       pendingBody: copy, orderReferenceLabel: copy, authoritativeTotalLabel: copy, errorSuffix: copy,
       pendingNotice: copy, retryHelp: copy, reviewLabel: copy, sizeLabel: copy, quantityLabel: copy,
+      measurementSyncError: copy.min(1), noticeLabel: interfaceLabel,
+      measurementsTitle: interfaceLabel, requiredMeasurementsGuidance: copy.min(1), optionalMeasurementsGuidance: copy.min(1),
+      measurementInvalidErrorTemplate: interfaceLabel.refine((value) => value.includes("{label}"), "Measurement invalid error template must include {label}"),
+      measurementRangeErrorTemplate, measurementConflictError: copy.min(1), measurementSubmitError: copy.min(1),
+      measurementStatusLabels: z.object({
+        needed: interfaceLabel, submitted: interfaceLabel, clarification_requested: interfaceLabel,
+        confirmed: interfaceLabel, cancelled: interfaceLabel,
+      }).strict(),
+      atelierNoteLabel: interfaceLabel, productionExceptionLabel: interfaceLabel,
+      unitLabel: interfaceLabel, unitsGroupAriaLabel: interfaceLabel,
+      measurementFieldLabels: z.object({
+        height: interfaceLabel, chest: interfaceLabel, waist: interfaceLabel, hips: interfaceLabel,
+        shoulder: interfaceLabel, sleeve: interfaceLabel, garmentLength: interfaceLabel,
+      }).strict(),
+      lineLabel: interfaceLabel, baseSizeLabel: interfaceLabel, additionalNotesLabel: interfaceLabel,
+      optionalLabel: interfaceLabel, centimetersUnitLabel: interfaceLabel, inchesUnitLabel: interfaceLabel,
+      optionalContextPlaceholder: interfaceLabel, submittingMeasurementsLabel: interfaceLabel,
+      submitMeasurementsLabel: interfaceLabel, updateMeasurementsLabel: interfaceLabel,
       returnBagCta: link, continueCta: link, retryCta: link, returnCheckoutCta: link,
     }).strict(),
     notFound: z.object({ seo, title: copy, body: copy, cta: link }).strict(),
@@ -291,6 +338,14 @@ export const PlatformContentSchema = z.object({
     dispatchLabel: copy.min(1), dispatchNotDeliveryMessage: copy.min(1),
     standardUnavailableMessage: copy.min(1), customUnavailableMessage: copy.min(1),
     sizeRequiredLabel: copy, mobileSizeRequiredLabel: copy, addToBagLabel: copy,
+    newLabel: interfaceLabel, viewProductLabel: interfaceLabel, quickShopTitle: interfaceLabel, closeQuickShopLabel: interfaceLabel,
+    customSizingLabel: interfaceLabel, selectedLabel: interfaceLabel, unmappedPurchaseMessage: interfaceLabel, onlinePurchaseUnavailableLabel: interfaceLabel,
+    unavailableInSizeLabel: interfaceLabel, viewFullDetailsLabel: interfaceLabel, homeBreadcrumbLabel: interfaceLabel, shopBreadcrumbLabel: interfaceLabel,
+    productUnmappedPurchaseMessage: interfaceLabel, addToBagPriceSeparator: interfaceLabel,
+    breadcrumbAriaLabel: interfaceLabel, returnToResultsLabel: interfaceLabel, previousImageLabel: interfaceLabel, nextImageLabel: interfaceLabel,
+    zoomInImageLabel: interfaceLabel, zoomOutImageLabel: interfaceLabel, imageCreditLabel: interfaceLabel, customLabel: interfaceLabel,
+    compositionCareHeading: interfaceLabel, deliveryReturnsHeading: interfaceLabel,
+    compositionLabel: interfaceLabel, careLabel: interfaceLabel, deliveryLabel: interfaceLabel, returnsLabel: interfaceLabel,
     trustItems: z.array(copyItem).min(1), marqueeText: copy, marqueeSymbol: copy,
     detailsEyebrow: copy, detailsHeading: copy, details: z.array(copyItem).min(1),
     assurancesEyebrow: copy, assurancesHeading: copy,
@@ -314,6 +369,10 @@ export const PlatformContentSchema = z.object({
       optionalLabel: copy.min(1), questionLabel: copy.min(1), questionPlaceholder: copy.min(1),
       submitLabel: copy.min(1), pendingLabel: copy.min(1), failureMessage: copy.min(1),
     }).strict(),
+  }).strict(),
+  interfaceCopy: z.object({
+    navigation: z.object({ shopAllLabel: interfaceLabel, featuredLabel: interfaceLabel }).strict(),
+    search: z.object({ emptyResultsMessage: interfaceLabel, emptyResultsHelp: interfaceLabel, searchCatalogueLabel: interfaceLabel, productsHeading: interfaceLabel, collectionsHeading: interfaceLabel, viewAllLabel: interfaceLabel }).strict(),
   }).strict(),
 }).strict().superRefine((content, ctx) => {
   const duplicateSlugs = (values: string[], path: string) => {
@@ -618,10 +677,18 @@ const womenReadyToWearCollection: PlatformContent["collections"][number] = {
   },
 };
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
-  contentVersion: 2,
+  contentVersion: 4,
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
-    announcement: "Ready now and made immediately · Dispatch within five days", skipLinkLabel: "Skip to content",
+    announcement: "Ready now and made immediately · Dispatch within five days",
+    announcementItems: [
+      "Ready now and made immediately · Dispatch within five days",
+      "Made in Abuja · Designed for presence",
+      "Standard sizes or Custom · Choose your route",
+    ],
+    hqAddress: "38 Agazi Street, Wuse, Abuja",
+    socialLinks: { facebookUrl: "", twitterUrl: "", youtubeUrl: "", tiktokUrl: "", linkedinUrl: "" },
+    skipLinkLabel: "Skip to content",
     contactEmail: "", contactPhone: "", instagramUrl: "https://instagram.com/sosoafrica", whatsappUrl: "/#whatsapp",
     navigation: [{ label: "Journal", href: "/journal" }],
     mobileNavigation: [{ label: "Journal", href: "/journal" }, { label: "FAQ", href: "/faq" }],
@@ -629,7 +696,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       {
         id: "men", label: "Men", href: "/shop?department=men", department: "men", visible: true,
         columns: [
-          { heading: "Shop", links: [{ label: "Shop all men", href: "/shop?department=men" }, { label: "Ready now", href: "/shop?department=men&fulfilment=ready_now" }] },
+          { heading: "Shop", links: [{ label: "Shop all men", href: "/shop?department=men" }, { label: "New arrivals", href: "/shop?department=men&sort=newest" }, { label: "Ready now", href: "/shop?department=men&fulfilment=ready_now" }] },
           { heading: "Collections", links: [{ label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }] },
           { heading: "Services", links: [{ label: "Made-to-measure", href: "/shop?department=men&size=Custom" }, { label: "Ask a stylist", href: "/#whatsapp" }] },
         ],
@@ -655,7 +722,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       openMenuLabel: "Open menu", closeMenuLabel: "Close menu", mainNavigationLabel: "Main navigation",
       whatsappLabel: "Order via WhatsApp", cartLabel: "Bag", openCartLabel: "Open cart",
       mobileWhatsappLabel: "Chat with Specialist", searchLabel: "Search", searchPlaceholder: "Search pieces",
-      closeSearchLabel: "Close search", searchSuggestionsLabel: "Popular searches",
+      closeSearchLabel: "Close search", clearSearchLabel: "Clear search", searchSuggestionsLabel: "Popular searches",
       searchSuggestions: [
         { label: "Shop all pieces", href: "/shop" },
         { label: "Kaftans", href: "/collections/kaftans" },
@@ -663,7 +730,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
         { label: "Shirts", href: "/collections/shirts" },
       ],
     },
-    cart: { title: "Your Bag", closeLabel: "Close cart", emptyMessage: "Your bag is empty.", continueShoppingLabel: "Continue Shopping", sizeLabel: "Size:", removeLabel: "Remove", subtotalLabel: "Subtotal", helpText: "Shipping and taxes calculated at checkout. Need help first? Ask a stylist.", checkoutCta: { label: "Proceed to payment", href: "/checkout" }, stylistCta: { label: "Ask a stylist", href: "/#whatsapp" } },
+    cart: { title: "Your Bag", closeLabel: "Close cart", emptyMessage: "Your bag is empty.", continueShoppingLabel: "Continue Shopping", sizeLabel: "Size:", removeLabel: "Remove", subtotalLabel: "Subtotal", helpText: "Shipping and taxes calculated at checkout. Need help first? Ask a stylist.", checkoutCta: { label: "Proceed to payment", href: "/checkout" }, stylistCta: { label: "Ask a stylist", href: "/#whatsapp" }, changeSizeLabel: "Change size for", unavailableSizeSuffix: "unavailable", readyNowLabel: "Ready now", madeImmediatelyLabel: "Made immediately", decreaseQuantityLabel: "Decrease quantity for", increaseQuantityLabel: "Increase quantity for", quantityLabel: "Quantity for" },
     floatingCta: { label: "Explore pieces", href: "/shop" },
     consent: { regionLabel: "Privacy choices", title: "Your privacy choices", body: "Necessary storage keeps your bag and privacy choice working. Optional measurement helps SOSO understand which pages are useful; marketing pixels stay off unless you grant marketing consent.", essentialLabel: "Necessary only", analyticsLabel: "Allow measurement", marketingLabel: "Allow marketing", manageLabel: "Manage preference cookies", necessaryDescription: "Necessary — bag, session, consent preference. Always active.", measurementDescription: "Measurement — anonymous page and product journey counts.", marketingDescription: "Marketing — retargeting pixels from configured advertising providers.", footerText: "You can change your choice at any time from the footer.", privacyLink: { label: "Privacy notice", href: "/privacy" } },
     footer: {
@@ -674,6 +741,11 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       ],
       legalLinks: [{ label: "Privacy", href: "/policies/privacy" }, { label: "Terms", href: "/policies/terms" }],
       copyright: "© SOSO Africa. All rights reserved.", checkoutNote: "Secure hosted payment. Atelier confirmation follows payment.", instagramLabel: "Instagram", instagramAriaLabel: "SOSO Africa on Instagram", cookieChoicesLabel: "Cookie choices",
+    },
+    structuredData: {
+      organizationDescription: "SOSO Africa is a bespoke menswear house based in Abuja, Nigeria, specialising in kaftans, agbadas, dashikis, and shirting made to order for the individual.",
+      locality: "Abuja", country: "Nigeria", countryCode: "NG",
+      websiteDescription: "Premium made-to-order African menswear from Abuja. Kaftans, agbadas, dashikis, and shirting — made for the individual.",
     },
   },
   homepage: {
@@ -724,6 +796,18 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       collectionNotFoundCta: { label: "View all pieces", href: "/shop" }, collectionEmptyMessage: "No pieces are published in this collection yet.", allCollectionsLabel: "All pieces",
       searchLabel: "Search the collection", searchPlaceholder: "Search by piece, colour, fabric or fit", noSearchResultsMessage: "No pieces match those refinements. Reset the filters to explore the full collection.",
       newLabel: "New", readyNowLabel: "Ready now", madeImmediatelyLabel: "Made immediately", unavailableLabel: "Unavailable",
+      departmentLabels: { men: "Men", women: "Women", accessories: "Accessories" },
+      departmentsAriaLabel: "Shop departments", controlsAriaLabel: "Catalogue controls",
+      sizeFilterLabel: "Size", colourFilterLabel: "Colour", minimumPriceLabel: "Minimum price (₦)", maximumPriceLabel: "Maximum price (₦)",
+      clearSearchLabel: "Clear catalogue search", sortLabel: "Sort products",
+      sortOptions: { featured: "Featured", newest: "New arrivals", priceAscending: "Price: low to high", priceDescending: "Price: high to low" },
+      refineLabel: "Refine", refineProductsTitle: "Refine products", closeFiltersLabel: "Close product filters",
+      categoryLabel: "Category", fulfilmentLabel: "Fulfilment", activeFiltersLabel: "Active Filters:",
+      searchFilterLabel: "Search:", removeSearchFilterLabel: "Remove search filter", removeCategoryFilterLabel: "Remove category filter",
+      removeFulfilmentFilterLabel: "Remove fulfilment filter", removeSizeFilterLabel: "Remove size filter",
+      removeColourFilterLabel: "Remove colour filter", removePriceFilterLabel: "Remove price filter",
+      priceFilterLabel: "Price:", maximumPriceValueLabel: "Max", resultCountSingular: "piece", resultCountPlural: "pieces",
+      clearAllLabel: "Clear all", resetFiltersLabel: "Reset filters", resetLabel: "Reset", viewResultsLabel: "View",
       departments: {
         men: {
           seo: { title: "Shop premium menswear | SOSO Africa", description: "Browse SOSO Africa kaftans, agbadas, dashikis, two-piece sets and shirts in Standard sizes or Custom." },
@@ -801,7 +885,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       emptyMessage: "No published policies are available at this time.", loadingMessage: "Loading the published policy…", unavailableMessage: "This policy has not been published or is temporarily unavailable.", approvedLabel: "Customer policy · approved version", effectiveMessage: "This is the current effective version approved for publication.", privacyRequest: { eyebrow: "Privacy request", title: "Request access or deletion", body: "Submit an access or deletion request below. We will verify your identity before taking action, to help protect personal information.", acceptedMessage: "Your request has been received for review. We will contact you to verify your identity before processing it.", anotherLabel: "Submit another request", requestTypeLabel: "Request type", accessLabel: "Access my personal data", deletionLabel: "Delete my personal data", emailLabel: "Email address", nameLabel: "Name", optionalLabel: "optional", submitLabel: "Submit privacy request", submittingLabel: "Submitting request…", invalidEmailMessage: "Enter a valid email address so we can contact you about this request.", submitError: "We could not submit your request right now. Please wait a moment and try again." },
     },
     checkout: { seo: { title: "Secure checkout | SOSO Africa", description: "Complete secure payment for your SOSO Africa order. Atelier making details are confirmed after payment." }, backCta: { label: "Continue shopping", href: "/shop" }, eyebrow: "Checkout", title: "Complete your order", intro: "Pay securely for your selected piece. After payment, the atelier confirms the selected size, fabric or finish direction, and production timing. Have a question first? Speak with a stylist.", emptyMessage: "Your bag is empty.", emptyCta: { label: "Explore the collection", href: "/shop" }, nameLabel: "Full name", phoneLabel: "Phone number", emailLabel: "Email", addressLabel: "Delivery address", notesLabel: "Delivery notes", optionalLabel: "optional", deliveryNote: "Delivery fees and final order totals are confirmed securely by JusticeSure before payment. Pickup will appear here when SOSO’s JusticeSure locations are published.", paymentUnavailableMessage: "We could not open secure payment. Please try again or speak with a SOSO stylist.", retryLabel: "Retry secure payment", returnToBagLabel: "Return to your bag", processingLabel: "Opening secure payment…", paymentLabel: "Continue to payment", secureNote: "Secure payment first · atelier confirmation follows.", legalLinks: [{ label: "Privacy & cookies", href: "/privacy" }, { label: "Terms", href: "/terms" }, { label: "Delivery, returns & refunds", href: "/delivery-returns" }], stylistLabel: "Ask a stylist", bagTitle: "Your bag", sizeQuantityLabel: "Size {size} · Qty {quantity}", subtotalLabel: "Subtotal", stylistCtaLabel: "Order with a stylist" },
-    paymentReturn: { seo: { title: "Payment status | SOSO Africa", description: "Secure payment status for your SOSO Africa order." }, eyebrow: "Secure order update", missingAttemptMessage: "This payment return link is incomplete. No payment result can be confirmed here.", statusUnavailableMessage: "Payment status is unavailable.", paidTitle: "Payment confirmed", cancelledTitle: "Payment was not completed", pendingTitle: "Checking payment status", paidBody: "JusticeSure has confirmed your payment. The SOSO atelier will follow up with the next making details.", cancelledBody: "JusticeSure has not confirmed a payable order. You can return to your bag and try again when ready.", pendingBody: "A return from a payment provider is not confirmation by itself. We are waiting for JusticeSure’s verified order status.", orderReferenceLabel: "Order reference:", authoritativeTotalLabel: "Authoritative total:", errorSuffix: "No payment is confirmed by this page.", pendingNotice: "Please keep this page open while we check.", retryHelp: "Your local bag has not been changed. Return to it to review the exact piece and selected size before trying secure payment again.", reviewLabel: "Review", sizeLabel: "size", quantityLabel: "Qty", returnBagCta: { label: "Return to your bag", href: "/checkout" }, continueCta: { label: "Continue shopping", href: "/shop" }, retryCta: { label: "Retry checkout", href: "/checkout" }, returnCheckoutCta: { label: "Return to checkout", href: "/checkout" } },
+    paymentReturn: { seo: { title: "Payment status | SOSO Africa", description: "Secure payment status for your SOSO Africa order." }, eyebrow: "Secure order update", missingAttemptMessage: "This payment return link is incomplete. No payment result can be confirmed here.", statusUnavailableMessage: "Payment status is unavailable.", paidTitle: "Payment confirmed", cancelledTitle: "Payment was not completed", pendingTitle: "Checking payment status", paidBody: "JusticeSure has confirmed your payment. The SOSO atelier will follow up with the next making details.", cancelledBody: "JusticeSure has not confirmed a payable order. You can return to your bag and try again when ready.", pendingBody: "A return from a payment provider is not confirmation by itself. We are waiting for JusticeSure’s verified order status.", orderReferenceLabel: "Order reference:", authoritativeTotalLabel: "Authoritative total:", errorSuffix: "No payment is confirmed by this page.", pendingNotice: "Please keep this page open while we check.", retryHelp: "Your local bag has not been changed. Return to it to review the exact piece and selected size before trying secure payment again.", reviewLabel: "Review", sizeLabel: "size", quantityLabel: "Qty", measurementSyncError: "Failed to sync atelier requirements.", noticeLabel: "Notice", measurementsTitle: "Atelier Measurements", requiredMeasurementsGuidance: "Please provide measurements for your Custom pieces. We begin production only after your measurements are confirmed.", optionalMeasurementsGuidance: "Your Custom measurements remain available here with their current atelier status.", measurementInvalidErrorTemplate: "Please provide a valid number for {label}", measurementRangeErrorTemplate: "{label} must be between {min} and {max} {unit}", measurementConflictError: "This measurement was updated elsewhere. Please refresh the page to see the latest version.", measurementSubmitError: "Failed to submit measurements.", measurementStatusLabels: { needed: "Measurements Needed", submitted: "Submitted (Awaiting Review)", clarification_requested: "Clarification Requested", confirmed: "Confirmed by Atelier", cancelled: "Cancelled" }, atelierNoteLabel: "Atelier Note", productionExceptionLabel: "Production Exception", unitLabel: "Unit:", unitsGroupAriaLabel: "Measurement units", measurementFieldLabels: { height: "Height", chest: "Chest", waist: "Waist", hips: "Hips", shoulder: "Shoulder", sleeve: "Sleeve", garmentLength: "Garment Length" }, lineLabel: "Line", baseSizeLabel: "Base size:", additionalNotesLabel: "Additional Notes for Atelier", optionalLabel: "Optional", centimetersUnitLabel: "CM", inchesUnitLabel: "IN", optionalContextPlaceholder: "Optional context about these measurements", submittingMeasurementsLabel: "Submitting...", submitMeasurementsLabel: "Submit Measurements", updateMeasurementsLabel: "Update Measurements", returnBagCta: { label: "Return to your bag", href: "/checkout" }, continueCta: { label: "Continue shopping", href: "/shop" }, retryCta: { label: "Retry checkout", href: "/checkout" }, returnCheckoutCta: { label: "Return to checkout", href: "/checkout" } },
     notFound: { seo: { title: "Page not found | SOSO Africa", description: "The SOSO Africa page you are looking for is not available." }, title: "This piece is not in the collection.", body: "Return to the collection to discover the SOSO pieces ready for your direction.", cta: { label: "Shop the collection", href: "/shop" } },
   },
   products: [
@@ -842,6 +926,15 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     standardUnavailableMessage: "Standard sizing is not available for this piece.",
     customUnavailableMessage: "Custom sizing is not available for this piece.",
     sizeRequiredLabel: "Select a size to continue", mobileSizeRequiredLabel: "Choose size", addToBagLabel: "Add to bag",
+    newLabel: "New In", viewProductLabel: "View", quickShopTitle: "Quick Shop", closeQuickShopLabel: "Close quick shop",
+    customSizingLabel: "Custom atelier sizing", selectedLabel: "Selected",
+    unmappedPurchaseMessage: "Online purchase options are not mapped for this piece yet. View the full details for fit and stylist support.",
+    onlinePurchaseUnavailableLabel: "Online purchase unavailable", unavailableInSizeLabel: "Unavailable in size", viewFullDetailsLabel: "View full details",
+    productUnmappedPurchaseMessage: "Online purchase options are not mapped for this piece yet. Fit guidance and stylist support remain available.", addToBagPriceSeparator: "—",
+    homeBreadcrumbLabel: "Home", shopBreadcrumbLabel: "Shop", breadcrumbAriaLabel: "Breadcrumb", returnToResultsLabel: "Return to results",
+    previousImageLabel: "Previous image", nextImageLabel: "Next image", zoomInImageLabel: "Zoom in on product image", zoomOutImageLabel: "Zoom out of product image", imageCreditLabel: "Image:",
+    customLabel: "Custom", compositionCareHeading: "Composition & Care", deliveryReturnsHeading: "Delivery & Returns",
+    compositionLabel: "Composition", careLabel: "Care", deliveryLabel: "Delivery", returnsLabel: "Returns",
     trustItems: [
       { title: "Fit support", body: "Size guide and stylist help" },
       { title: "Made to order", body: "Atelier confirms making details after payment" },
@@ -896,6 +989,13 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       failureMessage: "We could not send your question just now. Please try again shortly.",
     },
   },
+  interfaceCopy: {
+    navigation: { shopAllLabel: "Shop All", featuredLabel: "Featured" },
+    search: {
+      emptyResultsMessage: "No matches found for", emptyResultsHelp: "Try checking the spelling or use different keywords.",
+      searchCatalogueLabel: "Search entire catalogue", productsHeading: "Products", collectionsHeading: "Collections", viewAllLabel: "View all",
+    },
+  },
 };
 
 export function platformContentHash(content: unknown): string {
@@ -927,9 +1027,20 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     ? (current as Record<string, unknown>).contentVersion as number
     : 1;
   const shouldApplyWomenLaunch = currentContentVersion < 2;
+  const shouldApplySiteSettingsLaunch = currentContentVersion < 3;
   let upgradeSource = current;
   if (current && typeof current === "object" && !Array.isArray(current)) {
     upgradeSource = structuredClone(current);
+    const site = (upgradeSource as { site?: Record<string, unknown> }).site;
+    if (shouldApplySiteSettingsLaunch && site && !Array.isArray(site.announcementItems)) {
+      const currentAnnouncement = typeof site.announcement === "string" && site.announcement.trim()
+        ? site.announcement.trim()
+        : DEFAULT_PLATFORM_CONTENT.site.announcement;
+      site.announcementItems = [
+        currentAnnouncement,
+        ...DEFAULT_PLATFORM_CONTENT.site.announcementItems.slice(1),
+      ];
+    }
     const hero = (upgradeSource as {
       homepage?: { hero?: Record<string, unknown> };
     }).homepage?.hero;
@@ -1042,6 +1153,27 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         if (launchedWomenGroup) megaMenu[legacyWomenGroupIndex] = structuredClone(launchedWomenGroup);
       }
     }
+    if (shouldApplySiteSettingsLaunch && Array.isArray(megaMenu)) {
+      const menGroup = megaMenu.find((entry) =>
+        entry && typeof entry === "object" && !Array.isArray(entry)
+        && (entry as Record<string, unknown>).id === "men") as Record<string, unknown> | undefined;
+      const columns = menGroup?.columns;
+      const shopColumn = Array.isArray(columns)
+        ? columns.find((entry) =>
+          entry && typeof entry === "object" && !Array.isArray(entry)
+          && (entry as Record<string, unknown>).heading === "Shop") as Record<string, unknown> | undefined
+        : undefined;
+      const links = shopColumn?.links;
+      if (Array.isArray(links) && !links.some((entry) =>
+        entry && typeof entry === "object" && !Array.isArray(entry)
+        && (entry as Record<string, unknown>).href === "/shop?department=men&sort=newest")) {
+        const newArrivals = { label: "New arrivals", href: "/shop?department=men&sort=newest" };
+        const shopAllIndex = links.findIndex((entry) =>
+          entry && typeof entry === "object" && !Array.isArray(entry)
+          && (entry as Record<string, unknown>).href === "/shop?department=men");
+        links.splice(shopAllIndex >= 0 ? shopAllIndex + 1 : links.length, 0, newArrivals);
+      }
+    }
     const consent = (merged as {
       site?: { consent?: { body?: unknown; marketingDescription?: unknown } };
     }).site?.consent;
@@ -1051,6 +1183,7 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     if (consent?.marketingDescription === "Marketing — no marketing technology or pixels are currently active.") {
       consent.marketingDescription = DEFAULT_PLATFORM_CONTENT.site.consent.marketingDescription;
     }
+    (merged as { contentVersion: number }).contentVersion = DEFAULT_PLATFORM_CONTENT.contentVersion;
   }
   return merged;
 }
