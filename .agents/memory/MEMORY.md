@@ -23,3 +23,4 @@
 - [Migration schema fingerprints](migration-schema-fingerprints.md) — compare exact schema semantics while normalizing non-semantic PostgreSQL catalog representation differences.
 - [GitHub SDK history publishing](github-sdk-history-publishing.md) — use the native connector SDK for Git object writes and normalize API-generated commits locally.
 - [Cloudinary serverless release gate](cloudinary-serverless-release-gate.md) — require explicit serverless initialization plus media and rendered-route checks before promotion.
+- [Filtered header overlays](filtered-header-overlays.md) — render viewport-fixed dialogs outside backdrop-filtered headers so mobile overlays are not constrained to header bounds.

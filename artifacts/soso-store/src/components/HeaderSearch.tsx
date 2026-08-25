@@ -120,16 +120,16 @@ export function HeaderSearch() {
           role="dialog"
           aria-modal="true"
           aria-label={siteHeader.searchLabel}
-          className="fixed inset-0 z-[100] flex flex-col bg-background/95 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-[100] flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-background/95 backdrop-blur-md animate-in fade-in duration-200"
         >
-          <div className="w-full border-b border-white/10 bg-background px-4 md:px-6 lg:px-12 py-4 flex items-center gap-4">
-            <Search className="text-secondary w-5 h-5" />
+          <div className="flex w-full shrink-0 items-center gap-2 border-b border-white/10 bg-background px-4 py-4 md:gap-4 md:px-6 lg:px-12">
+            <Search className="h-5 w-5 shrink-0 text-secondary" aria-hidden="true" />
             <input
               ref={inputRef}
               type="text"
               aria-label={siteHeader.searchLabel}
               placeholder={siteHeader.searchPlaceholder}
-              className="min-w-0 flex-1 bg-transparent text-lg text-white outline-none placeholder:text-secondary/50"
+              className="min-w-0 flex-1 bg-transparent text-base text-white outline-none placeholder:text-secondary/50 md:text-lg"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -153,7 +153,7 @@ export function HeaderSearch() {
             )}
             <button 
               onClick={() => setIsOpen(false)}
-              className="ml-1 shrink-0 text-sm font-semibold uppercase tracking-widest text-primary hover:opacity-80 md:ml-4"
+              className="ml-1 shrink-0 whitespace-nowrap text-xs font-semibold uppercase tracking-widest text-primary hover:opacity-80 md:ml-4 md:text-sm"
               aria-label={closeSearchLabel}
               data-testid="button-close-search"
             >
@@ -162,7 +162,7 @@ export function HeaderSearch() {
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-6 lg:px-12">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6 md:px-6 md:py-8 lg:px-12">
             <div className="max-w-screen-xl mx-auto">
               {!q && searchSuggestions.length > 0 && (
                 <div>
