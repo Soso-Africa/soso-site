@@ -35,8 +35,15 @@ Validate fresh initialization, repeat execution, a real legacy upgrade, and
 incompatible-schema rollback in temporary isolated schemas with:
 
 ```sh
-pnpm --filter @workspace/db run test:migrations
+pnpm run test:migrations
 ```
+
+The required `db-migrations` merge check runs this root command automatically
+for database and migration changes. Any failed migration scenario exits non-zero
+and blocks the check independently of the API and storefront suites. Each run
+creates UUID-named schemas in the PostgreSQL database from `DATABASE_URL` and
+drops all fresh, legacy, and incompatible test schemas in a `finally` cleanup,
+including when an assertion or migration fails.
 
 For subsequent schema changes, compare the Drizzle schema with the current
 production base, review the generated schema diff, and check in a new additive,
