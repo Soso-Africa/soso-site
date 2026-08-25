@@ -454,6 +454,168 @@ const product = (slugValue: string, name: string, img: string, price: number, ta
   searchableTerms: [name, category, tag],
   featured: true,
 });
+const womenImageProvenance = (sourceUrl: string) => ({
+  source: "SOSO Africa catalogue on shopsoso.co",
+  rights: "SOSO Africa approved this catalogue image for reuse on the SOSO storefront",
+  sourceUrl,
+});
+const womenReadyToWearProduct = (input: {
+  slug: string;
+  name: string;
+  img: string;
+  sourceUrl: string;
+  imageAlt: string;
+  price: number;
+  note: string;
+  description: string;
+  colour: string;
+  fabric: string;
+  fit: string;
+  terms: string[];
+  sortPriority: number;
+  composition?: string;
+  care?: string;
+}): PlatformContent["products"][number] => ({
+  slug: input.slug,
+  name: input.name,
+  img: input.img,
+  images: [{
+    src: input.img,
+    alt: input.imageAlt,
+    provenance: womenImageProvenance(input.sourceUrl),
+  }],
+  price: input.price,
+  tag: "Women · Ready-to-wear",
+  note: input.note,
+  category: "Women's Ready-to-Wear",
+  department: "women",
+  description: input.description,
+  sizes: standardSizes,
+  colour: input.colour,
+  fabric: input.fabric,
+  fit: input.fit,
+  searchableTerms: [input.name, "Women", "Ready-to-wear", ...input.terms],
+  merchandising: { isNew: true, label: "Women", sortPriority: input.sortPriority },
+  standardEligible: true,
+  customEligible: false,
+  standardSizes,
+  readyNowSizes: [],
+  fulfilmentState: "made_immediately",
+  dispatchMessage: "Dispatch timing confirmed after order",
+  composition: input.composition,
+  care: input.care,
+  delivery: "Tracked nationwide delivery is advertised as 2–4 days.",
+  returns: "7-day exchange and fit adjustment, subject to the published SOSO policy.",
+  featured: true,
+});
+const womenReadyToWearProducts: PlatformContent["products"] = [
+  womenReadyToWearProduct({
+    slug: "canvas",
+    name: "Canvas",
+    img: "/images/soso/women/canvas.jpg",
+    sourceUrl: "https://shopsoso.co/product/soso-117/",
+    imageAlt: "Woman wearing the ivory Canvas linen top with botanical embroidery",
+    price: 130000,
+    note: "Embroidered premium linen",
+    description: "An ivory premium-linen longline top finished with red and green botanical embroidery. Canvas brings a light, breathable feel to warm days, gatherings, and elevated smart-casual occasions.",
+    colour: "Ivory with botanical embroidery",
+    fabric: "Premium linen",
+    fit: "Relaxed longline",
+    terms: ["linen", "embroidered", "ivory", "brunch", "resort", "smart casual"],
+    sortPriority: 160,
+    composition: "Premium linen with embroidery detailing.",
+    care: "Hand-wash or machine wash cold on a gentle cycle with mild detergent. Do not bleach; hang or lay flat to dry and iron on medium heat.",
+  }),
+  womenReadyToWearProduct({
+    slug: "varen",
+    name: "Varen",
+    img: "/images/soso/women/varen.jpg",
+    sourceUrl: "https://shopsoso.co/product/soso-116/",
+    imageAlt: "Woman wearing the black Varen tunic and trouser set",
+    price: 130000,
+    note: "Fluid Dubai silk two-piece",
+    description: "A black Dubai-silk tunic and trouser set with a fluid drape and restrained red detailing. Varen is designed for refined everyday dressing, evenings out, and destination occasions.",
+    colour: "Black with red trim",
+    fabric: "Dubai silk",
+    fit: "Relaxed two-piece",
+    terms: ["silk", "black", "two-piece", "brunch", "evening", "resort"],
+    sortPriority: 150,
+    composition: "Dubai silk.",
+  }),
+  womenReadyToWearProduct({
+    slug: "viren",
+    name: "Viren",
+    img: "/images/soso/women/viren.jpg",
+    sourceUrl: "https://shopsoso.co/product/soso-112/",
+    imageAlt: "Woman wearing the ivory Viren sleeveless tunic and trouser set",
+    price: 150000,
+    note: "Ivory Dubai silk two-piece",
+    description: "An ivory Dubai-silk sleeveless tunic and trouser set with a graceful, elongated line. Viren balances ease and polish for celebrations, warm-weather events, and elevated everyday wear.",
+    colour: "Ivory",
+    fabric: "Dubai silk",
+    fit: "Sleeveless two-piece",
+    terms: ["silk", "ivory", "two-piece", "brunch", "evening", "resort"],
+    sortPriority: 140,
+    composition: "Dubai silk.",
+  }),
+  womenReadyToWearProduct({
+    slug: "sovan",
+    name: "Sovan",
+    img: "/images/soso/women/sovan.jpg",
+    sourceUrl: "https://shopsoso.co/product/the-dress-shirt-black/",
+    imageAlt: "Woman wearing the black Sovan longline shirt",
+    price: 100000,
+    note: "Black longline dress shirt",
+    description: "A black button-front longline shirt with a crisp collar and subtle SOSO mark. Sovan is an easy statement for casual days, evenings out, and layered dressing.",
+    colour: "Black",
+    fabric: "Atelier-selected fabric",
+    fit: "Relaxed longline shirt",
+    terms: ["black", "shirt", "casual", "dress shirt", "evening"],
+    sortPriority: 130,
+  }),
+  womenReadyToWearProduct({
+    slug: "aurel",
+    name: "Aurel",
+    img: "/images/soso/women/aurel.jpg",
+    sourceUrl: "https://shopsoso.co/product/soso-79-2/",
+    imageAlt: "Woman wearing the black Aurel top and wide-leg trouser set",
+    price: 125000,
+    note: "Business-casual two-piece",
+    description: "A black short-sleeve top and wide-leg trouser set cut for clean, confident movement. Aurel offers a composed ready-to-wear option for meetings and business-casual settings.",
+    colour: "Black",
+    fabric: "Atelier-selected fabric",
+    fit: "Relaxed two-piece",
+    terms: ["black", "two-piece", "business casual", "meetings", "wide-leg"],
+    sortPriority: 120,
+  }),
+  womenReadyToWearProduct({
+    slug: "soven",
+    name: "Soven",
+    img: "/images/soso/women/soven.jpg",
+    sourceUrl: "https://shopsoso.co/product/the-dress-shirt/",
+    imageAlt: "Woman wearing the ivory Soven longline shirt",
+    price: 100000,
+    note: "Ivory longline dress shirt",
+    description: "An ivory button-front longline shirt with a crisp collar and subtle SOSO mark. Soven brings a clean, versatile line to gatherings, occasion dressing, and everyday wardrobes.",
+    colour: "Ivory",
+    fabric: "Atelier-selected fabric",
+    fit: "Relaxed longline shirt",
+    terms: ["ivory", "shirt", "occasion", "traditional", "wedding guest"],
+    sortPriority: 110,
+  }),
+];
+const womenReadyToWearCollection: PlatformContent["collections"][number] = {
+  slug: "women-ready-to-wear",
+  label: "Women’s Ready-to-Wear",
+  category: "Women's Ready-to-Wear",
+  department: "women",
+  h1: "Women’s Ready-to-Wear",
+  intro: "Considered silhouettes for women in Standard sizes, drawn from SOSO’s published ready-to-wear catalogue.",
+  seo: {
+    title: "Women’s Ready-to-Wear | SOSO Africa",
+    description: "Shop SOSO Africa women’s ready-to-wear in Standard sizes, including linen, silk, shirts, and refined two-piece sets.",
+  },
+};
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
@@ -472,9 +634,13 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
         featuredProductSlugs: ["sovereign-agbada", "vault"],
       },
       {
-        id: "women", label: "Women", href: "/shop?department=women", department: "women", visible: false,
-        columns: [{ heading: "Shop", links: [{ label: "Women’s collection", href: "/shop?department=women" }] }],
-        featuredProductSlugs: [],
+        id: "women", label: "Women", href: "/shop?department=women", department: "women", visible: true,
+        columns: [
+          { heading: "Shop", links: [{ label: "Shop all women", href: "/shop?department=women" }, { label: "New arrivals", href: "/shop?department=women&sort=newest" }] },
+          { heading: "Collection", links: [{ label: "Ready-to-wear", href: "/collections/women-ready-to-wear" }] },
+          { heading: "Support", links: [{ label: "Ask a stylist", href: "/#whatsapp" }] },
+        ],
+        featuredProductSlugs: ["canvas", "varen"],
       },
       {
         id: "accessories", label: "Accessories", href: "/shop?department=accessories", department: "accessories", visible: false,
@@ -643,6 +809,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     product("heritage-dashiki", "Heritage Dashiki", "/images/soso/dashiki.jpg", 165000, "Collection", "Contemporary cut, heritage lines", "Dashikis", "A contemporary dashiki that brings a refined silhouette to everyday and celebratory dressing."),
     product("boardroom-shirt", "The Boardroom Shirt", "/images/soso/shirts.jpg", 150000, "Collection", "A sharp shirt for business days", "Shirts", "A refined shirt designed for business and formal settings. A SOSO stylist can help with sizing before you place an order."),
     product("twin-set", "Twin Set — Two Piece", "/images/soso/twopiece.jpg", 220000, "Collection", "Coordinated, relaxed tailoring", "Two-Piece", "A coordinated two-piece set with an easy, polished presence. Select your usual size or choose Custom for made-to-measure support."),
+    ...womenReadyToWearProducts,
   ],
   collections: [
     { slug: "kaftans", label: "Kaftans", category: "Kaftans", department: "men", h1: "Kaftans", intro: "Considered kaftans for significant occasions and daily distinction. Each piece is made to order for the person who wears it.", seo: { title: "Bespoke Kaftans | SOSO Africa, Abuja", description: "Premium made-to-order kaftans from SOSO Africa. Contemporary silhouettes made for the individual in Abuja, Nigeria." } },
@@ -650,6 +817,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     { slug: "dashikis", label: "Dashikis", category: "Dashikis", department: "men", h1: "Dashikis", intro: "Heritage craft in a contemporary silhouette — dashikis for celebration and the days in between.", seo: { title: "Modern Dashikis | SOSO Africa, Abuja", description: "Contemporary made-to-order dashikis from SOSO Africa." } },
     { slug: "two-piece", label: "Two-Piece Sets", category: "Two-Piece", department: "men", h1: "Two-Piece Sets", intro: "Coordinated and effortless — two-piece sets that move between occasions.", seo: { title: "Two-Piece Sets | SOSO Africa, Abuja", description: "Coordinated two-piece sets from SOSO Africa, made to order in Abuja." } },
     { slug: "shirts", label: "Shirts", category: "Shirts", department: "men", h1: "Shirts", intro: "Sharp, considered shirting for business settings and formal occasions.", seo: { title: "Premium Men's Shirts | SOSO Africa, Abuja", description: "Refined made-to-order shirts from SOSO Africa." } },
+    womenReadyToWearCollection,
   ],
   sizeGuide: {
     title: "Size guide", intro: "Use these finished-garment measurements as a starting point. Ask a stylist if you are between sizes.",
@@ -800,7 +968,7 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     knownCopyUpgrades.forEach(([path, previous, next]) => setKnownCopy(path, previous, next));
     const catalogue = (merged as { products?: unknown }).products;
     if (Array.isArray(catalogue)) {
-      (merged as { products: unknown[] }).products = catalogue.map((entry) => {
+      const upgradedProducts = catalogue.map((entry) => {
         const upgraded = mergeMissing(hybridProductDefaults, entry);
         if (!upgraded || typeof upgraded !== "object" || Array.isArray(upgraded)) return upgraded;
         const productRecord = upgraded as Record<string, unknown>;
@@ -810,11 +978,58 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         }
         return productRecord;
       });
+      const productSlugs = new Set(upgradedProducts.flatMap((entry) =>
+        entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
+          ? [(entry as Record<string, unknown>).slug as string]
+          : []));
+      womenReadyToWearProducts.forEach((entry) => {
+        if (!productSlugs.has(entry.slug)) upgradedProducts.push(structuredClone(entry));
+      });
+      (merged as { products: unknown[] }).products = upgradedProducts;
     }
     const collections = (merged as { collections?: unknown }).collections;
     if (Array.isArray(collections)) {
-      (merged as { collections: unknown[] }).collections = collections.map((entry) =>
+      const upgradedCollections = collections.map((entry) =>
         mergeMissing({ department: "men" }, entry));
+      const collectionSlugs = new Set(upgradedCollections.flatMap((entry) =>
+        entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
+          ? [(entry as Record<string, unknown>).slug as string]
+          : []));
+      if (!collectionSlugs.has(womenReadyToWearCollection.slug)) {
+        upgradedCollections.push(structuredClone(womenReadyToWearCollection));
+      }
+      (merged as { collections: unknown[] }).collections = upgradedCollections;
+    }
+    const megaMenu = (merged as { site?: { megaMenu?: unknown } }).site?.megaMenu;
+    if (Array.isArray(megaMenu)) {
+      const legacyWomenGroupIndex = megaMenu.findIndex((entry) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+        const group = entry as Record<string, unknown>;
+        const columns = group.columns;
+        const onlyColumn = Array.isArray(columns) && columns.length === 1
+          && columns[0] && typeof columns[0] === "object" && !Array.isArray(columns[0])
+          ? columns[0] as Record<string, unknown>
+          : null;
+        const links = onlyColumn?.links;
+        const onlyLink = Array.isArray(links) && links.length === 1
+          && links[0] && typeof links[0] === "object" && !Array.isArray(links[0])
+          ? links[0] as Record<string, unknown>
+          : null;
+        return group.id === "women"
+          && group.label === "Women"
+          && group.href === "/shop?department=women"
+          && group.department === "women"
+          && group.visible === false
+          && Array.isArray(group.featuredProductSlugs)
+          && group.featuredProductSlugs.length === 0
+          && onlyColumn?.heading === "Shop"
+          && onlyLink?.label === "Women’s collection"
+          && onlyLink.href === "/shop?department=women";
+      });
+      if (legacyWomenGroupIndex >= 0) {
+        const launchedWomenGroup = DEFAULT_PLATFORM_CONTENT.site.megaMenu.find((group) => group.id === "women");
+        if (launchedWomenGroup) megaMenu[legacyWomenGroupIndex] = structuredClone(launchedWomenGroup);
+      }
     }
     const consent = (merged as {
       site?: { consent?: { body?: unknown; marketingDescription?: unknown } };

@@ -209,6 +209,22 @@ test("platform content validates the complete seeded document and hashes determi
   assert.equal(platformContentHash(DEFAULT_PLATFORM_CONTENT), platformContentHash(structuredClone(DEFAULT_PLATFORM_CONTENT)));
 });
 
+test("women launches as a visible ready-to-wear department with governed catalogue imagery", () => {
+  const womenProducts = DEFAULT_PLATFORM_CONTENT.products.filter((product) => product.department === "women");
+  const womenMenu = DEFAULT_PLATFORM_CONTENT.site.megaMenu.find((group) => group.department === "women");
+
+  assert.equal(womenProducts.length, 6);
+  assert.ok(womenProducts.every((product) =>
+    product.standardEligible
+    && !product.customEligible
+    && !product.sizes.includes("Custom")
+    && product.images.every((image) => image.provenance.sourceUrl?.startsWith("https://shopsoso.co/product/"))));
+  assert.equal(DEFAULT_PLATFORM_CONTENT.collections.some((collection) =>
+    collection.department === "women" && collection.category === "Women's Ready-to-Wear"), true);
+  assert.equal(womenMenu?.visible, true);
+  assert.deepEqual(womenMenu?.featuredProductSlugs, ["canvas", "varen"]);
+});
+
 test("platform content includes complete public shell, journal, checkout, and privacy copy groups", () => {
   const { site, pages } = DEFAULT_PLATFORM_CONTENT;
   assert.ok(site.header.openMenuLabel);
@@ -391,6 +407,7 @@ test("header search suggestions only publish unique safe catalogue targets", () 
 test("mega menus reject unsafe links, empty visible departments, and mismatched featured products", () => {
   const invalid = structuredClone(DEFAULT_PLATFORM_CONTENT);
   invalid.site.megaMenu[0]!.columns[0]!.links[0]!.href = "/checkout";
+  invalid.products = invalid.products.filter((product) => product.department !== "women");
   invalid.site.megaMenu[1]!.visible = true;
   invalid.site.megaMenu[1]!.featuredProductSlugs = [invalid.products[0]!.slug];
 
@@ -401,6 +418,33 @@ test("mega menus reject unsafe links, empty visible departments, and mismatched 
     assert.ok(messages.some((message) => message.includes("Unsafe or unknown mega-menu link")));
     assert.ok(messages.some((message) => message.includes("requires at least one available product")));
     assert.ok(messages.some((message) => message.includes("does not belong to women")));
+  }
+});
+
+test("the women launch upgrade appends missing catalogue content without replacing men edits", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.products = legacy.products.filter((product) => product.department === "men");
+  legacy.collections = legacy.collections.filter((collection) => collection.department === "men");
+  legacy.products[0]!.price = 275000;
+  legacy.site.megaMenu[1] = {
+    id: "women",
+    label: "Women",
+    href: "/shop?department=women",
+    department: "women",
+    visible: false,
+    columns: [{ heading: "Shop", links: [{ label: "Women’s collection", href: "/shop?department=women" }] }],
+    featuredProductSlugs: [],
+  };
+
+  const upgraded = mergePlatformContentDefaults(legacy);
+  const parsed = PlatformContentSchema.safeParse(upgraded);
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.equal(parsed.data.products[0]!.price, 275000);
+    assert.equal(parsed.data.products.filter((product) => product.department === "women").length, 6);
+    assert.equal(parsed.data.collections.some((collection) => collection.slug === "women-ready-to-wear"), true);
+    assert.equal(parsed.data.site.megaMenu.find((group) => group.id === "women")?.visible, true);
+    assert.deepEqual(parsed.data.site.megaMenu.find((group) => group.id === "women")?.featuredProductSlugs, ["canvas", "varen"]);
   }
 });
 
