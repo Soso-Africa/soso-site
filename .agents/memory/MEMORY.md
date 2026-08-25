@@ -20,3 +20,4 @@
 - [TikTok browser pixel bootstrap](tiktok-pixel-bootstrap.md) — TikTok needs per-ID loader metadata and an sdkid/lib URL; a generic events.js script cannot discover the governed destination.
 - [Governed motion media identity](governed-motion-media-identity.md) — validate stored hero bytes, MIME, extension, animation state, and budgets together before publication.
 - [Neon prepared-migration SQL](neon-prepared-migration-sql.md) — keep MCP-prepared migrations free of dollar-quoted procedural blocks; use equivalent parser-safe SQL.
+- [Migration schema fingerprints](migration-schema-fingerprints.md) — compare exact schema semantics while normalizing non-semantic PostgreSQL catalog representation differences.
