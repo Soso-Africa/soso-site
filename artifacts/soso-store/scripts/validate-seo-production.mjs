@@ -67,6 +67,10 @@ assert.equal(previewGuard?.continue, true);
 assert.match(previewGuard?.has?.[0]?.value || "", /vercel/);
 const filesystemIndex = vercelConfig.routes.findIndex((route) => route.handle === "filesystem");
 assert.ok(filesystemIndex > vercelConfig.routes.indexOf(previewGuard));
-assert.deepEqual(vercelConfig.routes.slice(filesystemIndex + 1), [{ src: "/(.*)", dest: "/index.html" }]);
+assert.deepEqual(vercelConfig.routes.slice(0, 2), [
+  { src: "/api", dest: "/api/handler" },
+  { src: "/api/(.*)", dest: "/api/handler?__soso_path=$1" },
+]);
+assert.deepEqual(vercelConfig.routes.slice(filesystemIndex + 1), [{ src: "/(.*)", dest: "/" }]);
 assert.ok(!vercelConfig.routes.some((route) => /journal|product|collections/.test(route.src || "")), "Prerenders must use clean URL filesystem routing, not explicit rewrites.");
 process.stdout.write("SEO source validation passed: canonical gate, private fallback, crawlable route files, feeds, schema, social metadata, and www redirect are present.\n");

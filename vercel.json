@@ -7,11 +7,11 @@
   "routes": [
     {
       "src": "/api",
-      "dest": "/api/handler.js"
+      "dest": "/api/handler"
     },
     {
       "src": "/api/(.*)",
-      "dest": "/api/handler.js?__soso_path=$1"
+      "dest": "/api/handler?__soso_path=$1"
     },
     {
       "src": "/(.*)",
@@ -38,7 +38,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/"
     }
   ]
 }
