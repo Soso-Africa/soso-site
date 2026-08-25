@@ -21,7 +21,7 @@ import {
 } from "@workspace/db";
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
-import { ensurePlatformContent, PlatformContentSchema } from "../lib/platform-content";
+import { PlatformContentSchema } from "../lib/platform-content";
 
 const router: IRouter = Router();
 const ENQUIRY_RATE_WINDOW_MS = 60_000;
@@ -137,7 +137,6 @@ router.get("/journal", async (_req, res): Promise<void> => {
 });
 
 router.get("/content/site", async (_req, res): Promise<void> => {
-  await ensurePlatformContent();
   const [row] = await db.select({ content: siteContentTable.published, publishedAt: siteContentTable.publishedAt })
     .from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
   if (!row || !row.publishedAt || Object.keys(row.content).length === 0) {
@@ -150,7 +149,6 @@ router.get("/content/site", async (_req, res): Promise<void> => {
 });
 
 router.get("/content/platform", async (_req, res): Promise<void> => {
-  await ensurePlatformContent();
   const [row] = await db.select({ content: siteContentTable.published, publishedAt: siteContentTable.publishedAt })
     .from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
   if (!row || !row.publishedAt || Object.keys(row.content).length === 0) {

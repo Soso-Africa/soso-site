@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { db, siteContentTable } from "@workspace/db";
+import { auditLogsTable, db, siteContentRevisionsTable, siteContentTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -84,6 +84,7 @@ const homepageHero = z.object({
 });
 
 export const PlatformContentSchema = z.object({
+  contentVersion: z.number().int().positive(),
   site: z.object({
     name: copy, logoUrl: localPath, logoAlt: z.string().min(1), announcement: copy, skipLinkLabel: copy.min(1),
     contactEmail: z.union([z.literal(""), z.string().email()]), contactPhone: z.string().max(40),
@@ -617,6 +618,7 @@ const womenReadyToWearCollection: PlatformContent["collections"][number] = {
   },
 };
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
+  contentVersion: 2,
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
     announcement: "Ready now and made immediately · Dispatch within five days", skipLinkLabel: "Skip to content",
@@ -920,6 +922,11 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     return value === undefined ? defaults : value;
   };
 
+  const currentContentVersion = current && typeof current === "object" && !Array.isArray(current)
+    && typeof (current as Record<string, unknown>).contentVersion === "number"
+    ? (current as Record<string, unknown>).contentVersion as number
+    : 1;
+  const shouldApplyWomenLaunch = currentContentVersion < 2;
   let upgradeSource = current;
   if (current && typeof current === "object" && !Array.isArray(current)) {
     upgradeSource = structuredClone(current);
@@ -978,30 +985,34 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         }
         return productRecord;
       });
-      const productSlugs = new Set(upgradedProducts.flatMap((entry) =>
-        entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
-          ? [(entry as Record<string, unknown>).slug as string]
-          : []));
-      womenReadyToWearProducts.forEach((entry) => {
-        if (!productSlugs.has(entry.slug)) upgradedProducts.push(structuredClone(entry));
-      });
+      if (shouldApplyWomenLaunch) {
+        const productSlugs = new Set(upgradedProducts.flatMap((entry) =>
+          entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
+            ? [(entry as Record<string, unknown>).slug as string]
+            : []));
+        womenReadyToWearProducts.forEach((entry) => {
+          if (!productSlugs.has(entry.slug)) upgradedProducts.push(structuredClone(entry));
+        });
+      }
       (merged as { products: unknown[] }).products = upgradedProducts;
     }
     const collections = (merged as { collections?: unknown }).collections;
     if (Array.isArray(collections)) {
       const upgradedCollections = collections.map((entry) =>
         mergeMissing({ department: "men" }, entry));
-      const collectionSlugs = new Set(upgradedCollections.flatMap((entry) =>
-        entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
-          ? [(entry as Record<string, unknown>).slug as string]
-          : []));
-      if (!collectionSlugs.has(womenReadyToWearCollection.slug)) {
-        upgradedCollections.push(structuredClone(womenReadyToWearCollection));
+      if (shouldApplyWomenLaunch) {
+        const collectionSlugs = new Set(upgradedCollections.flatMap((entry) =>
+          entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
+            ? [(entry as Record<string, unknown>).slug as string]
+            : []));
+        if (!collectionSlugs.has(womenReadyToWearCollection.slug)) {
+          upgradedCollections.push(structuredClone(womenReadyToWearCollection));
+        }
       }
       (merged as { collections: unknown[] }).collections = upgradedCollections;
     }
     const megaMenu = (merged as { site?: { megaMenu?: unknown } }).site?.megaMenu;
-    if (Array.isArray(megaMenu)) {
+    if (shouldApplyWomenLaunch && Array.isArray(megaMenu)) {
       const legacyWomenGroupIndex = megaMenu.findIndex((entry) => {
         if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
         const group = entry as Record<string, unknown>;
@@ -1086,12 +1097,40 @@ export async function ensurePlatformContent() {
       && platformContentHash(current.published) !== platformContentHash(parsedMergedPublished.data)
     ) {
       updates.published = parsedMergedPublished.data;
-      updates.publishedAt = now;
     }
   }
 
   if (Object.keys(updates).length > 0) {
-    await db.update(siteContentTable).set(updates)
-      .where(eq(siteContentTable.key, "platform"));
+    await db.transaction(async (tx) => {
+      await tx.update(siteContentTable).set(updates)
+        .where(eq(siteContentTable.key, "platform"));
+      const actor = "system:platform-content-migration";
+      const migratedSnapshots = [
+        updates.draft ? { target: "draft", snapshot: updates.draft } : null,
+        updates.published ? { target: "published", snapshot: updates.published } : null,
+      ].filter((entry): entry is { target: string; snapshot: NonNullable<typeof updates.draft> } => Boolean(entry));
+      for (const migration of migratedSnapshots) {
+        const hash = platformContentHash(migration.snapshot);
+        const [revision] = await tx.insert(siteContentRevisionsTable).values({
+          contentKey: "platform",
+          event: "system_migrated",
+          snapshot: migration.snapshot,
+          contentHash: hash,
+          createdByClerkUserId: actor,
+        }).returning({ id: siteContentRevisionsTable.id });
+        await tx.insert(auditLogsTable).values({
+          actorClerkUserId: actor,
+          action: "platform_content.system_migrated",
+          entityType: "site_content",
+          entityId: "platform",
+          metadata: {
+            target: migration.target,
+            contentVersion: migration.snapshot.contentVersion,
+            contentHash: hash,
+            revisionId: revision!.id,
+          },
+        });
+      }
+    });
   }
 }

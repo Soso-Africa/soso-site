@@ -423,6 +423,7 @@ test("mega menus reject unsafe links, empty visible departments, and mismatched 
 
 test("the women launch upgrade appends missing catalogue content without replacing men edits", () => {
   const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.contentVersion = 1;
   legacy.products = legacy.products.filter((product) => product.department === "men");
   legacy.collections = legacy.collections.filter((collection) => collection.department === "men");
   legacy.products[0]!.price = 275000;
@@ -446,6 +447,37 @@ test("the women launch upgrade appends missing catalogue content without replaci
     assert.equal(parsed.data.site.megaMenu.find((group) => group.id === "women")?.visible, true);
     assert.deepEqual(parsed.data.site.megaMenu.find((group) => group.id === "women")?.featuredProductSlugs, ["canvas", "varen"]);
   }
+});
+
+test("the women launch upgrade does not restore products or collections after staff changes", () => {
+  const retired = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  retired.products = retired.products.filter((product) => product.department !== "women");
+  retired.collections = retired.collections.filter((collection) => collection.department !== "women");
+  const retiredWomenMenu = retired.site.megaMenu.find((group) => group.id === "women")!;
+  retiredWomenMenu.visible = false;
+  retiredWomenMenu.featuredProductSlugs = [];
+  retiredWomenMenu.columns = [{
+    heading: "Shop",
+    links: [{ label: "Women", href: "/shop?department=women" }],
+  }];
+
+  const upgradedRetired = mergePlatformContentDefaults(retired) as typeof retired;
+  assert.equal(PlatformContentSchema.safeParse(upgradedRetired).success, true);
+  assert.equal(upgradedRetired.contentVersion, 2);
+  assert.equal(upgradedRetired.products.some((product) => product.department === "women"), false);
+  assert.equal(upgradedRetired.collections.some((collection) => collection.department === "women"), false);
+  assert.equal(upgradedRetired.site.megaMenu.find((group) => group.id === "women")?.visible, false);
+
+  const renamed = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  renamed.products.find((product) => product.slug === "canvas")!.slug = "canvas-staff-edit";
+  const renamedWomenMenu = renamed.site.megaMenu.find((group) => group.id === "women")!;
+  renamedWomenMenu.featuredProductSlugs = renamedWomenMenu.featuredProductSlugs
+    .map((slug) => slug === "canvas" ? "canvas-staff-edit" : slug);
+
+  const upgradedRenamed = mergePlatformContentDefaults(renamed) as typeof renamed;
+  assert.equal(PlatformContentSchema.safeParse(upgradedRenamed).success, true);
+  assert.equal(upgradedRenamed.products.some((product) => product.slug === "canvas"), false);
+  assert.equal(upgradedRenamed.products.some((product) => product.slug === "canvas-staff-edit"), true);
 });
 
 test("optional product detail copy validates and survives default upgrades without replacing merchant edits", () => {

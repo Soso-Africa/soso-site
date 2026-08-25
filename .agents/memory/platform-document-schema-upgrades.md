@@ -7,4 +7,8 @@ When the platform content schema gains required fields, recursively fill only mi
 
 **Why:** Actor-based “replace the original seed” checks are too brittle. Even a no-op staff save or publish changes attribution, leaving an old-shaped document that can fail public validation after deployment. Replacing the whole document would destroy merchant edits.
 
+Content migrations that add catalogue records must be version-gated and one-time. Run them before the API starts listening, record system revision/audit evidence, preserve the original publication timestamp, and keep public content reads side-effect free.
+
+**Why:** An unconditional “append missing defaults” pass can silently recreate products that staff intentionally retired or renamed, while a read-triggered update bypasses publication controls.
+
 **How to apply:** Upgrade draft and published snapshots independently. Never apply publication defaults when the record is intentionally unpublished, and never silently repair invalid edited values beyond adding fields that did not exist in the earlier schema. Detect known legacy object shapes by semantic fields rather than serialized object equality, because PostgreSQL JSONB may reorder keys.

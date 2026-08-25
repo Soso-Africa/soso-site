@@ -63,6 +63,7 @@ export type PlatformCollection = {
 export type FaqItem = { id: string; category: string; question: string; answer: string };
 export type CopyItem = { title: string; body: string; imageUrl?: string; href?: string; linkLabel?: string };
 export type PlatformContent = {
+  contentVersion: number;
   site: {
     name: string;
     logoUrl: string;
