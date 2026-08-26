@@ -14,3 +14,9 @@ Do not infer routing correctness from a successful build or a `READY` deployment
 **Why:** Hosting-specific route resolution can still make every API and client deep link return `404`.
 
 **How to apply:** After any routing change, probe the production alias for the SPA, a deep link, an API endpoint, robots, and any host-specific `X-Robots-Tag` header. Local build checks cannot prove Vercel route resolution.
+
+Do not assume the workspace `DATABASE_URL` targets the Neon branch used by Vercel production.
+
+**Why:** A successful local seed can leave production unchanged even when both databases have the same schema and some matching content.
+
+**How to apply:** For production content fixes, identify the Neon project/branch backing Vercel, run idempotent seeds against that verified target, and confirm the expected rows through the production API and rendered routes.
