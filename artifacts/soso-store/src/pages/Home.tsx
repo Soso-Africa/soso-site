@@ -13,77 +13,217 @@ export default function Home() {
   const platform = usePlatformContent();
   const platformStateCopy = platform.data?.content.site.platformState;
   if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
-  const { homepage, products } = platform.data.content;
+  const { homepage, products, collections } = platform.data.content;
   const featured = homepage.featured.productSlugs
     .map((slug) => products.find((product) => product.slug === slug))
     .filter((product): product is NonNullable<typeof product> => Boolean(product));
+  const newArrival = [...products]
+    .filter((product) => product.merchandising.isNew)
+    .sort((a, b) => b.merchandising.sortPriority - a.merchandising.sortPriority)[0] ?? featured[0];
+  const categoryCards = collections
+    .filter((collection) => collection.department === "men")
+    .slice(0, 4)
+    .map((collection) => {
+      const product = products.find((candidate) => (
+        candidate.department === collection.department
+        && candidate.category.toLowerCase() === collection.category.toLowerCase()
+      ));
+      return {
+        title: collection.label,
+        eyebrow: product?.merchandising.label ?? "SOSO collection",
+        imageUrl: product?.images[0]?.src ?? product?.img ?? homepage.hero.imageUrl,
+        href: `/collections/${collection.slug}`,
+      };
+    });
 
-  return <div className="flex flex-col">
+  return <div className="flex flex-col bg-background">
     <Seo title={homepage.seo.title} description={homepage.seo.description} noIndex={!indexingEnabled} />
-    <section className="relative flex h-[85svh] min-h-[600px] w-full flex-col justify-start overflow-hidden pt-20 sm:pt-24 lg:justify-end lg:pb-24 lg:pt-0">
+
+    {/* 1. Full-bleed Hero */}
+    <section className="relative flex w-full flex-col justify-end overflow-hidden pb-20 md:pb-28 -mt-[106px] h-[100svh] min-h-[600px]">
       <HomeHeroMedia hero={homepage.hero} />
       <div className="pointer-events-none absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent opacity-90" />
-        <div className="absolute inset-0 w-full bg-gradient-to-r from-background/70 to-transparent md:w-2/3" />
+        <div className="absolute inset-0 bg-black/15" />
+        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-white/40 to-transparent opacity-80" />
+        <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-black/40 to-transparent" />
       </div>
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-12">
-        <Reveal><div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-12 text-center flex flex-col items-center">
+        <Reveal>
           <Link
             href={homepage.hero.primaryCta.href}
-            className="soso-btn-gold px-8 py-4 text-[12px] font-bold uppercase tracking-[0.15em] bg-foreground text-background"
+            className="soso-btn-gold inline-flex px-12 py-5 text-[13px] font-bold uppercase tracking-[0.2em] bg-background text-foreground hover:bg-foreground hover:text-background transition-colors shadow-lg"
             data-testid="link-home-hero-primary"
           >
             {homepage.hero.primaryCta.label}
           </Link>
-        </div></Reveal>
+        </Reveal>
       </div>
     </section>
 
-    <section className="border-y border-border bg-muted/30"><div className="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 divide-x divide-border">
-      {homepage.trustItems.map((item) => <div key={item.title} className="px-6 py-6 text-center"><p className="text-[13px] font-semibold text-foreground">{item.title}</p><p className="text-[12px] mt-1 text-secondary">{item.body}</p></div>)}
-    </div></section>
-
-    <section className="max-w-7xl mx-auto px-6 lg:px-12 py-24">
-      <Reveal><div className="flex flex-wrap items-end justify-between gap-4 mb-12"><div>
-        <p className="text-[11px] tracking-[0.3em] uppercase mb-3 text-secondary">{homepage.featured.eyebrow}</p>
-        <h2 className="soso-display font-light text-foreground whitespace-pre-line" style={{ fontSize: "clamp(2rem,4vw,3.2rem)" }}>{homepage.featured.title}</h2>
-      </div><Link href={homepage.featured.link.href} className="soso-link text-xs uppercase tracking-[0.2em] text-foreground">{homepage.featured.link.label}</Link></div></Reveal>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-14">{featured.map((product, index) =>
-        <Reveal key={product.slug} delay={(index % 3) * 120}>
-          <ProductCard product={product} testIdPrefix="home-featured" />
-        </Reveal>)}</div>
-    </section>
-
-    <section className="py-20 bg-muted/20"><div className="max-w-7xl mx-auto px-6 lg:px-12">
-      <p className="text-[11px] tracking-[.3em] uppercase text-secondary">{homepage.occasions.eyebrow}</p>
-      <h2 className="soso-display text-4xl my-4 text-foreground">{homepage.occasions.title}</h2>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{homepage.occasions.items.map((item) =>
-        <Link key={item.title} href={item.href ?? "/shop"} className="group relative block overflow-hidden aspect-[3/4]">
-          {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" /><div className="absolute bottom-0 p-5 text-white"><h3 className="soso-display text-xl">{item.title}</h3><p className="text-xs text-white/80">{item.body}</p><p className="mt-3 text-xs uppercase text-white font-medium">{item.linkLabel}</p></div>
-        </Link>)}</div>
-    </div></section>
-
-    <section className="max-w-7xl mx-auto px-6 lg:px-12 py-24 grid lg:grid-cols-2 gap-14 items-center">
-      <img src={homepage.fit.imageUrl} alt={homepage.fit.imageAlt} className="w-full aspect-[4/5] object-cover" />
-      <div><p className="text-xs uppercase tracking-[.3em] text-secondary">{homepage.fit.eyebrow}</p><h2 className="soso-display text-4xl my-6 text-foreground">{homepage.fit.title}</h2>
-        {homepage.fit.steps.map((step, index) => <div key={step.title} className="flex gap-5 py-5 border-b border-border"><span className="text-foreground/40 font-bold">{String(index + 1).padStart(2, "0")}</span><div><h3 className="font-semibold text-foreground">{step.title}</h3><p className="text-sm text-secondary">{step.body}</p></div></div>)}
+    {/* 2. Four-column product categories */}
+    <section className="bg-background py-2" aria-label="Shop SOSO categories">
+      <div className="max-w-[2000px] mx-auto px-2">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {categoryCards.map((item) => (
+            <Link key={item.title} href={item.href} className="group relative block overflow-hidden aspect-[3/4] md:aspect-[4/5]">
+              <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
+              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/80">{item.eyebrow}</p>
+                <h3 className="soso-display text-2xl md:text-3xl text-white drop-shadow-md tracking-wide mb-4">{item.title}</h3>
+                <span className="category-card-cta inline-block bg-background text-foreground px-6 py-3 text-[11px] font-bold uppercase tracking-[0.15em] border border-transparent hover:border-foreground shadow-sm">
+                  Shop the collection
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
     </section>
 
-    <section className="py-24 bg-muted/40 text-foreground"><div className="max-w-7xl mx-auto px-6 lg:px-12 text-center">
-      <p className="text-xs uppercase tracking-[.3em] text-secondary">{homepage.confidence.eyebrow}</p><h2 className="soso-display text-4xl my-5 whitespace-pre-line text-foreground">{homepage.confidence.title}</h2>
-      <div className="grid md:grid-cols-3 gap-6 text-left">{homepage.confidence.items.map((item) => <article key={item.title} className="bg-background border border-border p-8 text-foreground"><h3 className="soso-display text-2xl">{item.title}</h3><p className="mt-4 text-sm text-secondary">{item.body}</p></article>)}</div>
-    </div></section>
+    {/* 3. New arrival paired with motion-ready editorial media */}
+    <section className="my-16 md:my-32 max-w-[1600px] mx-auto px-4 md:px-6">
+      <div className="mb-8 flex items-end justify-between gap-6 md:mb-12">
+        <div>
+          <p className="mb-3 text-[11px] uppercase tracking-[0.3em] text-secondary">Just in at SOSO</p>
+          <h2 className="soso-display text-4xl leading-tight text-foreground md:text-5xl">New arrival</h2>
+        </div>
+        <Link href={homepage.featured.link.href} className="hidden text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground underline underline-offset-8 transition-colors hover:text-secondary sm:block">
+          {homepage.featured.link.label}
+        </Link>
+      </div>
+      <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-6">
+        {newArrival && (
+          <article className="min-w-0">
+            <ProductCard product={newArrival} testIdPrefix="home-new-arrival" />
+          </article>
+        )}
+        <div className="relative aspect-[3/4] overflow-hidden bg-muted/20 lg:aspect-auto lg:h-full lg:min-h-[720px]">
+          <HomeHeroMedia
+            hero={{
+              ...homepage.hero,
+              imageUrl: homepage.story.imageUrl,
+              mobileImageUrl: homepage.story.imageUrl,
+              imageAlt: homepage.story.title,
+            }}
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center px-6 pb-10 text-center text-white md:pb-14">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-white/80">The SOSO edit</p>
+            <h3 className="soso-display mb-6 max-w-lg text-3xl leading-tight md:text-4xl">{homepage.story.title}</h3>
+            <Link href={homepage.story.link.href} className="bg-white px-8 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-foreground transition-colors hover:bg-foreground hover:text-white">
+              {homepage.story.link.label}
+            </Link>
+          </div>
+        </div>
+        <Link href={homepage.featured.link.href} className="mt-4 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground underline underline-offset-8 sm:hidden">
+          {homepage.featured.link.label}
+        </Link>
+      </div>
+    </section>
 
-    <section className="relative py-28 overflow-hidden text-center"><img src={homepage.story.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-10" /><div className="relative max-w-3xl mx-auto px-6">
-      <img src={homepage.story.logoUrl} alt="" className="h-12 mx-auto mb-8 filter invert dark:invert-0" /><h2 className="soso-display text-4xl text-foreground">{homepage.story.title}</h2><p className="mt-6 text-secondary">{homepage.story.body}</p><Link href={homepage.story.link.href} className="inline-block mt-8 text-xs uppercase tracking-[.25em] text-foreground font-medium underline underline-offset-4">{homepage.story.link.label}</Link>
-    </div></section>
+    {/* 4. Four Individual Shoppable Pieces */}
+    <section className="mb-16 md:mb-32 max-w-[1600px] mx-auto px-4 md:px-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        {featured.slice(0, 4).map((product, index) => (
+          <Reveal key={product.slug} delay={index * 100}>
+            <ProductCard product={product} testIdPrefix="home-featured" />
+          </Reveal>
+        ))}
+      </div>
+    </section>
 
-    <section className="py-24 bg-background border-t border-border text-center"><div className="max-w-4xl mx-auto px-6">
-      <p className="text-xs uppercase tracking-[.3em] text-secondary">{homepage.finalCta.eyebrow}</p><h2 className="soso-display text-5xl my-5 whitespace-pre-line text-foreground">{homepage.finalCta.title}</h2><p className="text-secondary">{homepage.finalCta.body}</p>
-      <div className="mt-10 flex justify-center gap-4"><Link href={homepage.finalCta.primaryCta.href} className="soso-btn-gold px-9 py-4 text-xs uppercase bg-foreground text-background">{homepage.finalCta.primaryCta.label}</Link><button onClick={() => setStylistOpen(true)} className="soso-btn-ghost px-9 py-4 text-xs uppercase text-foreground border border-border hover:bg-muted">{homepage.finalCta.stylistCtaLabel}</button></div><p className="mt-8 text-xs text-secondary/60">{homepage.finalCta.note}</p>
-    </div></section>
+    {/* 5. Two-column occasion categories */}
+    <section className="my-16 px-2 md:my-32" aria-labelledby="home-occasion-heading">
+      <div className="mb-10 text-center md:mb-14">
+        <p className="mb-3 text-[11px] uppercase tracking-[0.3em] text-secondary">{homepage.occasions.eyebrow}</p>
+        <h2 id="home-occasion-heading" className="soso-display text-4xl text-foreground md:text-5xl">{homepage.occasions.title}</h2>
+      </div>
+      <div className="mx-auto grid max-w-[2000px] gap-2 lg:grid-cols-2">
+        {homepage.occasions.items.slice(0, 2).map((item) => (
+          <Link key={item.title} href={item.href ?? "/shop"} className="group relative aspect-[4/5] overflow-hidden sm:aspect-[4/3] lg:aspect-[5/4]">
+            {item.imageUrl && <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 z-10 p-8 text-center text-white md:p-12">
+              <p className="mb-3 text-[12px] uppercase tracking-[0.2em] text-white/80">{item.body}</p>
+              <h3 className="soso-display mb-6 text-3xl md:text-4xl">{item.title}</h3>
+              <span className="inline-flex bg-white px-7 py-4 text-[11px] font-bold uppercase tracking-[0.16em] text-foreground transition-colors group-hover:bg-foreground group-hover:text-white">
+                {item.linkLabel}
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+
+    {/* 6. Trust/Guidance Strip */}
+    <section className="border-y border-border bg-background">
+      <div className="max-w-[1600px] mx-auto grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-border">
+        {homepage.trustItems.map((item) => (
+          <div key={item.title} className="px-6 py-12 text-center flex flex-col items-center justify-center">
+            <p className="text-[13px] tracking-[0.15em] uppercase font-semibold text-foreground mb-3">{item.title}</p>
+            <p className="text-[13px] text-secondary max-w-[240px] leading-relaxed">{item.body}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* 7. Fit & Details */}
+    <section className="max-w-[1600px] mx-auto px-4 md:px-6 py-16 md:py-32 grid lg:grid-cols-2 gap-12 lg:gap-24 items-center">
+      <div className="relative aspect-[3/4] overflow-hidden bg-muted/20">
+        <img src={homepage.fit.imageUrl} alt={homepage.fit.imageAlt} className="absolute inset-0 w-full h-full object-cover" />
+      </div>
+      <div className="lg:pr-12 text-center lg:text-left">
+        <p className="text-[11px] uppercase tracking-[.3em] text-secondary mb-5">{homepage.fit.eyebrow}</p>
+        <h2 className="soso-display text-4xl md:text-5xl lg:text-6xl my-6 text-foreground leading-[1.1]">{homepage.fit.title}</h2>
+        <div className="mt-12 flex flex-col text-left">
+          {homepage.fit.steps.map((step, index) => (
+            <div key={step.title} className="flex gap-6 py-8 border-b border-border last:border-0">
+              <span className="text-secondary/30 font-bold soso-display text-3xl mt-1">{String(index + 1).padStart(2, "0")}</span>
+              <div>
+                <h3 className="font-semibold text-foreground tracking-[0.1em] uppercase text-[13px] mb-3">{step.title}</h3>
+                <p className="text-[14px] text-secondary leading-relaxed">{step.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {/* 8. Confidence */}
+    <section className="py-24 md:py-32 bg-foreground text-background">
+      <div className="max-w-[1600px] mx-auto px-6 lg:px-12 text-center">
+        <p className="text-[11px] uppercase tracking-[.3em] text-background/60 mb-4">{homepage.confidence.eyebrow}</p>
+        <h2 className="soso-display text-4xl md:text-5xl lg:text-6xl my-6 whitespace-pre-line text-background leading-[1.1]">{homepage.confidence.title}</h2>
+        <div className="grid md:grid-cols-3 gap-8 text-left mt-16 lg:mt-24">
+          {homepage.confidence.items.map((item) => (
+            <article key={item.title} className="p-10 border border-background/20 bg-background/5 hover:bg-background/10 transition-colors">
+              <h3 className="soso-display text-2xl lg:text-3xl text-background mb-5">{item.title}</h3>
+              <p className="text-[14px] text-background/70 leading-relaxed">{item.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    {/* 9. Final CTA */}
+    <section className="py-24 md:py-40 bg-background text-center">
+      <div className="max-w-3xl mx-auto px-6">
+        <p className="text-[11px] uppercase tracking-[.3em] text-secondary mb-4">{homepage.finalCta.eyebrow}</p>
+        <h2 className="soso-display text-5xl md:text-6xl lg:text-[5rem] my-6 whitespace-pre-line text-foreground leading-[1.1]">{homepage.finalCta.title}</h2>
+        <p className="text-secondary text-[14px] md:text-[15px] leading-relaxed mt-8 mb-12 max-w-xl mx-auto">{homepage.finalCta.body}</p>
+        <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <Link href={homepage.finalCta.primaryCta.href} className="soso-btn-gold px-12 py-5 text-[12px] font-bold uppercase tracking-widest bg-foreground text-background text-center shadow-lg transition-transform hover:-translate-y-0.5">
+            {homepage.finalCta.primaryCta.label}
+          </Link>
+          <button onClick={() => setStylistOpen(true)} className="px-12 py-5 text-[12px] font-bold uppercase tracking-widest text-foreground border border-border hover:border-foreground hover:bg-muted transition-all text-center">
+            {homepage.finalCta.stylistCtaLabel}
+          </button>
+        </div>
+        <p className="mt-10 text-[11px] text-secondary/60 uppercase tracking-widest">{homepage.finalCta.note}</p>
+      </div>
+    </section>
+
     <StylistEnquiryDialog isOpen={stylistOpen} onClose={() => setStylistOpen(false)} />
   </div>;
 }

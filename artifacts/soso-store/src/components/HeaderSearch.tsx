@@ -6,7 +6,7 @@ import { usePlatformContent } from "@/data/platformContent";
 import { naira } from "@/lib/utils";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 
-export function HeaderSearch() {
+export function HeaderSearch({ buttonClassName = "text-secondary hover:text-primary" }: { buttonClassName?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { data } = usePlatformContent();
@@ -107,7 +107,7 @@ export function HeaderSearch() {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex min-h-10 min-w-10 items-center justify-center text-secondary transition-colors hover:text-primary"
+        className={`flex min-h-10 min-w-10 items-center justify-center transition-colors ${buttonClassName}`}
         aria-label={siteHeader.searchLabel}
         data-testid="button-header-search"
       >

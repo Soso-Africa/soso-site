@@ -24,4 +24,4 @@
 - [GitHub SDK history publishing](github-sdk-history-publishing.md) — use the native connector SDK for Git object writes and normalize API-generated commits locally.
 - [Cloudinary serverless release gate](cloudinary-serverless-release-gate.md) — require explicit serverless initialization plus media and rendered-route checks before promotion.
 - [Filtered header overlays](filtered-header-overlays.md) — render viewport-fixed dialogs outside backdrop-filtered headers so mobile overlays are not constrained to header bounds.
-- [Approved storefront visual direction](storefront-visual-direction.md) — keep public SOSO surfaces bright, retail-led and checkout-first; no hero slogan or global WhatsApp ordering.
+- [Approved storefront visual direction](storefront-visual-direction.md) — public SOSO follows Hobbs-like retail rhythm and scroll behavior while preserving its blue logo and checkout-first path.

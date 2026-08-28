@@ -162,6 +162,24 @@
 }
 
 /* Custom Utilities for SOSO */
+@layer utilities {
+  .category-card-cta {
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .group:hover .category-card-cta,
+  .group:focus-within .category-card-cta {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  @media (hover: none) {
+    .category-card-cta {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
 .soso-display { font-family: var(--app-font-display); }
 .soso-card img { transition: transform 1.1s cubic-bezier(0.16,1,0.3,1); }
 .soso-card:hover img { transform: scale(1.05); }

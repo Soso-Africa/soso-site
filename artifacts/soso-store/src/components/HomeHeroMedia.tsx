@@ -108,7 +108,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
         onClick={() => void togglePlayback()}
         aria-label={isPlaying ? hero.pauseLabel : hero.playLabel}
         aria-pressed={isPlaying}
-        className="absolute right-5 top-5 z-20 inline-flex min-h-11 items-center gap-2 border border-foreground/30 bg-background/75 px-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground backdrop-blur-sm transition-colors hover:border-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground md:bottom-5 md:top-auto"
+        className="absolute right-5 bottom-5 z-20 md:bottom-8 md:right-8 inline-flex min-h-11 items-center gap-2 border border-foreground/30 bg-background/75 px-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-foreground backdrop-blur-sm transition-colors hover:border-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
         data-testid="button-hero-motion"
       >
         {isPlaying ? <Pause aria-hidden="true" size={14} /> : <Play aria-hidden="true" size={14} />}

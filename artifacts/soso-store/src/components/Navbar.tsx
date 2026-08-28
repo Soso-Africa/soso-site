@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/data/platformContent";
-import { Search, ChevronDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
 
 export function Navbar() {
@@ -26,6 +26,12 @@ export function Navbar() {
   const [announcementIndex, setAnnouncementIndex] = useState(0);
   const [isAnnouncementHovered, setIsAnnouncementHovered] = useState(false);
 
+  const isHome = location === "/";
+  const isTransparent = isHome && !scrolled && !mobileMenuOpen && !activeGroupId;
+  const headerControlClass = isTransparent
+    ? "text-white/90 hover:text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]"
+    : "text-foreground/80 hover:text-foreground";
+
   useEffect(() => {
     const itemCount = site?.announcementItems?.length ?? 0;
     if (itemCount <= 1) {
@@ -45,6 +51,7 @@ export function Navbar() {
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", onScroll, { passive: true });
+    setScrolled(window.scrollY > 40);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
@@ -156,7 +163,7 @@ export function Navbar() {
   return (
     <>
       <div
-        className="relative flex h-[34px] items-center justify-center overflow-hidden px-4 py-2 text-center text-[11px] uppercase tracking-[0.22em]"
+        className="relative flex h-[34px] items-center justify-center overflow-hidden px-4 py-2 text-center text-[10px] uppercase tracking-[0.25em]"
         style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}
         onMouseEnter={() => setIsAnnouncementHovered(true)}
         onMouseLeave={() => setIsAnnouncementHovered(false)}
@@ -178,16 +185,19 @@ export function Navbar() {
       </div>
 
       <header
-        className="sticky top-0 z-50 px-4 md:px-6 lg:px-12 flex items-center justify-between bg-background"
+        className={`sticky top-0 z-50 px-4 md:px-6 lg:px-12 flex items-center justify-between transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isTransparent
+            ? "bg-transparent border-transparent text-white"
+            : "bg-background border-border text-foreground shadow-sm"
+        }`}
         style={{
-          borderBottom: `1px solid ${scrolled ? "hsl(var(--border))" : "transparent"}`,
+          borderBottomWidth: '1px',
           height: 72,
-          transition: "all .4s ease",
         }}
       >
         {/* Mobile Hamburger */}
-        <button 
-          className="md:hidden p-2 -ml-2 text-foreground"
+        <button
+          className={`md:hidden p-2 -ml-2 ${headerControlClass}`}
           onClick={() => mobileMenuOpen ? setMobileMenuOpen(false) : openMobileMenu()}
           aria-label={mobileMenuOpen ? site.header.closeMenuLabel : site.header.openMenuLabel}
           aria-expanded={mobileMenuOpen}
@@ -209,7 +219,7 @@ export function Navbar() {
             }
           }}
         >
-          <nav className="flex items-center gap-8 text-[12px] tracking-[0.18em] uppercase" style={{ color: "hsl(var(--secondary))" }}>
+          <nav className="flex items-center gap-8 text-[12px] tracking-[0.18em] uppercase font-medium">
             {hasMegaMenu && visibleGroups.map(group => {
               const isActive = activeGroupId === group.id;
               return (
@@ -221,7 +231,9 @@ export function Navbar() {
                 >
                   <Link
                     href={group.href}
-                    className="soso-link py-6"
+                    className={`py-6 transition-colors duration-300 ${
+                      isTransparent ? "text-white/90 hover:text-white" : isActive ? "text-foreground" : "text-foreground/80 hover:text-foreground"
+                    }`}
                     onFocus={() => handleMouseEnter(group.id)}
                     aria-expanded={isActive}
                   >
@@ -247,7 +259,9 @@ export function Navbar() {
               >
                 <Link
                   href={link.href}
-                  className="soso-link py-6"
+                  className={`py-6 transition-colors duration-300 ${
+                    isTransparent ? "text-white/90 hover:text-white" : "text-foreground/80 hover:text-foreground"
+                  }`}
                   onFocus={() => setActiveGroupId(null)}
                 >
                   {link.label}
@@ -257,19 +271,18 @@ export function Navbar() {
           </nav>
         </div>
         
-        <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center">
-          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9 filter invert dark:invert-0" />
+        <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center transition-opacity duration-300 hover:opacity-70">
+          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9 filter invert" />
         </Link>
         
-        <div className="flex items-center gap-3 md:gap-5">
-          <HeaderSearch />
-          <button 
+        <div className="flex items-center gap-4 md:gap-6">
+          <HeaderSearch buttonClassName={headerControlClass} />
+          <button
             onClick={openDrawer} 
-            className="flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link relative"
-            style={{ color: "hsl(var(--secondary))" }}
+            className={`flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase transition-colors duration-300 relative ${headerControlClass}`}
             aria-label={site.header.openCartLabel}
           >
-            <span className="hidden sm:inline">{site.header.cartLabel}</span>
+            <span className="hidden sm:inline font-medium">{site.header.cartLabel}</span>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
               <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -287,10 +300,9 @@ export function Navbar() {
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-background flex flex-col overflow-hidden animate-in fade-in duration-300">
-
           {/* Header of mobile menu */}
           <div className="flex justify-between items-center p-4 px-6 border-b border-border shrink-0">
-            <img src={site.logoUrl} alt={site.logoAlt} className="h-8 filter invert dark:invert-0" />
+            <img src={site.logoUrl} alt={site.logoAlt} className="h-8 filter invert" />
             <button type="button" aria-label={site.header.closeMenuLabel} className="text-foreground p-2 -mr-2 opacity-70 hover:opacity-100 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M6 18L18 6M6 6l12 12" />
@@ -300,7 +312,6 @@ export function Navbar() {
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8">
-
             {/* Mega Menu Groups (Accordions) */}
             {hasMegaMenu && (
               <div className="flex flex-col">
@@ -316,7 +327,7 @@ export function Navbar() {
                 <Link
                   key={`${link.href}-${link.label}`}
                   href={link.href}
-                  className="text-lg soso-display tracking-[0.15em] text-foreground/90 hover:text-[hsl(var(--primary))] transition-colors"
+                  className="text-lg soso-display tracking-[0.15em] text-foreground/90 hover:text-foreground transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {link.label}
@@ -342,13 +353,13 @@ function DesktopMegaMenuPanel({ group, products, featuredLabel, onClick }: { gro
       <div className="flex gap-16 lg:gap-24">
         {group.columns.map((col, i) => (
           <div key={i} className="flex flex-col gap-6">
-            <h3 className="text-[11px] tracking-[0.2em] uppercase font-bold text-[hsl(var(--primary))]">{col.heading}</h3>
+            <h3 className="text-[11px] tracking-[0.2em] uppercase font-bold text-foreground">{col.heading}</h3>
             <ul className="flex flex-col gap-4">
               {col.links.map(link => (
                 <li key={`${link.href}-${link.label}`}>
                   <Link
                     href={link.href}
-                    className="text-[13px] tracking-wide text-foreground/80 hover:text-[hsl(var(--primary))] transition-colors block py-1"
+                    className="text-[13px] tracking-wide text-secondary hover:text-foreground transition-colors block py-1"
                     onClick={onClick}
                   >
                     {link.label}
@@ -380,8 +391,8 @@ function DesktopMegaMenuPanel({ group, products, featuredLabel, onClick }: { gro
                 <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-[12px] font-medium tracking-[0.1em] text-foreground group-hover:text-[hsl(var(--primary))] transition-colors uppercase">{product.name}</p>
-                <p className="text-[10px] tracking-[0.15em] text-foreground/60 uppercase">{product.merchandising.label ?? product.category ?? featuredLabel}</p>
+                <p className="text-[12px] font-semibold tracking-[0.1em] text-foreground group-hover:text-secondary transition-colors uppercase">{product.name}</p>
+                <p className="text-[10px] tracking-[0.15em] text-secondary uppercase">{product.merchandising.label ?? product.category ?? featuredLabel}</p>
               </div>
             </Link>
           ))}
@@ -406,34 +417,30 @@ function MobileMenuGroup({ group, products, navigationCopy, onClick }: { group: 
         aria-expanded={expanded}
       >
         <span className="text-xl soso-display tracking-[0.15em] uppercase text-foreground/90">{group.label}</span>
-        <ChevronDown className={`w-5 h-5 text-[hsl(var(--primary))] transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-5 h-5 text-foreground transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${expanded ? 'rotate-180' : ''}`} />
       </button>
 
       <div className={`grid transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] ${expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="overflow-hidden flex flex-col gap-8">
-          {/* Pad the content inside so it collapses properly without margin collapsing issues */}
           <div className="pt-2 pb-6 flex flex-col gap-8">
-            {/* Columns */}
             <div className="flex flex-col gap-6">
               {group.columns.map((col, i) => (
                 <div key={i} className="flex flex-col gap-3">
-                  {col.heading && <h4 className="text-[10px] tracking-[0.2em] uppercase text-[hsl(var(--primary))] font-bold">{col.heading}</h4>}
+                  {col.heading && <h4 className="text-[10px] tracking-[0.2em] uppercase text-foreground font-bold">{col.heading}</h4>}
                   <div className="flex flex-col gap-3">
                     {col.links.map(link => (
-                      <Link key={`${link.href}-${link.label}`} href={link.href} className="text-[13px] tracking-widest text-foreground/80 py-1" onClick={onClick}>
+                      <Link key={`${link.href}-${link.label}`} href={link.href} className="text-[13px] tracking-widest text-secondary py-1" onClick={onClick}>
                         {link.label}
                       </Link>
                     ))}
                   </div>
                 </div>
               ))}
-              {/* Direct group link */}
-              <Link href={group.href} className="text-[11px] font-bold tracking-[0.2em] uppercase text-[hsl(var(--primary))] py-2 mt-2 flex items-center gap-2 w-fit" onClick={onClick}>
+              <Link href={group.href} className="text-[11px] font-bold tracking-[0.2em] uppercase text-foreground py-2 mt-2 flex items-center gap-2 w-fit" onClick={onClick}>
                 {navigationCopy.shopAllLabel} {group.label} <span aria-hidden="true">&rarr;</span>
               </Link>
             </div>
 
-            {/* Compact Image Cards */}
             {featuredProducts.length > 0 && (
               <div className="grid grid-cols-2 gap-4">
                 {featuredProducts.map(product => (
@@ -442,8 +449,8 @@ function MobileMenuGroup({ group, products, navigationCopy, onClick }: { group: 
                       <img src={product.img} alt={product.name} className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" loading="lazy" />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[10px] uppercase tracking-[0.1em] text-foreground truncate">{product.name}</span>
-                      <span className="text-[9px] uppercase tracking-[0.15em] text-[hsl(var(--primary))] mt-0.5">{product.merchandising.label ?? navigationCopy.featuredLabel}</span>
+                      <span className="text-[10px] uppercase tracking-[0.1em] font-semibold text-foreground truncate">{product.name}</span>
+                      <span className="text-[9px] uppercase tracking-[0.15em] text-secondary mt-0.5">{product.merchandising.label ?? navigationCopy.featuredLabel}</span>
                     </div>
                   </Link>
                 ))}
