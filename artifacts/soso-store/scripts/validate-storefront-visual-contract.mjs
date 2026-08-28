@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import serverlessChromium from "@sparticuz/chromium";
 import { chromium } from "@playwright/test";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
@@ -252,7 +253,11 @@ async function compareScreenshot(actualPath, baselinePath, diffPath, label) {
 let browser;
 try {
   await waitForServer();
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    args: serverlessChromium.args.filter((argument) => argument !== "--single-process"),
+    executablePath: await serverlessChromium.executablePath(),
+    headless: true,
+  });
   for (const [viewportName, viewport] of Object.entries(viewports)) {
     const context = await browser.newContext({
       viewport,

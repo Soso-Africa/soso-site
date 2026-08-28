@@ -20,5 +20,8 @@
     "pngjs": "7.0.0",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "140.0.0"
   }
 }
