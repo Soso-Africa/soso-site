@@ -8,7 +8,6 @@ import { Route, Switch, useLocation, Router as WouterRouter, Redirect } from 'wo
 import { CartProvider } from '@/context/CartContext';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
-import { WhatsAppButton } from '@/components/WhatsAppButton';
 import { CartDrawer } from '@/components/CartDrawer';
 import { ConsentManager } from '@/components/ConsentManager';
 import { Seo } from '@/components/Seo';
@@ -125,6 +124,11 @@ function AppShell() {
   const platform = usePlatformContent();
   const staffOrAuthSurface = isPrivateStorefrontPath(location);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("soso-staff-theme", staffOrAuthSurface);
+    return () => document.documentElement.classList.remove("soso-staff-theme");
+  }, [staffOrAuthSurface]);
+
   return (
     <>
       {platform.data && <a href="#main-content" className="soso-skip-link">{platform.data.content.site.skipLinkLabel}</a>}
@@ -145,7 +149,6 @@ function AppShell() {
       {!staffOrAuthSurface && (
         <>
           <CartDrawer />
-          <WhatsAppButton />
           <ConsentManager />
         </>
       )}

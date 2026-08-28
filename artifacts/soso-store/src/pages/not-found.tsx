@@ -12,7 +12,7 @@ export default function NotFound() {
       <Seo title={copy.seo.title} description={copy.seo.description} noIndex />
       <div>
         <p className="text-[11px] uppercase tracking-[.3em] text-[hsl(var(--primary))]">404</p>
-        <h1 className="soso-display text-4xl text-white mt-3">{copy.title}</h1>
+        <h1 className="soso-display mt-3 text-4xl text-foreground">{copy.title}</h1>
         <p className="mt-4 text-sm text-[hsl(var(--secondary))]">{copy.body}</p>
         <Link href={copy.cta.href} className="inline-block mt-7 text-sm uppercase tracking-[.16em] text-[hsl(var(--primary))] underline underline-offset-4">{copy.cta.label}</Link>
       </div>

@@ -24,11 +24,11 @@ export default function PolicyHub() {
         path="/policies"
       />
       <div className="mx-auto max-w-4xl">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#b8912f]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">
           {copy.eyebrow}
         </p>
         <h1 className="soso-display mt-5 text-4xl leading-tight md:text-6xl">{copy.title}</h1>
-        <p className="mt-7 max-w-2xl text-base leading-8 text-[#d8ceb9] md:text-lg">
+        <p className="mt-7 max-w-2xl text-base leading-8 text-muted-foreground md:text-lg">
           {copy.intro}
         </p>
         <div className="mt-12 grid gap-5 md:grid-cols-2">
@@ -41,12 +41,12 @@ export default function PolicyHub() {
             <Link
               key={policy.slug}
               href={`/policies/${policy.slug}`}
-              className="group border border-[#b8912f]/30 bg-[#17130e] p-6 transition hover:border-[#b8912f]/70 hover:bg-[#1d1811]"
+              className="group border border-border bg-background p-6 transition hover:border-foreground/40 hover:bg-muted/40"
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#b8912f]">{copy.cardLabel}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{copy.cardLabel}</p>
               <h2 className="soso-display mt-4 text-2xl text-foreground">{policy.title}</h2>
-              <p className="mt-3 text-sm leading-7 text-[#d8ceb9]">{policy.summary}</p>
-              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-[#d4b45a]">{copy.openLabel}</p>
+              <p className="mt-3 text-sm leading-7 text-muted-foreground">{policy.summary}</p>
+              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.16em] text-foreground underline-offset-4 group-hover:underline">{copy.openLabel}</p>
             </Link>
           ))}
         </div>

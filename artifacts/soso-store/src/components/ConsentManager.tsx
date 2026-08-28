@@ -707,40 +707,35 @@ export function ConsentManager() {
       aria-label={copy.regionLabel}
       aria-live="polite"
       role="region"
-      className="fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-xl border p-5 shadow-2xl md:left-auto"
-      style={{
-        background: "#17130e",
-        borderColor: "rgba(184,145,47,0.45)",
-        color: "#f6f1e7",
-      }}
+      className="fixed bottom-4 left-4 right-4 z-[100] mx-auto max-w-xl border border-border bg-background p-5 text-foreground shadow-[0_20px_60px_rgba(0,0,0,0.14)] md:left-auto"
     >
       <p className="soso-display text-xl">{copy.title}</p>
-      <p className="mt-2 text-sm leading-6 text-[#d8ceb9]">
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
         {copy.body}
       </p>
       <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]">
         <button
           onClick={() => void save("essential_only")}
-          className="border border-[#b8912f]/70 px-4 py-3 text-[#f6f1e7] transition hover:bg-[#b8912f]/10"
+          className="border border-foreground/30 px-4 py-3 text-foreground transition hover:bg-muted"
         >
           {copy.essentialLabel}
         </button>
         <button
           onClick={() => void save("analytics")}
-          className="bg-[#b8912f] px-4 py-3 text-[#100e0b] transition hover:bg-[#d4b45a]"
+          className="bg-foreground px-4 py-3 text-background transition hover:bg-foreground/85"
         >
           {copy.analyticsLabel}
         </button>
         <button
           onClick={() => void save("marketing")}
-          className="border border-[#b8912f]/70 px-4 py-3 text-[#f6f1e7] transition hover:bg-[#b8912f]/10"
+          className="border border-foreground/30 px-4 py-3 text-foreground transition hover:bg-muted"
         >
           {copy.marketingLabel}
         </button>
       </div>
-      <details className="mt-3 text-[10px] text-[#a09070]">
-        <summary className="cursor-pointer hover:text-[#c8b89a] select-none">{copy.manageLabel}</summary>
-        <div className="mt-2 border border-[#b8912f]/20 p-3 space-y-2">
+      <details className="mt-3 text-[10px] text-muted-foreground">
+        <summary className="cursor-pointer select-none hover:text-foreground">{copy.manageLabel}</summary>
+        <div className="mt-2 space-y-2 border border-border p-3">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked disabled readOnly className="accent-[#b8912f]" />
             <span>{copy.necessaryDescription}</span>
@@ -765,9 +760,9 @@ export function ConsentManager() {
            </label>
         </div>
       </details>
-      <p className="mt-3 text-[10px] text-[#a09070] leading-relaxed">
+      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
          {copy.footerText}{" "}
-         <a href={copy.privacyLink.href} className="underline hover:text-[#f6f1e7]">
+         <a href={copy.privacyLink.href} className="underline hover:text-foreground">
            {copy.privacyLink.label}
         </a>
       </p>

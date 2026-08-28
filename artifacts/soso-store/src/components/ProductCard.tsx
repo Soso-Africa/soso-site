@@ -59,7 +59,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
   return (
     <>
       <article className="soso-card group">
-        <div className="relative overflow-hidden aspect-[3/4] bg-[#1a1712]">
+        <div className="relative overflow-hidden aspect-[3/4] bg-muted/20 border border-border">
           <Link
             href={`/product/${product.slug}`}
             onClick={rememberCatalogueReturn}
@@ -88,20 +88,20 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
 
             <div className="absolute top-4 left-4 flex flex-col gap-2">
               {product.merchandising.isNew && (
-                <span className="bg-background/90 text-primary text-[10px] font-bold uppercase tracking-[0.2em] px-3 py-1.5 backdrop-blur-sm border border-primary/20 shadow-sm" data-testid={`badge-new-${product.slug}`}>
+                <span className="bg-background text-foreground text-[10px] font-bold uppercase tracking-[0.2em] px-3 py-1.5 backdrop-blur-sm border border-border shadow-sm" data-testid={`badge-new-${product.slug}`}>
                   {product.merchandising.label || productCopy?.newLabel}
                 </span>
               )}
               {product.tag && !product.merchandising.isNew && (
-                <span className="bg-background/90 text-primary text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 backdrop-blur-sm border border-primary/20" data-testid={`badge-tag-${product.slug}`}>
+                <span className="bg-background/90 text-foreground text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 backdrop-blur-sm border border-border" data-testid={`badge-tag-${product.slug}`}>
                   {product.tag}
                 </span>
               )}
             </div>
 
             {isUnavailable && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                <span className="bg-background px-4 py-2 text-xs uppercase tracking-widest text-secondary font-semibold border border-white/10">
+              <div className="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-[2px]">
+                <span className="bg-background px-4 py-2 text-xs uppercase tracking-widest text-secondary font-semibold border border-border">
                   {productCopy?.unavailableLabel}
                 </span>
               </div>
@@ -112,7 +112,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
             <div className="soso-cta-row absolute inset-x-4 bottom-4 flex gap-2 z-10">
               <button
                 type="button"
-                className="soso-btn-gold flex-1 flex items-center justify-center text-[11px] tracking-[0.15em] uppercase py-3 font-bold bg-primary text-primary-foreground hover:bg-primary/90"
+                className="soso-btn-gold flex-1 flex items-center justify-center text-[11px] tracking-[0.15em] uppercase py-3 font-bold bg-background text-foreground hover:bg-foreground hover:text-background border border-border shadow-sm transition-colors"
                 onClick={(event) => {
                   if (onClickCta) onClickCta(event);
                   else setQuickShopOpen(true);
@@ -132,24 +132,24 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
           data-testid={`link-${testIdPrefix}-details-${product.slug}`}
         >
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-primary mb-1.5" data-testid={`text-category-${product.slug}`}>{product.category}</p>
-            <h3 className="soso-display text-[19px] text-white group-hover:text-primary transition-colors duration-300" data-testid={`text-name-${product.slug}`}>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-secondary mb-1.5" data-testid={`text-category-${product.slug}`}>{product.category}</p>
+            <h3 className="soso-display text-[19px] text-foreground hover:text-secondary transition-colors duration-300" data-testid={`text-name-${product.slug}`}>
               {product.name}
             </h3>
             <p className="text-[12px] mt-1 text-secondary" data-testid={`text-note-${product.slug}`}>{product.note}</p>
             <div className="flex gap-2 items-center mt-2">
               {product.fulfilmentState === "ready_now" && (
-                <span className="text-[10px] uppercase tracking-wider text-green-500/90 font-medium" data-testid={`status-ready-${product.slug}`}>{productCopy?.readyNowLabel}</span>
+                <span className="text-[10px] uppercase tracking-wider text-green-600/90 font-medium" data-testid={`status-ready-${product.slug}`}>{productCopy?.readyNowLabel}</span>
               )}
               {product.fulfilmentState === "made_immediately" && (
-                <span className="text-[10px] uppercase tracking-wider text-primary/80" data-testid={`status-made-${product.slug}`}>{productCopy?.madeImmediatelyLabel}</span>
+                <span className="text-[10px] uppercase tracking-wider text-secondary" data-testid={`status-made-${product.slug}`}>{productCopy?.madeImmediatelyLabel}</span>
               )}
             </div>
             {!isUnavailable && <p className="mt-2 text-[10px] uppercase tracking-wider text-secondary/75" data-testid={`text-dispatch-${product.slug}`}>
               {product.dispatchMessage}
             </p>}
           </div>
-          <p className={`text-[15px] font-semibold whitespace-nowrap ${isUnavailable ? "text-secondary opacity-50" : "text-primary"}`} data-testid={`text-price-${product.slug}`}>
+          <p className={`text-[15px] font-semibold whitespace-nowrap ${isUnavailable ? "text-secondary opacity-50" : "text-foreground"}`} data-testid={`text-price-${product.slug}`}>
             {naira(product.price)}
           </p>
         </Link>
@@ -157,25 +157,25 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
 
     <Drawer.Root open={quickShopOpen} onOpenChange={setQuickShopOpen}>
       <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm" />
-        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[110] flex max-h-[88vh] flex-col border-t border-primary/20 bg-background">
-          <div className="flex items-center justify-between border-b border-white/10 p-4">
+        <Drawer.Overlay className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm" />
+        <Drawer.Content className="fixed inset-x-0 bottom-0 z-[110] flex max-h-[88vh] flex-col border-t border-border bg-background">
+          <div className="flex items-center justify-between border-b border-border p-4">
             <Drawer.Title className="text-sm font-semibold uppercase tracking-widest text-primary">{productCopy?.quickShopTitle}</Drawer.Title>
-            <Drawer.Close className="p-2 text-secondary" aria-label={productCopy?.closeQuickShopLabel}><X className="h-5 w-5" /></Drawer.Close>
+            <Drawer.Close className="p-2 text-secondary hover:text-foreground" aria-label={productCopy?.closeQuickShopLabel}><X className="h-5 w-5" /></Drawer.Close>
           </div>
           <div className="flex-1 overflow-y-auto p-6">
             <div className="flex gap-4 mb-6">
-                <img src={primaryImage?.src ?? product.img} alt={primaryImage?.alt ?? product.name} className="w-20 aspect-[3/4] object-cover bg-[#1a1712]" />
+                <img src={primaryImage?.src ?? product.img} alt={primaryImage?.alt ?? product.name} className="w-20 aspect-[3/4] object-cover bg-muted/20" />
               <div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-primary mb-1">{product.category}</p>
-                <h3 className="soso-display text-xl text-white">{product.name}</h3>
-                <p className="text-sm text-secondary mt-1">{naira(product.price)}</p>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-secondary mb-1">{product.category}</p>
+                <h3 className="soso-display text-xl text-foreground">{product.name}</h3>
+                <p className="text-sm text-foreground mt-1 font-medium">{naira(product.price)}</p>
               </div>
             </div>
 
             {product.standardEligible && validStandardSizes.length > 0 && (
               <div className="mb-6">
-                <span className="text-[11px] tracking-[0.2em] uppercase text-secondary/70 mb-3 block">{productCopy?.sizeSelectorLabel}</span>
+                <span className="text-[11px] tracking-[0.2em] uppercase text-secondary mb-3 block">{productCopy?.sizeSelectorLabel}</span>
                 <div className="flex flex-wrap gap-2">
                   {validStandardSizes.map((s) => {
                     return (
@@ -183,7 +183,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
                         key={s}
                         type="button"
                         onClick={() => setSelectedSize(s)}
-                        className={`px-4 py-3 text-xs tracking-wide transition-colors border ${selectedSize === s ? "border-primary bg-primary text-primary-foreground" : "border-white/20 text-white hover:border-primary/50"}`}
+                        className={`px-4 py-3 text-xs tracking-wide transition-colors border ${selectedSize === s ? "border-foreground bg-foreground text-background" : "border-border text-foreground hover:border-foreground/50"}`}
                         aria-pressed={selectedSize === s}
                         data-testid={`button-quickshop-size-${s}`}
                       >
@@ -200,7 +200,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
                 <button
                   type="button"
                   onClick={() => setSelectedSize("Custom")}
-                  className={`w-full px-4 py-4 text-xs tracking-wide transition-colors border flex justify-between items-center ${selectedSize === "Custom" ? "border-primary bg-primary text-primary-foreground" : "border-white/20 text-white hover:border-primary/50"}`}
+                  className={`w-full px-4 py-4 text-xs tracking-wide transition-colors border flex justify-between items-center ${selectedSize === "Custom" ? "border-foreground bg-foreground text-background" : "border-border text-foreground hover:border-foreground/50"}`}
                   data-testid="button-quickshop-size-custom"
                 >
                   <span>{productCopy?.customSizingLabel}</span>
@@ -216,7 +216,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               </p>
             )}
             {!hasMappedChoices && !isUnavailable && (
-              <p role="status" className="mb-6 border border-white/10 p-4 text-center text-xs text-secondary" data-testid="status-quickshop-unmapped">
+              <p role="status" className="mb-6 border border-border p-4 text-center text-xs text-secondary" data-testid="status-quickshop-unmapped">
                 {productCopy?.unmappedPurchaseMessage}
               </p>
             )}
@@ -224,7 +224,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
             <button
               onClick={handleQuickAdd}
               disabled={!isMappedPurchaseChoice(product, selectedSize)}
-              className={`w-full py-4 text-[13px] tracking-[0.2em] uppercase font-bold transition-all ${!isMappedPurchaseChoice(product, selectedSize) ? "bg-white/5 text-white/50 cursor-not-allowed" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}
+              className={`w-full py-4 text-[13px] tracking-[0.2em] uppercase font-bold transition-all border ${!isMappedPurchaseChoice(product, selectedSize) ? "bg-muted text-muted-foreground border-border cursor-not-allowed" : "bg-foreground text-background border-foreground hover:opacity-90"}`}
               data-testid="button-quick-add-to-cart"
             >
               {isUnavailable

@@ -70,100 +70,100 @@ export default function Checkout() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-6 lg:px-12 py-12 md:py-18">
+    <div className="max-w-6xl mx-auto px-6 lg:px-12 py-12 md:py-18 bg-background text-foreground">
       <Seo
         title={copy.seo.title}
         description={copy.seo.description}
         path="/checkout"
         noIndex
       />
-      <Link href={copy.backCta.href} className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[hsl(var(--primary))]">
+      <Link href={copy.backCta.href} className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-secondary hover:text-foreground">
         <ChevronLeft size={15} /> {copy.backCta.label}
       </Link>
       <div className="grid lg:grid-cols-[1fr_0.8fr] gap-10 lg:gap-16 mt-10">
         <section>
-          <p className="text-[11px] tracking-[0.3em] uppercase text-[hsl(var(--primary))]">{copy.eyebrow}</p>
-          <h1 className="soso-display font-light text-4xl md:text-5xl text-white mt-3">{copy.title}</h1>
-          <p className="mt-4 text-sm leading-relaxed text-[hsl(var(--secondary))] max-w-xl">
+          <p className="text-[11px] tracking-[0.3em] uppercase text-secondary">{copy.eyebrow}</p>
+          <h1 className="soso-display font-light text-4xl md:text-5xl text-foreground mt-3">{copy.title}</h1>
+          <p className="mt-4 text-sm leading-relaxed text-secondary max-w-xl">
              {copy.intro}
           </p>
 
           {items.length === 0 ? (
-            <div className="mt-10 border border-[rgba(184,145,47,0.28)] p-7">
+            <div className="mt-10 border border-border p-7">
                <p className="soso-display text-2xl">{copy.emptyMessage}</p>
-               <Link href={copy.emptyCta.href} className="inline-block mt-5 text-sm text-[hsl(var(--primary))] underline underline-offset-4">{copy.emptyCta.label}</Link>
+               <Link href={copy.emptyCta.href} className="inline-block mt-5 text-sm text-foreground underline underline-offset-4">{copy.emptyCta.label}</Link>
             </div>
           ) : (
             <form className="mt-10 space-y-5" onSubmit={startCheckout}>
               <div className="grid sm:grid-cols-2 gap-5">
                 <label className="text-sm">
                   {copy.nameLabel}
-                  <input required name="name" autoComplete="name" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                  <input required name="name" autoComplete="name" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
                 </label>
                 <label className="text-sm">
                   {copy.phoneLabel}
-                  <input required name="phone" autoComplete="tel" inputMode="tel" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                  <input required name="phone" autoComplete="tel" inputMode="tel" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
                 </label>
               </div>
               <label className="text-sm block">
                   {copy.emailLabel}
-                <input required type="email" name="email" autoComplete="email" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                <input required type="email" name="email" autoComplete="email" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
               <label className="text-sm block">
                  {copy.addressLabel}
-                <textarea required name="address" autoComplete="street-address" rows={3} onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                <textarea required name="address" autoComplete="street-address" rows={3} onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
               <label className="text-sm block">
                  {copy.notesLabel} <span className="opacity-60">({copy.optionalLabel})</span>
-                <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-[rgba(246,241,231,.25)] px-4 py-3.5 outline-none focus:border-[hsl(var(--primary))]" />
+                <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
-              <p className="text-xs leading-relaxed text-[hsl(var(--secondary))]">{copy.deliveryNote}</p>
+              <p className="text-xs leading-relaxed text-secondary">{copy.deliveryNote}</p>
 
               {state === "payment-unavailable" && (
-                <div role="alert" className="border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed">
+                <div role="alert" className="border border-destructive/20 bg-destructive/10 p-4 text-sm leading-relaxed text-destructive">
                    <p>{message}</p>
                    <div className="mt-4 flex flex-wrap gap-3">
-                     <button type="submit" className="border border-[rgba(246,241,231,.45)] px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-white">
+                     <button type="submit" className="border border-destructive/30 px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-destructive hover:bg-destructive hover:text-white">
                         {copy.retryLabel}
                      </button>
-                      <button type="button" onClick={openDrawer} className="px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-[hsl(var(--primary))] underline underline-offset-4">
+                      <button type="button" onClick={openDrawer} className="px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-foreground underline underline-offset-4">
                         {copy.returnToBagLabel}
                       </button>
                    </div>
                 </div>
               )}
-              <button disabled={state === "processing"} className="w-full soso-btn-gold py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>
+              <button disabled={state === "processing"} className="w-full py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70 bg-foreground text-background transition-colors hover:opacity-90">
                 <LockKeyhole size={16} className="inline mr-2" />
                  {state === "processing" ? copy.processingLabel : `${copy.paymentLabel} — ${naira(cartTotal)}`}
               </button>
-               <p className="flex items-center justify-center gap-2 text-xs text-[hsl(var(--secondary))]"><LockKeyhole size={14} /> {copy.secureNote}</p>
-              <div className="flex flex-wrap gap-x-4 gap-y-2 pt-2 text-xs text-[hsl(var(--secondary))]">
-                 {copy.legalLinks.map((link) => <Link key={link.href} href={link.href} className="underline underline-offset-4 hover:text-white">{link.label}</Link>)}
-                 <button type="button" onClick={() => setStylistOpen(true)} className="underline underline-offset-4 hover:text-white">{copy.stylistLabel}</button>
+               <p className="flex items-center justify-center gap-2 text-xs text-secondary"><LockKeyhole size={14} /> {copy.secureNote}</p>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 pt-2 text-xs text-secondary">
+                 {copy.legalLinks.map((link) => <Link key={link.href} href={link.href} className="underline underline-offset-4 hover:text-foreground">{link.label}</Link>)}
+                 <button type="button" onClick={() => setStylistOpen(true)} className="underline underline-offset-4 hover:text-foreground">{copy.stylistLabel}</button>
               </div>
             </form>
           )}
         </section>
 
         {items.length > 0 && (
-          <aside className="h-fit border border-[rgba(184,145,47,.28)] p-6 md:p-8">
-             <h2 className="soso-display text-2xl text-white">{copy.bagTitle}</h2>
+          <aside className="h-fit border border-border p-6 md:p-8 bg-muted/20">
+             <h2 className="soso-display text-2xl text-foreground">{copy.bagTitle}</h2>
             <div className="mt-6 space-y-5">
               {items.map((item) => (
                 <div key={`${item.slug}-${item.size}`} className="flex gap-4">
                   <img src={item.img} alt={item.name} width="72" height="96" className="w-[72px] h-24 object-cover" />
                   <div className="flex-1">
-                    <p className="soso-display text-lg text-white">{item.name}</p>
-                    <p className="text-xs uppercase tracking-wider text-[hsl(var(--secondary))] mt-1">{copy.sizeQuantityLabel.replace("{size}", item.size).replace("{quantity}", String(item.quantity))}</p>
+                    <p className="soso-display text-lg text-foreground">{item.name}</p>
+                    <p className="text-xs uppercase tracking-wider text-secondary mt-1">{copy.sizeQuantityLabel.replace("{size}", item.size).replace("{quantity}", String(item.quantity))}</p>
                   </div>
-                  <p className="text-sm text-[hsl(var(--primary))]">{naira(item.price * item.quantity)}</p>
+                  <p className="text-sm text-foreground">{naira(item.price * item.quantity)}</p>
                 </div>
               ))}
             </div>
-            <div className="flex justify-between border-t border-[rgba(246,241,231,.18)] mt-7 pt-5 text-lg">
+            <div className="flex justify-between border-t border-border mt-7 pt-5 text-lg text-foreground">
                <span>{copy.subtotalLabel}</span><strong>{naira(cartTotal)}</strong>
             </div>
-            <button type="button" onClick={() => setStylistOpen(true)} className="mt-7 w-full flex items-center justify-center gap-2 border border-[#b8912f]/60 py-3.5 text-xs uppercase tracking-[.16em] text-[#d4b45a]">
+            <button type="button" onClick={() => setStylistOpen(true)} className="mt-7 w-full flex items-center justify-center gap-2 border border-border py-3.5 text-xs uppercase tracking-[.16em] text-foreground hover:bg-muted transition-colors">
                <MessageCircle size={16} /> {copy.stylistCtaLabel}
             </button>
           </aside>

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { Reveal } from "@/components/Reveal";
-import { WhatsAppIcon } from "@/components/Icons";
 import { useCart } from "@/context/CartContext";
 import { naira } from "@/lib/utils";
 import { Seo } from "@/components/Seo";
@@ -14,6 +13,7 @@ import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight, ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
 import * as Accordion from "@radix-ui/react-accordion";
 import { isMappedPurchaseChoice, mappedPurchaseChoices } from "@/lib/purchasing";
+import { WhatsAppIcon } from "@/components/Icons";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
@@ -152,7 +152,7 @@ export default function ProductDetail() {
     : [];
 
   return (
-    <div style={{ background: "hsl(var(--foreground))", color: "hsl(var(--background))" }} className="flex flex-col">
+    <div className="flex flex-col bg-background text-foreground">
       <Seo
         title={`${product.name} | ${productCopy.seoTitleSuffix}`}
         description={`${product.description} ${productCopy.seoDescriptionSuffix}`}
@@ -175,14 +175,14 @@ export default function ProductDetail() {
               <li>/</li>
               <li><Link href={returnToResults} className="hover:text-primary">{productCopy.shopBreadcrumbLabel}</Link></li>
               <li>/</li>
-              <li><Link href={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-primary">{product.category}</Link></li>
+              <li><Link href={`/shop?category=${encodeURIComponent(product.category)}`} className="hover:text-foreground">{product.category}</Link></li>
               <li>/</li>
-              <li className="text-white" aria-current="page">{product.name}</li>
+              <li className="text-foreground font-medium" aria-current="page">{product.name}</li>
             </ol>
           </nav>
           <Link
             href={returnToResults}
-            className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-widest text-primary hover:underline"
+            className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-widest text-foreground font-medium hover:underline"
             data-testid="link-return-to-results"
           >
             <ChevronLeft size={14} /> {productCopy.returnToResultsLabel}
@@ -231,13 +231,13 @@ export default function ProductDetail() {
               </>
             )}
 
-            <div className="absolute top-4 left-4 text-[10px] tracking-[0.25em] uppercase px-3 py-1.5" style={{ background: "rgba(18,17,16,.75)", color: "hsl(var(--primary))", backdropFilter: "blur(4px)" }}>
+            <div className="absolute top-4 left-4 text-[10px] tracking-[0.25em] uppercase px-3 py-1.5" style={{ background: "rgba(255,255,255,.9)", color: "hsl(var(--foreground))", backdropFilter: "blur(4px)", border: "1px solid hsl(var(--border))" }}>
               {product.tag}
             </div>
             <button
               type="button"
               onClick={() => setZoomed((value) => !value)}
-              className="absolute bottom-4 right-4 flex min-h-10 min-w-10 items-center justify-center bg-background/85 text-foreground backdrop-blur-sm"
+              className="absolute bottom-4 right-4 flex min-h-10 min-w-10 items-center justify-center bg-white/90 text-foreground backdrop-blur-sm border border-border"
               aria-label={zoomed ? productCopy.zoomOutImageLabel : productCopy.zoomInImageLabel}
               aria-pressed={zoomed}
               data-testid="button-gallery-zoom"
@@ -251,7 +251,7 @@ export default function ProductDetail() {
                 key={i}
                 onClick={() => { setImg(i); if (i !== img) trackStorefrontEvent("product_image_viewed", { productSlug: product.slug, imageIndex: i }); }}
                 className="w-20 shrink-0 snap-start overflow-hidden relative"
-                style={{ outline: i === img ? `2px solid hsl(var(--primary))` : "1px solid #d8cfba", outlineOffset: 2 }}
+                style={{ outline: i === img ? `2px solid hsl(var(--foreground))` : "1px solid hsl(var(--border))", outlineOffset: 2 }}
                 aria-label={`${productCopy.viewProductLabel}: ${g.label}`}
                 aria-current={i === img}
               >
@@ -272,12 +272,12 @@ export default function ProductDetail() {
             transition: "opacity 1s cubic-bezier(.16,1,.3,1) .15s, transform 1s cubic-bezier(.16,1,.3,1) .15s",
           }}
         >
-          <p className="text-[11px] tracking-[0.3em] uppercase mb-3" style={{ color: "hsl(var(--primary))" }}>{product.category} · {productCopy.categorySuffix}</p>
-          <h1 className="soso-display text-5xl md:text-6xl font-light leading-[1.02]">{product.name}</h1>
-          <p className="soso-display text-lg mt-2 opacity-70 italic">{product.note}</p>
+          <p className="text-[11px] tracking-[0.3em] uppercase mb-3 text-secondary">{product.category} · {productCopy.categorySuffix}</p>
+          <h1 className="soso-display text-5xl md:text-6xl font-light leading-[1.02] text-foreground">{product.name}</h1>
+          <p className="soso-display text-lg mt-2 opacity-70 italic text-foreground">{product.note}</p>
 
           {/* Availability / Price */}
-          <div className="flex flex-col gap-2 mt-5">
+          <div className="flex flex-col gap-2 mt-5 text-foreground">
             <div className="flex items-center gap-4">
               <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
               {product.fulfilmentState === "ready_now" && (
@@ -294,15 +294,15 @@ export default function ProductDetail() {
             )}
           </div>
 
-          <p className="mt-6 text-[15px] leading-relaxed opacity-85 max-w-md">
+          <p className="mt-6 text-[15px] leading-relaxed opacity-85 max-w-md text-foreground">
             {product.description}
           </p>
-          <dl className="mt-6 grid grid-cols-3 gap-px border border-[#d8cfba] bg-[#d8cfba] text-sm">
+          <dl className="mt-6 grid grid-cols-3 gap-px border border-border bg-border text-sm">
             {[
               [productCopy.colourLabel, product.colour],
               [productCopy.fabricLabel, product.fabric],
               [productCopy.fitLabel, product.fit],
-            ].map(([label, value]) => <div key={label} className="bg-[#EFE8DA] p-3">
+            ].map(([label, value]) => <div key={label} className="bg-background p-3">
               <dt className="text-[10px] uppercase tracking-wider opacity-55">{label}</dt>
               <dd className="mt-1 font-medium">{value}</dd>
             </div>)}
@@ -319,8 +319,8 @@ export default function ProductDetail() {
               {product.standardEligible && validStandardSizes.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.sizeSelectorLabel}</span>
-                    <button onClick={() => { setGuideOpen(true); trackStorefrontEvent("size_guide_opened", { productSlug: product.slug }); }} className="text-[12px] underline underline-offset-4 hover:opacity-70" style={{ color: "hsl(var(--primary))" }}>
+                    <span className="text-[12px] tracking-[0.2em] uppercase font-medium text-foreground">{productCopy.sizeSelectorLabel}</span>
+                    <button onClick={() => { setGuideOpen(true); trackStorefrontEvent("size_guide_opened", { productSlug: product.slug }); }} className="text-[12px] underline underline-offset-4 hover:opacity-70 text-foreground">
                       {productCopy.sizePrompt}
                     </button>
                   </div>
@@ -335,13 +335,13 @@ export default function ProductDetail() {
                             setSize(s);
                             trackStorefrontEvent("size_selected", { productSlug: product.slug, selectedSize: s });
                           }}
-                          className="px-5 py-2.5 text-sm tracking-wide transition-all duration-300 relative"
+                          className="px-5 py-2.5 text-sm tracking-wide transition-all duration-300 relative border border-border"
                           aria-pressed={size === s}
                            aria-label={`${s} — ${isReadyNow ? productCopy.readyNowLabel : productCopy.madeImmediatelyLabel}`}
                           style={
                             size === s
-                              ? { background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: `1px solid hsl(var(--background))` }
-                              : { background: "transparent", color: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }
+                              ? { background: "hsl(var(--foreground))", color: "hsl(var(--background))" }
+                              : { background: "transparent", color: "hsl(var(--foreground))" }
                           }
                           data-testid={`button-size-${s}`}
                         >
@@ -365,7 +365,7 @@ export default function ProductDetail() {
               {!product.standardEligible && <p className="border border-black/10 p-4 text-sm opacity-65">{productCopy.standardUnavailableMessage}</p>}
 
               {product.customEligible && customIsMappable && (
-                <div className="pt-5 border-t border-black/10 dark:border-white/10">
+                <div className="pt-5 border-t border-border">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.customLabel}</span>
                   </div>
@@ -375,12 +375,12 @@ export default function ProductDetail() {
                       setSize("Custom");
                       trackStorefrontEvent("size_selected", { productSlug: product.slug, selectedSize: "Custom" });
                     }}
-                    className="w-full px-5 py-3.5 text-sm tracking-wide transition-all duration-300 border text-left flex justify-between items-center"
+                    className="w-full px-5 py-3.5 text-sm tracking-wide transition-all duration-300 border text-left flex justify-between items-center border-border"
                     aria-pressed={size === "Custom"}
                     style={
                       size === "Custom"
-                        ? { background: "hsl(var(--background))", color: "hsl(var(--foreground))", border: `1px solid hsl(var(--background))` }
-                        : { background: "transparent", color: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }
+                        ? { background: "hsl(var(--foreground))", color: "hsl(var(--background))" }
+                        : { background: "transparent", color: "hsl(var(--foreground))" }
                     }
                     data-testid="button-size-custom"
                   >
@@ -404,11 +404,7 @@ export default function ProductDetail() {
             <button
               onClick={handleAddToCart}
               disabled={needSize || isUnavailable || !isPurchasable}
-              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 ${!needSize && !isUnavailable && isPurchasable ? "hover:-translate-y-px" : "cursor-not-allowed opacity-50"}`}
-              style={{
-                background: needSize || isUnavailable || !isPurchasable ? "#2a2723" : "hsl(var(--primary))",
-                color: needSize || isUnavailable || !isPurchasable ? "#F7F3EB" : "hsl(var(--primary-foreground))",
-              }}
+              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 border ${!needSize && !isUnavailable && isPurchasable ? "hover:opacity-90 border-foreground bg-foreground text-background" : "cursor-not-allowed opacity-50 border-border bg-muted text-muted-foreground"}`}
               data-testid="button-add-to-cart"
             >
               {isUnavailable
@@ -422,10 +418,9 @@ export default function ProductDetail() {
             <button
               type="button"
               onClick={() => { setStylistOpen(true); trackStorefrontEvent("cta_clicked", { ctaLabel: "ask_stylist", productSlug: product.slug, articleSlug: editorialOrigin() }); }}
-              className="w-full block text-center py-4 text-[13px] tracking-[0.2em] uppercase flex items-center justify-center gap-2 transition-colors duration-300 hover:bg-[#0f3d2e] hover:text-white"
-              style={{ border: "1px solid #128C56", color: "#0f6b43" }}
+              className="w-full block text-center py-4 text-[13px] tracking-[0.2em] uppercase transition-colors duration-300 border border-border text-foreground hover:bg-muted"
             >
-              <WhatsAppIcon size={16} /> {supportCopy.productCtaLabel}
+              {supportCopy.productCtaLabel}
             </button>
             <p className="text-center text-[12px] opacity-60 mt-2">
               {supportCopy.productHelp}
@@ -433,9 +428,9 @@ export default function ProductDetail() {
           </div>
 
           {/* Trust strip */}
-          <div className="grid grid-cols-3 gap-px mt-8" style={{ background: "#d8cfba" }}>
+          <div className="grid grid-cols-3 gap-px mt-8 bg-border">
             {productCopy.trustItems.map((item) => (
-              <div key={item.title} className="p-4 text-center" style={{ background: "#EFE8DA" }}>
+              <div key={item.title} className="p-4 text-center bg-background">
                 <p className="text-sm font-semibold">{item.title}</p>
                 <p className="text-[11px] opacity-60 mt-1 leading-snug">{item.body}</p>
               </div>
@@ -443,9 +438,9 @@ export default function ProductDetail() {
           </div>
 
           {/* Details & Assurances Accordion */}
-            <div className="mt-8 border-t border-black/10 dark:border-white/10">
+          <div className="mt-8 border-t border-border">
             <Accordion.Root type="multiple" className="w-full">
-              <Accordion.Item value="details" className="border-b border-black/10 dark:border-white/10">
+              <Accordion.Item value="details" className="border-b border-border">
                 <Accordion.Header>
                   <Accordion.Trigger className="w-full flex items-center justify-between py-5 text-[12px] tracking-[0.2em] uppercase font-semibold hover:text-primary transition-colors group">
                       <span>
@@ -463,7 +458,7 @@ export default function ProductDetail() {
                 </Accordion.Content>
               </Accordion.Item>
 
-              <Accordion.Item value="delivery" className="border-b border-black/10 dark:border-white/10">
+              <Accordion.Item value="delivery" className="border-b border-border">
                 <Accordion.Header>
                   <Accordion.Trigger className="w-full flex items-center justify-between py-5 text-[12px] tracking-[0.2em] uppercase font-semibold hover:text-primary transition-colors group">
                       <span>
@@ -491,7 +486,7 @@ export default function ProductDetail() {
       </div>
 
       {/* Marquee */}
-      <div className="overflow-hidden py-4 border-y" style={{ borderColor: "#e0d7c4", background: "hsl(var(--background))", color: "hsl(var(--foreground))" }}>
+      <div className="overflow-hidden py-4 border-y border-border bg-background text-foreground">
         <div className="flex whitespace-nowrap soso-marquee" style={{ width: "max-content" }}>
           {[0, 1].map((k) => (
             <span key={k} className="soso-display text-lg tracking-wide">
@@ -526,18 +521,16 @@ export default function ProductDetail() {
 
       {/* Sticky mobile buy bar */}
       <div
-        className="fixed bottom-0 left-0 right-0 md:hidden flex items-center gap-3 px-4 py-3 z-40"
-        style={{ background: "rgba(18,17,16,.96)", backdropFilter: "blur(8px)", borderTop: `1px solid hsl(var(--primary))` }}
+        className="fixed bottom-0 left-0 right-0 md:hidden flex items-center gap-3 px-4 py-3 z-40 bg-background/95 backdrop-blur-md border-t border-border"
       >
         <div className="flex-1">
-          <p className="text-[11px] uppercase tracking-widest" style={{ color: "hsl(var(--primary))" }}>{product.name}</p>
-          <p className="text-sm text-white font-medium">{naira(product.price)}</p>
+          <p className="text-[11px] uppercase tracking-widest text-secondary">{product.name}</p>
+          <p className="text-sm text-foreground font-medium">{naira(product.price)}</p>
         </div>
         <button 
           onClick={handleAddToCart}
           disabled={needSize || isUnavailable || !isPurchasable}
-          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all ${needSize || isUnavailable || !isPurchasable ? "opacity-50 cursor-not-allowed" : ""}`}
-          style={{ background: needSize || isUnavailable || !isPurchasable ? "#2a2723" : "hsl(var(--primary))", color: needSize || isUnavailable || !isPurchasable ? "#fff" : "hsl(var(--primary-foreground))" }}
+          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all border ${needSize || isUnavailable || !isPurchasable ? "opacity-50 cursor-not-allowed border-border bg-muted text-muted-foreground" : "border-foreground bg-foreground text-background"}`}
           data-testid="button-mobile-add-to-cart"
         >
           {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : !isPurchasable ? productCopy.unavailableInSizeLabel : productCopy.addToBagLabel}
@@ -546,14 +539,14 @@ export default function ProductDetail() {
 
       {/* Size guide modal */}
       {guideOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" style={{ background: "rgba(18,17,16,.7)" }} onClick={() => setGuideOpen(false)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="size-guide-title" className="max-w-lg w-full p-8 relative" style={{ background: "#F7F3EB" }} onClick={(e) => e.stopPropagation()}>
-            <button className="absolute top-4 right-5 text-2xl opacity-60 hover:opacity-100" onClick={() => setGuideOpen(false)} aria-label={productCopy.sizeGuideCloseLabel}>
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setGuideOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="size-guide-title" className="max-w-lg w-full p-8 relative bg-background border border-border" onClick={(e) => e.stopPropagation()}>
+            <button className="absolute top-4 right-5 text-2xl opacity-60 hover:opacity-100 text-foreground" onClick={() => setGuideOpen(false)} aria-label={productCopy.sizeGuideCloseLabel}>
               ×
             </button>
-            <h3 id="size-guide-title" className="soso-display text-3xl font-light">{sizeGuide.title}</h3>
-            <p className="text-sm opacity-70 mt-2">{sizeGuide.intro}</p>
-            <table className="w-full mt-6 text-sm">
+            <h3 id="size-guide-title" className="soso-display text-3xl font-light text-foreground">{sizeGuide.title}</h3>
+            <p className="text-sm opacity-70 mt-2 text-foreground">{sizeGuide.intro}</p>
+            <table className="w-full mt-6 text-sm text-foreground">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-widest opacity-60">
                   {sizeGuide.columns.map((column, index) => <th key={column} className={index === 0 ? "py-2" : undefined}>{column}</th>)}
@@ -561,7 +554,7 @@ export default function ProductDetail() {
               </thead>
               <tbody>
                 {sizeGuide.rows.map((row) => (
-                  <tr key={row.size} style={{ borderTop: "1px solid #ddd3bd" }}>
+                  <tr key={row.size} className="border-t border-border">
                     {[row.size, ...row.values].map((c, i) => (
                       <td key={i} className={`py-2.5 ${i === 0 ? "font-semibold" : "opacity-75"}`}>{c}</td>
                     ))}
@@ -570,8 +563,7 @@ export default function ProductDetail() {
               </tbody>
             </table>
             <form
-              className="mt-6 border p-4 text-sm"
-              style={{ background: "#EFE8DA", borderColor: "#ddd3bd" }}
+              className="mt-6 border p-4 text-sm bg-muted/30 border-border text-foreground"
               onSubmit={(event) => {
                 event.preventDefault();
                 setFitAssistantSubmitted(true);

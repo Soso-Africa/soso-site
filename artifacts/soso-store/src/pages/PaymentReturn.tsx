@@ -93,23 +93,23 @@ export default function PaymentReturn() {
       <Seo title={copy.seo.title} description={copy.seo.description} path="/checkout/return" noIndex />
       <p className="text-xs uppercase tracking-[0.25em] text-[hsl(var(--primary))]">{copy.eyebrow}</p>
 
-      <section className="mt-5 border border-[rgba(184,145,47,.28)] p-7 md:p-10 bg-card">
+      <section className="mt-5 border border-border bg-card p-7 md:p-10">
         {paid ? <CheckCircle2 className="text-[hsl(var(--primary))]" size={32} /> : cancelled ? <ShieldAlert className="text-[hsl(var(--primary))]" size={32} /> : <Clock3 className="text-[hsl(var(--primary))]" size={32} />}
-        <h1 className="mt-5 soso-display text-3xl text-white md:text-4xl">
+        <h1 className="mt-5 soso-display text-3xl text-foreground md:text-4xl">
            {paid ? copy.paidTitle : cancelled ? copy.cancelledTitle : copy.pendingTitle}
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-[hsl(var(--secondary))]">
           {paid ? copy.paidBody : cancelled ? copy.cancelledBody : copy.pendingBody}
         </p>
 
-        {status?.orderNumber && <p className="mt-5 text-sm text-white">{copy.orderReferenceLabel} <span className="font-semibold">{status.orderNumber}</span></p>}
+        {status?.orderNumber && <p className="mt-5 text-sm text-foreground">{copy.orderReferenceLabel} <span className="font-semibold">{status.orderNumber}</span></p>}
         {typeof status?.totalKobo === "number" && <p className="mt-2 text-sm text-[hsl(var(--secondary))]">{copy.authoritativeTotalLabel} {naira(status.totalKobo / 100)}</p>}
 
-        {errorMessage && <p role="alert" className="mt-5 border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed text-white">{errorMessage} {copy.errorSuffix}</p>}
+        {errorMessage && <p role="alert" className="mt-5 border border-destructive/30 bg-destructive/5 p-4 text-sm leading-relaxed text-destructive">{errorMessage} {copy.errorSuffix}</p>}
         {!paid && !cancelled && !errorMessage && <p className="mt-5 text-xs uppercase tracking-[0.18em] text-[hsl(var(--primary))]">{copy.pendingNotice}</p>}
 
         {!paid && (cancelled || errorMessage) && (
-          <div className="mt-6 border-t border-[rgba(246,241,231,.18)] pt-5">
+          <div className="mt-6 border-t border-border pt-5">
             <p className="text-sm leading-relaxed text-[hsl(var(--secondary))]">
                {copy.retryHelp}
             </p>
@@ -134,12 +134,12 @@ export default function PaymentReturn() {
           ) : (
             <Link href={copy.continueCta.href} className="soso-btn-gold px-5 py-3 text-xs font-bold uppercase tracking-[.18em]" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>{copy.continueCta.label}</Link>
           )}
-          {!paid && <Link href={(cancelled || errorMessage ? copy.retryCta : copy.returnCheckoutCta).href} className="border border-[rgba(246,241,231,.3)] px-5 py-3 text-xs font-bold uppercase tracking-[.18em] text-white">{(cancelled || errorMessage ? copy.retryCta : copy.returnCheckoutCta).label}</Link>}
+          {!paid && <Link href={(cancelled || errorMessage ? copy.retryCta : copy.returnCheckoutCta).href} className="border border-foreground/30 px-5 py-3 text-xs font-bold uppercase tracking-[.18em] text-foreground transition hover:bg-muted">{(cancelled || errorMessage ? copy.retryCta : copy.returnCheckoutCta).label}</Link>}
         </div>
       </section>
 
       {mDataError && (
-        <div role="alert" className="mt-5 border border-[rgba(184,145,47,.55)] bg-[rgba(184,145,47,.1)] p-4 text-sm leading-relaxed text-white">
+        <div role="alert" className="mt-5 border border-destructive/30 bg-destructive/5 p-4 text-sm leading-relaxed text-destructive">
           <p className="flex items-center gap-2 font-semibold text-primary"><AlertTriangle size={16} /> {copy.noticeLabel}</p>
           <p className="mt-1">{mDataError}</p>
         </div>
@@ -148,7 +148,7 @@ export default function PaymentReturn() {
       {measurementsData && measurementsData.items.length > 0 && (
         <section className="mt-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <div className="mb-6">
-            <h2 className="soso-display text-2xl text-white flex items-center gap-3">
+            <h2 className="soso-display flex items-center gap-3 text-2xl text-foreground">
               <Ruler size={24} className="text-primary" />
               {copy.measurementsTitle}
             </h2>

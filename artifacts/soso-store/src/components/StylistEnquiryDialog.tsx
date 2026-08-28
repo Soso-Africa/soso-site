@@ -125,15 +125,15 @@ export function StylistEnquiryDialog({
         aria-modal="true"
         aria-labelledby={`${formId}-title`}
         onKeyDown={trapFocus}
-        className="w-full max-w-xl border border-[#b8912f]/40 bg-[#17130e] px-6 py-7 shadow-2xl sm:px-8 sm:py-9"
+        className="w-full max-w-xl border border-border bg-background px-6 py-7 shadow-2xl sm:px-8 sm:py-9"
       >
         <div className="flex items-start justify-between gap-5">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.25em] text-[#b8912f]">{copy.eyebrow}</p>
-            <h2 id={`${formId}-title`} className="mt-2 soso-display text-3xl text-[#f6f1e7]">
+            <p className="text-[11px] uppercase tracking-[0.25em] text-secondary">{copy.eyebrow}</p>
+            <h2 id={`${formId}-title`} className="mt-2 soso-display text-3xl text-foreground">
               {copy.title}
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-[#d8ceb9]">
+            <p className="mt-3 text-sm leading-relaxed text-secondary">
               {productName ? copy.productPrompt.replace("{productName}", productName) : copy.generalPrompt} {copy.checkoutReassurance}
             </p>
           </div>
@@ -143,44 +143,44 @@ export function StylistEnquiryDialog({
             data-stylist-initial-focus
             disabled={createEnquiry.isPending}
             aria-label={copy.closeLabel}
-            className="shrink-0 text-[#d8ceb9] transition-colors hover:text-white disabled:opacity-50"
+            className="shrink-0 text-secondary transition-colors hover:text-foreground disabled:opacity-50"
           >
             <X size={22} />
           </button>
         </div>
 
         {sent ? (
-          <div className="mt-8 border border-[#b8912f]/45 bg-[#b8912f]/10 p-5" role="status">
-            <p className="font-medium text-[#f6f1e7]">{copy.successTitle}</p>
-            <p className="mt-2 text-sm leading-relaxed text-[#d8ceb9]">
+          <div className="mt-8 border border-border bg-muted/20 p-5" role="status">
+            <p className="font-medium text-foreground">{copy.successTitle}</p>
+            <p className="mt-2 text-sm leading-relaxed text-secondary">
               {copy.successBody}
             </p>
-            <button type="button" onClick={onClose} className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-[#c9a54c] underline underline-offset-4">
+            <button type="button" onClick={onClose} className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-foreground underline underline-offset-4">
               {copy.backLabel}
             </button>
           </div>
         ) : (
           <form onSubmit={submit} className="mt-7 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
+              <label className="text-xs uppercase tracking-[0.14em] text-secondary">
                 {copy.nameLabel} <span className="opacity-60">({copy.optionalLabel})</span>
-                <input name="name" autoComplete="name" className="mt-2 w-full border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm text-white outline-none focus:border-[#b8912f]" />
+                <input name="name" autoComplete="name" className="mt-2 w-full border border-border bg-transparent px-3 py-3 text-sm text-foreground outline-none focus:border-foreground" />
               </label>
-              <label className="text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
+              <label className="text-xs uppercase tracking-[0.14em] text-secondary">
                 {copy.phoneLabel} <span className="opacity-60">({copy.optionalLabel})</span>
-                <input name="phone" autoComplete="tel" inputMode="tel" className="mt-2 w-full border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm text-white outline-none focus:border-[#b8912f]" />
+                <input name="phone" autoComplete="tel" inputMode="tel" className="mt-2 w-full border border-border bg-transparent px-3 py-3 text-sm text-foreground outline-none focus:border-foreground" />
               </label>
             </div>
-            <label className="block text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
+            <label className="block text-xs uppercase tracking-[0.14em] text-secondary">
               {copy.emailLabel} <span className="opacity-60">({copy.optionalLabel})</span>
-              <input name="email" type="email" autoComplete="email" className="mt-2 w-full border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm text-white outline-none focus:border-[#b8912f]" />
+              <input name="email" type="email" autoComplete="email" className="mt-2 w-full border border-border bg-transparent px-3 py-3 text-sm text-foreground outline-none focus:border-foreground" />
             </label>
-            <label className="block text-xs uppercase tracking-[0.14em] text-[#d8ceb9]">
+            <label className="block text-xs uppercase tracking-[0.14em] text-secondary">
               {copy.questionLabel}
-              <textarea required name="message" minLength={8} maxLength={2000} rows={5} placeholder={copy.questionPlaceholder} className="mt-2 w-full resize-y border border-[#f6f1e7]/25 bg-transparent px-3 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#d8ceb9]/45 focus:border-[#b8912f]" />
+              <textarea required name="message" minLength={8} maxLength={2000} rows={5} placeholder={copy.questionPlaceholder} className="mt-2 w-full resize-y border border-border bg-transparent px-3 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground" />
             </label>
-            {error && <p role="alert" className="border border-red-300/35 bg-red-300/10 px-4 py-3 text-sm text-red-100">{error}</p>}
-            <button disabled={createEnquiry.isPending} className="flex w-full items-center justify-center gap-2 bg-[#b8912f] px-4 py-4 text-xs font-bold uppercase tracking-[0.18em] text-[#17130e] disabled:opacity-65">
+            {error && <p role="alert" className="border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
+            <button disabled={createEnquiry.isPending} className="flex w-full items-center justify-center gap-2 bg-foreground px-4 py-4 text-xs font-bold uppercase tracking-[0.18em] text-background disabled:opacity-65">
               {createEnquiry.isPending ? <Loader2 className="animate-spin" size={16} /> : <MessageCircle size={16} />}
               {createEnquiry.isPending ? copy.pendingLabel : copy.submitLabel}
             </button>

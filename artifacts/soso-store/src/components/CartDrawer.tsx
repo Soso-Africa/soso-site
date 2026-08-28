@@ -1,16 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { naira } from "@/lib/utils";
 import { Link } from "wouter";
-import { WhatsAppIcon } from "@/components/Icons";
 import { usePlatformContent } from "@/data/platformContent";
 import { mappedPurchaseChoices } from "@/lib/purchasing";
+import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 
 export function CartDrawer() {
   const { isDrawerOpen, closeDrawer, items, removeItem, updateQuantity, updateSize, cartTotal } = useCart();
   const { data } = usePlatformContent();
   const drawerRef = useRef<HTMLDivElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const [stylistOpen, setStylistOpen] = useState(false);
 
   useEffect(() => {
     if (isDrawerOpen) {
@@ -54,11 +55,13 @@ export function CartDrawer() {
     }
   };
 
-  if (!isDrawerOpen || !data) return null;
+  if ((!isDrawerOpen && !stylistOpen) || !data) return null;
   const copy = data.content.site.cart;
 
   return (
     <>
+      {isDrawerOpen && (
+        <>
       <div 
         className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity"
         onClick={closeDrawer}
@@ -77,10 +80,9 @@ export function CartDrawer() {
             trapFocus(event);
           }
         }}
-        className="fixed inset-y-0 right-0 z-[101] w-full max-w-[400px] flex flex-col shadow-2xl animate-in slide-in-from-right-full duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
-        style={{ backgroundColor: "hsl(var(--background))", borderLeft: "1px solid hsl(var(--border))" }}
+        className="fixed inset-y-0 right-0 z-[101] w-full max-w-[400px] flex flex-col shadow-2xl animate-in slide-in-from-right-full duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] bg-background text-foreground border-l border-border"
       >
-        <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: "hsl(var(--border))" }}>
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <h2 id="cart-drawer-title" className="soso-display text-2xl font-light">{copy.title}</h2>
           <button 
             onClick={closeDrawer}
@@ -118,8 +120,7 @@ export function CartDrawer() {
                   <img 
                     src={item.img} 
                     alt={item.name} 
-                    className="w-24 aspect-[3/4] object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: "#1a1712" }}
+                    className="w-24 aspect-[3/4] cursor-pointer bg-muted object-cover transition-opacity hover:opacity-90"
                      width={96}
                      height={128}
                      loading="lazy"
@@ -181,7 +182,7 @@ export function CartDrawer() {
                     <div className="flex items-center border" style={{ borderColor: "hsl(var(--border))" }}>
                       <button 
                         onClick={() => updateQuantity(item.slug, item.size, item.quantity - 1)}
-                        className="w-8 h-8 flex items-center justify-center hover:bg-white/5 transition-colors"
+                        className="flex h-8 w-8 items-center justify-center transition-colors hover:bg-muted"
                          aria-label={copy.decreaseQuantityLabel}
                       >
                         &minus;
@@ -189,7 +190,7 @@ export function CartDrawer() {
                        <span className="w-8 text-center text-sm" aria-label={copy.quantityLabel}>{item.quantity}</span>
                       <button 
                         onClick={() => updateQuantity(item.slug, item.size, item.quantity + 1)}
-                        className="w-8 h-8 flex items-center justify-center hover:bg-white/5 transition-colors"
+                        className="flex h-8 w-8 items-center justify-center transition-colors hover:bg-muted"
                          aria-label={copy.increaseQuantityLabel}
                       >
                         +
@@ -206,7 +207,7 @@ export function CartDrawer() {
         </div>
 
         {items.length > 0 && (
-          <div className="p-6 border-t bg-black/20" style={{ borderColor: "hsl(var(--border))" }}>
+          <div className="p-6 border-t border-border bg-muted/20">
             <div className="flex items-center justify-between mb-6">
                <span className="text-sm uppercase tracking-widest opacity-80">{copy.subtotalLabel}</span>
               <span className="text-xl font-medium">{naira(cartTotal)}</span>
@@ -217,22 +218,25 @@ export function CartDrawer() {
             <Link
                href={copy.checkoutCta.href}
               onClick={closeDrawer}
-              className="w-full soso-btn-gold py-4 text-[13px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2"
-              style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}
+              className="w-full py-4 text-[13px] tracking-[0.2em] uppercase font-bold flex items-center justify-center gap-2 bg-foreground text-background hover:opacity-90 transition-opacity"
             >
                {copy.checkoutCta.label}
             </Link>
-            <a
-               href={copy.stylistCta.href}
-              onClick={closeDrawer}
-              className="w-full mt-3 py-4 text-[13px] tracking-[0.2em] uppercase font-semibold flex items-center justify-center gap-2 soso-btn-ghost"
-              style={{ border: "1px solid rgba(246,241,231,0.3)" }}
+            <button
+              onClick={() => {
+                closeDrawer();
+                setStylistOpen(true);
+              }}
+              className="w-full mt-3 py-4 text-[13px] tracking-[0.2em] uppercase font-semibold flex items-center justify-center gap-2 border border-border text-foreground hover:bg-muted transition-colors"
             >
-               <WhatsAppIcon size={16} /> {copy.stylistCta.label}
-            </a>
+               {copy.stylistCta.label}
+            </button>
           </div>
         )}
       </div>
+        </>
+      )}
+      <StylistEnquiryDialog isOpen={stylistOpen} onClose={() => setStylistOpen(false)} />
     </>
   );
 }

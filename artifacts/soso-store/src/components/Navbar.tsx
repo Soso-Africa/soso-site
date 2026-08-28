@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
-import { WhatsAppIcon } from "@/components/Icons";
 import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/data/platformContent";
 import { Search, ChevronDown } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
@@ -179,18 +178,16 @@ export function Navbar() {
       </div>
 
       <header
-        className="sticky top-0 z-50 px-4 md:px-6 lg:px-12 flex items-center justify-between"
+        className="sticky top-0 z-50 px-4 md:px-6 lg:px-12 flex items-center justify-between bg-background"
         style={{
-          backgroundColor: scrolled ? "rgba(16,14,11,0.95)" : "rgba(16,14,11,0.7)",
-          backdropFilter: "blur(14px)",
-          borderBottom: `1px solid ${scrolled ? "rgba(184,145,47,0.25)" : "transparent"}`,
+          borderBottom: `1px solid ${scrolled ? "hsl(var(--border))" : "transparent"}`,
           height: 72,
           transition: "all .4s ease",
         }}
       >
         {/* Mobile Hamburger */}
         <button 
-          className="md:hidden p-2 -ml-2 text-white" 
+          className="md:hidden p-2 -ml-2 text-foreground"
           onClick={() => mobileMenuOpen ? setMobileMenuOpen(false) : openMobileMenu()}
           aria-label={mobileMenuOpen ? site.header.closeMenuLabel : site.header.openMenuLabel}
           aria-expanded={mobileMenuOpen}
@@ -233,9 +230,8 @@ export function Navbar() {
 
                   {/* Mega Menu Panel */}
                   <div
-                    className={`absolute left-0 top-[72px] w-full border-t border-[rgba(184,145,47,0.15)] shadow-2xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none origin-top
+                    className={`absolute left-0 top-[72px] w-full border-t border-border shadow-2xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none origin-top bg-background
                       ${isActive ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-2 invisible pointer-events-none'}`}
-                    style={{ backgroundColor: "rgba(16,14,11,0.98)", backdropFilter: "blur(20px)" }}
                     onMouseEnter={handlePanelMouseEnter}
                   >
                     <DesktopMegaMenuPanel group={group} products={products} featuredLabel={navigationCopy.featuredLabel} onClick={() => setActiveGroupId(null)} />
@@ -262,18 +258,11 @@ export function Navbar() {
         </div>
         
         <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center">
-          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9" />
+          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9 filter invert dark:invert-0" />
         </Link>
         
         <div className="flex items-center gap-3 md:gap-5">
           <HeaderSearch />
-          <a
-            href={site.whatsappUrl}
-            className="hidden lg:flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link" 
-            style={{ color: "hsl(var(--primary))" }}
-          >
-            <WhatsAppIcon size={16} /> {site.header.whatsappLabel}
-          </a>
           <button 
             onClick={openDrawer} 
             className="flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase soso-link relative"
@@ -297,12 +286,12 @@ export function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-black/95 backdrop-blur-xl flex flex-col overflow-hidden animate-in fade-in duration-300">
+        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-background flex flex-col overflow-hidden animate-in fade-in duration-300">
 
           {/* Header of mobile menu */}
-          <div className="flex justify-between items-center p-4 px-6 border-b border-[rgba(184,145,47,0.15)] shrink-0">
-            <img src={site.logoUrl} alt={site.logoAlt} className="h-8" />
-            <button type="button" aria-label={site.header.closeMenuLabel} className="text-white p-2 -mr-2 opacity-70 hover:opacity-100 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
+          <div className="flex justify-between items-center p-4 px-6 border-b border-border shrink-0">
+            <img src={site.logoUrl} alt={site.logoAlt} className="h-8 filter invert dark:invert-0" />
+            <button type="button" aria-label={site.header.closeMenuLabel} className="text-foreground p-2 -mr-2 opacity-70 hover:opacity-100 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -322,7 +311,7 @@ export function Navbar() {
             )}
 
             {/* Regular Navigation */}
-            <nav className="flex flex-col gap-5 pt-4 pb-8 border-t border-[rgba(184,145,47,0.15)]">
+            <nav className="flex flex-col gap-5 pt-4 pb-8 border-t border-border">
               {filteredMobileNavigation.map((link) => (
                 <Link
                   key={`${link.href}-${link.label}`}
@@ -334,13 +323,6 @@ export function Navbar() {
                 </Link>
               ))}
             </nav>
-          </div>
-
-          {/* Footer sticky bottom */}
-          <div className="mt-auto shrink-0 p-6 bg-black border-t border-[rgba(184,145,47,0.15)]">
-            <a href={site.whatsappUrl} className="w-full flex items-center justify-center gap-2 py-4 soso-btn-gold text-[12px] tracking-[0.2em] uppercase font-bold" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }} onClick={() => setMobileMenuOpen(false)}>
-              <WhatsAppIcon size={18} /> {site.header.mobileWhatsappLabel}
-            </a>
           </div>
         </div>
       )}
@@ -417,7 +399,7 @@ function MobileMenuGroup({ group, products, navigationCopy, onClick }: { group: 
     .slice(0, 2);
 
   return (
-    <div className="flex flex-col border-b border-[rgba(184,145,47,0.15)] overflow-hidden">
+    <div className="flex flex-col border-b border-border overflow-hidden">
       <button
         className="flex items-center justify-between py-5 w-full text-left"
         onClick={() => setExpanded(!expanded)}
