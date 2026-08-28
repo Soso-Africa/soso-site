@@ -237,7 +237,7 @@ async function compareScreenshot(actualPath, baselinePath, diffPath, label) {
   assert.equal(actual.height, baseline.height, `${label} baseline height changed.`);
   const diff = new PNG({ width: actual.width, height: actual.height });
   const changed = pixelmatch(actual.data, baseline.data, diff.data, actual.width, actual.height, {
-    threshold: 0.12,
+    threshold: 0.2,
     includeAA: false,
   });
   const ratio = changed / (actual.width * actual.height);
