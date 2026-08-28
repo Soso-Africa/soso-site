@@ -22,6 +22,8 @@
     "typescript": "~5.9.3"
   },
   "dependencies": {
+    "@fontsource/outfit": "5.2.8",
+    "@fontsource/playfair-display": "5.2.8",
     "@sparticuz/chromium": "140.0.0"
   }
 }
