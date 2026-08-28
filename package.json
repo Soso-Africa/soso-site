@@ -14,6 +14,9 @@
   },
   "private": true,
   "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "pixelmatch": "7.1.0",
+    "pngjs": "7.0.0",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
   }

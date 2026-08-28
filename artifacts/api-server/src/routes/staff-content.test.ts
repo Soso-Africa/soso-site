@@ -488,7 +488,7 @@ test("the women launch upgrade does not restore products or collections after st
 
   const upgradedRetired = mergePlatformContentDefaults(retired) as typeof retired;
   assert.equal(PlatformContentSchema.safeParse(upgradedRetired).success, true);
-  assert.equal(upgradedRetired.contentVersion, 4);
+  assert.equal(upgradedRetired.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
   assert.equal(upgradedRetired.products.some((product) => product.department === "women"), false);
   assert.equal(upgradedRetired.collections.some((collection) => collection.department === "women"), false);
   assert.equal(upgradedRetired.site.megaMenu.find((group) => group.id === "women")?.visible, false);
@@ -653,7 +653,7 @@ test("platform schema upgrades fill missing fields without replacing edited cont
   const parsed = PlatformContentSchema.safeParse(upgraded);
   assert.equal(parsed.success, true);
   if (parsed.success) {
-    assert.equal(parsed.data.contentVersion, 4);
+    assert.equal(parsed.data.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
     assert.equal(parsed.data.site.announcement, "A merchant-edited announcement");
     assert.equal(parsed.data.site.announcementItems[0], "A merchant-edited announcement");
     assert.equal(parsed.data.site.hqAddress, DEFAULT_PLATFORM_CONTENT.site.hqAddress);
@@ -732,7 +732,7 @@ test("payment return measurement copy is strict and v4 default merging preserves
   delete migratedV4.pages.paymentReturn.measurementFieldLabels.sleeve;
 
   const upgraded = mergePlatformContentDefaults(migratedV4) as typeof DEFAULT_PLATFORM_CONTENT;
-  assert.equal(upgraded.contentVersion, 4);
+  assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
   assert.equal(upgraded.pages.paymentReturn.measurementSyncError, "Merchant measurement sync notice.");
   assert.equal(upgraded.pages.paymentReturn.measurementStatusLabels.needed, "Merchant review needed");
   assert.equal(upgraded.pages.paymentReturn.measurementConflictError, DEFAULT_PLATFORM_CONTENT.pages.paymentReturn.measurementConflictError);
@@ -758,7 +758,7 @@ test("version 4 adds governed interface copy without restoring v3 menu or ticker
   const parsed = PlatformContentSchema.safeParse(upgraded);
   assert.equal(parsed.success, true);
   if (parsed.success) {
-    assert.equal(parsed.data.contentVersion, 4);
+    assert.equal(parsed.data.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
     assert.deepEqual(parsed.data.site.announcementItems, ["Merchant ticker only"]);
     assert.equal(parsed.data.site.megaMenu.some((group) => group.id === "accessories"), false);
     assert.equal(parsed.data.site.header.clearSearchLabel, "Merchant clear search");
@@ -767,6 +767,30 @@ test("version 4 adds governed interface copy without restoring v3 menu or ticker
     assert.equal(parsed.data.productCopy.viewFullDetailsLabel, DEFAULT_PLATFORM_CONTENT.productCopy.viewFullDetailsLabel);
     assert.equal(parsed.data.interfaceCopy.search.productsHeading, DEFAULT_PLATFORM_CONTENT.interfaceCopy.search.productsHeading);
   }
+});
+
+test("version 5 activates approved hero motion without replacing a merchant image choice", () => {
+  const legacyDefault = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacyDefault.contentVersion = 4;
+  legacyDefault.homepage.hero.mediaMode = "image";
+  delete legacyDefault.homepage.hero.videoUrl;
+  delete legacyDefault.homepage.hero.mobileVideoUrl;
+
+  const upgradedDefault = mergePlatformContentDefaults(legacyDefault) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgradedDefault.contentVersion, 5);
+  assert.equal(upgradedDefault.homepage.hero.mediaMode, "video");
+  assert.equal(upgradedDefault.homepage.hero.videoUrl, "/media/soso-black-hero-desktop.webm");
+  assert.equal(upgradedDefault.homepage.hero.mobileVideoUrl, "/media/soso-black-hero-mobile.webm");
+
+  const merchantImage = structuredClone(legacyDefault);
+  merchantImage.homepage.hero.imageUrl = "/images/soso/agbada.jpg";
+  merchantImage.homepage.hero.mobileImageUrl = "/images/soso/agbada.jpg";
+  const upgradedMerchantImage = mergePlatformContentDefaults(merchantImage) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgradedMerchantImage.contentVersion, 5);
+  assert.equal(upgradedMerchantImage.homepage.hero.mediaMode, "image");
+  assert.equal(upgradedMerchantImage.homepage.hero.videoUrl, undefined);
+  assert.equal(upgradedMerchantImage.homepage.hero.mobileVideoUrl, undefined);
+  assert.equal(PlatformContentSchema.safeParse(upgradedMerchantImage).success, true);
 });
 
 test("version 4 interface fields are required, strict, and non-blank", () => {

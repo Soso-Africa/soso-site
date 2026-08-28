@@ -677,7 +677,7 @@ const womenReadyToWearCollection: PlatformContent["collections"][number] = {
   },
 };
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
-  contentVersion: 4,
+  contentVersion: 5,
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
     announcement: "Ready now and made immediately · Dispatch within five days",
@@ -753,10 +753,12 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     hero: {
       eyebrow: "SOSO Africa · Abuja", title: "Made for", accent: "presence.", suffix: "",
       description: "Considered menswear from Abuja, available in Standard sizes or Custom.",
-      mediaMode: "image",
+      mediaMode: "video",
       imageUrl: "/images/soso/vault-black.jpg",
       mobileImageUrl: "/images/soso/vault-black.jpg",
       imageAlt: "Black SOSO Africa kaftan",
+      videoUrl: "/media/soso-black-hero-desktop.webm",
+      mobileVideoUrl: "/media/soso-black-hero-mobile.webm",
       playLabel: "Play hero motion",
       pauseLabel: "Pause hero motion",
       primaryCta: { label: "Explore the collection", href: "/shop" }, stylistCtaLabel: "Ask a stylist",
@@ -1028,6 +1030,7 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     : 1;
   const shouldApplyWomenLaunch = currentContentVersion < 2;
   const shouldApplySiteSettingsLaunch = currentContentVersion < 3;
+  const shouldApplyHeroVideoLaunch = currentContentVersion < 5;
   let upgradeSource = current;
   if (current && typeof current === "object" && !Array.isArray(current)) {
     upgradeSource = structuredClone(current);
@@ -1047,10 +1050,28 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     if (hero && typeof hero.imageUrl === "string") {
       if (hero.mediaMode === undefined) hero.mediaMode = "image";
       if (hero.mobileImageUrl === undefined) hero.mobileImageUrl = hero.imageUrl;
+      const isLegacyDefaultHero = shouldApplyHeroVideoLaunch
+        && hero.mediaMode === "image"
+        && hero.imageUrl === "/images/soso/vault-black.jpg"
+        && hero.mobileImageUrl === "/images/soso/vault-black.jpg"
+        && hero.videoUrl === undefined
+        && hero.mobileVideoUrl === undefined;
+      if (isLegacyDefaultHero) {
+        hero.mediaMode = "video";
+        hero.videoUrl = DEFAULT_PLATFORM_CONTENT.homepage.hero.videoUrl;
+        hero.mobileVideoUrl = DEFAULT_PLATFORM_CONTENT.homepage.hero.mobileVideoUrl;
+      }
     }
   }
   const merged = mergeMissing(DEFAULT_PLATFORM_CONTENT, upgradeSource);
   if (merged && typeof merged === "object") {
+    const mergedHero = (merged as {
+      homepage?: { hero?: Record<string, unknown> };
+    }).homepage?.hero;
+    if (mergedHero?.mediaMode === "image") {
+      delete mergedHero.videoUrl;
+      delete mergedHero.mobileVideoUrl;
+    }
     const setKnownCopy = (path: string[], previous: string, next: string) => {
       let target = merged as Record<string, unknown>;
       for (const segment of path.slice(0, -1)) {
@@ -1071,6 +1092,8 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
       [["homepage", "hero", "accent"], "make way", DEFAULT_PLATFORM_CONTENT.homepage.hero.accent],
       [["homepage", "hero", "description"], "Premium kaftans, agbadas and refined separates from SOSO Africa. Explore the collection, use the size guide, or speak with a stylist before you place your order.", DEFAULT_PLATFORM_CONTENT.homepage.hero.description],
       [["homepage", "hero", "description"], "Shop premium kaftans, agbadas and refined separates in Standard sizes or Custom. Buy directly, with fit guidance and optional stylist support when you want it.", DEFAULT_PLATFORM_CONTENT.homepage.hero.description],
+      [["homepage", "hero", "videoUrl"], "/media/soso-black-hero-desktop.mp4", DEFAULT_PLATFORM_CONTENT.homepage.hero.videoUrl!],
+      [["homepage", "hero", "mobileVideoUrl"], "/media/soso-black-hero-mobile.mp4", DEFAULT_PLATFORM_CONTENT.homepage.hero.mobileVideoUrl!],
       [["homepage", "hero", "primaryCta", "label"], "Shop the Collection", DEFAULT_PLATFORM_CONTENT.homepage.hero.primaryCta.label],
       [["homepage", "featured", "eyebrow"], "The Collection", DEFAULT_PLATFORM_CONTENT.homepage.featured.eyebrow],
       [["homepage", "featured", "title"], "Built for the occasion. Cut for you.", DEFAULT_PLATFORM_CONTENT.homepage.featured.title],

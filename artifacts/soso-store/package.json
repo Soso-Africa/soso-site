@@ -9,9 +9,10 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test": "pnpm --dir ../../scripts exec tsx --test ../artifacts/soso-store/src/**/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate:visual": "pnpm exec playwright install chromium && pnpm run build && node scripts/validate-storefront-visual-contract.mjs",
     "validate:seo": "node scripts/validate-seo-production.mjs",
     "validate:performance": "node scripts/validate-performance.mjs",
-    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run build && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
+    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs"
   },
   "devDependencies": {
