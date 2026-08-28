@@ -191,15 +191,15 @@ export default function Home() {
     </section>
 
     {/* 8. Confidence */}
-    <section className="py-24 md:py-32 bg-foreground text-background">
+    <section className="py-24 md:py-32 bg-muted/40 text-foreground">
       <div className="max-w-[1600px] mx-auto px-6 lg:px-12 text-center">
-        <p className="text-[11px] uppercase tracking-[.3em] text-background/60 mb-4">{homepage.confidence.eyebrow}</p>
-        <h2 className="soso-display text-4xl md:text-5xl lg:text-6xl my-6 whitespace-pre-line text-background leading-[1.1]">{homepage.confidence.title}</h2>
+        <p className="text-[11px] uppercase tracking-[.3em] text-secondary mb-4">{homepage.confidence.eyebrow}</p>
+        <h2 className="soso-display text-4xl md:text-5xl lg:text-6xl my-6 whitespace-pre-line text-foreground leading-[1.1]">{homepage.confidence.title}</h2>
         <div className="grid md:grid-cols-3 gap-8 text-left mt-16 lg:mt-24">
           {homepage.confidence.items.map((item) => (
-            <article key={item.title} className="p-10 border border-background/20 bg-background/5 hover:bg-background/10 transition-colors">
-              <h3 className="soso-display text-2xl lg:text-3xl text-background mb-5">{item.title}</h3>
-              <p className="text-[14px] text-background/70 leading-relaxed">{item.body}</p>
+            <article key={item.title} className="p-10 border border-border bg-background transition-colors hover:bg-muted/50">
+              <h3 className="soso-display text-2xl lg:text-3xl text-foreground mb-5">{item.title}</h3>
+              <p className="text-[14px] text-secondary leading-relaxed">{item.body}</p>
             </article>
           ))}
         </div>

@@ -25,3 +25,4 @@
 - [Cloudinary serverless release gate](cloudinary-serverless-release-gate.md) — require explicit serverless initialization plus media and rendered-route checks before promotion.
 - [Filtered header overlays](filtered-header-overlays.md) — render viewport-fixed dialogs outside backdrop-filtered headers so mobile overlays are not constrained to header bounds.
 - [Approved storefront visual direction](storefront-visual-direction.md) — public SOSO follows Hobbs-like retail rhythm and scroll behavior while preserving its blue logo and checkout-first path.
+- [Deterministic Chromium visual gates](chromium-visual-gates.md) — use fixed API/content, consent, motion, fonts, locale, and viewport inputs before approving pixel baselines.

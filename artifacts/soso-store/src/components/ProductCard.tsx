@@ -128,7 +128,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
         <Link
           href={`/product/${product.slug}`}
           onClick={rememberCatalogueReturn}
-          className="mt-5 flex items-start justify-between gap-4"
+          className="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4"
           data-testid={`link-${testIdPrefix}-details-${product.slug}`}
         >
           <div>
