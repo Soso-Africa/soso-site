@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Generated visual-regression captures and diffs (approved baselines are committed)
+artifacts/soso-store/visual/output/

@@ -5,6 +5,8 @@ import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/d
 import { ChevronDown } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
 
+const isGlobalWhatsAppControl = (href: string) => /(?:wa\.me|whatsapp)/i.test(href);
+
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [location] = useLocation();
@@ -355,7 +357,7 @@ function DesktopMegaMenuPanel({ group, products, featuredLabel, onClick }: { gro
           <div key={i} className="flex flex-col gap-6">
             <h3 className="text-[11px] tracking-[0.2em] uppercase font-bold text-foreground">{col.heading}</h3>
             <ul className="flex flex-col gap-4">
-              {col.links.map(link => (
+              {col.links.filter((link) => !isGlobalWhatsAppControl(link.href)).map(link => (
                 <li key={`${link.href}-${link.label}`}>
                   <Link
                     href={link.href}
@@ -428,7 +430,7 @@ function MobileMenuGroup({ group, products, navigationCopy, onClick }: { group: 
                 <div key={i} className="flex flex-col gap-3">
                   {col.heading && <h4 className="text-[10px] tracking-[0.2em] uppercase text-foreground font-bold">{col.heading}</h4>}
                   <div className="flex flex-col gap-3">
-                    {col.links.map(link => (
+                    {col.links.filter((link) => !isGlobalWhatsAppControl(link.href)).map(link => (
                       <Link key={`${link.href}-${link.label}`} href={link.href} className="text-[13px] tracking-widest text-secondary py-1" onClick={onClick}>
                         {link.label}
                       </Link>
