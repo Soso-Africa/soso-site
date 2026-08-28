@@ -3,7 +3,7 @@ name: Approved storefront visual direction
 description: Client-approved visual and conversion direction for SOSO public shopping surfaces.
 ---
 
-Keep the public SOSO storefront bright, white-led, spacious and commercially clear, using Hobbs-style retail restraint as a reference without copying its brand. At the homepage top, the menu overlays the hero transparently, then becomes a persistent white header as the shopper scrolls. Preserve the established blue SOSO logo colour in every state and keep the dark palette only for the private Staff workspace.
+Keep the public SOSO storefront bright, white-led, spacious and commercially clear, using Hobbs-style retail restraint as a reference without copying its brand. At the homepage top, the menu overlays the hero transparently, then becomes a persistent white header as the shopper scrolls. Preserve the SOSO gold brand logo used on shopsoso.com in every state and keep the dark palette only for the private Staff workspace.
 
 **Why:** The previous dark editorial treatment was explicitly rejected as too dark and insufficiently shoppable. A later correction clarified that colour alone was not enough: the desired result includes Hobbs-like navigation behavior and an alternating four-column/two-column merchandising rhythm.
 

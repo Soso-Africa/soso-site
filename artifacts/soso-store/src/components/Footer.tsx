@@ -19,7 +19,7 @@ export function Footer() {
       <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-10">
         <div className="md:col-span-2">
           <Link href="/">
-            <img src={site.logoUrl} alt={site.logoAlt} className="h-9 mb-4 cursor-pointer filter invert dark:invert-0" />
+            <img src={site.logoUrl} alt={site.logoAlt} className="h-9 mb-4 cursor-pointer" />
           </Link>
           <p className="text-[13px] max-w-sm leading-relaxed mb-6 text-secondary">
             {site.footer.description}

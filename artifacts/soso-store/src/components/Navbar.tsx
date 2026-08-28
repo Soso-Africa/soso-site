@@ -272,7 +272,7 @@ export function Navbar() {
         </div>
         
         <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center transition-opacity duration-300 hover:opacity-70">
-          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9 filter invert" />
+          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9" />
         </Link>
         
         <div className="flex items-center gap-4 md:gap-6">
@@ -302,7 +302,7 @@ export function Navbar() {
         <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-background flex flex-col overflow-hidden animate-in fade-in duration-300">
           {/* Header of mobile menu */}
           <div className="flex justify-between items-center p-4 px-6 border-b border-border shrink-0">
-            <img src={site.logoUrl} alt={site.logoAlt} className="h-8 filter invert" />
+            <img src={site.logoUrl} alt={site.logoAlt} className="h-8" />
             <button type="button" aria-label={site.header.closeMenuLabel} className="text-foreground p-2 -mr-2 opacity-70 hover:opacity-100 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M6 18L18 6M6 6l12 12" />
