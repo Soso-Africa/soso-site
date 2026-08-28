@@ -12,6 +12,7 @@
     "validate:visual": "pnpm run build && node scripts/validate-storefront-visual-contract.mjs",
     "validate:seo": "node scripts/validate-seo-production.mjs",
     "validate:performance": "node scripts/validate-performance.mjs",
+    "validate:client-review": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && node scripts/validate-release.mjs",
     "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs"
   },
