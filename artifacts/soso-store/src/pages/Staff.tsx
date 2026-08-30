@@ -8,12 +8,9 @@ import {
   useAcknowledgeStaffNotification,
   useCreateStaffJournalPost,
   useCreateStaffPrivacyRequest,
-  useGetStaffFunnel,
-  type AnalyticsQualityReport,
   useGetStaffOverview,
   useGetStaffProfile,
   useListStaffAccess,
-  useListStaffAuditEvents,
   useListStaffEnquiries,
   useListStaffJournalPosts,
   useListStaffJournalPostRevisions,
@@ -30,8 +27,6 @@ import {
   type Enquiry,
   type FaqHistoryEvent,
   type FaqHistorySnapshot,
-  type StaffAuditEvent,
-  type StaffFunnel,
   type StaffNotification,
   type StaffOverview,
   type StaffOrder,
@@ -53,7 +48,6 @@ import {
   BarChart3,
   Check,
   ChevronRight,
-  CircleCheck,
   ClipboardCheck,
   Copy,
   Download,
@@ -69,7 +63,6 @@ import {
   Mail,
   Menu,
   MessageSquare,
-  Monitor,
   Package,
   PenLine,
   Plus,
@@ -77,18 +70,23 @@ import {
   ShieldAlert,
   ShieldCheck,
   KeyRound,
-  Smartphone,
-  Tablet,
   Target,
   Trash2,
   Truck,
-  TriangleAlert,
   Users,
   X,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExperimentLog } from "@/components/ExperimentLog";
 import type { PlatformContent } from "@/data/platformContent";
+import { Suspense, lazy } from "react";
+
+const AnalyticsDashboard = lazy(() =>
+  import("../components/staff/analytics/AnalyticsDashboard").then((m) => ({
+    default: m.AnalyticsDashboard,
+  }))
+);
+
 
 type SignedMediaUpload = {
   uploadURL: string;
@@ -158,6 +156,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+function formatDateSafe(value: string | Date | null | undefined, pattern: string, fallback = "Unavailable") {
+  if (!value) return fallback;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? fallback : format(date, pattern);
+}
+
 type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "platform" | "faq" | "policies" | "redirects" | "marketing-pixels" | "analytics" | "staff";
 type StaffNavGroup = {
   label: string;
@@ -174,17 +178,15 @@ export default function Staff() {
   const canViewOrders = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
   const canManageMeasurements = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
   const canManageEnquiries = canManageOrders || profile?.role === "stylist";
-  const canSeeAnalytics = profile?.role === "owner" || profile?.role === "analyst";
+  const canSeeAnalytics = profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "analyst";
   const canManagePrivacy = canManageOrders;
   const isEditorial = ["owner", "administrator", "editor"].includes(profile?.role as string);
 
   const overview = useGetStaffOverview(range, { query: { queryKey: ["staff-overview", range.from, range.to], enabled: Boolean(profile), refetchInterval: 60_000 } });
-  const funnel = useGetStaffFunnel(range, { query: { queryKey: ["staff-funnel", range.from, range.to], enabled: canSeeAnalytics, refetchInterval: 60_000 } });
   const orders = useListStaffOrders(range, { query: { queryKey: ["staff-orders", range.from, range.to], enabled: canViewOrders, refetchInterval: 45_000 } });
   const enquiries = useListStaffEnquiries({ query: { queryKey: ["staff-enquiries"], enabled: canManageEnquiries, refetchInterval: 45_000 } });
   const privacy = useListStaffPrivacyRequests({ query: { queryKey: ["staff-privacy"], enabled: canManagePrivacy, refetchInterval: 45_000 } });
   const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications"], enabled: Boolean(profile), refetchInterval: 45_000 } });
-  const audit = useListStaffAuditEvents(range, { query: { queryKey: ["staff-audit", range.from, range.to], enabled: canSeeAnalytics, refetchInterval: 60_000 } });
 
   const availableTabs = new Set<StaffTab>(["overview"]);
   if (canViewOrders) availableTabs.add("orders");
@@ -244,7 +246,6 @@ export default function Staff() {
     if (canViewOrders) refreshes.push(orders.refetch());
     if (canManageEnquiries) refreshes.push(enquiries.refetch());
     if (canManagePrivacy) refreshes.push(privacy.refetch());
-    if (canSeeAnalytics) refreshes.push(audit.refetch(), funnel.refetch());
     void Promise.all(refreshes);
   };
 
@@ -281,7 +282,7 @@ export default function Staff() {
           {sidebar}
         </aside>
       </div>}
-      <section className="min-w-0 px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+      <section className="min-w-0 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => setMobileNavigationOpen(true)} className="inline-flex min-h-10 min-w-10 items-center justify-center border border-border lg:hidden" aria-label="Open staff navigation"><Menu size={18} /></button>
@@ -289,7 +290,7 @@ export default function Staff() {
           </div>
           {["overview", "orders", "analytics"].includes(activeTab) && <DateRangeControl range={range} onChange={setRange} />}
         </header>
-        {activeTab === "overview" && <><section className="mt-6 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Activity className="mt-0.5 shrink-0 text-primary" size={18} /><p className="text-sm text-muted-foreground">{overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${format(new Date(overview.data.generatedAt), "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}</p></div><span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span></section><NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} /><RoleCapabilityBanner role={profile.role} /><Pulse overview={overview.data} loading={overview.isLoading} /></>}
+        {activeTab === "overview" && <><section className="mt-6 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Activity className="mt-0.5 shrink-0 text-primary" size={18} /><p className="text-sm text-muted-foreground">{overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${formatDateSafe(overview.data.generatedAt, "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}</p></div><span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span></section><NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} /><RoleCapabilityBanner role={profile.role} /><Pulse overview={overview.data} loading={overview.isLoading} /></>}
         {activeTab === "orders" && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} readOnly={!canManageOrders} canManageMeasurements={canManageMeasurements} />}
         {activeTab === "enquiries" && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
         {activeTab === "privacy" && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
@@ -299,7 +300,14 @@ export default function Staff() {
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
         {activeTab === "redirects" && <RedirectsManagementSection />}
         {activeTab === "marketing-pixels" && <MarketingPixelsSection />}
-        {activeTab === "analytics" && <><AnalyticsSection funnel={funnel.data} auditEvents={audit.data} loading={funnel.isLoading || audit.isLoading} range={range} role={profile.role} onExported={() => void audit.refetch()} /><ExperimentLog /></>}
+        {activeTab === "analytics" && (
+          <>
+            <Suspense fallback={<div className="flex h-64 items-center justify-center border border-dashed border-border bg-muted/5 text-sm font-medium uppercase tracking-wider text-muted-foreground">Loading Analytics Workspace...</div>}>
+              <AnalyticsDashboard range={range} role={profile.role} />
+            </Suspense>
+            <ExperimentLog />
+          </>
+        )}
         {activeTab === "staff" && <StaffAccessSection />}
       </section>
     </div>
@@ -702,288 +710,6 @@ function NotificationStrip({ notifications, loading, onAcknowledged }: { notific
             <button type="button" disabled={acknowledge.isPending} onClick={async () => { await acknowledge.mutateAsync({ id: item.id, data: { acknowledged: true } }); onAcknowledged(); }} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Check size={14} /> Acknowledge</button>
           </div>
         ))}
-      </div>
-    </section>
-  );
-}
-
-type AnalyticsMetrics = {
-  from: string; to: string; generatedAt: string; privacyNote: string;
-  uniqueVisitors: number; uniqueSessions: number;
-  topPages: { path: string; views: number }[];
-  topProducts: { slug: string; views: number }[];
-  deviceBreakdown: { deviceType: string; events: number }[];
-  scrollDepth: { depthPct: number; events: number }[];
-  visitorTypes: { newVisitors: number; returningVisitors: number; definition: string };
-  rates: { key: string; label: string; numerator: number; denominator: number; value: number | null; definition: string }[];
-  comparison: { from: string; to: string; events: { eventName: string; current: number; previous: number; delta: number | null }[] };
-  acquisition: { source: string; medium: string; campaign: string; events: number; visitors: number }[];
-  countries: { country: string; events: number }[];
-  journey: { sessionsWithProductView: number; sessionsWithBag: number; sessionsWithCheckout: number; sessionsWithPaymentClick: number; definition: string };
-  freshness: { latestEventAt: string | null; activeDays: number; periodDays: number; coverageRate: number; definition: string };
-};
-type AnalyticsQuality = AnalyticsQualityReport;
-
-function useStaffAnalyticsMetrics(range: { from: string; to: string }, enabled: boolean) {
-  const [data, setData] = useState<AnalyticsMetrics | null>(null);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    setLoading(true);
-    void customFetch<AnalyticsMetrics>(`/api/staff/analytics/metrics?from=${range.from}&to=${range.to}`)
-      .then((d: AnalyticsMetrics) => { if (!cancelled) setData(d); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [range.from, range.to, enabled]);
-  return { data, loading };
-}
-
-function useAnalyticsQuality(enabled: boolean) {
-  const [data, setData] = useState<AnalyticsQuality | null>(null);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    setLoading(true);
-    void customFetch<AnalyticsQuality>("/api/staff/analytics/quality")
-      .then((d: AnalyticsQuality) => { if (!cancelled) setData(d); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [enabled]);
-  return { data, loading };
-}
-
-const DEVICE_ICON: Record<string, React.ElementType> = {
-  mobile: Smartphone, tablet: Tablet, desktop: Monitor,
-};
-
-function QualityBadge({ quality }: { quality: AnalyticsQuality | null }) {
-  if (!quality) return null;
-  const icon = quality.status === "ok" ? <CircleCheck size={13} className="text-green-500" />
-    : quality.status === "review" ? <TriangleAlert size={13} className="text-amber-500" />
-    : <AlertCircle size={13} className="text-red-500" />;
-  const label = quality.status === "ok" ? "Data OK" : quality.status === "review" ? "Review signal" : "Data issue";
-  return (
-    <details className="border border-border bg-card">
-      <summary className="flex cursor-pointer items-center gap-2 p-3 text-xs font-semibold uppercase tracking-wider select-none hover:bg-muted/30">
-        {icon} {label}
-      </summary>
-      <div className="divide-y divide-border">
-        {quality.checks.map((c) => (
-          <div key={c.check} className="p-3">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.check.replaceAll("_", " ")}</p>
-            <p className="mt-1 text-sm">{c.detail}</p>
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground"><span className="font-semibold text-foreground">Scope:</span> {c.scope}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground"><span className="font-semibold text-foreground">Next action:</span> {c.nextAction}</p>
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExported }: { funnel: StaffFunnel | undefined; auditEvents: StaffAuditEvent[] | undefined; loading: boolean; range: { from: string; to: string }; role: string; onExported: () => void }) {
-  const [exporting, setExporting] = useState(false);
-  const [notice, setNotice] = useState("");
-  const metrics = useStaffAnalyticsMetrics(range, true);
-  const quality = useAnalyticsQuality(true);
-
-  const download = async (report: "operations_summary" | "analytics_summary" | "campaign_aggregate" | "content_seo_aggregate") => {
-    setExporting(true);
-    setNotice("");
-    try {
-      const result = await getStaffExport({ report, ...range });
-      const csv = [result.columns.join(","), ...result.rows.map((row) => result.columns.map((column) => JSON.stringify(row[column] ?? "")).join(","))].join("\n");
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = result.filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
-      setNotice(`${result.filename} downloaded. ${result.privacyNote}`);
-      onExported();
-    } catch (error) {
-      setNotice(errorMessage(error, "The controlled export could not be generated."));
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const maxPageViews = Math.max(...(metrics.data?.topPages.map((p) => p.views) ?? [1]), 1);
-
-  return (
-    <section className="mt-12 border-t border-border pt-10">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-primary">Owner & analyst reporting</p>
-          <h2 className="mt-2 text-3xl soso-display">Privacy-safe storefront signal</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{funnel?.privacyNote ?? "Only consented, aggregate first-party data is used in this report."}</p>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" disabled={exporting} onClick={() => void download("analytics_summary")} className="inline-flex min-h-11 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Download size={15} /> Analytics CSV</button>
-          <button type="button" disabled={exporting} onClick={() => void download("campaign_aggregate")} className="inline-flex min-h-11 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Download size={15} /> Campaign CSV</button>
-          <button type="button" disabled={exporting} onClick={() => void download("content_seo_aggregate")} className="inline-flex min-h-11 items-center gap-2 border border-border px-3 text-xs font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><Download size={15} /> Content &amp; SEO CSV</button>
-          {role === "owner" && <button type="button" disabled={exporting} onClick={() => void download("operations_summary")} className="inline-flex min-h-11 items-center gap-2 bg-primary px-3 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Download size={15} /> Operations CSV</button>}
-        </div>
-      </div>
-      {notice && <p role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm text-foreground">{notice}</p>}
-
-      {/* Visitor summary cards */}
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { icon: Users, label: "Unique visitors", value: metrics.data?.uniqueVisitors },
-          { icon: Activity, label: "Unique sessions", value: metrics.data?.uniqueSessions },
-          { icon: Globe, label: "Top page views", value: metrics.data?.topPages[0] ? `${metrics.data.topPages[0].views} · ${metrics.data.topPages[0].path}` : undefined },
-          { icon: FileText, label: "Top product views", value: metrics.data?.topProducts[0] ? `${metrics.data.topProducts[0].views} · ${metrics.data.topProducts[0].slug}` : undefined },
-        ].map(({ icon: Icon, label, value }) => (
-          <div key={label} className="border border-border bg-card p-4">
-            <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground"><Icon size={12} /> {label}</div>
-            <p className="mt-3 text-xl soso-display truncate">{metrics.loading ? "…" : (value ?? "—")}</p>
-          </div>
-        ))}
-      </div>
-
-      {metrics.data && (
-        <>
-          <div className="mt-4 border border-border bg-muted/20 p-4 text-xs leading-relaxed text-muted-foreground">
-            <span className="font-semibold uppercase tracking-wider text-foreground">Signal freshness · </span>
-            {metrics.data.freshness.latestEventAt ? `Latest consented event ${format(new Date(metrics.data.freshness.latestEventAt), "d MMM, HH:mm")}. ` : "No consented event in this range. "}
-            {metrics.data.freshness.activeDays} of {metrics.data.freshness.periodDays} days have signal ({Math.round(metrics.data.freshness.coverageRate * 100)}% coverage). {metrics.data.freshness.definition}
-          </div>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {metrics.data.rates.map((metric) => (
-              <article key={metric.key} className="border border-border bg-card p-4">
-                <div className="flex items-center gap-1.5"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{metric.label}</p><Tooltip><TooltipTrigger asChild><button type="button" aria-label={`Definition for ${metric.label}`} className="text-muted-foreground hover:text-primary"><Info size={13} /></button></TooltipTrigger><TooltipContent className="max-w-xs leading-relaxed">{metric.definition}</TooltipContent></Tooltip></div>
-                <p className="mt-3 text-3xl soso-display">{metric.value === null ? "—" : `${Math.round(metric.value * 100)}%`}</p>
-                <p className="mt-2 text-xs text-muted-foreground">{metric.numerator.toLocaleString()} / {metric.denominator.toLocaleString()} consented events</p>
-              </article>
-            ))}
-          </div>
-        </>
-      )}
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-        {/* Event funnel */}
-        <div className="border border-border bg-card">{loading || !funnel ? <LoadingRows /> : <><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consented event counts · {funnel.from} to {funnel.to}</div><div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-3">{funnel.events.map((event) => <div key={event.eventName} className="p-4"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{event.eventName.replaceAll("_", " ")}</p><p className="mt-3 text-2xl soso-display">{event.count.toLocaleString()}</p></div>)}</div><div className="border-t border-border p-4"><p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Stage-to-stage event drop-off</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Rates compare aggregate event counts, not unique shoppers or completed payments.</p><div className="mt-3 space-y-2">{funnel.dropOffs.map((drop) => <div key={`${drop.fromEventName}-${drop.toEventName}`} className="flex items-center justify-between gap-3 text-xs"><span className="min-w-0 truncate">{drop.fromEventName.replaceAll("_", " ")} → {drop.toEventName.replaceAll("_", " ")}</span><span className="shrink-0 font-medium">{drop.dropOffRate === null ? "No baseline" : `${Math.round(drop.dropOffRate * 100)}%`} <span className="text-muted-foreground">({drop.dropOffCount.toLocaleString()} fewer)</span></span></div>)}</div></div></>}</div>
-        {/* Right column: quality + audit */}
-        <div className="flex flex-col gap-4">
-          <QualityBadge quality={quality.data} />
-          <div className="border border-border bg-card"><div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Audit visibility</div>{loading ? <LoadingRows /> : !auditEvents?.length ? <Empty label="No audited operational actions in this period." /> : <div className="divide-y divide-border">{auditEvents.slice(0, 5).map((event) => <div key={event.id} className="p-4"><p className="text-sm font-medium">{event.action.replaceAll("_", " ")}</p><p className="mt-1 text-xs text-muted-foreground">{event.entityType.replaceAll("_", " ")} · {format(new Date(event.createdAt), "d MMM, HH:mm")}</p></div>)}</div>}</div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comparison period</p><p className="mt-1 text-xs text-muted-foreground">{metrics.data ? `${metrics.data.comparison.from} to ${metrics.data.comparison.to} · equal-length prior period` : "Loading prior period…"}</p></div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : (
-            <div className="divide-y divide-border">
-              {metrics.data.comparison.events.map((item) => <div key={item.eventName} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-4 py-3 text-xs"><span className="capitalize">{item.eventName.replaceAll("_", " ")}</span><span>{item.current.toLocaleString()}</span><span className="text-muted-foreground">vs {item.previous.toLocaleString()}</span><span className={item.delta === null ? "text-muted-foreground" : item.delta >= 0 ? "text-green-700" : "text-destructive"}>{item.delta === null ? "No baseline" : `${item.delta >= 0 ? "+" : ""}${Math.round(item.delta * 100)}%`}</span></div>)}
-            </div>
-          )}
-        </div>
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Consented session journey</p><p className="mt-1 text-xs text-muted-foreground">Sessions can appear at more than one stage; payment click is not payment success.</p></div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : <div className="grid grid-cols-2 divide-x divide-y divide-border sm:grid-cols-4">{[
-            ["Product", metrics.data.journey.sessionsWithProductView],
-            ["Bag", metrics.data.journey.sessionsWithBag],
-            ["Checkout", metrics.data.journey.sessionsWithCheckout],
-            ["Payment click", metrics.data.journey.sessionsWithPaymentClick],
-          ].map(([label, value]) => <div key={String(label)} className="p-4 text-center"><p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p><p className="mt-2 text-2xl soso-display">{Number(value).toLocaleString()}</p></div>)}</div>}
-        </div>
-      </div>
-
-      {/* Top pages */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Top pages</div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.topPages.length ? <Empty label="No page view data yet." /> : (
-            <div className="divide-y divide-border">
-              {metrics.data.topPages.map((page) => (
-                <div key={page.path} className="flex items-center gap-3 p-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate font-mono text-xs">{page.path}</p>
-                    <div className="mt-1 h-1 bg-muted overflow-hidden rounded-full">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${(page.views / maxPageViews) * 100}%` }} />
-                    </div>
-                  </div>
-                  <span className="text-sm font-semibold shrink-0">{page.views.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Top products viewed</div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.topProducts.length ? <Empty label="No product view data yet." /> : (
-            <div className="divide-y divide-border">
-              {metrics.data.topProducts.map((product) => {
-                const maxViews = Math.max(...metrics.data!.topProducts.map((p) => p.views), 1);
-                return (
-                  <div key={product.slug} className="flex items-center gap-3 p-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate">{product.slug}</p>
-                      <div className="mt-1 h-1 bg-muted overflow-hidden rounded-full">
-                        <div className="h-full bg-primary rounded-full" style={{ width: `${(product.views / maxViews) * 100}%` }} />
-                      </div>
-                    </div>
-                    <span className="text-sm font-semibold shrink-0">{product.views.toLocaleString()}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Acquisition sources</p><p className="mt-1 text-xs text-muted-foreground">Aggregate, consented first-touch context. This is not paid-conversion attribution.</p></div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.acquisition.length ? <Empty label="No consented acquisition data yet." /> : <div className="divide-y divide-border">{metrics.data.acquisition.map((row) => <div key={`${row.source}-${row.medium}-${row.campaign}`} className="grid grid-cols-[1fr_auto] gap-3 p-3 text-xs"><div className="min-w-0"><p className="truncate font-medium">{row.source} · {row.medium}</p><p className="mt-1 truncate text-muted-foreground">{row.campaign}</p></div><p className="text-right"><span className="block font-medium">{row.visitors.toLocaleString()} visitors</span><span className="text-muted-foreground">{row.events.toLocaleString()} events</span></p></div>)}</div>}
-        </div>
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Country signal</p><p className="mt-1 text-xs text-muted-foreground">Server-enriched country headers only; no precise location is retained here.</p></div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.countries.length ? <Empty label="No consented country data yet." /> : <div className="divide-y divide-border">{metrics.data.countries.map((row) => <div key={row.country} className="flex items-center justify-between gap-3 p-3 text-sm"><span>{row.country}</span><span className="font-medium">{row.events.toLocaleString()} events</span></div>)}</div>}
-        </div>
-      </div>
-
-      {/* Device breakdown + scroll depth */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Device breakdown</div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.deviceBreakdown.length ? <Empty label="No device data yet." /> : (
-            <div className="grid grid-cols-3 divide-x divide-border">
-              {metrics.data.deviceBreakdown.map((d) => {
-                const Icon = DEVICE_ICON[d.deviceType] ?? Monitor;
-                return (
-                  <div key={d.deviceType} className="p-4 text-center">
-                    <Icon size={20} className="mx-auto text-primary/60" />
-                    <p className="mt-2 text-xs uppercase tracking-wider text-muted-foreground">{d.deviceType}</p>
-                    <p className="mt-1 text-xl soso-display">{d.events.toLocaleString()}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <div className="border border-border bg-card">
-          <div className="border-b border-border p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Scroll depth reached</div>
-          {metrics.loading || !metrics.data ? <LoadingRows /> : !metrics.data.scrollDepth.length ? <Empty label="No scroll depth data yet." /> : (
-            <div className="grid grid-cols-4 divide-x divide-border">
-              {[25, 50, 75, 90].map((pct) => {
-                const row = metrics.data!.scrollDepth.find((s) => s.depthPct === pct);
-                return (
-                  <div key={pct} className="p-4 text-center">
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground">{pct}%</p>
-                    <p className="mt-2 text-xl soso-display">{row ? row.events.toLocaleString() : "0"}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
     </section>
   );

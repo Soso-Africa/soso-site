@@ -455,6 +455,7 @@ export const analyticsEventsTable = pgTable(
   },
   (table) => [
     uniqueIndex("soso_analytics_events_event_id_idx").on(table.eventId),
+    index("soso_analytics_events_consent_occurred_idx").on(table.consent, table.occurredAt),
     index("soso_analytics_events_name_occurred_idx").on(table.eventName, table.occurredAt),
     index("soso_analytics_events_path_occurred_idx").on(table.path, table.occurredAt),
   ],
