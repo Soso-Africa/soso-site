@@ -46,8 +46,8 @@ export default function Home() {
       <div className="max-w-[2000px] mx-auto px-2">
         <h2 className="soso-display px-4 py-8 text-center text-3xl text-foreground md:py-10 md:text-4xl">{homepage.categories.heading}</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {homepage.categories.items.map((item) => (
-            <Link key={item.title} href={item.href} className="group relative block overflow-hidden aspect-[3/4] md:aspect-[4/5]">
+          {homepage.categories.items.map((item, index) => (
+            <Link key={item.title} href={item.href} className="group relative block overflow-hidden aspect-[3/4] md:aspect-[4/5]" data-testid={`home-category-${index}`} data-merchandising-value={item.title}>
               <img src={item.imageUrl} alt={item.imageAlt} className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
               <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
               <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10">
@@ -76,7 +76,7 @@ export default function Home() {
       </div>
       <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-6">
         {newArrival && (
-          <article className="min-w-0">
+          <article className="min-w-0" data-testid="home-new-arrival" data-merchandising-value={newArrival.slug}>
             <ProductCard product={newArrival} testIdPrefix="home-new-arrival" />
           </article>
         )}
@@ -119,9 +119,11 @@ export default function Home() {
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {featured.map((product, index) => (
-          <Reveal key={product.slug} delay={index * 100}>
-            <ProductCard product={product} testIdPrefix="home-featured" />
-          </Reveal>
+          <div key={product.slug} data-testid={`home-featured-${index}`} data-merchandising-value={product.slug}>
+            <Reveal delay={index * 100}>
+              <ProductCard product={product} testIdPrefix="home-featured" />
+            </Reveal>
+          </div>
         ))}
       </div>
     </section>
@@ -133,8 +135,8 @@ export default function Home() {
         <h2 id="home-occasion-heading" className="soso-display text-4xl text-foreground md:text-5xl">{homepage.occasions.title}</h2>
       </div>
       <div className="mx-auto grid max-w-[2000px] gap-2 lg:grid-cols-2">
-        {homepage.occasions.items.map((item) => (
-          <Link key={item.title} href={item.href} className="group relative aspect-[4/5] overflow-hidden sm:aspect-[4/3] lg:aspect-[5/4]">
+        {homepage.occasions.items.map((item, index) => (
+          <Link key={item.title} href={item.href} className="group relative aspect-[4/5] overflow-hidden sm:aspect-[4/3] lg:aspect-[5/4]" data-testid={`home-occasion-${index}`} data-merchandising-value={item.title}>
             <img src={item.imageUrl} alt={item.imageAlt} className="h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 z-10 p-8 text-center text-white md:p-12">

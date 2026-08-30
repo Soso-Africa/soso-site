@@ -104,7 +104,7 @@ export function PlatformEditorHomepage({
         <Field label="Tile CTA label" value={data.categories.ctaLabel} onChange={(ctaLabel) => update("categories", { ...data.categories, ctaLabel })} />
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        {data.categories.items.map((item, index) => <div key={`${index}-${item.title}`} className="border border-border bg-muted/10 p-3">
+        {data.categories.items.map((item, index) => <div key={`${index}-${item.title}`} className="border border-border bg-muted/10 p-3" data-testid={`homepage-category-${index}`} data-merchandising-value={item.title}>
           <div className="mb-3 flex items-center justify-between"><strong className="text-xs">Position {index + 1}</strong><MoveButtons index={index} length={data.categories.items.length} move={(from, to) => move(data.categories.items, from, to, (items) => update("categories", { ...data.categories, items }))} /></div>
           <div className="grid gap-3 sm:grid-cols-2">
             {(["eyebrow", "title", "imageUrl", "imageAlt", "href"] as const).map((key) => <Field key={key} label={key} value={item[key]} onChange={(value) => {
@@ -120,7 +120,7 @@ export function PlatformEditorHomepage({
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label="Eyebrow" value={data.newArrival.eyebrow} onChange={(eyebrow) => update("newArrival", { ...data.newArrival, eyebrow })} />
         <Field label="Heading" value={data.newArrival.title} onChange={(title) => update("newArrival", { ...data.newArrival, title })} />
-        <label className={labelClass}>Exact product<select className={inputClass} value={data.newArrival.productSlug} onChange={(event) => update("newArrival", { ...data.newArrival, productSlug: event.target.value })}>{products.map((product) => <option key={product.slug} value={product.slug}>{product.name} · {product.slug}</option>)}</select></label>
+        <label className={labelClass}>Exact product<select data-testid="homepage-new-arrival-product" className={inputClass} value={data.newArrival.productSlug} onChange={(event) => update("newArrival", { ...data.newArrival, productSlug: event.target.value })}>{products.map((product) => <option key={product.slug} value={product.slug}>{product.name} · {product.slug}</option>)}</select></label>
         <Field label="Section link label" value={data.newArrival.link.label} onChange={(label) => update("newArrival", { ...data.newArrival, link: { ...data.newArrival.link, label } })} />
         <Field label="Section link path" value={data.newArrival.link.href} onChange={(href) => update("newArrival", { ...data.newArrival, link: { ...data.newArrival.link, href } })} />
         {(["imageUrl", "imageAlt", "eyebrow", "title", "body"] as const).map((key) => <Field key={key} label={`Editorial ${key}`} value={data.newArrival.editorial[key]} onChange={(value) => update("newArrival", { ...data.newArrival, editorial: { ...data.newArrival.editorial, [key]: value } })} />)}
@@ -137,7 +137,7 @@ export function PlatformEditorHomepage({
         <Field label="Link label" value={data.featured.link.label} onChange={(label) => update("featured", { ...data.featured, link: { ...data.featured.link, label } })} />
         <Field label="Link path" value={data.featured.link.href} onChange={(href) => update("featured", { ...data.featured, link: { ...data.featured.link, href } })} />
       </div>
-      <div className="mt-3 space-y-2">{data.featured.productSlugs.map((slug, index) => <div key={`${index}-${slug}`} className="flex items-end gap-2">
+      <div className="mt-3 space-y-2">{data.featured.productSlugs.map((slug, index) => <div key={`${index}-${slug}`} className="flex items-end gap-2" data-testid={`homepage-featured-${index}`} data-merchandising-value={slug}>
         <label className={`${labelClass} flex-1`}>Position {index + 1}<select className={inputClass} value={slug} onChange={(event) => { const productSlugs = [...data.featured.productSlugs]; productSlugs[index] = event.target.value; update("featured", { ...data.featured, productSlugs }); }}>{products.map((product) => <option key={product.slug} value={product.slug}>{product.name} · {product.slug}</option>)}</select></label>
         <MoveButtons index={index} length={data.featured.productSlugs.length} move={(from, to) => move(data.featured.productSlugs, from, to, (productSlugs) => update("featured", { ...data.featured, productSlugs }))} />
       </div>)}</div>
@@ -146,7 +146,7 @@ export function PlatformEditorHomepage({
     <section className="border border-border p-4">
       <h3 className="font-semibold">Occasions · exactly 2</h3>
       <div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Eyebrow" value={data.occasions.eyebrow} onChange={(eyebrow) => update("occasions", { ...data.occasions, eyebrow })} /><Field label="Heading" value={data.occasions.title} onChange={(title) => update("occasions", { ...data.occasions, title })} /></div>
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">{data.occasions.items.map((item, index) => <div key={`${index}-${item.title}`} className="border border-border p-3">
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">{data.occasions.items.map((item, index) => <div key={`${index}-${item.title}`} className="border border-border p-3" data-testid={`homepage-occasion-${index}`} data-merchandising-value={item.title}>
         <div className="mb-3 flex items-center justify-between"><strong className="text-xs">Position {index + 1}</strong><MoveButtons index={index} length={data.occasions.items.length} move={(from, to) => move(data.occasions.items, from, to, (items) => update("occasions", { ...data.occasions, items }))} /></div>
         <div className="grid gap-3 sm:grid-cols-2">{(["title", "body", "imageUrl", "imageAlt", "href", "linkLabel"] as const).map((key) => <Field key={key} label={key} value={item[key]} onChange={(value) => { const items = [...data.occasions.items]; items[index] = { ...item, [key]: value }; update("occasions", { ...data.occasions, items }); }} />)}</div>
       </div>)}</div>
@@ -179,7 +179,7 @@ export function PlatformEditorHomepage({
 
     <section className="border border-border bg-muted/10 p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wider">Ordered homepage summary</h3>
-      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm"><li><strong>Hero:</strong> {data.hero.title} · {data.hero.mediaMode}</li><li><strong>Categories:</strong> {data.categories.items.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>New arrival:</strong> {products.find((product) => product.slug === data.newArrival.productSlug)?.name ?? data.newArrival.productSlug}</li><li><strong>Featured:</strong> {data.featured.productSlugs.map((slug, index) => `${index + 1}. ${products.find((product) => product.slug === slug)?.name ?? slug}`).join(" · ")}</li><li><strong>Occasions:</strong> {data.occasions.items.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Trust:</strong> {data.trustItems.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Fit:</strong> {data.fit.steps.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Confidence:</strong> {data.confidence.items.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Final CTA:</strong> {data.finalCta.primaryCta.label}</li></ol>
+      <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm"><li><strong>Hero:</strong> {data.hero.title} · {data.hero.mediaMode}</li><li data-testid="homepage-summary-categories"><strong>Categories:</strong> {data.categories.items.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li data-testid="homepage-summary-new-arrival"><strong>New arrival:</strong> {products.find((product) => product.slug === data.newArrival.productSlug)?.name ?? data.newArrival.productSlug}</li><li data-testid="homepage-summary-featured"><strong>Featured:</strong> {data.featured.productSlugs.map((slug, index) => `${index + 1}. ${products.find((product) => product.slug === slug)?.name ?? slug}`).join(" · ")}</li><li data-testid="homepage-summary-occasions"><strong>Occasions:</strong> {data.occasions.items.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Trust:</strong> {data.trustItems.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Fit:</strong> {data.fit.steps.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Confidence:</strong> {data.confidence.items.map((item, index) => `${index + 1}. ${item.title}`).join(" · ")}</li><li><strong>Final CTA:</strong> {data.finalCta.primaryCta.label}</li></ol>
     </section>
   </div>;
 }

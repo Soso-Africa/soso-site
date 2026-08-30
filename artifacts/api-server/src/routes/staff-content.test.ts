@@ -343,6 +343,15 @@ test("homepage merchandising rejects wrong cardinalities and unknown or duplicat
   }
 });
 
+test("platform hashes ignore object key order but preserve merchandising order", () => {
+  const first = { homepage: { categories: [{ title: "Kaftans" }, { title: "Agbadas" }] }, version: 1 };
+  const reorderedKeys = { version: 1, homepage: { categories: [{ title: "Kaftans" }, { title: "Agbadas" }] } };
+  const reorderedMerchandising = { version: 1, homepage: { categories: [{ title: "Agbadas" }, { title: "Kaftans" }] } };
+
+  assert.equal(platformContentHash(first), platformContentHash(reorderedKeys));
+  assert.notEqual(platformContentHash(first), platformContentHash(reorderedMerchandising));
+});
+
 test("women launches as a visible ready-to-wear department with governed catalogue imagery", () => {
   const womenProducts = DEFAULT_PLATFORM_CONTENT.products.filter((product) => product.department === "women");
   const womenMenu = DEFAULT_PLATFORM_CONTENT.site.megaMenu.find((group) => group.department === "women");

@@ -131,27 +131,27 @@
 
 .soso-staff-theme,
 .soso-staff-theme.dark {
-  --background: 36 18% 5%;
-  --foreground: 38 41% 94%;
-  --border: 43 59% 45% / 0.25;
-  --input: 43 59% 45% / 0.25;
+  --background: 0 0% 100%;
+  --foreground: 30 12% 10%;
+  --border: 35 18% 82%;
+  --input: 35 18% 82%;
   --ring: 43 59% 45%;
-  --card: 36 18% 5%;
-  --card-foreground: 38 41% 94%;
-  --card-border: 43 59% 45% / 0.15;
-  --popover: 36 18% 5%;
-  --popover-foreground: 38 41% 94%;
-  --popover-border: 43 59% 45% / 0.25;
+  --card: 40 33% 98%;
+  --card-foreground: 30 12% 10%;
+  --card-border: 35 18% 86%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 30 12% 10%;
+  --popover-border: 35 18% 82%;
   --primary: 43 59% 45%;
-  --primary-foreground: 36 18% 5%;
-  --secondary: 41 41% 88%;
-  --secondary-foreground: 36 18% 5%;
-  --muted: 36 18% 10%;
-  --muted-foreground: 41 41% 88%;
-  --accent: 43 59% 45% / 0.1;
-  --accent-foreground: 43 59% 45%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 32 8% 42%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 36 25% 94%;
+  --muted-foreground: 30 8% 38%;
+  --accent: 43 59% 45% / 0.12;
+  --accent-foreground: 35 62% 30%;
   --destructive: 0 84% 60%;
-  --destructive-foreground: 38 41% 94%;
+  --destructive-foreground: 0 0% 100%;
 }
 
 @layer base {
@@ -199,29 +199,29 @@
 .soso-btn-ghost:hover { background-color: rgba(0,0,0,0.04); }
 .soso-link:hover { color: hsl(var(--secondary)); text-decoration: underline; text-underline-offset: 4px; }
 
-/* Staff workspace controls: keep editable surfaces distinct from the ink canvas. */
+/* Staff workspace controls: keep editable surfaces distinct on the light canvas. */
 .staff-input {
   display: block;
   width: 100%;
   min-height: 2.75rem;
   border: 1px solid rgba(212, 180, 90, 0.48);
   border-radius: 2px;
-  background: #1c1914;
-  color: #f6f1e7;
+  background: #ffffff;
+  color: #211d18;
   padding: 0.7rem 0.8rem;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 2px rgba(33, 29, 24, 0.08);
   transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
 .staff-input:hover {
   border-color: rgba(212, 180, 90, 0.72);
-  background: #211d17;
+  background: #fffdf8;
 }
 
 .staff-input:focus {
   border-color: #d4b45a;
-  background: #211d17;
-  box-shadow: 0 0 0 3px rgba(212, 180, 90, 0.16), inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(212, 180, 90, 0.16), inset 0 1px 2px rgba(33, 29, 24, 0.08);
   outline: none;
 }
 
@@ -231,7 +231,7 @@
 }
 
 .staff-input::placeholder {
-  color: rgba(246, 241, 231, 0.48);
+  color: rgba(33, 29, 24, 0.48);
 }
 
 select.staff-input {
