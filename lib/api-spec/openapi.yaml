@@ -592,6 +592,45 @@ paths:
           description: Authentication required
         "403":
           description: Owner or analyst access required
+  /staff/analytics/metrics:
+    get:
+      operationId: getStaffAnalyticsMetrics
+      tags: [staff]
+      summary: Get a configurable aggregate analytics workspace
+      description: Aggregate-only, consented first-party analytics. Available to owner, administrator, and analyst roles. Verified orders are aggregated independently and are not joined to visitor identities.
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+        - name: source
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 128 }
+        - name: path
+          in: query
+          schema: { type: string, maxLength: 200, pattern: "^/[A-Za-z0-9/_-]{0,199}$" }
+        - name: event
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 64, pattern: "^[a-z][a-z0-9_]{0,63}$" }
+        - name: country
+          in: query
+          schema:
+            type: string
+            pattern: "^([A-Za-z]{2}|unknown)$"
+        - name: device
+          in: query
+          schema: { type: string, enum: [desktop, tablet, mobile, unknown] }
+        - name: browser
+          in: query
+          schema: { type: string, enum: [chrome, safari, firefox, edge, opera, samsung internet, unknown] }
+      responses:
+        "200":
+          description: Privacy-safe configurable analytics aggregates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAnalyticsMetrics"
+        "400": { description: "Invalid date range or bounded filter" }
+        "401": { description: "Authentication required" }
+        "403": { description: "Owner, administrator, or analyst access required" }
   /staff/enquiries:
     get:
       operationId: listStaffEnquiries
@@ -2192,6 +2231,166 @@ components:
         detail: { type: string }
         scope: { type: string }
         nextAction: { type: string }
+    AnalyticsComparison:
+      type: object
+      required: [current, previous, delta]
+      properties:
+        current: { type: number, minimum: 0 }
+        previous: { type: number, minimum: 0 }
+        delta: { type: ["number", "null"], description: Fractional period-over-period change; 0.5 means 50 percent. }
+    StaffAnalyticsMetrics:
+      type: object
+      required: [from, to, generatedAt, privacyNote, semantics, appliedFilters, summary, dailyTimeSeries, pages, sources, geography, devices, browsers, events, conversions, engagement, realtime, freshness]
+      properties:
+        from: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        to: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        generatedAt: { type: string, format: date-time }
+        privacyNote: { type: string }
+        semantics:
+          type: object
+          additionalProperties: { type: string }
+        appliedFilters:
+          type: object
+          required: [source, path, eventName, country, device, browser]
+          properties:
+            source: { type: ["string", "null"] }
+            path: { type: ["string", "null"] }
+            eventName: { type: ["string", "null"] }
+            country: { type: ["string", "null"] }
+            device: { type: ["string", "null"] }
+            browser: { type: ["string", "null"] }
+        summary:
+          type: object
+          required: [visitors, sessions, pageViews, events, orders]
+          properties:
+            visitors: { $ref: "#/components/schemas/AnalyticsComparison" }
+            sessions: { $ref: "#/components/schemas/AnalyticsComparison" }
+            pageViews: { $ref: "#/components/schemas/AnalyticsComparison" }
+            events: { $ref: "#/components/schemas/AnalyticsComparison" }
+            orders: { $ref: "#/components/schemas/AnalyticsComparison" }
+        dailyTimeSeries:
+          type: array
+          items:
+            type: object
+            required: [date, events, visitors, sessions, pageViews]
+            properties:
+              date: { type: string }
+              events: { type: number, minimum: 0 }
+              visitors: { type: number, minimum: 0 }
+              sessions: { type: number, minimum: 0 }
+              pageViews: { type: number, minimum: 0 }
+        pages:
+          type: array
+          items:
+            type: object
+            required: [path, views, visitors, sessions]
+            properties:
+              path: { type: string }
+              views: { type: number, minimum: 0 }
+              visitors: { type: number, minimum: 0 }
+              sessions: { type: number, minimum: 0 }
+        sources:
+          type: array
+          items:
+            type: object
+            required: [source, medium, campaign, events, visitors, sessions]
+            properties:
+              source: { type: string }
+              medium: { type: string }
+              campaign: { type: string }
+              events: { type: number, minimum: 0 }
+              visitors: { type: number, minimum: 0 }
+              sessions: { type: number, minimum: 0 }
+        geography:
+          type: array
+          items:
+            type: object
+            required: [country, events, visitors]
+            properties:
+              country: { type: string }
+              events: { type: number, minimum: 0 }
+              visitors: { type: number, minimum: 0 }
+        devices:
+          type: array
+          items:
+            type: object
+            required: [deviceType, events, visitors]
+            properties:
+              deviceType: { type: string }
+              events: { type: number, minimum: 0 }
+              visitors: { type: number, minimum: 0 }
+        browsers:
+          type: array
+          items:
+            type: object
+            required: [browser, events, visitors]
+            properties:
+              browser: { type: string }
+              events: { type: number, minimum: 0 }
+              visitors: { type: number, minimum: 0 }
+        events:
+          type: array
+          items:
+            type: object
+            required: [eventName, events, visitors, sessions]
+            properties:
+              eventName: { type: string }
+              events: { type: number, minimum: 0 }
+              visitors: { type: number, minimum: 0 }
+              sessions: { type: number, minimum: 0 }
+        conversions:
+          type: array
+          items:
+            type: object
+            required: [key, count, kind, definition]
+            properties:
+              key: { type: string }
+              count: { type: number, minimum: 0 }
+              kind: { type: string, enum: [consented_event, commerce] }
+              definition: { type: string }
+              revenueByCurrency:
+                type: array
+                items:
+                  type: object
+                  required: [currency, orders, revenue]
+                  properties:
+                    currency: { type: string }
+                    orders: { type: number, minimum: 0 }
+                    revenue: { type: number, minimum: 0 }
+        engagement:
+          type: object
+          required: [averageEngagedSeconds, bouncedSessions, bounceRate, definition]
+          properties:
+            averageEngagedSeconds: { type: ["number", "null"], minimum: 0 }
+            bouncedSessions: { type: number, minimum: 0 }
+            bounceRate: { type: ["number", "null"], minimum: 0, maximum: 1 }
+            definition: { type: string }
+        realtime:
+          type: object
+          required: [windowMinutes, activeNow, events, topPages, asOf, definition]
+          properties:
+            windowMinutes: { type: number, minimum: 5 }
+            activeNow: { type: number, minimum: 0 }
+            events: { type: number, minimum: 0 }
+            topPages:
+              type: array
+              items:
+                type: object
+                required: [path, views]
+                properties:
+                  path: { type: string }
+                  views: { type: number, minimum: 0 }
+            asOf: { type: string, format: date-time }
+            definition: { type: string }
+        freshness:
+          type: object
+          required: [latestEventAt, activeDays, periodDays, coverageRate, definition]
+          properties:
+            latestEventAt: { type: ["string", "null"], format: date-time }
+            activeDays: { type: number, minimum: 0 }
+            periodDays: { type: number, minimum: 1 }
+            coverageRate: { type: number, minimum: 0, maximum: 1 }
+            definition: { type: string }
     StaffMetric:
       type: object
       required: [key, label, definition, value]

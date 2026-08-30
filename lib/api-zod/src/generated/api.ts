@@ -1083,6 +1083,246 @@ export const GetStaffAnalyticsQualityResponse = zod.object({
 
 
 /**
+ * Aggregate-only, consented first-party analytics. Available to owner, administrator, and analyst roles. Verified orders are aggregated independently and are not joined to visitor identities.
+ * @summary Get a configurable aggregate analytics workspace
+ */
+export const getStaffAnalyticsMetricsQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAnalyticsMetricsQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAnalyticsMetricsQuerySourceMax = 128;
+
+export const getStaffAnalyticsMetricsQueryPathMax = 200;
+
+
+export const getStaffAnalyticsMetricsQueryPathRegExp = new RegExp('^/[A-Za-z0-9/_-]{0,199}$');
+export const getStaffAnalyticsMetricsQueryEventMax = 64;
+
+
+export const getStaffAnalyticsMetricsQueryEventRegExp = new RegExp('^[a-z][a-z0-9_]{0,63}$');
+export const getStaffAnalyticsMetricsQueryCountryRegExp = new RegExp('^([A-Za-z]{2}|unknown)$');
+
+
+export const GetStaffAnalyticsMetricsQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getStaffAnalyticsMetricsQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(getStaffAnalyticsMetricsQueryToRegExp).optional(),
+  "source": zod.coerce.string().min(1).max(getStaffAnalyticsMetricsQuerySourceMax).optional(),
+  "path": zod.coerce.string().max(getStaffAnalyticsMetricsQueryPathMax).regex(getStaffAnalyticsMetricsQueryPathRegExp).optional(),
+  "event": zod.coerce.string().min(1).max(getStaffAnalyticsMetricsQueryEventMax).regex(getStaffAnalyticsMetricsQueryEventRegExp).optional(),
+  "country": zod.coerce.string().regex(getStaffAnalyticsMetricsQueryCountryRegExp).optional(),
+  "device": zod.enum(['desktop', 'tablet', 'mobile', 'unknown']).optional(),
+  "browser": zod.enum(['chrome', 'safari', 'firefox', 'edge', 'opera', 'samsung internet', 'unknown']).optional()
+})
+
+export const getStaffAnalyticsMetricsResponseFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAnalyticsMetricsResponseToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAnalyticsMetricsResponseSummaryVisitorsCurrentMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummaryVisitorsPreviousMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummarySessionsCurrentMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummarySessionsPreviousMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummaryPageViewsCurrentMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummaryPageViewsPreviousMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummaryEventsCurrentMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummaryEventsPreviousMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummaryOrdersCurrentMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSummaryOrdersPreviousMin = 0;
+
+export const getStaffAnalyticsMetricsResponseDailyTimeSeriesItemEventsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseDailyTimeSeriesItemVisitorsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseDailyTimeSeriesItemSessionsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseDailyTimeSeriesItemPageViewsMin = 0;
+
+export const getStaffAnalyticsMetricsResponsePagesItemViewsMin = 0;
+
+export const getStaffAnalyticsMetricsResponsePagesItemVisitorsMin = 0;
+
+export const getStaffAnalyticsMetricsResponsePagesItemSessionsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSourcesItemEventsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSourcesItemVisitorsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseSourcesItemSessionsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseGeographyItemEventsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseGeographyItemVisitorsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseDevicesItemEventsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseDevicesItemVisitorsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseBrowsersItemEventsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseBrowsersItemVisitorsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseEventsItemEventsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseEventsItemVisitorsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseEventsItemSessionsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseConversionsItemCountMin = 0;
+
+export const getStaffAnalyticsMetricsResponseConversionsItemRevenueByCurrencyItemOrdersMin = 0;
+
+export const getStaffAnalyticsMetricsResponseConversionsItemRevenueByCurrencyItemRevenueMin = 0;
+
+export const getStaffAnalyticsMetricsResponseEngagementAverageEngagedSecondsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseEngagementBouncedSessionsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseEngagementBounceRateMin = 0;
+export const getStaffAnalyticsMetricsResponseEngagementBounceRateMax = 1;
+
+export const getStaffAnalyticsMetricsResponseRealtimeWindowMinutesMin = 5;
+
+export const getStaffAnalyticsMetricsResponseRealtimeActiveNowMin = 0;
+
+export const getStaffAnalyticsMetricsResponseRealtimeEventsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseRealtimeTopPagesItemViewsMin = 0;
+
+export const getStaffAnalyticsMetricsResponseFreshnessActiveDaysMin = 0;
+
+
+export const getStaffAnalyticsMetricsResponseFreshnessCoverageRateMin = 0;
+export const getStaffAnalyticsMetricsResponseFreshnessCoverageRateMax = 1;
+
+
+
+export const GetStaffAnalyticsMetricsResponse = zod.object({
+  "from": zod.string().regex(getStaffAnalyticsMetricsResponseFromRegExp),
+  "to": zod.string().regex(getStaffAnalyticsMetricsResponseToRegExp),
+  "generatedAt": zod.coerce.date(),
+  "privacyNote": zod.string(),
+  "semantics": zod.record(zod.string(), zod.string()),
+  "appliedFilters": zod.object({
+  "source": zod.string().nullable(),
+  "path": zod.string().nullable(),
+  "eventName": zod.string().nullable(),
+  "country": zod.string().nullable(),
+  "device": zod.string().nullable(),
+  "browser": zod.string().nullable()
+}),
+  "summary": zod.object({
+  "visitors": zod.object({
+  "current": zod.number().min(getStaffAnalyticsMetricsResponseSummaryVisitorsCurrentMin),
+  "previous": zod.number().min(getStaffAnalyticsMetricsResponseSummaryVisitorsPreviousMin),
+  "delta": zod.number().nullable().describe('Fractional period-over-period change; 0.5 means 50 percent.')
+}),
+  "sessions": zod.object({
+  "current": zod.number().min(getStaffAnalyticsMetricsResponseSummarySessionsCurrentMin),
+  "previous": zod.number().min(getStaffAnalyticsMetricsResponseSummarySessionsPreviousMin),
+  "delta": zod.number().nullable().describe('Fractional period-over-period change; 0.5 means 50 percent.')
+}),
+  "pageViews": zod.object({
+  "current": zod.number().min(getStaffAnalyticsMetricsResponseSummaryPageViewsCurrentMin),
+  "previous": zod.number().min(getStaffAnalyticsMetricsResponseSummaryPageViewsPreviousMin),
+  "delta": zod.number().nullable().describe('Fractional period-over-period change; 0.5 means 50 percent.')
+}),
+  "events": zod.object({
+  "current": zod.number().min(getStaffAnalyticsMetricsResponseSummaryEventsCurrentMin),
+  "previous": zod.number().min(getStaffAnalyticsMetricsResponseSummaryEventsPreviousMin),
+  "delta": zod.number().nullable().describe('Fractional period-over-period change; 0.5 means 50 percent.')
+}),
+  "orders": zod.object({
+  "current": zod.number().min(getStaffAnalyticsMetricsResponseSummaryOrdersCurrentMin),
+  "previous": zod.number().min(getStaffAnalyticsMetricsResponseSummaryOrdersPreviousMin),
+  "delta": zod.number().nullable().describe('Fractional period-over-period change; 0.5 means 50 percent.')
+})
+}),
+  "dailyTimeSeries": zod.array(zod.object({
+  "date": zod.string(),
+  "events": zod.number().min(getStaffAnalyticsMetricsResponseDailyTimeSeriesItemEventsMin),
+  "visitors": zod.number().min(getStaffAnalyticsMetricsResponseDailyTimeSeriesItemVisitorsMin),
+  "sessions": zod.number().min(getStaffAnalyticsMetricsResponseDailyTimeSeriesItemSessionsMin),
+  "pageViews": zod.number().min(getStaffAnalyticsMetricsResponseDailyTimeSeriesItemPageViewsMin)
+})),
+  "pages": zod.array(zod.object({
+  "path": zod.string(),
+  "views": zod.number().min(getStaffAnalyticsMetricsResponsePagesItemViewsMin),
+  "visitors": zod.number().min(getStaffAnalyticsMetricsResponsePagesItemVisitorsMin),
+  "sessions": zod.number().min(getStaffAnalyticsMetricsResponsePagesItemSessionsMin)
+})),
+  "sources": zod.array(zod.object({
+  "source": zod.string(),
+  "medium": zod.string(),
+  "campaign": zod.string(),
+  "events": zod.number().min(getStaffAnalyticsMetricsResponseSourcesItemEventsMin),
+  "visitors": zod.number().min(getStaffAnalyticsMetricsResponseSourcesItemVisitorsMin),
+  "sessions": zod.number().min(getStaffAnalyticsMetricsResponseSourcesItemSessionsMin)
+})),
+  "geography": zod.array(zod.object({
+  "country": zod.string(),
+  "events": zod.number().min(getStaffAnalyticsMetricsResponseGeographyItemEventsMin),
+  "visitors": zod.number().min(getStaffAnalyticsMetricsResponseGeographyItemVisitorsMin)
+})),
+  "devices": zod.array(zod.object({
+  "deviceType": zod.string(),
+  "events": zod.number().min(getStaffAnalyticsMetricsResponseDevicesItemEventsMin),
+  "visitors": zod.number().min(getStaffAnalyticsMetricsResponseDevicesItemVisitorsMin)
+})),
+  "browsers": zod.array(zod.object({
+  "browser": zod.string(),
+  "events": zod.number().min(getStaffAnalyticsMetricsResponseBrowsersItemEventsMin),
+  "visitors": zod.number().min(getStaffAnalyticsMetricsResponseBrowsersItemVisitorsMin)
+})),
+  "events": zod.array(zod.object({
+  "eventName": zod.string(),
+  "events": zod.number().min(getStaffAnalyticsMetricsResponseEventsItemEventsMin),
+  "visitors": zod.number().min(getStaffAnalyticsMetricsResponseEventsItemVisitorsMin),
+  "sessions": zod.number().min(getStaffAnalyticsMetricsResponseEventsItemSessionsMin)
+})),
+  "conversions": zod.array(zod.object({
+  "key": zod.string(),
+  "count": zod.number().min(getStaffAnalyticsMetricsResponseConversionsItemCountMin),
+  "kind": zod.enum(['consented_event', 'commerce']),
+  "definition": zod.string(),
+  "revenueByCurrency": zod.array(zod.object({
+  "currency": zod.string(),
+  "orders": zod.number().min(getStaffAnalyticsMetricsResponseConversionsItemRevenueByCurrencyItemOrdersMin),
+  "revenue": zod.number().min(getStaffAnalyticsMetricsResponseConversionsItemRevenueByCurrencyItemRevenueMin)
+})).optional()
+})),
+  "engagement": zod.object({
+  "averageEngagedSeconds": zod.number().min(getStaffAnalyticsMetricsResponseEngagementAverageEngagedSecondsMin).nullable(),
+  "bouncedSessions": zod.number().min(getStaffAnalyticsMetricsResponseEngagementBouncedSessionsMin),
+  "bounceRate": zod.number().min(getStaffAnalyticsMetricsResponseEngagementBounceRateMin).max(getStaffAnalyticsMetricsResponseEngagementBounceRateMax).nullable(),
+  "definition": zod.string()
+}),
+  "realtime": zod.object({
+  "windowMinutes": zod.number().min(getStaffAnalyticsMetricsResponseRealtimeWindowMinutesMin),
+  "activeNow": zod.number().min(getStaffAnalyticsMetricsResponseRealtimeActiveNowMin),
+  "events": zod.number().min(getStaffAnalyticsMetricsResponseRealtimeEventsMin),
+  "topPages": zod.array(zod.object({
+  "path": zod.string(),
+  "views": zod.number().min(getStaffAnalyticsMetricsResponseRealtimeTopPagesItemViewsMin)
+})),
+  "asOf": zod.coerce.date(),
+  "definition": zod.string()
+}),
+  "freshness": zod.object({
+  "latestEventAt": zod.coerce.date().nullable(),
+  "activeDays": zod.number().min(getStaffAnalyticsMetricsResponseFreshnessActiveDaysMin),
+  "periodDays": zod.number().min(1),
+  "coverageRate": zod.number().min(getStaffAnalyticsMetricsResponseFreshnessCoverageRateMin).max(getStaffAnalyticsMetricsResponseFreshnessCoverageRateMax),
+  "definition": zod.string()
+})
+})
+
+
+/**
  * @summary List customer enquiries
  */
 export const listStaffEnquiriesResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');

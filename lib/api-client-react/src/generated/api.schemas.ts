@@ -1635,6 +1635,209 @@ export interface AnalyticsQualityReport {
   checks: AnalyticsQualityCheck[];
 }
 
+export interface AnalyticsComparison {
+  /** @minimum 0 */
+  current: number;
+  /** @minimum 0 */
+  previous: number;
+  /**
+     * Fractional period-over-period change; 0.5 means 50 percent.
+     * @nullable
+     */
+  delta: number | null;
+}
+
+export type StaffAnalyticsMetricsSemantics = {[key: string]: string};
+
+export type StaffAnalyticsMetricsAppliedFilters = {
+  /** @nullable */
+  source: string | null;
+  /** @nullable */
+  path: string | null;
+  /** @nullable */
+  eventName: string | null;
+  /** @nullable */
+  country: string | null;
+  /** @nullable */
+  device: string | null;
+  /** @nullable */
+  browser: string | null;
+};
+
+export type StaffAnalyticsMetricsSummary = {
+  visitors: AnalyticsComparison;
+  sessions: AnalyticsComparison;
+  pageViews: AnalyticsComparison;
+  events: AnalyticsComparison;
+  orders: AnalyticsComparison;
+};
+
+export type StaffAnalyticsMetricsDailyTimeSeriesItem = {
+  date: string;
+  /** @minimum 0 */
+  events: number;
+  /** @minimum 0 */
+  visitors: number;
+  /** @minimum 0 */
+  sessions: number;
+  /** @minimum 0 */
+  pageViews: number;
+};
+
+export type StaffAnalyticsMetricsPagesItem = {
+  path: string;
+  /** @minimum 0 */
+  views: number;
+  /** @minimum 0 */
+  visitors: number;
+  /** @minimum 0 */
+  sessions: number;
+};
+
+export type StaffAnalyticsMetricsSourcesItem = {
+  source: string;
+  medium: string;
+  campaign: string;
+  /** @minimum 0 */
+  events: number;
+  /** @minimum 0 */
+  visitors: number;
+  /** @minimum 0 */
+  sessions: number;
+};
+
+export type StaffAnalyticsMetricsGeographyItem = {
+  country: string;
+  /** @minimum 0 */
+  events: number;
+  /** @minimum 0 */
+  visitors: number;
+};
+
+export type StaffAnalyticsMetricsDevicesItem = {
+  deviceType: string;
+  /** @minimum 0 */
+  events: number;
+  /** @minimum 0 */
+  visitors: number;
+};
+
+export type StaffAnalyticsMetricsBrowsersItem = {
+  browser: string;
+  /** @minimum 0 */
+  events: number;
+  /** @minimum 0 */
+  visitors: number;
+};
+
+export type StaffAnalyticsMetricsEventsItem = {
+  eventName: string;
+  /** @minimum 0 */
+  events: number;
+  /** @minimum 0 */
+  visitors: number;
+  /** @minimum 0 */
+  sessions: number;
+};
+
+export type StaffAnalyticsMetricsConversionsItemKind = typeof StaffAnalyticsMetricsConversionsItemKind[keyof typeof StaffAnalyticsMetricsConversionsItemKind];
+
+
+export const StaffAnalyticsMetricsConversionsItemKind = {
+  consented_event: 'consented_event',
+  commerce: 'commerce',
+} as const;
+
+export type StaffAnalyticsMetricsConversionsItemRevenueByCurrencyItem = {
+  currency: string;
+  /** @minimum 0 */
+  orders: number;
+  /** @minimum 0 */
+  revenue: number;
+};
+
+export type StaffAnalyticsMetricsConversionsItem = {
+  key: string;
+  /** @minimum 0 */
+  count: number;
+  kind: StaffAnalyticsMetricsConversionsItemKind;
+  definition: string;
+  revenueByCurrency?: StaffAnalyticsMetricsConversionsItemRevenueByCurrencyItem[];
+};
+
+export type StaffAnalyticsMetricsEngagement = {
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  averageEngagedSeconds: number | null;
+  /** @minimum 0 */
+  bouncedSessions: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     * @nullable
+     */
+  bounceRate: number | null;
+  definition: string;
+};
+
+export type StaffAnalyticsMetricsRealtimeTopPagesItem = {
+  path: string;
+  /** @minimum 0 */
+  views: number;
+};
+
+export type StaffAnalyticsMetricsRealtime = {
+  /** @minimum 5 */
+  windowMinutes: number;
+  /** @minimum 0 */
+  activeNow: number;
+  /** @minimum 0 */
+  events: number;
+  topPages: StaffAnalyticsMetricsRealtimeTopPagesItem[];
+  asOf: string;
+  definition: string;
+};
+
+export type StaffAnalyticsMetricsFreshness = {
+  /** @nullable */
+  latestEventAt: string | null;
+  /** @minimum 0 */
+  activeDays: number;
+  /** @minimum 1 */
+  periodDays: number;
+  /**
+     * @minimum 0
+     * @maximum 1
+     */
+  coverageRate: number;
+  definition: string;
+};
+
+export interface StaffAnalyticsMetrics {
+  /** @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ */
+  from: string;
+  /** @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ */
+  to: string;
+  generatedAt: string;
+  privacyNote: string;
+  semantics: StaffAnalyticsMetricsSemantics;
+  appliedFilters: StaffAnalyticsMetricsAppliedFilters;
+  summary: StaffAnalyticsMetricsSummary;
+  dailyTimeSeries: StaffAnalyticsMetricsDailyTimeSeriesItem[];
+  pages: StaffAnalyticsMetricsPagesItem[];
+  sources: StaffAnalyticsMetricsSourcesItem[];
+  geography: StaffAnalyticsMetricsGeographyItem[];
+  devices: StaffAnalyticsMetricsDevicesItem[];
+  browsers: StaffAnalyticsMetricsBrowsersItem[];
+  events: StaffAnalyticsMetricsEventsItem[];
+  conversions: StaffAnalyticsMetricsConversionsItem[];
+  engagement: StaffAnalyticsMetricsEngagement;
+  realtime: StaffAnalyticsMetricsRealtime;
+  freshness: StaffAnalyticsMetricsFreshness;
+}
+
 export type RedirectResolutionStatusCode = typeof RedirectResolutionStatusCode[keyof typeof RedirectResolutionStatusCode];
 
 
@@ -1883,6 +2086,62 @@ from?: StaffDateFromParameter;
  */
 to?: StaffDateToParameter;
 };
+
+export type GetStaffAnalyticsMetricsParams = {
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+/**
+ * @minLength 1
+ * @maxLength 128
+ */
+source?: string;
+/**
+ * @maxLength 200
+ * @pattern ^/[A-Za-z0-9/_-]{0,199}$
+ */
+path?: string;
+/**
+ * @minLength 1
+ * @maxLength 64
+ * @pattern ^[a-z][a-z0-9_]{0,63}$
+ */
+event?: string;
+/**
+ * @pattern ^([A-Za-z]{2}|unknown)$
+ */
+country?: string;
+device?: GetStaffAnalyticsMetricsDevice;
+browser?: GetStaffAnalyticsMetricsBrowser;
+};
+
+export type GetStaffAnalyticsMetricsDevice = typeof GetStaffAnalyticsMetricsDevice[keyof typeof GetStaffAnalyticsMetricsDevice];
+
+
+export const GetStaffAnalyticsMetricsDevice = {
+  desktop: 'desktop',
+  tablet: 'tablet',
+  mobile: 'mobile',
+  unknown: 'unknown',
+} as const;
+
+export type GetStaffAnalyticsMetricsBrowser = typeof GetStaffAnalyticsMetricsBrowser[keyof typeof GetStaffAnalyticsMetricsBrowser];
+
+
+export const GetStaffAnalyticsMetricsBrowser = {
+  chrome: 'chrome',
+  safari: 'safari',
+  firefox: 'firefox',
+  edge: 'edge',
+  opera: 'opera',
+  samsung_internet: 'samsung internet',
+  unknown: 'unknown',
+} as const;
 
 export type ListStaffAuditEventsParams = {
 /**

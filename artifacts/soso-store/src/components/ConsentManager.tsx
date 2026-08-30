@@ -295,6 +295,17 @@ function boundedProperties(properties: Record<string, unknown> | undefined): Rec
   }
 }
 
+function coarseBrowserFamily(): "chrome" | "safari" | "firefox" | "edge" | "opera" | "samsung internet" | "unknown" {
+  const agent = navigator.userAgent.toLowerCase();
+  if (agent.includes("samsungbrowser")) return "samsung internet";
+  if (agent.includes("edg/")) return "edge";
+  if (agent.includes("opr/") || agent.includes("opera")) return "opera";
+  if (agent.includes("firefox/")) return "firefox";
+  if (agent.includes("chrome/") || agent.includes("crios/")) return "chrome";
+  if (agent.includes("safari/")) return "safari";
+  return "unknown";
+}
+
 function sendEvent(
   consent: MeasurementConsent,
   eventName: StorefrontEventName,
@@ -302,7 +313,10 @@ function sendEvent(
   options?: SendEventOptions,
 ) {
   const attribution = firstTouchAttribution();
-  const safeProperties = boundedProperties(properties);
+  const safeProperties = boundedProperties({
+    ...(properties ?? {}),
+    browser: coarseBrowserFamily(),
+  });
   void fetch(apiUrl("/analytics/events"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },

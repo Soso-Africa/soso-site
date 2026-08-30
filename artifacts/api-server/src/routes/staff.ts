@@ -146,7 +146,7 @@ const privacyTransitions: Record<"received" | "identity_verified" | "in_progress
   rejected: [],
 } as const;
 
-function resolveDateRange(query: Record<string, unknown>) {
+export function resolveDateRange(query: Record<string, unknown>, maximumDays?: number) {
   const today = new Date();
   const defaultFrom = new Date(today);
   defaultFrom.setUTCDate(today.getUTCDate() - 6);
@@ -155,11 +155,67 @@ function resolveDateRange(query: Record<string, unknown>) {
   const to = typeof query.to === "string" ? query.to : today.toISOString().slice(0, 10);
   if (!datePattern.test(from) || !datePattern.test(to) || from > to) return null;
 
-  return {
+  const range = {
     from,
     to,
     start: new Date(`${from}T00:00:00.000Z`),
     end: new Date(`${to}T23:59:59.999Z`),
+  };
+  if (
+    Number.isNaN(range.start.getTime()) ||
+    Number.isNaN(range.end.getTime()) ||
+    range.start.toISOString().slice(0, 10) !== from ||
+    range.end.toISOString().slice(0, 10) !== to ||
+    (maximumDays && range.end.getTime() - range.start.getTime() + 1 > maximumDays * 86_400_000)
+  ) return null;
+  return range;
+}
+
+const analyticsDevices = ["mobile", "tablet", "desktop", "unknown"] as const;
+const analyticsBrowsers = ["chrome", "safari", "firefox", "edge", "opera", "samsung internet", "unknown"] as const;
+
+function singleBoundedQueryValue(value: unknown, maximumLength: number): string | undefined | null {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed && trimmed.length <= maximumLength ? trimmed : null;
+}
+
+export function resolveAnalyticsFilters(query: Record<string, unknown>) {
+  const source = singleBoundedQueryValue(query.source, 128);
+  const path = singleBoundedQueryValue(query.path, 200);
+  const eventName = singleBoundedQueryValue(query.event, 64);
+  const country = singleBoundedQueryValue(query.country, 7);
+  const device = singleBoundedQueryValue(query.device, 16);
+  const browser = singleBoundedQueryValue(query.browser, 32);
+  if ([source, path, eventName, country, device, browser].includes(null)) return null;
+  if (device && !analyticsDevices.includes(device as (typeof analyticsDevices)[number])) return null;
+  if (browser && !analyticsBrowsers.includes(browser.toLowerCase() as (typeof analyticsBrowsers)[number])) return null;
+  if (country && country !== "unknown" && !/^[A-Za-z]{2}$/.test(country)) return null;
+  if (
+    path &&
+    (!path.startsWith("/") || path.includes("?") || path.includes("#") || new RegExp(INVALID_STOREFRONT_PATH_PATTERN, "i").test(path))
+  ) return null;
+  if (eventName && !/^[a-z][a-z0-9_]{0,63}$/.test(eventName)) return null;
+  return {
+    source,
+    path,
+    eventName,
+    country: country === "unknown" ? country : country?.toUpperCase(),
+    device,
+    browser: browser?.toLowerCase(),
+  };
+}
+
+export function analyticsFilterResponse(filters: ReturnType<typeof resolveAnalyticsFilters>) {
+  if (!filters) return null;
+  return {
+    source: filters.source ?? null,
+    path: filters.path ?? null,
+    eventName: filters.eventName ?? null,
+    country: filters.country ?? null,
+    device: filters.device ?? null,
+    browser: filters.browser ?? null,
   };
 }
 
@@ -1003,20 +1059,53 @@ router.patch("/staff/notifications/:id", async (req, res): Promise<void> => {
 });
 
 router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator", "analyst"), async (req, res): Promise<void> => {
-  const range = resolveDateRange(req.query);
-  if (!range) {
-    res.status(400).json({ error: "Use a valid from/to date range (YYYY-MM-DD)" });
+  const range = resolveDateRange(req.query, 366);
+  const filters = resolveAnalyticsFilters(req.query);
+  if (!range || !filters) {
+    res.status(400).json({ error: "Use a valid date range of at most 366 days and bounded analytics filters." });
     return;
   }
 
   const consentFilter = inArray(analyticsEventsTable.consent, ["analytics", "marketing"]);
-  const dateFilter = and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end));
+  const browserBucket = sql<string>`case
+    when lower(coalesce(${analyticsEventsTable.properties}->>'browser', '')) in ('chrome', 'safari', 'firefox', 'edge', 'opera', 'samsung internet')
+      then lower(${analyticsEventsTable.properties}->>'browser')
+    else 'unknown' end`;
+  const countryBucket = sql<string>`case
+    when coalesce(${analyticsEventsTable.properties}->>'_country', '') ~ '^[A-Za-z]{2}$'
+      then upper(${analyticsEventsTable.properties}->>'_country')
+    else 'unknown' end`;
+  const sourceBucket = sql<string>`case
+    when coalesce(${analyticsEventsTable.source}, '') = '' then '(direct)'
+    when length(${analyticsEventsTable.source}) <= 128 and ${analyticsEventsTable.source} ~ '^[A-Za-z0-9._ -]+$'
+      then ${analyticsEventsTable.source}
+    else '(other)' end`;
+  const mediumBucket = sql<string>`case
+    when coalesce(${analyticsEventsTable.utmMedium}, '') = '' then '(none)'
+    when length(${analyticsEventsTable.utmMedium}) <= 128 and ${analyticsEventsTable.utmMedium} ~ '^[A-Za-z0-9._ /-]+$'
+      then ${analyticsEventsTable.utmMedium}
+    else '(other)' end`;
+  const campaignBucket = sql<string>`case
+    when coalesce(${analyticsEventsTable.utmCampaign}, '') = '' then '(none)'
+    when length(${analyticsEventsTable.utmCampaign}) <= 128 and ${analyticsEventsTable.utmCampaign} ~ '^[A-Za-z0-9._ /-]+$'
+      then ${analyticsEventsTable.utmCampaign}
+    else '(other)' end`;
+  const dimensionFilters = [
+    ...(filters.source ? [sql`${sourceBucket} = ${filters.source}`] : []),
+    ...(filters.path ? [eq(analyticsEventsTable.path, filters.path)] : []),
+    ...(filters.eventName ? [eq(analyticsEventsTable.eventName, filters.eventName)] : []),
+    ...(filters.country ? [sql`${countryBucket} = ${filters.country}`] : []),
+    ...(filters.device ? [sql`coalesce(${analyticsEventsTable.deviceType}, 'unknown') = ${filters.device}`] : []),
+    ...(filters.browser ? [sql`${browserBucket} = ${filters.browser}`] : []),
+  ];
+  const dateFilter = and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end), ...dimensionFilters);
   const periodMs = range.end.getTime() - range.start.getTime() + 1;
   const comparisonEnd = new Date(range.start.getTime() - 1);
   const comparisonStart = new Date(comparisonEnd.getTime() - periodMs + 1);
   const comparisonFilter = and(
     gte(analyticsEventsTable.occurredAt, comparisonStart),
     lte(analyticsEventsTable.occurredAt, comparisonEnd),
+    ...dimensionFilters,
   );
   const stageEventNames = ["page_view", "product_view", "add_to_bag", "checkout_started", "payment_clicked"];
 
@@ -1066,7 +1155,7 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator
     db
       .select({ path: analyticsEventsTable.path, views: sql<number>`COUNT(*)` })
       .from(analyticsEventsTable)
-      .where(and(dateFilter, consentFilter, eq(analyticsEventsTable.eventName, "page_view")))
+      .where(and(dateFilter, consentFilter, eq(analyticsEventsTable.eventName, "page_view"), sql`${analyticsEventsTable.path} !~* ${INVALID_STOREFRONT_PATH_PATTERN}`))
       .groupBy(analyticsEventsTable.path)
       .orderBy(sql`COUNT(*) DESC`)
       .limit(10),
@@ -1110,9 +1199,9 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator
       .groupBy(analyticsEventsTable.eventName),
     db
       .select({
-        source: sql<string>`coalesce(nullif(${analyticsEventsTable.source}, ''), '(direct)')`,
-        medium: sql<string>`coalesce(nullif(${analyticsEventsTable.utmMedium}, ''), '(none)')`,
-        campaign: sql<string>`coalesce(nullif(${analyticsEventsTable.utmCampaign}, ''), '(none)')`,
+        source: sourceBucket,
+        medium: sql<string>`case when coalesce(${analyticsEventsTable.utmMedium}, '') ~ '^[A-Za-z0-9._ -]{1,128}$' then ${analyticsEventsTable.utmMedium} else '(none)' end`,
+        campaign: sql<string>`case when coalesce(${analyticsEventsTable.utmCampaign}, '') ~ '^[A-Za-z0-9._ -]{1,128}$' then ${analyticsEventsTable.utmCampaign} else '(none)' end`,
         events: count(),
         visitors: sql<number>`COUNT(DISTINCT ${analyticsEventsTable.anonymousId})`,
       })
@@ -1123,12 +1212,12 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator
       .limit(10),
     db
       .select({
-        country: sql<string>`coalesce(nullif(${analyticsEventsTable.properties}->>'_country', ''), 'unknown')`,
+        country: countryBucket,
         events: count(),
       })
       .from(analyticsEventsTable)
       .where(and(dateFilter, consentFilter))
-      .groupBy(sql`coalesce(nullif(${analyticsEventsTable.properties}->>'_country', ''), 'unknown')`)
+      .groupBy(countryBucket)
       .orderBy(sql`COUNT(*) DESC`)
       .limit(10),
     db
@@ -1148,6 +1237,130 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator
       .groupBy(analyticsEventsTable.sessionId, analyticsEventsTable.eventName),
   ]);
 
+  const realtimeStart = new Date(Date.now() - 5 * 60_000);
+  const [
+    dailyRows,
+    pageAggregateRows,
+    sourceAggregateRows,
+    countryAggregateRows,
+    deviceAggregateRows,
+    browserAggregateRows,
+    allEventRows,
+    realtimeRows,
+    realtimePageRows,
+    orderRows,
+    previousSummaryRows,
+    previousOrderRows,
+    engagementResult,
+  ] = await Promise.all([
+    db.select({
+      date: sql<string>`to_char(date_trunc('day', ${analyticsEventsTable.occurredAt}), 'YYYY-MM-DD')`,
+      events: count(),
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+      sessions: sql<number>`count(distinct ${analyticsEventsTable.sessionId})`,
+      pageViews: sql<number>`count(*) filter (where ${analyticsEventsTable.eventName} = 'page_view')`,
+    }).from(analyticsEventsTable).where(and(dateFilter, consentFilter))
+      .groupBy(sql`date_trunc('day', ${analyticsEventsTable.occurredAt})`)
+      .orderBy(sql`date_trunc('day', ${analyticsEventsTable.occurredAt})`),
+    db.select({
+      path: analyticsEventsTable.path,
+      views: sql<number>`count(*)`,
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+      sessions: sql<number>`count(distinct ${analyticsEventsTable.sessionId})`,
+    }).from(analyticsEventsTable).where(and(dateFilter, consentFilter, eq(analyticsEventsTable.eventName, "page_view"), sql`${analyticsEventsTable.path} !~* ${INVALID_STOREFRONT_PATH_PATTERN}`))
+      .groupBy(analyticsEventsTable.path).orderBy(sql`count(*) desc`).limit(100),
+    db.select({
+      source: sourceBucket,
+      medium: mediumBucket,
+      campaign: campaignBucket,
+      events: count(),
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+      sessions: sql<number>`count(distinct ${analyticsEventsTable.sessionId})`,
+    }).from(analyticsEventsTable).where(and(dateFilter, consentFilter))
+      .groupBy(sourceBucket, mediumBucket, campaignBucket).orderBy(sql`count(*) desc`).limit(100),
+    db.select({
+      country: countryBucket,
+      events: count(),
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+    }).from(analyticsEventsTable).where(and(dateFilter, consentFilter))
+      .groupBy(countryBucket).orderBy(sql`count(*) desc`).limit(100),
+    db.select({
+      deviceType: sql<string>`coalesce(${analyticsEventsTable.deviceType}, 'unknown')`,
+      events: count(),
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+    }).from(analyticsEventsTable).where(and(dateFilter, consentFilter))
+      .groupBy(analyticsEventsTable.deviceType).orderBy(sql`count(*) desc`),
+    db.select({
+      browser: browserBucket,
+      events: count(),
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+    }).from(analyticsEventsTable).where(and(dateFilter, consentFilter))
+      .groupBy(browserBucket).orderBy(sql`count(*) desc`),
+    db.select({
+      eventName: analyticsEventsTable.eventName,
+      events: count(),
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+      sessions: sql<number>`count(distinct ${analyticsEventsTable.sessionId})`,
+    }).from(analyticsEventsTable).where(and(dateFilter, consentFilter))
+      .groupBy(analyticsEventsTable.eventName).orderBy(sql`count(*) desc`).limit(100),
+    db.select({
+      activeSessions: sql<number>`count(distinct ${analyticsEventsTable.sessionId})`,
+      events: count(),
+    }).from(analyticsEventsTable).where(and(
+      gte(analyticsEventsTable.occurredAt, realtimeStart),
+      lte(analyticsEventsTable.occurredAt, new Date()),
+      consentFilter,
+      ...dimensionFilters,
+    )),
+    db.select({ path: analyticsEventsTable.path, views: count() }).from(analyticsEventsTable)
+      .where(and(gte(analyticsEventsTable.occurredAt, realtimeStart), consentFilter, eq(analyticsEventsTable.eventName, "page_view"), sql`${analyticsEventsTable.path} !~* ${INVALID_STOREFRONT_PATH_PATTERN}`, ...dimensionFilters))
+      .groupBy(analyticsEventsTable.path).orderBy(sql`count(*) desc`).limit(10),
+    db.select({
+      currency: ordersTable.currency,
+      orders: count(),
+      revenue: sql<string>`coalesce(sum(${ordersTable.total}), 0)`,
+    }).from(ordersTable).where(and(
+      gte(ordersTable.createdAt, range.start),
+      lte(ordersTable.createdAt, range.end),
+      inArray(ordersTable.status, ["paid", "atelier_confirmation", "in_production", "ready", "fulfilled"]),
+    )).groupBy(ordersTable.currency),
+    db.select({
+      visitors: sql<number>`count(distinct ${analyticsEventsTable.anonymousId})`,
+      sessions: sql<number>`count(distinct ${analyticsEventsTable.sessionId})`,
+      pageViews: sql<number>`count(*) filter (where ${analyticsEventsTable.eventName} = 'page_view')`,
+      events: count(),
+    }).from(analyticsEventsTable).where(and(comparisonFilter, consentFilter)),
+    db.select({ orders: count() }).from(ordersTable).where(and(
+      gte(ordersTable.createdAt, comparisonStart),
+      lte(ordersTable.createdAt, comparisonEnd),
+      inArray(ordersTable.status, ["paid", "atelier_confirmation", "in_production", "ready", "fulfilled"]),
+    )),
+    db.execute(sql`
+      with session_rollup as (
+        select session_id,
+          count(*) filter (where event_name = 'page_view') as page_views,
+          count(*) filter (where event_name = 'active_time_heartbeat') as heartbeats,
+          count(*) filter (where event_name in ('add_to_bag', 'checkout_started', 'payment_clicked')) as conversion_events,
+          coalesce(sum(case
+            when event_name = 'active_time_heartbeat'
+              and (properties->>'interval_seconds') ~ '^[0-9]{1,4}$'
+            then least((properties->>'interval_seconds')::int, 300)
+            else 0 end), 0) as engaged_seconds
+        from ${analyticsEventsTable}
+        where ${analyticsEventsTable.occurredAt} >= ${range.start}
+          and ${analyticsEventsTable.occurredAt} <= ${range.end}
+          and ${analyticsEventsTable.consent} in ('analytics', 'marketing')
+          and ${analyticsEventsTable.sessionId} is not null
+          ${dimensionFilters.length ? sql`and ${and(...dimensionFilters)}` : sql``}
+        group by session_id
+      )
+      select count(*) as sessions,
+        coalesce(avg(engaged_seconds), 0) as average_engaged_seconds,
+        count(*) filter (where page_views = 1 and heartbeats = 0 and conversion_events = 0) as bounced_sessions
+      from session_rollup
+    `),
+  ]);
+
   const currentCounts = eventCountMap(eventRows.map((row) => ({ eventName: row.eventName, count: Number(row.events) })));
   const previousCounts = eventCountMap(comparisonRows.map((row) => ({ eventName: row.eventName, count: Number(row.events) })));
   const sessionStages = new Map<string, Set<string>>();
@@ -1160,12 +1373,53 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator
   const sessionsAtStage = (stage: string) => Array.from(sessionStages.values()).filter((stages) => stages.has(stage)).length;
   const latestEventAt = freshnessRows[0]?.latestEventAt ?? null;
   const rangeDays = Math.max(1, Math.round(periodMs / 86_400_000));
+  const dailyByDate = new Map(dailyRows.map((row) => [row.date, row]));
+  const dailyTimeSeries = Array.from({ length: rangeDays }, (_, index) => {
+    const date = new Date(range.start);
+    date.setUTCDate(date.getUTCDate() + index);
+    const day = date.toISOString().slice(0, 10);
+    const row = dailyByDate.get(day);
+    return {
+      date: day,
+      events: Number(row?.events ?? 0),
+      visitors: Number(row?.visitors ?? 0),
+      sessions: Number(row?.sessions ?? 0),
+      pageViews: Number(row?.pageViews ?? 0),
+    };
+  });
+  const engagementRows = (engagementResult as unknown as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+  const engagement = engagementRows[0] ?? {};
+  const engagedSessions = Number(engagement.sessions ?? 0);
+  const bouncedSessions = Number(engagement.bounced_sessions ?? 0);
+  const currentSummary = {
+    visitors: Number(visitorRows[0]?.uniqueVisitors ?? 0),
+    sessions: Number(visitorRows[0]?.uniqueSessions ?? 0),
+    pageViews: currentCounts.page_view ?? 0,
+    events: allEventRows.reduce((total, row) => total + Number(row.events), 0),
+    orders: orderRows.reduce((total, row) => total + Number(row.orders ?? 0), 0),
+  };
+  const previousSummary = {
+    visitors: Number(previousSummaryRows[0]?.visitors ?? 0),
+    sessions: Number(previousSummaryRows[0]?.sessions ?? 0),
+    pageViews: Number(previousSummaryRows[0]?.pageViews ?? 0),
+    events: Number(previousSummaryRows[0]?.events ?? 0),
+    orders: Number(previousOrderRows[0]?.orders ?? 0),
+  };
 
   res.json({
     from: range.from,
     to: range.to,
     generatedAt: new Date(),
     privacyNote: "Aggregate first-party data only. No visitor identifiers or personal data is included.",
+    semantics: {
+      consent: "Analytics uses only first-party events recorded after an analytics or marketing consent decision.",
+      visitors: "Visitors are distinct anonymous measurement identifiers, never customer accounts or identified people.",
+      sessions: "Sessions are distinct anonymous session identifiers. Identifiers are counted server-side and never returned.",
+      commerce: "Verified orders and gross order totals come from commerce data and are deliberately not linked or attributed to analytics visitors, sources, or dimensions.",
+      browser: "Browser uses only a bounded coarse event property when available; missing or unsupported values are reported as unknown. Full user-agent strings are neither required nor returned.",
+      geography: "Country is a coarse server-provided two-letter country code. Precise location is not collected or returned.",
+    },
+    appliedFilters: analyticsFilterResponse(filters),
     uniqueVisitors: Number(visitorRows[0]?.uniqueVisitors ?? 0),
     uniqueSessions: Number(visitorRows[0]?.uniqueSessions ?? 0),
     topPages: pageRows.map((r) => ({ path: r.path ?? "(unknown)", views: Number(r.views) })),
@@ -1196,6 +1450,79 @@ router.get("/staff/analytics/metrics", requireStaffRoles("owner", "administrator
       visitors: Number(row.visitors),
     })),
     countries: countryRows.map((row) => ({ country: row.country, events: Number(row.events) })),
+    summary: Object.fromEntries(Object.entries(currentSummary).map(([key, current]) => [
+      key,
+      { current, previous: previousSummary[key as keyof typeof previousSummary], delta: comparisonDelta(current, previousSummary[key as keyof typeof previousSummary]) },
+    ])),
+    dailyTimeSeries,
+    pages: pageAggregateRows.map((row) => ({
+      path: row.path,
+      views: Number(row.views),
+      visitors: Number(row.visitors),
+      sessions: Number(row.sessions),
+    })),
+    sources: sourceAggregateRows.map((row) => ({
+      source: row.source,
+      medium: row.medium,
+      campaign: row.campaign,
+      events: Number(row.events),
+      visitors: Number(row.visitors),
+      sessions: Number(row.sessions),
+    })),
+    geography: countryAggregateRows.map((row) => ({
+      country: row.country,
+      events: Number(row.events),
+      visitors: Number(row.visitors),
+    })),
+    devices: deviceAggregateRows.map((row) => ({
+      deviceType: row.deviceType,
+      events: Number(row.events),
+      visitors: Number(row.visitors),
+    })),
+    browsers: browserAggregateRows.map((row) => ({
+      browser: row.browser,
+      events: Number(row.events),
+      visitors: Number(row.visitors),
+    })),
+    events: allEventRows.map((row) => ({
+      eventName: row.eventName,
+      events: Number(row.events),
+      visitors: Number(row.visitors),
+      sessions: Number(row.sessions),
+    })),
+    conversions: [
+      ...["add_to_bag", "checkout_started", "payment_clicked"].map((eventName) => ({
+        key: eventName,
+        count: currentCounts[eventName] ?? 0,
+        kind: "consented_event",
+        definition: `${eventName.replaceAll("_", " ")} events in the selected range; event volume is not a count of people or completed payments.`,
+      })),
+      {
+        key: "verified_orders",
+        count: orderRows.reduce((total, row) => total + Number(row.orders ?? 0), 0),
+        kind: "commerce",
+        revenueByCurrency: orderRows.map((row) => ({
+          currency: row.currency,
+          orders: Number(row.orders ?? 0),
+          revenue: Number(row.revenue ?? 0),
+        })),
+        definition: "Orders in a verified paid or later fulfilment status, aggregated independently from analytics visitors. Revenue is gross order total and is not attributed to a visitor or source.",
+      },
+    ],
+    engagement: {
+      averageEngagedSeconds: engagedSessions ? Number(engagement.average_engaged_seconds ?? 0) : null,
+      bouncedSessions,
+      bounceRate: engagedSessions ? bouncedSessions / engagedSessions : null,
+      definition: "Average engaged duration is the mean per consented session of bounded visible-time heartbeat intervals (each interval capped at 300 seconds). A bounce is a session with exactly one page view, no active-time heartbeat (heartbeats begin after 15 visible seconds), and no add-to-bag, checkout-start, or payment-click event.",
+    },
+    realtime: {
+      windowMinutes: 5,
+      activeNow: Number(realtimeRows[0]?.activeSessions ?? 0),
+      events: Number(realtimeRows[0]?.events ?? 0),
+      topPages: realtimePageRows.map((row) => ({ path: row.path, views: Number(row.views) })),
+      asOf: new Date(),
+      definition: "Active now is the distinct count of consented anonymous sessions with an event in the rolling five minutes. It is not a count of identified people.",
+    },
     journey: {
       sessionsWithProductView: sessionsAtStage("product_view"),
       sessionsWithBag: sessionsAtStage("add_to_bag"),

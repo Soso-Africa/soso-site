@@ -43,6 +43,7 @@ import type {
   FinalizeUploadResponse,
   GetRedirectParams,
   GetSiteContent200,
+  GetStaffAnalyticsMetricsParams,
   GetStaffExportParams,
   GetStaffFunnelParams,
   GetStaffOverviewParams,
@@ -69,6 +70,7 @@ import type {
   StaffAccessInput,
   StaffAccessMapping,
   StaffAccessUpdate,
+  StaffAnalyticsMetrics,
   StaffAuditEvent,
   StaffEnquiryUpdate,
   StaffExport,
@@ -2333,6 +2335,91 @@ export function useGetStaffAnalyticsQuality<TData = Awaited<ReturnType<typeof ge
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStaffAnalyticsQualityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStaffAnalyticsMetricsUrl = (params?: GetStaffAnalyticsMetricsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/analytics/metrics?${stringifiedParams}` : `/api/staff/analytics/metrics`
+}
+
+/**
+ * Aggregate-only, consented first-party analytics. Available to owner, administrator, and analyst roles. Verified orders are aggregated independently and are not joined to visitor identities.
+ * @summary Get a configurable aggregate analytics workspace
+ */
+export const getStaffAnalyticsMetrics = async (params?: GetStaffAnalyticsMetricsParams, options?: Parameters<typeof customFetch>[1]): Promise<StaffAnalyticsMetrics> => {
+
+  return customFetch<StaffAnalyticsMetrics>(getGetStaffAnalyticsMetricsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffAnalyticsMetricsQueryKey = (params?: GetStaffAnalyticsMetricsParams,) => {
+    return [
+    `/api/staff/analytics/metrics`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetStaffAnalyticsMetricsQueryOptions = <TData = Awaited<ReturnType<typeof getStaffAnalyticsMetrics>>, TError = ErrorType<void>>(params?: GetStaffAnalyticsMetricsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffAnalyticsMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffAnalyticsMetricsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffAnalyticsMetrics>>> = ({ signal }) => getStaffAnalyticsMetrics(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffAnalyticsMetrics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffAnalyticsMetricsQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffAnalyticsMetrics>>>
+export type GetStaffAnalyticsMetricsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a configurable aggregate analytics workspace
+ */
+
+export function useGetStaffAnalyticsMetrics<TData = Awaited<ReturnType<typeof getStaffAnalyticsMetrics>>, TError = ErrorType<void>>(
+ params?: GetStaffAnalyticsMetricsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffAnalyticsMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffAnalyticsMetricsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
