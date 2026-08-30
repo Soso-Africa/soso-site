@@ -62,6 +62,8 @@ export type PlatformCollection = {
 };
 export type FaqItem = { id: string; category: string; question: string; answer: string };
 export type CopyItem = { title: string; body: string; imageUrl?: string; href?: string; linkLabel?: string };
+export type HomepageCategoryTile = { eyebrow: string; title: string; imageUrl: string; imageAlt: string; href: string };
+export type HomepageOccasion = { title: string; body: string; imageUrl: string; imageAlt: string; href: string; linkLabel: string };
 export type PlatformContent = {
   contentVersion: number;
   site: {
@@ -117,8 +119,13 @@ export type PlatformContent = {
       assurances: string[];
     };
     trustItems: CopyItem[];
-    featured: { eyebrow: string; title: string; link: ContentLink; productSlugs: string[] };
-    occasions: { eyebrow: string; title: string; items: CopyItem[] };
+    categories: { heading: string; accessibleLabel: string; ctaLabel: string; items: HomepageCategoryTile[] };
+    newArrival: {
+      eyebrow: string; title: string; link: ContentLink; productSlug: string;
+      editorial: { imageUrl: string; imageAlt: string; eyebrow: string; title: string; body: string; link: ContentLink };
+    };
+    featured: { eyebrow: string; title: string; link: ContentLink; productSlugs: string[]; legacySparseCompatibility?: true };
+    occasions: { eyebrow: string; title: string; items: HomepageOccasion[] };
     fit: { eyebrow: string; title: string; imageUrl: string; imageAlt: string; steps: CopyItem[]; ctaLabel: string };
     confidence: { eyebrow: string; title: string; items: CopyItem[]; marquee: string[] };
     story: { imageUrl: string; logoUrl: string; title: string; body: string; link: ContentLink };

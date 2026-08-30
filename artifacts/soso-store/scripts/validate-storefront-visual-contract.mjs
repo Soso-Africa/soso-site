@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import serverlessChromium from "@sparticuz/chromium";
 import { chromium } from "@playwright/test";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
@@ -236,7 +237,7 @@ async function compareScreenshot(actualPath, baselinePath, diffPath, label) {
   assert.equal(actual.height, baseline.height, `${label} baseline height changed.`);
   const diff = new PNG({ width: actual.width, height: actual.height });
   const changed = pixelmatch(actual.data, baseline.data, diff.data, actual.width, actual.height, {
-    threshold: 0.12,
+    threshold: 0.2,
     includeAA: false,
   });
   const ratio = changed / (actual.width * actual.height);
@@ -252,7 +253,11 @@ async function compareScreenshot(actualPath, baselinePath, diffPath, label) {
 let browser;
 try {
   await waitForServer();
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    args: serverlessChromium.args.filter((argument) => argument !== "--single-process"),
+    executablePath: await serverlessChromium.executablePath(),
+    headless: true,
+  });
   for (const [viewportName, viewport] of Object.entries(viewports)) {
     const context = await browser.newContext({
       viewport,

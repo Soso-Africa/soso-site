@@ -24,6 +24,21 @@ const link = z.object({ label: z.string().min(1).max(120), href, external: z.boo
 const copyItem = z.object({
   title: copy, body: copy, imageUrl: localPath.optional(), href: localPath.optional(), linkLabel: copy.optional(),
 }).strict();
+const homepageCategoryTile = z.object({
+  eyebrow: copy.min(1),
+  title: copy.min(1),
+  imageUrl: localPath,
+  imageAlt: z.string().trim().min(1).max(300),
+  href,
+}).strict();
+const homepageOccasion = z.object({
+  title: copy.min(1),
+  body: copy.min(1),
+  imageUrl: localPath,
+  imageAlt: z.string().trim().min(1).max(300),
+  href,
+  linkLabel: copy.min(1),
+}).strict();
 const imageProvenance = z.object({
   source: z.string().min(1).max(300),
   rights: z.string().min(1).max(500),
@@ -96,7 +111,7 @@ export const PlatformContentSchema = z.object({
   contentVersion: z.number().int().positive(),
   site: z.object({
     name: copy, logoUrl: localPath, logoAlt: z.string().min(1), announcement: copy,
-    announcementItems: z.array(z.string().trim().min(1).max(180)).min(1).max(8),
+    announcementItems: z.array(z.string().trim().min(1).max(180)).max(8),
     hqAddress: z.string().trim().min(1).max(300),
     socialLinks: z.object({
       facebookUrl: optionalHttpsUrl,
@@ -131,8 +146,22 @@ export const PlatformContentSchema = z.object({
     seo,
     hero: homepageHero,
     trustItems: z.array(copyItem).min(1),
-    featured: z.object({ eyebrow: copy, title: copy, link, productSlugs: z.array(slug).min(1) }).strict(),
-    occasions: z.object({ eyebrow: copy, title: copy, items: z.array(copyItem).min(1) }).strict(),
+    categories: z.object({
+      heading: copy.min(1), accessibleLabel: copy.min(1), ctaLabel: copy.min(1),
+      items: z.array(homepageCategoryTile).length(4),
+    }).strict(),
+    newArrival: z.object({
+      eyebrow: copy.min(1), title: copy.min(1), link, productSlug: slug,
+      editorial: z.object({
+        imageUrl: localPath, imageAlt: z.string().trim().min(1).max(300),
+        eyebrow: copy.min(1), title: copy.min(1), body: copy.min(1), link,
+      }).strict(),
+    }).strict(),
+    featured: z.object({
+      eyebrow: copy, title: copy.min(1), link, productSlugs: z.array(slug).length(4),
+      legacySparseCompatibility: z.literal(true).optional(),
+    }).strict(),
+    occasions: z.object({ eyebrow: copy, title: copy, items: z.array(homepageOccasion).length(2) }).strict(),
     fit: z.object({
       eyebrow: copy, title: copy, imageUrl: localPath, imageAlt: z.string().min(1),
       steps: z.array(copyItem).min(1), ctaLabel: copy,
@@ -481,6 +510,42 @@ export const PlatformContentSchema = z.object({
   content.homepage.featured.productSlugs.forEach((value, index) => {
     if (!products.has(value)) ctx.addIssue({ code: "custom", message: `Unknown featured product: ${value}`, path: ["homepage", "featured", "productSlugs", index] });
   });
+  const homepageFeatured = new Set<string>();
+  content.homepage.featured.productSlugs.forEach((value, index) => {
+    if (!content.homepage.featured.legacySparseCompatibility && homepageFeatured.has(value)) ctx.addIssue({ code: "custom", message: `Duplicate featured product: ${value}`, path: ["homepage", "featured", "productSlugs", index] });
+    homepageFeatured.add(value);
+  });
+  if (content.homepage.featured.legacySparseCompatibility) {
+    if (products.size < 1 || products.size >= 4) {
+      ctx.addIssue({ code: "custom", message: "Legacy sparse featured compatibility is only valid for catalogues with one to three products", path: ["homepage", "featured", "legacySparseCompatibility"] });
+    }
+    const requiredUniqueSlots = Math.min(products.size, content.homepage.featured.productSlugs.length);
+    const initialSlugs = content.homepage.featured.productSlugs.slice(0, requiredUniqueSlots);
+    if (new Set(initialSlugs).size !== requiredUniqueSlots || initialSlugs.some((value) => !products.has(value)) || new Set(initialSlugs).size !== products.size) {
+      ctx.addIssue({ code: "custom", message: "Legacy sparse featured compatibility must list every current product once before repeats", path: ["homepage", "featured", "productSlugs"] });
+    }
+    if (new Set(content.homepage.featured.productSlugs).size === content.homepage.featured.productSlugs.length) {
+      ctx.addIssue({ code: "custom", message: "Legacy sparse featured compatibility requires repeated products", path: ["homepage", "featured", "legacySparseCompatibility"] });
+    }
+  }
+  if (!products.has(content.homepage.newArrival.productSlug)) {
+    ctx.addIssue({ code: "custom", message: `Unknown new-arrival product: ${content.homepage.newArrival.productSlug}`, path: ["homepage", "newArrival", "productSlug"] });
+  }
+  const categoryTargets = new Set<string>();
+  content.homepage.categories.items.forEach((item, index) => {
+    if (categoryTargets.has(item.href)) ctx.addIssue({ code: "custom", message: `Duplicate homepage category target: ${item.href}`, path: ["homepage", "categories", "items", index, "href"] });
+    categoryTargets.add(item.href);
+    if (!isSafeStorefrontTarget(item.href)) ctx.addIssue({ code: "custom", message: `Unsafe or unknown homepage category target: ${item.href}`, path: ["homepage", "categories", "items", index, "href"] });
+  });
+  const homepageLinks: Array<{ value: string; path: (string | number)[] }> = [
+    { value: content.homepage.newArrival.link.href, path: ["homepage", "newArrival", "link", "href"] },
+    { value: content.homepage.newArrival.editorial.link.href, path: ["homepage", "newArrival", "editorial", "link", "href"] },
+    { value: content.homepage.featured.link.href, path: ["homepage", "featured", "link", "href"] },
+    ...content.homepage.occasions.items.map((item, index) => ({ value: item.href, path: ["homepage", "occasions", "items", index, "href"] })),
+  ];
+  homepageLinks.forEach((item) => {
+    if (!isSafeStorefrontTarget(item.value)) ctx.addIssue({ code: "custom", message: `Unsafe or unknown homepage target: ${item.value}`, path: item.path });
+  });
   content.sizeGuide.rows.forEach((row, index) => {
     if (row.values.length !== content.sizeGuide.columns.length) ctx.addIssue({ code: "custom", message: "Size guide values must match its columns", path: ["sizeGuide", "rows", index, "values"] });
   });
@@ -677,15 +742,11 @@ const womenReadyToWearCollection: PlatformContent["collections"][number] = {
   },
 };
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
-  contentVersion: 5,
+  contentVersion: 7,
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
     announcement: "Ready now and made immediately · Dispatch within five days",
-    announcementItems: [
-      "Ready now and made immediately · Dispatch within five days",
-      "Made in Abuja · Designed for presence",
-      "Standard sizes or Custom · Choose your route",
-    ],
+    announcementItems: [],
     hqAddress: "38 Agazi Street, Wuse, Abuja",
     socialLinks: { facebookUrl: "", twitterUrl: "", youtubeUrl: "", tiktokUrl: "", linkedinUrl: "" },
     skipLinkLabel: "Skip to content",
@@ -768,13 +829,29 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       { title: "Delivery guidance", body: "Options are confirmed for your location" }, { title: "Sizing support", body: "Use the guide or speak with a stylist" },
       { title: "Made-to-measure", body: "Choose Custom for a fitting conversation" }, { title: "Thoughtful checkout", body: "Pay first, then the atelier confirms making details" },
     ],
-    featured: { eyebrow: "Shop the current collection", title: "Ready for the occasion. Made the SOSO way.", link: { label: "Shop all pieces", href: "/shop" }, productSlugs: ["vault", "ivory-kaftan", "sovereign-agbada", "heritage-dashiki", "boardroom-shirt", "twin-set"] },
+    categories: {
+      heading: "Shop SOSO categories", accessibleLabel: "Shop SOSO categories", ctaLabel: "Shop the collection",
+      items: [
+        { eyebrow: "SOSO collection", title: "Kaftans", imageUrl: "/images/soso/vault-black.jpg", imageAlt: "Black SOSO kaftan", href: "/collections/kaftans" },
+        { eyebrow: "SOSO collection", title: "Agbadas", imageUrl: "/images/soso/agbada.jpg", imageAlt: "SOSO ceremonial agbada", href: "/collections/agbadas" },
+        { eyebrow: "SOSO collection", title: "Dashikis", imageUrl: "/images/soso/dashiki.jpg", imageAlt: "SOSO patterned dashiki", href: "/collections/dashikis" },
+        { eyebrow: "SOSO collection", title: "Shirts", imageUrl: "/images/soso/shirts.jpg", imageAlt: "SOSO tailored shirt", href: "/collections/shirts" },
+      ],
+    },
+    newArrival: {
+      eyebrow: "Just in at SOSO", title: "New arrival", link: { label: "Shop all pieces", href: "/shop" }, productSlug: "vault",
+      editorial: {
+        imageUrl: "/images/soso/dashiki.jpg", imageAlt: "SOSO editorial tailoring",
+        eyebrow: "The SOSO edit", title: "The Architect of the Modern Man.",
+        body: "SOSO approaches menswear with proportion, restraint, and intent.",
+        link: { label: "Discover the house", href: "/shop" },
+      },
+    },
+    featured: { eyebrow: "Shop the current collection", title: "Ready for the occasion. Made the SOSO way.", link: { label: "Shop all pieces", href: "/shop" }, productSlugs: ["vault", "ivory-kaftan", "sovereign-agbada", "heritage-dashiki"] },
     occasions: {
       eyebrow: "Shop by occasion", title: "Where will they see you next?", items: [
-        { title: "The Wedding", body: "Agbadas & grand kaftans", imageUrl: "/images/soso/agbada.jpg", href: "/shop", linkLabel: "Shop the look →" },
-        { title: "The Boardroom", body: "Shirts & sharp two-pieces", imageUrl: "/images/soso/shirts.jpg", href: "/shop", linkLabel: "Shop the look →" },
-        { title: "Sunday Service", body: "Ivory & ceremonial kaftans", imageUrl: "/images/soso/kaftan-white.jpg", href: "/shop", linkLabel: "Shop the look →" },
-        { title: "The Owambe", body: "Statement dashikis & sets", imageUrl: "/images/soso/twopiece.jpg", href: "/shop", linkLabel: "Shop the look →" },
+        { title: "The Wedding", body: "Agbadas & grand kaftans", imageUrl: "/images/soso/agbada.jpg", imageAlt: "SOSO agbada styled for a wedding", href: "/shop", linkLabel: "Shop the look →" },
+        { title: "The Boardroom", body: "Shirts & sharp two-pieces", imageUrl: "/images/soso/shirts.jpg", imageAlt: "SOSO tailoring styled for the boardroom", href: "/shop", linkLabel: "Shop the look →" },
       ],
     },
     fit: {
@@ -1030,7 +1107,12 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     : 1;
   const shouldApplyWomenLaunch = currentContentVersion < 2;
   const shouldApplySiteSettingsLaunch = currentContentVersion < 3;
-  const shouldApplyHeroVideoLaunch = currentContentVersion < 5;
+  // Hero motion and structured merchandising were both developed from version 4.
+  // Version 6 unifies those parallel version-5 migrations and safely upgrades
+  // documents created by either branch.
+  const shouldApplyHeroVideoLaunch = currentContentVersion < 6;
+  const shouldApplyHomepageMerchandising = currentContentVersion < 6;
+  const shouldRemoveDefaultAnnouncements = currentContentVersion < 7;
   let upgradeSource = current;
   if (current && typeof current === "object" && !Array.isArray(current)) {
     upgradeSource = structuredClone(current);
@@ -1043,6 +1125,19 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         currentAnnouncement,
         ...DEFAULT_PLATFORM_CONTENT.site.announcementItems.slice(1),
       ];
+    }
+    if (shouldRemoveDefaultAnnouncements && site && Array.isArray(site.announcementItems)) {
+      const previousDefaults = [
+        "Ready now and made immediately · Dispatch within five days",
+        "Made in Abuja · Designed for presence",
+        "Standard sizes or Custom · Choose your route",
+      ];
+      if (
+        site.announcementItems.length === previousDefaults.length
+        && site.announcementItems.every((item, index) => item === previousDefaults[index])
+      ) {
+        site.announcementItems = [];
+      }
     }
     const hero = (upgradeSource as {
       homepage?: { hero?: Record<string, unknown> };
@@ -1062,6 +1157,22 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         hero.mobileVideoUrl = DEFAULT_PLATFORM_CONTENT.homepage.hero.mobileVideoUrl;
       }
     }
+    if (shouldApplyHomepageMerchandising) {
+      const homepage = (upgradeSource as { homepage?: Record<string, unknown> }).homepage;
+      if (homepage) {
+        const featured = homepage.featured as Record<string, unknown> | undefined;
+        if (featured && Array.isArray(featured.productSlugs) && featured.productSlugs.length !== 4) {
+          featured.productSlugs = featured.productSlugs.slice(0, 4);
+        }
+        const occasions = homepage.occasions as { items?: unknown[] } | undefined;
+        if (occasions && Array.isArray(occasions.items)) {
+          occasions.items = occasions.items.slice(0, 2).map((item, index) => {
+            if (!item || typeof item !== "object" || Array.isArray(item) || "imageAlt" in item) return item;
+            return { ...item, imageAlt: DEFAULT_PLATFORM_CONTENT.homepage.occasions.items[index]?.imageAlt };
+          });
+        }
+      }
+    }
   }
   const merged = mergeMissing(DEFAULT_PLATFORM_CONTENT, upgradeSource);
   if (merged && typeof merged === "object") {
@@ -1071,6 +1182,76 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     if (mergedHero?.mediaMode === "image") {
       delete mergedHero.videoUrl;
       delete mergedHero.mobileVideoUrl;
+    }
+    if (shouldApplyHomepageMerchandising) {
+      const document = merged as {
+        products?: Array<{ slug?: unknown }>;
+        collections?: Array<{ slug?: unknown }>;
+        homepage?: {
+          categories?: { items?: Array<Record<string, unknown>> };
+          newArrival?: { productSlug?: unknown };
+          featured?: { productSlugs?: unknown[]; legacySparseCompatibility?: unknown };
+          occasions?: { items?: unknown[] };
+        };
+      };
+      const availableSlugs = (document.products ?? []).flatMap((product) => typeof product.slug === "string" ? [product.slug] : []);
+      const collectionSlugs = new Set((document.collections ?? []).flatMap((collection) => typeof collection.slug === "string" ? [collection.slug] : []));
+      const isCurrentHomepageTarget = (target: unknown): target is string => {
+        if (typeof target !== "string") return false;
+        if (target.startsWith("https://")) return true;
+        if (["/journal", "/faq", "/about", "/#whatsapp"].includes(target) || target === "/shop" || target.startsWith("/shop?")) return true;
+        const productMatch = target.match(/^\/product\/([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+        if (productMatch) return availableSlugs.includes(productMatch[1]!);
+        const collectionMatch = target.match(/^\/collections\/([a-z0-9]+(?:-[a-z0-9]+)*)$/);
+        return Boolean(collectionMatch && collectionSlugs.has(collectionMatch[1]!));
+      };
+      const categories = document.homepage?.categories;
+      if (categories) {
+        const uniqueTargets = new Set<string>();
+        const selected = (categories.items ?? []).filter((item) => {
+          if (!isCurrentHomepageTarget(item.href) || uniqueTargets.has(item.href)) return false;
+          uniqueTargets.add(item.href);
+          return true;
+        }).slice(0, 4);
+        const fallbacks = DEFAULT_PLATFORM_CONTENT.homepage.categories.items.map((item, index) => {
+          const collectionTarget = item.href.match(/^\/collections\/(.+)$/)?.[1];
+          const target = collectionTarget && collectionSlugs.has(collectionTarget)
+            ? item.href
+            : `/shop?search=${encodeURIComponent(item.title)}&homeCategory=${index + 1}`;
+          return { ...item, href: target };
+        });
+        for (const fallback of fallbacks) {
+          if (selected.length === 4) break;
+          if (!uniqueTargets.has(fallback.href)) {
+            selected.push(fallback);
+            uniqueTargets.add(fallback.href);
+          }
+        }
+        categories.items = selected;
+      }
+      const featured = document.homepage?.featured;
+      if (featured) {
+        const selected = Array.isArray(featured.productSlugs)
+          ? featured.productSlugs.filter((value): value is string => typeof value === "string" && availableSlugs.includes(value))
+          : [];
+        const curated = [...new Set([...selected, ...availableSlugs])].slice(0, 4);
+        // A sparse legacy catalogue cannot satisfy four distinct products without
+        // resurrecting retired products. Repeat its first current product instead:
+        // the exact-four layout remains available and new catalogues still reject duplicates.
+        while (curated.length > 0 && curated.length < 4) curated.push(curated[0]!);
+        featured.productSlugs = curated;
+        if (availableSlugs.length > 0 && availableSlugs.length < 4) featured.legacySparseCompatibility = true;
+        else delete featured.legacySparseCompatibility;
+      }
+      const newArrival = document.homepage?.newArrival;
+      if (newArrival && (typeof newArrival.productSlug !== "string" || !availableSlugs.includes(newArrival.productSlug))) {
+        newArrival.productSlug = availableSlugs[0];
+      }
+      const occasions = document.homepage?.occasions;
+      if (occasions) {
+        const currentItems = Array.isArray(occasions.items) ? occasions.items : [];
+        occasions.items = [...currentItems, ...DEFAULT_PLATFORM_CONTENT.homepage.occasions.items].slice(0, 2);
+      }
     }
     const setKnownCopy = (path: string[], previous: string, next: string) => {
       let target = merged as Record<string, unknown>;

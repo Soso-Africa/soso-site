@@ -7,4 +7,10 @@ Keep the public SOSO storefront bright, white-led, spacious and commercially cle
 
 **Why:** The previous dark editorial treatment was explicitly rejected as too dark and insufficiently shoppable. A later correction clarified that colour alone was not enough: the desired result includes Hobbs-like navigation behavior and an alternating four-column/two-column merchandising rhythm.
 
-**How to apply:** Extend bright semantic tokens across every public route, dialog and purchase state. Lead the homepage with product categories immediately after the hero, alternate rich two- and four-column product modules, and place service assurances later. Keep paid checkout dominant, stylist help secondary and in-app, and do not restore a global WhatsApp-order control or hero slogan.
+**How to apply:** Extend bright semantic tokens across every public route, dialog and purchase state. The homepage hero shows only its primary shopping CTA over the media—no slogan, eyebrow, description, stylist CTA, or assurances. Lead with product categories immediately afterward, alternate rich two- and four-column product modules, and place service assurances later. Keep paid checkout dominant, stylist help secondary and in-app, and do not restore a global WhatsApp-order control.
+
+The announcement strip is campaign space, not permanent page furniture. Staff must be able to add, reorder, or remove every announcement; when the list is empty, render no strip and leave no gap.
+
+**Why:** The merchant clarified that promotions and discounts are temporary Hobbs-like campaigns and that the default homepage should not display evergreen promotional filler.
+
+**How to apply:** Ship with no announcement items. Preserve merchant-authored campaigns during schema upgrades, but remove only the known shipped defaults. Keep the Staff editor usable when the list is empty.
