@@ -250,7 +250,7 @@ export default function Staff() {
 
   const activeNavigation = navigation.flatMap((group) => group.items).find((item) => item.id === activeTab);
   const sidebar = (
-    <nav aria-label="Staff workspace navigation" className="h-full overflow-y-auto bg-[#15110d] p-4">
+    <nav aria-label="Staff workspace navigation" className="h-full overflow-y-auto bg-[#faf8f3] p-4">
       <div className="border-b border-border pb-5">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">SOSO internal</p>
         <p className="mt-2 text-xl soso-display">Atelier workspace</p>
@@ -272,7 +272,7 @@ export default function Staff() {
     </nav>
   );
 
-  return <main className="min-h-screen bg-[#100e0b]">
+  return <main className="min-h-screen bg-background">
     <div className="mx-auto max-w-[1600px] lg:grid lg:grid-cols-[252px_minmax(0,1fr)]">
       <aside className="sticky top-0 hidden h-screen border-r border-border lg:block">{sidebar}</aside>
       {mobileNavigationOpen && <div className="fixed inset-0 z-50 bg-black/60 lg:hidden" onClick={() => setMobileNavigationOpen(false)}>
@@ -530,7 +530,7 @@ function PlatformContentManagementSection() {
       <div><a href="/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-primary underline underline-offset-4"><Eye size={14} /> Open storefront preview</a></div>
     </div>
     <div className="border border-border bg-card p-5">
-      <div className="flex flex-wrap gap-2">{platformSections.map((item) => <button key={item.id} type="button" onClick={() => selectSection(item.id)} className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${section === item.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{item.label}</button>)}</div>
+      <div className="flex flex-wrap gap-2">{platformSections.map((item) => <button key={item.id} data-testid={`platform-section-${item.id}`} type="button" onClick={() => selectSection(item.id)} className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${section === item.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{item.label}</button>)}</div>
       {section === "site" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
         <p className="font-semibold text-primary">Site navigation and search checks</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
@@ -880,7 +880,7 @@ function AnalyticsSection({ funnel, auditEvents, loading, range, role, onExporte
           <div className="border-b border-border p-4"><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comparison period</p><p className="mt-1 text-xs text-muted-foreground">{metrics.data ? `${metrics.data.comparison.from} to ${metrics.data.comparison.to} · equal-length prior period` : "Loading prior period…"}</p></div>
           {metrics.loading || !metrics.data ? <LoadingRows /> : (
             <div className="divide-y divide-border">
-              {metrics.data.comparison.events.map((item) => <div key={item.eventName} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-4 py-3 text-xs"><span className="capitalize">{item.eventName.replaceAll("_", " ")}</span><span>{item.current.toLocaleString()}</span><span className="text-muted-foreground">vs {item.previous.toLocaleString()}</span><span className={item.delta === null ? "text-muted-foreground" : item.delta >= 0 ? "text-green-600 dark:text-green-400" : "text-destructive"}>{item.delta === null ? "No baseline" : `${item.delta >= 0 ? "+" : ""}${Math.round(item.delta * 100)}%`}</span></div>)}
+              {metrics.data.comparison.events.map((item) => <div key={item.eventName} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 px-4 py-3 text-xs"><span className="capitalize">{item.eventName.replaceAll("_", " ")}</span><span>{item.current.toLocaleString()}</span><span className="text-muted-foreground">vs {item.previous.toLocaleString()}</span><span className={item.delta === null ? "text-muted-foreground" : item.delta >= 0 ? "text-green-700" : "text-destructive"}>{item.delta === null ? "No baseline" : `${item.delta >= 0 ? "+" : ""}${Math.round(item.delta * 100)}%`}</span></div>)}
             </div>
           )}
         </div>
@@ -1085,7 +1085,7 @@ function OrderRow({ order, canRefund, onChanged, readOnly, canManageMeasurements
         </div>
       </div>
 
-      <div className="mt-6 border border-border bg-[#1c1914]">
+      <div className="mt-6 border border-border bg-card">
         <div className="bg-muted/30 px-4 py-2 border-b border-border">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Order Items</p>
         </div>
@@ -1096,7 +1096,7 @@ function OrderRow({ order, canRefund, onChanged, readOnly, canManageMeasurements
                 <div>
                   <p className="text-sm font-medium flex items-center gap-2">
                     {item.quantity}x {item.productName}
-                    <span className="text-[10px] px-1.5 py-0.5 border border-border uppercase tracking-widest text-muted-foreground bg-black/20">
+                    <span className="bg-muted text-[10px] px-1.5 py-0.5 border border-border uppercase tracking-widest text-muted-foreground">
                       {item.selectionType}
                     </span>
                   </p>
@@ -1233,7 +1233,7 @@ function StaffMeasurementView({ measurement, canManageMeasurements, onChanged }:
   };
 
   return (
-    <div className="mt-4 bg-[#15110d] border border-border p-4">
+    <div className="mt-4 bg-card border border-border p-4">
       <div className="flex justify-between items-center mb-4 pb-3 border-b border-border/50">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Measurement Details</h4>
         <span role="status" data-testid={`status-staff-measurement-${measurement.id}`} className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border ${getStatusColor(measurement.status)}`}>
@@ -2344,6 +2344,6 @@ function Empty({ label }: { label: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const tone = status === "completed" || status === "fulfilled" || status === "resolved" ? "border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400" : status === "refunded" || status === "rejected" || status === "cancelled" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-primary/20 bg-primary/5 text-primary";
+  const tone = status === "completed" || status === "fulfilled" || status === "resolved" ? "border-green-500/30 bg-green-500/10 text-green-700" : status === "refunded" || status === "rejected" || status === "cancelled" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-primary/20 bg-primary/5 text-primary";
   return <span className={`border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${tone}`}>{status.replaceAll("_", " ")}</span>;
 }

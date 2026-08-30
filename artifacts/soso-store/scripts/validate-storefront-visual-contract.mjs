@@ -166,7 +166,7 @@ async function assertVisualSemantics(page, surface, viewportName) {
   const background = parseRgb(colors.background);
   const foreground = parseRgb(colors.foreground);
   if (surface.name === "staff-sign-in") {
-    assert.ok(luminance(background) < 0.03, `${viewportName} Staff sign-in is no longer dark.`);
+    assert.ok(luminance(background) > 0.9, `${viewportName} Staff sign-in is no longer white-led.`);
     assert.ok(contrast(foreground, background) >= 7, `${viewportName} Staff sign-in contrast dropped below 7:1.`);
     assert.equal(await page.locator("header").count(), 0, `${viewportName} public header leaked into Staff sign-in.`);
   } else {
@@ -202,6 +202,33 @@ async function assertVisualSemantics(page, surface, viewportName) {
       await page.locator("section").first().locator("h1,h2,h3,[data-hero-slogan]").count(),
       0,
       `${viewportName} hero slogan returned.`,
+    );
+    const merchandisingValues = async (prefix, length) => Promise.all(
+      Array.from({ length }, (_, index) =>
+        page.getByTestId(`${prefix}-${index}`).getAttribute("data-merchandising-value")),
+    );
+    const expectedCategories = platform.content.homepage.categories.items.map((item) => item.title);
+    const expectedFeatured = platform.content.homepage.featured.productSlugs;
+    const expectedOccasions = platform.content.homepage.occasions.items.map((item) => item.title);
+    assert.deepEqual(
+      await merchandisingValues("home-category", expectedCategories.length),
+      expectedCategories,
+      `${viewportName} homepage category order changed.`,
+    );
+    assert.equal(
+      await page.getByTestId("home-new-arrival").getAttribute("data-merchandising-value"),
+      platform.content.homepage.newArrival.productSlug,
+      `${viewportName} homepage New Arrival changed.`,
+    );
+    assert.deepEqual(
+      await merchandisingValues("home-featured", expectedFeatured.length),
+      expectedFeatured,
+      `${viewportName} homepage featured-product order changed.`,
+    );
+    assert.deepEqual(
+      await merchandisingValues("home-occasion", expectedOccasions.length),
+      expectedOccasions,
+      `${viewportName} homepage occasion order changed.`,
     );
   }
   if (surface.name !== "staff-sign-in") {

@@ -75,6 +75,9 @@ export default defineConfig({
     fs: {
       strict: true,
     },
+    ...(process.env.SOSO_API_PROXY_TARGET
+      ? { proxy: { "/api": { target: process.env.SOSO_API_PROXY_TARGET } } }
+      : {}),
   },
   preview: {
     port,

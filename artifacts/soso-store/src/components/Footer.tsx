@@ -61,6 +61,7 @@ export function Footer() {
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {site.footer.legalLinks.map((link) => <Link key={`${link.href}-${link.label}`} href={link.href} className="hover:text-foreground hover:underline underline-offset-4">{link.label}</Link>)}
           <button type="button" onClick={openPrivacyChoices} className="hover:text-foreground hover:underline underline-offset-4">{site.footer.cookieChoicesLabel}</button>
+          <Link href="/sign-in" className="font-medium text-foreground hover:underline underline-offset-4" data-testid="link-footer-staff-login">Staff login</Link>
           <span>{site.footer.checkoutNote}</span>
         </div>
       </div>

@@ -13,6 +13,12 @@ Content migrations that add catalogue records must be version-gated and one-time
 
 **How to apply:** Upgrade draft and published snapshots independently. Never apply publication defaults when the record is intentionally unpublished, and never silently repair invalid edited values beyond adding fields that did not exist in the earlier schema. Detect known legacy object shapes by semantic fields rather than serialized object equality, because PostgreSQL JSONB may reorder keys.
 
+Hash platform documents from recursively key-sorted objects while preserving array order.
+
+**Why:** PostgreSQL JSONB can return semantically identical objects with a different key order. Raw JSON serialization then makes every read-triggered upgrade look like a content change, advances the optimistic revision, and causes an editor’s next save to conflict. Merchandising arrays remain order-sensitive and must not be sorted.
+
+**How to apply:** Canonicalize object keys only before hashing. Keep arrays in their authored order so category, featured-product, and occasion changes still produce distinct revision hashes.
+
 When replacing one editable scalar with a repeatable collection, seed the new collection from the merchant’s current scalar rather than the shipped default. Additions inside editable arrays must be version-gated so staff can remove them after the upgrade without having them silently restored.
 
 **Why:** Generic default merging preserves arrays wholesale, while unconditional insertion turns a one-time launch addition into a permanent override of later staff choices.

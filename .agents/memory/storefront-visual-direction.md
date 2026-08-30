@@ -3,9 +3,9 @@ name: Approved storefront visual direction
 description: Client-approved visual and conversion direction for SOSO public shopping surfaces.
 ---
 
-Keep the public SOSO storefront bright, white-led, spacious and commercially clear, using Hobbs-style retail restraint as a reference without copying its brand. At the homepage top, the menu overlays the hero transparently, then becomes a persistent white header as the shopper scrolls. Preserve the SOSO gold brand logo used on shopsoso.com in every state and keep the dark palette only for the private Staff workspace.
+Keep SOSO bright, white-led, spacious and commercially clear, using Hobbs-style retail restraint as a reference without copying its brand. At the homepage top, the menu overlays the hero transparently, then becomes a persistent white header as the shopper scrolls. Preserve the SOSO gold brand logo used on shopsoso.com in every state. Staff sign-in, owner setup, and the private Staff workspace also use clean white or warm-white surfaces with dark text and gold accents.
 
-**Why:** The previous dark editorial treatment was explicitly rejected as too dark and insufficiently shoppable. A later correction clarified that colour alone was not enough: the desired result includes Hobbs-like navigation behavior and an alternating four-column/two-column merchandising rhythm.
+**Why:** The previous dark editorial treatment was explicitly rejected as too dark and insufficiently shoppable. Later corrections extended the white-led direction to Staff authentication and workspace surfaces, while retaining administrative clarity through structure rather than a dark palette.
 
 **How to apply:** Extend bright semantic tokens across every public route, dialog and purchase state. The homepage hero shows only its primary shopping CTA over the media—no slogan, eyebrow, description, stylist CTA, or assurances. Lead with product categories immediately afterward, alternate rich two- and four-column product modules, and place service assurances later. Keep paid checkout dominant, stylist help secondary and in-app, and do not restore a global WhatsApp-order control.
 
