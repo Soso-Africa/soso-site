@@ -1,6 +1,7 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
+import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
 import {
   customFetch,
   getStaffExport,
@@ -506,6 +507,13 @@ function PlatformContentManagementSection() {
           allowedTargets={allowedTargets}
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
         />;
+      } else if (section === "homepage") {
+        const allowedTargets = [
+          "/shop", "/journal", "/faq", "/about", "/#whatsapp",
+          ...(content?.products.map((product) => `/product/${product.slug}`) ?? []),
+          ...(content?.collections.map((collection) => `/collections/${collection.slug}`) ?? []),
+        ];
+        structuredEditor = <PlatformEditorHomepage data={parsed as PlatformContent["homepage"]} products={content?.products ?? []} allowedTargets={allowedTargets} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
       } else if (section === "catalogue") {
         structuredEditor = <PlatformEditorCatalogue data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy">} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
       }
@@ -515,7 +523,7 @@ function PlatformContentManagementSection() {
   }
 
   return <section className="mt-12 border-t border-border pt-10">
-    <SectionHeading icon={Globe} title="Platform content" description="Use structured controls for day-to-day navigation and catalogue merchandising. Advanced JSON remains available for unscoped storefront copy." />
+    <SectionHeading icon={Globe} title="Platform content" description="Use structured controls for day-to-day navigation, homepage, and catalogue merchandising. Advanced JSON remains available as an escape hatch for compatible storefront content." />
     <div className="mb-4 grid gap-3 border border-border bg-card p-4 text-xs sm:grid-cols-3">
       <div><span className="text-muted-foreground">Draft updated</span><p className="mt-1">{row?.draftUpdatedAt ? format(new Date(row.draftUpdatedAt), "d MMM yyyy, HH:mm") : "No draft"}</p></div>
       <div><span className="text-muted-foreground">Published</span><p className="mt-1">{row?.publishedAt ? format(new Date(row.publishedAt), "d MMM yyyy, HH:mm") : "Not published"}</p></div>
@@ -546,7 +554,7 @@ function PlatformContentManagementSection() {
         </ul>
       </div>}
       {section === "homepage" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
-        <p className="font-semibold text-primary">Homepage hero media checks</p>
+        <p className="font-semibold text-primary">Homepage content and hero media checks</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
           <li>Keep title, suffix and accent together as one short editorial headline. The first viewport shows that headline, primaryCta and the optional stylistCtaLabel.</li>
           <li>Description and assurances remain in the document for compatibility, but supporting purchase guidance belongs in trustItems below the hero.</li>
@@ -573,7 +581,7 @@ function PlatformContentManagementSection() {
 
       {structuredEditor}
 
-      {section === "site" || section === "catalogue" ? (
+      {section === "site" || section === "homepage" || section === "catalogue" ? (
         <details className="mt-5 border border-border group" data-testid="advanced-json-details">
           <summary className="cursor-pointer bg-muted/20 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-primary list-none flex items-center justify-between">
             <span>Advanced JSON Details</span>

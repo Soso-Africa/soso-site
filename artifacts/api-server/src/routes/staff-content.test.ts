@@ -14,6 +14,7 @@ import {
   encodeFaqHistoryCursor,
   queryFaqHistoryEvents,
   default as staffContentRouter,
+  preservesLegacySparseFeaturedProvenance,
   PolicyInputSchema,
 } from "./staff-content";
 import publicContentRouter, { createFaqReadHandler } from "./faq";
@@ -27,6 +28,7 @@ import {
 } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateProductMediaAssets } from "../lib/product-media-validation";
+import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
 
 const actor = "clerk_staff_editor";
 const draft = {
@@ -209,6 +211,138 @@ test("platform content validates the complete seeded document and hashes determi
   assert.equal(platformContentHash(DEFAULT_PLATFORM_CONTENT), platformContentHash(structuredClone(DEFAULT_PLATFORM_CONTENT)));
 });
 
+test("homepage merchandising defaults are explicit and have exact ordered cardinalities", () => {
+  const { categories, newArrival, featured, occasions } = DEFAULT_PLATFORM_CONTENT.homepage;
+  assert.equal(categories.items.length, 4);
+  assert.ok(categories.heading && categories.accessibleLabel && categories.ctaLabel);
+  assert.ok(categories.items.every((item) => item.eyebrow && item.title && item.imageUrl && item.imageAlt && item.href));
+  assert.ok(newArrival.productSlug);
+  assert.ok(newArrival.editorial.imageUrl && newArrival.editorial.imageAlt && newArrival.editorial.body);
+  assert.equal(featured.productSlugs.length, 4);
+  assert.equal(featured.legacySparseCompatibility, undefined);
+  assert.equal(occasions.items.length, 2);
+  assert.ok(occasions.items.every((item) => item.imageAlt));
+});
+
+test("legacy homepage merchandising upgrades without replacing merchant edits", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = 4;
+  delete legacy.homepage.categories;
+  delete legacy.homepage.newArrival;
+  legacy.homepage.featured.title = "Merchant featured edit";
+  legacy.homepage.featured.productSlugs = [
+    DEFAULT_PLATFORM_CONTENT.products[2]!.slug,
+    DEFAULT_PLATFORM_CONTENT.products[1]!.slug,
+    ...DEFAULT_PLATFORM_CONTENT.homepage.featured.productSlugs,
+  ];
+  legacy.homepage.occasions.title = "Merchant occasions edit";
+  legacy.homepage.occasions.items = [
+    { title: "Merchant panel", body: "Merchant body", imageUrl: "/images/soso/agbada.jpg", href: "/shop", linkLabel: "Browse" },
+    ...structuredClone(DEFAULT_PLATFORM_CONTENT.homepage.occasions.items),
+  ];
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
+  assert.equal(upgraded.homepage.featured.title, "Merchant featured edit");
+  assert.deepEqual(upgraded.homepage.featured.productSlugs.slice(0, 2), [DEFAULT_PLATFORM_CONTENT.products[2]!.slug, DEFAULT_PLATFORM_CONTENT.products[1]!.slug]);
+  assert.equal(upgraded.homepage.occasions.title, "Merchant occasions edit");
+  assert.equal(upgraded.homepage.occasions.items[0]!.title, "Merchant panel");
+  assert.equal(upgraded.homepage.occasions.items[0]!.imageAlt, DEFAULT_PLATFORM_CONTENT.homepage.occasions.items[0]!.imageAlt);
+});
+
+test("homepage migration replaces removed collection targets and keeps sparse catalogues renderable", () => {
+  const renamedCollections = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  renamedCollections.contentVersion = 4;
+  delete renamedCollections.homepage.categories;
+  renamedCollections.collections.forEach((collection: { slug: string }) => { collection.slug = `retired-${collection.slug}`; });
+  renamedCollections.site.megaMenu.forEach((group: any) => {
+    group.href = "/shop";
+    group.columns = [{ heading: "Shop", links: [{ label: "Shop", href: "/shop" }] }];
+  });
+  renamedCollections.site.header.searchSuggestions = [{ label: "Shop", href: "/shop" }];
+  const renamed = mergePlatformContentDefaults(renamedCollections) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(PlatformContentSchema.safeParse(renamed).success, true);
+  assert.equal(renamed.homepage.categories.items.length, 4);
+  assert.ok(renamed.homepage.categories.items.every((item) => item.href.startsWith("/shop?search=")));
+
+  const sparse = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  // Mainline reached version 5 with hero motion but without structured
+  // merchandising; version 6 must still apply the homepage migration.
+  sparse.contentVersion = 5;
+  const onlyProduct = sparse.products[0];
+  onlyProduct.relatedProductSlugs = [];
+  sparse.products = [onlyProduct];
+  sparse.collections = sparse.collections.filter((collection: { department: string; category: string }) =>
+    collection.department === onlyProduct.department && collection.category === onlyProduct.category);
+  sparse.site.megaMenu.forEach((group: any) => {
+    group.visible = false; group.href = "/shop"; group.featuredProductSlugs = [];
+    group.columns = [{ heading: "Shop", links: [{ label: "Shop", href: "/shop" }] }];
+  });
+  sparse.site.header.searchSuggestions = [{ label: "Shop", href: "/shop" }];
+  delete sparse.homepage.categories;
+  delete sparse.homepage.newArrival;
+  const upgradedSparse = mergePlatformContentDefaults(sparse) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(PlatformContentSchema.safeParse(upgradedSparse).success, true);
+  assert.deepEqual(upgradedSparse.homepage.featured.productSlugs, [onlyProduct.slug, onlyProduct.slug, onlyProduct.slug, onlyProduct.slug]);
+  assert.equal(upgradedSparse.homepage.featured.legacySparseCompatibility, true);
+  assert.equal(upgradedSparse.homepage.newArrival.productSlug, onlyProduct.slug);
+  assert.equal(upgradedSparse.products.length, 1);
+  const unrelatedCopyEdit = structuredClone(upgradedSparse);
+  unrelatedCopyEdit.homepage.hero.title = "Updated campaign title";
+  assert.equal(preservesLegacySparseFeaturedProvenance(upgradedSparse, unrelatedCopyEdit), true);
+  assert.equal(preservesLegacySparseFeaturedProvenance(DEFAULT_PLATFORM_CONTENT, upgradedSparse), false);
+
+  const ordinarySparseDraft = structuredClone(upgradedSparse);
+  ordinarySparseDraft.contentVersion = 6;
+  delete ordinarySparseDraft.homepage.featured.legacySparseCompatibility;
+  assert.equal(PlatformContentSchema.safeParse(ordinarySparseDraft).success, false);
+
+  const markerOnNormalCatalogue = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  markerOnNormalCatalogue.homepage.featured.legacySparseCompatibility = true;
+  assert.equal(PlatformContentSchema.safeParse(markerOnNormalCatalogue).success, false);
+
+  const changedCatalogue = structuredClone(upgradedSparse);
+  changedCatalogue.products.push(structuredClone(DEFAULT_PLATFORM_CONTENT.products[1]!));
+  assert.equal(preservesLegacySparseFeaturedProvenance(upgradedSparse, changedCatalogue), false);
+
+  const twoPieceSparse = structuredClone(upgradedSparse);
+  const secondProduct = structuredClone(DEFAULT_PLATFORM_CONTENT.products[1]!);
+  secondProduct.relatedProductSlugs = [];
+  twoPieceSparse.products.push(secondProduct);
+  twoPieceSparse.homepage.featured.productSlugs = [onlyProduct.slug, secondProduct.slug, onlyProduct.slug, onlyProduct.slug];
+  assert.equal(PlatformContentSchema.safeParse(twoPieceSparse).success, true);
+  const reorderedSparse = structuredClone(twoPieceSparse);
+  reorderedSparse.homepage.featured.productSlugs = [secondProduct.slug, onlyProduct.slug, onlyProduct.slug, onlyProduct.slug];
+  assert.equal(PlatformContentSchema.safeParse(reorderedSparse).success, true);
+  assert.equal(preservesLegacySparseFeaturedProvenance(twoPieceSparse, reorderedSparse), false);
+});
+
+test("homepage merchandising rejects wrong cardinalities and unknown or duplicate product references", () => {
+  const invalid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  invalid.homepage.categories.items.pop();
+  invalid.homepage.categories.items[1]!.href = invalid.homepage.categories.items[0]!.href;
+  invalid.homepage.occasions.items.push(structuredClone(invalid.homepage.occasions.items[0]!));
+  invalid.homepage.occasions.items[0]!.href = "/checkout";
+  invalid.homepage.featured.productSlugs = [
+    invalid.products[0]!.slug,
+    invalid.products[0]!.slug,
+    invalid.products[1]!.slug,
+    "unknown-homepage-piece",
+  ];
+  invalid.homepage.newArrival.productSlug = "unknown-arrival";
+  const parsed = PlatformContentSchema.safeParse(invalid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    const messages = parsed.error.issues.map((issue) => issue.message);
+    assert.ok(messages.some((message) => message.includes("exactly 4")));
+    assert.ok(messages.some((message) => message.includes("exactly 2")));
+    assert.ok(messages.some((message) => message.includes("Duplicate featured product")));
+    assert.ok(messages.some((message) => message.includes("Unknown featured product")));
+    assert.ok(messages.some((message) => message.includes("Unknown new-arrival product")));
+    assert.ok(messages.some((message) => message.includes("Duplicate homepage category target")));
+    assert.ok(messages.some((message) => message.includes("Unsafe or unknown homepage target")));
+  }
+});
+
 test("women launches as a visible ready-to-wear department with governed catalogue imagery", () => {
   const womenProducts = DEFAULT_PLATFORM_CONTENT.products.filter((product) => product.department === "women");
   const womenMenu = DEFAULT_PLATFORM_CONTENT.site.megaMenu.find((group) => group.department === "women");
@@ -383,6 +517,29 @@ test("product image publishing checks verify existence, image identity, extensio
     throw new Error("Object not found");
   });
   assert.ok(unreadableIssues.every((issue) => issue.message.includes("could not be verified")));
+});
+
+test("homepage merchandising image checks inspect unique configured images and report their fields", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  assert.deepEqual(await validateHomepageMerchandisingMediaAssets(content), []);
+  content.homepage.newArrival.editorial.imageUrl = "/images/soso/twopiece.jpg";
+  content.homepage.fit.imageUrl = content.homepage.categories.items[0]!.imageUrl;
+  const inspected: string[] = [];
+  const validIssues = await validateHomepageMerchandisingMediaAssets(content, async (path) => {
+    inspected.push(path);
+    return { contentType: "image/jpeg", declaredContentType: "image/jpeg", size: 200_000 };
+  });
+  assert.deepEqual(validIssues, []);
+  const configured = new Set([
+    ...content.homepage.categories.items.map((item) => item.imageUrl),
+    content.homepage.newArrival.editorial.imageUrl,
+    ...content.homepage.occasions.items.map((item) => item.imageUrl),
+    content.homepage.fit.imageUrl,
+  ]);
+  assert.equal(inspected.length, configured.size);
+  const invalid = await validateHomepageMerchandisingMediaAssets(content, async () => null);
+  assert.equal(invalid.length, configured.size);
+  assert.ok(invalid.some((issue) => issue.path.join(".") === "homepage.newArrival.editorial.imageUrl"));
 });
 
 test("header search suggestions only publish unique safe catalogue targets", () => {
@@ -769,15 +926,17 @@ test("version 4 adds governed interface copy without restoring v3 menu or ticker
   }
 });
 
-test("version 5 activates approved hero motion without replacing a merchant image choice", () => {
+test("version 6 unifies hero motion with merchandising without replacing a merchant image choice", () => {
   const legacyDefault = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
-  legacyDefault.contentVersion = 4;
+  // The task branch also reached version 5 before hero motion became its
+  // default; version 6 must upgrade that parallel document shape.
+  legacyDefault.contentVersion = 5;
   legacyDefault.homepage.hero.mediaMode = "image";
   delete legacyDefault.homepage.hero.videoUrl;
   delete legacyDefault.homepage.hero.mobileVideoUrl;
 
   const upgradedDefault = mergePlatformContentDefaults(legacyDefault) as typeof DEFAULT_PLATFORM_CONTENT;
-  assert.equal(upgradedDefault.contentVersion, 5);
+  assert.equal(upgradedDefault.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
   assert.equal(upgradedDefault.homepage.hero.mediaMode, "video");
   assert.equal(upgradedDefault.homepage.hero.videoUrl, "/media/soso-black-hero-desktop.webm");
   assert.equal(upgradedDefault.homepage.hero.mobileVideoUrl, "/media/soso-black-hero-mobile.webm");
@@ -786,11 +945,29 @@ test("version 5 activates approved hero motion without replacing a merchant imag
   merchantImage.homepage.hero.imageUrl = "/images/soso/agbada.jpg";
   merchantImage.homepage.hero.mobileImageUrl = "/images/soso/agbada.jpg";
   const upgradedMerchantImage = mergePlatformContentDefaults(merchantImage) as typeof DEFAULT_PLATFORM_CONTENT;
-  assert.equal(upgradedMerchantImage.contentVersion, 5);
+  assert.equal(upgradedMerchantImage.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
   assert.equal(upgradedMerchantImage.homepage.hero.mediaMode, "image");
   assert.equal(upgradedMerchantImage.homepage.hero.videoUrl, undefined);
   assert.equal(upgradedMerchantImage.homepage.hero.mobileVideoUrl, undefined);
   assert.equal(PlatformContentSchema.safeParse(upgradedMerchantImage).success, true);
+});
+
+test("version 7 removes only the shipped announcements and permits Staff to hide the strip", () => {
+  const shipped = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  shipped.contentVersion = 6;
+  shipped.site.announcementItems = [
+    "Ready now and made immediately · Dispatch within five days",
+    "Made in Abuja · Designed for presence",
+    "Standard sizes or Custom · Choose your route",
+  ];
+  const upgradedShipped = mergePlatformContentDefaults(shipped) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.deepEqual(upgradedShipped.site.announcementItems, []);
+  assert.equal(PlatformContentSchema.safeParse(upgradedShipped).success, true);
+
+  const merchant = structuredClone(shipped);
+  merchant.site.announcementItems = ["Private client weekend · 10% off selected pieces"];
+  const upgradedMerchant = mergePlatformContentDefaults(merchant) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.deepEqual(upgradedMerchant.site.announcementItems, merchant.site.announcementItems);
 });
 
 test("version 4 interface fields are required, strict, and non-blank", () => {

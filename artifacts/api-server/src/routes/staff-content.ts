@@ -25,8 +25,9 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
-import { ensurePlatformContent, platformContentHash, PlatformContentSchema } from "../lib/platform-content";
+import { ensurePlatformContent, platformContentHash, PlatformContentSchema, type PlatformContent } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
+import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
 import { validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
@@ -121,6 +122,20 @@ function expectedDraftDate(value: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+export function preservesLegacySparseFeaturedProvenance(stored: unknown, incoming: PlatformContent): boolean {
+  if (!incoming.homepage.featured.legacySparseCompatibility) return true;
+  const current = PlatformContentSchema.safeParse(stored);
+  if (!current.success || !current.data.homepage.featured.legacySparseCompatibility) return false;
+  const currentSlugs = current.data.products.map((product) => product.slug).sort();
+  const incomingSlugs = incoming.products.map((product) => product.slug).sort();
+  if (currentSlugs.length !== incomingSlugs.length || currentSlugs.some((slug, index) => slug !== incomingSlugs[index])) return false;
+  const uniqueCount = currentSlugs.length;
+  const currentInitial = current.data.homepage.featured.productSlugs.slice(0, uniqueCount);
+  const incomingInitial = incoming.homepage.featured.productSlugs.slice(0, uniqueCount);
+  return currentInitial.length === incomingInitial.length
+    && currentInitial.every((slug, index) => slug === incomingInitial[index]);
+}
+
 router.get("/staff/content/platform", platformRoles, async (_req, res): Promise<void> => {
   await ensurePlatformContent();
   const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
@@ -135,15 +150,23 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
     res.status(400).json({ error: "Provide complete valid platform content and expectedDraftUpdatedAt", issues: parsed.success ? undefined : parsed.error.issues });
     return;
   }
+  await ensurePlatformContent();
+  const [currentDraft] = await db.select().from(siteContentTable)
+    .where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).limit(1);
+  if (!currentDraft) { res.status(409).json({ error: "Platform content changed while you were editing. Reload before saving." }); return; }
+  if (!preservesLegacySparseFeaturedProvenance(currentDraft.draft, parsed.data)) {
+    res.status(400).json({ error: "Legacy sparse featured compatibility can only be preserved from the current migrated draft." });
+    return;
+  }
   const mediaIssues = [
     ...await validateHomepageHeroMediaAssets(parsed.data),
+    ...await validateHomepageMerchandisingMediaAssets(parsed.data),
     ...await validateProductMediaAssets(parsed.data),
   ];
   if (mediaIssues.length > 0) {
     res.status(400).json({ error: "Storefront media did not pass publishing checks", issues: mediaIssues });
     return;
   }
-  await ensurePlatformContent();
   const now = new Date();
   const result = await db.transaction(async (tx) => {
     const [updated] = await tx.update(siteContentTable).set({
@@ -181,6 +204,7 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
   }
   const mediaIssues = [
     ...await validateHomepageHeroMediaAssets(candidateContent.data),
+    ...await validateHomepageMerchandisingMediaAssets(candidateContent.data),
     ...await validateProductMediaAssets(candidateContent.data),
   ];
   if (mediaIssues.length > 0) {

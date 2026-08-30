@@ -33,7 +33,6 @@ export function PlatformEditorSite({
   };
 
   const removeAnnouncementItem = (index: number) => {
-    if (announcementItems.length <= 1) return;
     const items = [...announcementItems];
     items.splice(index, 1);
     onChange({ ...data, announcementItems: items });
@@ -278,6 +277,9 @@ export function PlatformEditorSite({
           <h3 id="announcements-editor-heading" className="text-xs font-semibold uppercase tracking-wider text-primary">Announcement Strip (Max 8)</h3>
         </div>
         <div className="space-y-3">
+          {announcementItems.length === 0 && (
+            <p className="text-xs text-muted-foreground">No announcement is shown on the storefront. Add one when you have a promotion, discount, or service update.</p>
+          )}
           {announcementItems.map((item, index) => (
             <div key={index} className="flex gap-2 items-center">
               <input
@@ -293,8 +295,7 @@ export function PlatformEditorSite({
               <button
                 type="button"
                 onClick={() => removeAnnouncementItem(index)}
-                disabled={announcementItems.length <= 1}
-                className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10 disabled:opacity-30 disabled:hover:bg-transparent"
+                className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10"
                 aria-label={`Remove announcement ${index + 1}`}
                 data-testid={`button-remove-announcement-${index}`}
               >

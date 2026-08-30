@@ -16,3 +16,9 @@ Content migrations that add catalogue records must be version-gated and one-time
 When replacing one editable scalar with a repeatable collection, seed the new collection from the merchant’s current scalar rather than the shipped default. Additions inside editable arrays must be version-gated so staff can remove them after the upgrade without having them silently restored.
 
 **Why:** Generic default merging preserves arrays wholesale, while unconditional insertion turns a one-time launch addition into a permanent override of later staff choices.
+
+When a legacy document cannot satisfy a new authored-content invariant, keep any compatibility marker migration-owned: the normal write boundary may preserve established provenance but must reject a caller trying to introduce or reshape it.
+
+**Why:** A marker accepted directly from Advanced JSON becomes a bypass for the new invariant, even when the structured editor never creates it.
+
+**How to apply:** Validate the stored snapshot and optimistic revision before accepting a marked update. Require the relevant catalogue identity and legacy selection prefix to remain unchanged; reject new markers on ordinary drafts.

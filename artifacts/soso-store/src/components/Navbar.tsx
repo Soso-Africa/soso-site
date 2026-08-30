@@ -15,6 +15,7 @@ export function Navbar() {
   const { data } = usePlatformContent();
 
   const site = data?.content.site;
+  const announcementItems = site?.announcementItems ?? [];
   const navigationCopy = data?.content.interfaceCopy.navigation;
   const products = data?.content.products || [];
 
@@ -35,7 +36,7 @@ export function Navbar() {
     : "text-foreground/80 hover:text-foreground";
 
   useEffect(() => {
-    const itemCount = site?.announcementItems?.length ?? 0;
+    const itemCount = announcementItems.length;
     if (itemCount <= 1) {
       setAnnouncementIndex(0);
       return;
@@ -48,7 +49,7 @@ export function Navbar() {
       setAnnouncementIndex((prev) => (prev + 1) % itemCount);
     }, 4000);
     return () => clearInterval(interval);
-  }, [site?.announcementItems, isAnnouncementHovered]);
+  }, [announcementItems, isAnnouncementHovered]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -164,15 +165,13 @@ export function Navbar() {
 
   return (
     <>
-      <div
+      {announcementItems.length > 0 && <div
         className="relative flex h-[34px] items-center justify-center overflow-hidden px-4 py-2 text-center text-[10px] uppercase tracking-[0.25em]"
         style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))", fontWeight: 600 }}
         onMouseEnter={() => setIsAnnouncementHovered(true)}
         onMouseLeave={() => setIsAnnouncementHovered(false)}
       >
-        {(() => {
-          const items = site.announcementItems?.length ? site.announcementItems : [site.announcement];
-          return items.map((item, i) => (
+        {announcementItems.map((item, i) => (
             <div
               key={i}
               className={`absolute w-full px-4 transition-opacity duration-700 ease-in-out motion-reduce:transition-none ${
@@ -182,9 +181,8 @@ export function Navbar() {
             >
               {item}
             </div>
-          ));
-        })()}
-      </div>
+          ))}
+      </div>}
 
       <header
         className={`sticky top-0 z-50 px-4 md:px-6 lg:px-12 flex items-center justify-between transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
