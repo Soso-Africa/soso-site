@@ -17,6 +17,10 @@ import {
   shouldRecordPageViewForGrant,
   type PageViewRecord,
 } from "@/lib/page-view-lifecycle";
+import {
+  isRegionDefaultAnalytics,
+  shouldAutomaticallyEnableAnalytics,
+} from "@/lib/consent-region";
 
 type ConsentState = "essential_only" | "analytics" | "marketing";
 export type StorefrontEventName =
@@ -45,6 +49,7 @@ export type StorefrontEventName =
   | "cta_clicked";
 
 const CONSENT_KEY = "soso-consent-v1";
+const CONSENT_SOURCE_KEY = "soso-consent-source-v1";
 const VISITOR_KEY = "soso-visitor-id";
 const SESSION_KEY = "soso-session-id";
 const SESSION_FIRED_KEY = "soso-session-started-fired";
@@ -61,6 +66,7 @@ const MAX_EVENT_PROPERTIES_BYTES = 8_000;
 let inMemoryVisitorId: string | null = null;
 let inMemorySessionId: string | null = null;
 let inMemoryEditorialOrigin: string | null = null;
+let regionDefaultValidated = false;
 
 function apiUrl(path: string): string {
   const configuredBase = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
@@ -130,19 +136,26 @@ function sessionId(): string {
 type PersistedConsent = {
   available: boolean;
   consent: ConsentState | null;
+  requiresRegionValidation: boolean;
 };
 
 function persistedConsent(): PersistedConsent {
   try {
     const saved = window.localStorage.getItem(CONSENT_KEY);
+    const consent = saved === "essential_only" || saved === "analytics" || saved === "marketing"
+      ? saved
+      : null;
+    const requiresRegionValidation = isRegionDefaultAnalytics(
+      consent,
+      window.localStorage.getItem(CONSENT_SOURCE_KEY),
+    );
     return {
       available: true,
-      consent: saved === "essential_only" || saved === "analytics" || saved === "marketing"
-        ? saved
-        : null,
+      consent: requiresRegionValidation && !regionDefaultValidated ? null : consent,
+      requiresRegionValidation,
     };
   } catch {
-    return { available: false, consent: null };
+    return { available: false, consent: null, requiresRegionValidation: false };
   }
 }
 
@@ -497,7 +510,8 @@ function useScrollDepth(consent: ConsentState | null, pathname: string) {
 export function ConsentManager() {
   const platform = usePlatformContent();
   const [consent, setConsent] = useState<ConsentState | null>(() => consentSource);
-  const [visible, setVisible] = useState(() => !consentSource);
+  const [visible, setVisible] = useState(false);
+  const [regionResolutionRequest, requestRegionResolution] = useState(0);
   const [pathname] = useLocation();
   const bannerViewedRef = useRef(false);
   const landingAttributionRef = useRef<Attribution | null>(null);
@@ -579,13 +593,6 @@ export function ConsentManager() {
     marketingPixels.setContext(false, window.location.pathname);
   }, []);
 
-  useEffect(() => {
-    reconcileConsentUi(setConsent, setVisible);
-    // Keep the landing campaign in memory only. It becomes session storage
-    // only after the visitor has affirmatively chosen measurement.
-    landingAttributionRef.current = capturedAttribution();
-  }, []);
-
   // Fire consent_banner_viewed once when banner appears
   useEffect(() => {
     if (visible && !bannerViewedRef.current) {
@@ -628,6 +635,12 @@ export function ConsentManager() {
   useEffect(() => {
     const syncConsent = (event: StorageEvent) => {
       if (event.key && event.key !== CONSENT_KEY) return;
+      const persisted = persistedConsent();
+      if (persisted.requiresRegionValidation && !persisted.consent) {
+        setVisible(false);
+        requestRegionResolution((request) => request + 1);
+        return;
+      }
       reconcileConsentUi(setConsent, setVisible);
     };
 
@@ -648,7 +661,7 @@ export function ConsentManager() {
   // Scroll depth
   useScrollDepth(consent, pathname);
 
-  const save = async (state: ConsentState) => {
+  const save = async (state: ConsentState, source: "banner" | "region_default" = "banner") => {
     const previousConsent = consentSource;
     const saveGeneration = consentSaveGenerationRef.current + 1;
     consentSaveGenerationRef.current = saveGeneration;
@@ -669,6 +682,8 @@ export function ConsentManager() {
     }
 
     if (state === "essential_only") {
+      regionDefaultValidated = false;
+      storageSet("local", CONSENT_SOURCE_KEY, "banner");
       storageSet("local", CONSENT_KEY, state);
       updateConsentSource(state);
       setConsent(state);
@@ -679,6 +694,7 @@ export function ConsentManager() {
           anonymousId: visitorId(),
           state,
           policyVersion: "draft-2026-08-21",
+          source,
         }),
       }).catch(() => {});
       return;
@@ -692,10 +708,13 @@ export function ConsentManager() {
           anonymousId: visitorId(),
           state,
           policyVersion: "draft-2026-08-21",
+          source,
         }),
       });
       if (!response.ok) throw new Error("Consent could not be recorded");
       if (consentSaveGenerationRef.current !== saveGeneration) return;
+      regionDefaultValidated = source === "region_default";
+      storageSet("local", CONSENT_SOURCE_KEY, source);
       storageSet("local", CONSENT_KEY, state);
       updateConsentSource(state);
       persistFirstTouchAttribution(landingAttributionRef.current ?? capturedAttribution());
@@ -706,12 +725,65 @@ export function ConsentManager() {
       }
     } catch {
       if (consentSaveGenerationRef.current !== saveGeneration) return;
+      if (source === "region_default") {
+        regionDefaultValidated = false;
+        storageRemove("local", CONSENT_SOURCE_KEY);
+        updateConsentSource(null);
+        setConsent(null);
+        setVisible(true);
+        return;
+      }
       storageSet("local", CONSENT_KEY, "essential_only");
       updateConsentSource("essential_only");
       setConsent("essential_only");
       setVisible(true);
     }
   };
+
+  useEffect(() => {
+    const persisted = persistedConsent();
+    const saved = reconcileConsentSource();
+    setConsent(saved);
+    setVisible(false);
+    // Keep the landing campaign in memory only. It becomes session storage
+    // only after measurement is allowed.
+    landingAttributionRef.current = capturedAttribution();
+    if (saved && !persisted.requiresRegionValidation) return undefined;
+
+    const controller = new AbortController();
+    void fetch(apiUrl("/privacy/consent-region"), {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("Consent region could not be resolved");
+      const decision: unknown = await response.json();
+      if (shouldAutomaticallyEnableAnalytics(decision)) {
+        if (persisted.requiresRegionValidation) {
+          regionDefaultValidated = true;
+          updateConsentSource("analytics");
+          setConsent("analytics");
+          setVisible(false);
+          return;
+        }
+        await save("analytics", "region_default");
+        return;
+      }
+      if (persisted.requiresRegionValidation) {
+        regionDefaultValidated = false;
+        storageRemove("local", CONSENT_KEY);
+        storageRemove("local", CONSENT_SOURCE_KEY);
+        updateConsentSource(null);
+        setConsent(null);
+      }
+      setVisible(true);
+    }).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setVisible(true);
+    });
+
+    return () => controller.abort();
+  }, [regionResolutionRequest]);
 
   if (!visible || !platform.data) return null;
   const copy = platform.data.content.site.consent;

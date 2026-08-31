@@ -32,6 +32,7 @@ import type {
   CommerceWebhookReceipt,
   ConsentInput,
   ConsentRecord,
+  ConsentRegionDecision,
   CustomerMeasurement,
   CustomerMeasurementInput,
   CustomerMeasurements,
@@ -870,6 +871,83 @@ export const useRecordConsent = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRecordConsentMutationOptions(options));
     }
+
+export const getGetConsentRegionUrl = () => {
+
+
+
+
+  return `/api/privacy/consent-region`
+}
+
+/**
+ * @summary Resolve whether this visitor requires an explicit consent choice
+ */
+export const getConsentRegion = async ( options?: Parameters<typeof customFetch>[1]): Promise<ConsentRegionDecision> => {
+
+  return customFetch<ConsentRegionDecision>(getGetConsentRegionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetConsentRegionQueryKey = () => {
+    return [
+    `/api/privacy/consent-region`
+    ] as const;
+    }
+
+
+export const getGetConsentRegionQueryOptions = <TData = Awaited<ReturnType<typeof getConsentRegion>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConsentRegion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetConsentRegionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getConsentRegion>>> = ({ signal }) => getConsentRegion({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getConsentRegion>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetConsentRegionQueryResult = NonNullable<Awaited<ReturnType<typeof getConsentRegion>>>
+export type GetConsentRegionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Resolve whether this visitor requires an explicit consent choice
+ */
+
+export function useGetConsentRegion<TData = Awaited<ReturnType<typeof getConsentRegion>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getConsentRegion>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetConsentRegionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getCreateEnquiryUrl = () => {
 

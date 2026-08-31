@@ -233,6 +233,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConsentRecord"
+  /privacy/consent-region:
+    get:
+      operationId: getConsentRegion
+      tags: [storefront]
+      summary: Resolve whether this visitor requires an explicit consent choice
+      responses:
+        "200":
+          description: Coarse consent-region classification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentRegionDecision"
   /enquiries:
     post:
       operationId: createEnquiry
@@ -1581,6 +1593,18 @@ components:
         region:
           type: string
           maxLength: 32
+        source:
+          type: string
+          enum: [banner, region_default]
+    ConsentRegionDecision:
+      type: object
+      required: [region, consentRequired]
+      properties:
+        region:
+          type: string
+          enum: [regulated, non_regulated, unknown]
+        consentRequired:
+          type: boolean
     ConsentRecord:
       type: object
       required: [id, anonymousId, state, policyVersion, createdAt]
