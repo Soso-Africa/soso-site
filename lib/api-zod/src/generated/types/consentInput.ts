@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ConsentInputSource } from './consentInputSource';
 import type { ConsentInputState } from './consentInputState';
 
 export interface ConsentInput {
@@ -18,4 +19,5 @@ export interface ConsentInput {
   policyVersion: string;
   /** @maxLength 32 */
   region?: string;
+  source?: ConsentInputSource;
 }

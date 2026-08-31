@@ -395,6 +395,14 @@ export const ConsentInputState = {
   marketing: 'marketing',
 } as const;
 
+export type ConsentInputSource = typeof ConsentInputSource[keyof typeof ConsentInputSource];
+
+
+export const ConsentInputSource = {
+  banner: 'banner',
+  region_default: 'region_default',
+} as const;
+
 export interface ConsentInput {
   /**
      * @minLength 8
@@ -406,6 +414,21 @@ export interface ConsentInput {
   policyVersion: string;
   /** @maxLength 32 */
   region?: string;
+  source?: ConsentInputSource;
+}
+
+export type ConsentRegionDecisionRegion = typeof ConsentRegionDecisionRegion[keyof typeof ConsentRegionDecisionRegion];
+
+
+export const ConsentRegionDecisionRegion = {
+  regulated: 'regulated',
+  non_regulated: 'non_regulated',
+  unknown: 'unknown',
+} as const;
+
+export interface ConsentRegionDecision {
+  region: ConsentRegionDecisionRegion;
+  consentRequired: boolean;
 }
 
 export interface ConsentRecord {

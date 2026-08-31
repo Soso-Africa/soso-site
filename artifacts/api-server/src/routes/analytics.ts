@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { createHash } from "node:crypto";
 import {
+  GetConsentRegionResponse,
   RecordAnalyticsEventBody,
   RecordAnalyticsEventResponse,
   RecordConsentBody,
@@ -14,6 +15,7 @@ import {
 } from "@workspace/db";
 import { desc, eq, lt, sql } from "drizzle-orm";
 import { validateAnalyticsEvent } from "./analytics-validation";
+import { canRecordRegionDefaultConsent, classifyConsentRegion } from "./consent-region";
 
 const router: IRouter = Router();
 const RATE_WINDOW_MS = 60_000;
@@ -22,6 +24,16 @@ const MAX_EVENTS_PER_ANONYMOUS_WINDOW = 120;
 const MAX_PRECONSENT_EVENTS_PER_IP_WINDOW = MAX_EVENTS_PER_IP_WINDOW;
 const MAX_CONSENT_PER_IP_WINDOW = 40;
 const MAX_CONSENT_PER_ANONYMOUS_WINDOW = 6;
+
+router.get("/privacy/consent-region", (req, res): void => {
+  const classification = classifyConsentRegion(req.headers);
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
+  res.setHeader("Vary", "X-Vercel-IP-Country");
+  res.json(GetConsentRegionResponse.parse({
+    region: classification.region,
+    consentRequired: classification.consentRequired,
+  }));
+});
 
 async function consumeRateLimit(scope: string, identifier: string, limit: number): Promise<boolean> {
   const now = new Date();
@@ -85,7 +97,10 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
     return;
   }
   const [latestConsent] = await db
-    .select({ state: consentRecordsTable.state })
+    .select({
+      state: consentRecordsTable.state,
+      source: consentRecordsTable.source,
+    })
     .from(consentRecordsTable)
     .where(eq(consentRecordsTable.anonymousId, parsed.data.anonymousId))
     .orderBy(desc(consentRecordsTable.createdAt))
@@ -93,6 +108,13 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
 
   if (!latestConsent || latestConsent.state !== parsed.data.consent) {
     res.status(403).json({ error: "Measurement consent has not been recorded" });
+    return;
+  }
+  if (
+    latestConsent.source === "region_default"
+    && classifyConsentRegion(req.headers).consentRequired
+  ) {
+    res.status(403).json({ error: "Automatic measurement is not valid in the current region" });
     return;
   }
 
@@ -104,10 +126,8 @@ router.post("/analytics/events", async (req, res): Promise<void> => {
     return;
   }
 
-  // Enrich with server-side country from Cloudflare or CDN headers (never from untrusted client input)
-  const country = (req.headers["cf-ipcountry"] as string | undefined)
-    ?? (req.headers["x-vercel-ip-country"] as string | undefined)
-    ?? (req.headers["x-country"] as string | undefined);
+  // Enrich with a validated country from trusted platform edge headers only.
+  const country = classifyConsentRegion(req.headers).countryCode;
   const enrichedData = country
     ? { ...parsed.data, properties: { ...(parsed.data.properties ?? {}), _country: country } }
     : parsed.data;
@@ -136,9 +156,22 @@ router.post("/consent", async (req, res): Promise<void> => {
     return;
   }
 
+  const classification = classifyConsentRegion(req.headers);
+  if (
+    parsed.data.source === "region_default"
+    && !canRecordRegionDefaultConsent(parsed.data.state, classification)
+  ) {
+    res.status(403).json({ error: "Automatic measurement requires a verified non-regulated region" });
+    return;
+  }
+  const { source, region: _untrustedRegion, ...consent } = parsed.data;
   const [record] = await db
     .insert(consentRecordsTable)
-    .values({ ...parsed.data, source: "storefront" })
+    .values({
+      ...consent,
+      region: classification.countryCode,
+      source: source === "region_default" ? "region_default" : "storefront",
+    })
     .returning();
 
   res.status(201).json(RecordConsentResponse.parse(record));

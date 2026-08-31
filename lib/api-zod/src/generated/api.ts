@@ -455,7 +455,8 @@ export const RecordConsentBody = zod.object({
   "anonymousId": zod.string().min(recordConsentBodyAnonymousIdMin).max(recordConsentBodyAnonymousIdMax),
   "state": zod.enum(['essential_only', 'analytics', 'marketing']),
   "policyVersion": zod.string().max(recordConsentBodyPolicyVersionMax),
-  "region": zod.string().max(recordConsentBodyRegionMax).optional()
+  "region": zod.string().max(recordConsentBodyRegionMax).optional(),
+  "source": zod.enum(['banner', 'region_default']).optional()
 })
 
 export const recordConsentResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -467,6 +468,15 @@ export const RecordConsentResponse = zod.object({
   "state": zod.string(),
   "policyVersion": zod.string(),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Resolve whether this visitor requires an explicit consent choice
+ */
+export const GetConsentRegionResponse = zod.object({
+  "region": zod.enum(['regulated', 'non_regulated', 'unknown']),
+  "consentRequired": zod.boolean()
 })
 
 
