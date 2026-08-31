@@ -15,13 +15,17 @@ const apiOrigin = `http://127.0.0.1:${apiPort}`;
 const storeOrigin = `http://127.0.0.1:${storePort}`;
 const ownerEmail = `homepage-owner-${randomUUID()}@example.test`;
 const editorEmail = `homepage-editor-${randomUUID()}@example.test`;
+const staleEditorEmail = `homepage-stale-editor-${randomUUID()}@example.test`;
 const ownerPassword = "HomepageOwner123!";
 const editorPassword = "HomepageEditor123!";
+const staleEditorPassword = "HomepageStaleEditor123!";
 const bootstrapToken = `homepage-bootstrap-${randomUUID()}`;
 const children = [];
 let ownerCookie = "";
 let editorCookie = "";
+let staleEditorCookie = "";
 let editorId = "";
+let staleEditorId = "";
 let originalRow;
 let browser;
 let contentMutated = false;
@@ -167,6 +171,20 @@ try {
   assert.equal(editorLogin.response.status, 200, JSON.stringify(editorLogin.value));
   editorCookie = sessionCookie(editorLogin.response);
 
+  const staleEditorCreated = await api("/api/staff/access", {
+    cookie: ownerCookie,
+    method: "POST",
+    body: { email: staleEditorEmail, password: staleEditorPassword, role: "editor" },
+  });
+  assert.equal(staleEditorCreated.response.status, 201, JSON.stringify(staleEditorCreated.value));
+  staleEditorId = staleEditorCreated.value.id;
+  const staleEditorLogin = await api("/api/staff-auth/login", {
+    method: "POST",
+    body: { email: staleEditorEmail, password: staleEditorPassword },
+  });
+  assert.equal(staleEditorLogin.response.status, 200, JSON.stringify(staleEditorLogin.value));
+  staleEditorCookie = sessionCookie(staleEditorLogin.response);
+
   start("pnpm", ["exec", "vite", "--config", "vite.config.ts", "--host", "127.0.0.1", "--port", String(storePort)], {
     cwd: storeRoot,
     env: {
@@ -183,12 +201,20 @@ try {
     executablePath: await serverlessChromium.executablePath(),
   });
   const context = await browser.newContext();
+  const staleContext = await browser.newContext();
   const page = await context.newPage();
+  const stalePage = await staleContext.newPage();
   await page.goto(`${storeOrigin}/sign-in`);
   await page.getByLabel("Staff email").fill(editorEmail);
   await page.getByLabel("Password").fill(editorPassword);
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/staff");
+
+  await stalePage.goto(`${storeOrigin}/sign-in`);
+  await stalePage.getByLabel("Staff email").fill(staleEditorEmail);
+  await stalePage.getByLabel("Password").fill(staleEditorPassword);
+  await stalePage.getByRole("button", { name: "Sign in" }).click();
+  await stalePage.waitForURL("**/staff");
 
   const [browserPlatformResponse] = await Promise.all([
     page.waitForResponse((response) => new URL(response.url()).pathname === "/api/staff/content/platform" && response.request().method() === "GET"),
@@ -198,6 +224,19 @@ try {
   await page.getByText("Draft and published content are versioned separately.").waitFor();
   await page.getByTestId("platform-section-homepage").click();
   await page.getByTestId("homepage-structured-editor").waitFor();
+
+  const [staleBrowserPlatformResponse] = await Promise.all([
+    stalePage.waitForResponse((response) => new URL(response.url()).pathname === "/api/staff/content/platform" && response.request().method() === "GET"),
+    stalePage.getByRole("button", { name: "Platform content" }).click(),
+  ]);
+  const staleBrowserPlatformRow = await staleBrowserPlatformResponse.json();
+  await stalePage.getByTestId("platform-section-homepage").click();
+  await stalePage.getByTestId("homepage-structured-editor").waitFor();
+  assert.equal(
+    staleBrowserPlatformRow.draftUpdatedAt,
+    browserPlatformRow.draftUpdatedAt,
+    "Both editor sessions must start from the same homepage draft revision.",
+  );
 
   const initialCategories = await merchandisingValues(page, "homepage-category", 4);
   const initialFeatured = await merchandisingValues(page, "homepage-featured", 4);
@@ -236,6 +275,25 @@ try {
   contentMutated = true;
 
   const savedRow = await currentRow(editorCookie);
+  await stalePage.getByTestId("homepage-category-0").getByRole("button", { name: "Move down" }).click();
+  const [staleSaveResponse] = await Promise.all([
+    stalePage.waitForResponse((response) => new URL(response.url()).pathname === "/api/staff/content/platform" && response.request().method() === "PUT"),
+    stalePage.getByTestId("btn-save-draft").click(),
+  ]);
+  assert.equal(staleSaveResponse.status(), 409, await staleSaveResponse.text());
+  await stalePage.getByText("Platform content changed while you were editing. Reload before saving.").waitFor();
+  const rowAfterStaleSave = await currentRow(staleEditorCookie);
+  assert.deepEqual(
+    rowAfterStaleSave.draft.homepage,
+    savedRow.draft.homepage,
+    "The stale editor must not overwrite the first editor's saved homepage order.",
+  );
+  assert.equal(
+    rowAfterStaleSave.draftUpdatedAt,
+    savedRow.draftUpdatedAt,
+    "A rejected stale save must not create a new draft revision.",
+  );
+
   const invalidContent = structuredClone(savedRow.draft);
   invalidContent.homepage.featured.productSlugs[1] = invalidContent.homepage.featured.productSlugs[0];
   const rejected = await saveContent(editorCookie, invalidContent, savedRow.draftUpdatedAt);
@@ -253,7 +311,8 @@ try {
   assert.deepEqual(await merchandisingValues(page, "home-featured", 4), expectedFeatured);
   assert.deepEqual(await merchandisingValues(page, "home-occasion", 2), expectedOccasions);
   await context.close();
-  console.log("Homepage merchandising browser regression passed.");
+  await staleContext.close();
+  console.log("Homepage merchandising and concurrent editor browser regressions passed.");
 } finally {
   if (browser) await browser.close().catch(() => {});
   await restoreContent().catch((error) => {
@@ -268,6 +327,17 @@ try {
     }).catch(() => null);
     if (!deactivated || deactivated.response.status !== 200) {
       console.error("Failed to deactivate the temporary editor.");
+      process.exitCode = 1;
+    }
+  }
+  if (staleEditorId && ownerCookie) {
+    const deactivated = await api(`/api/staff/access/${staleEditorId}`, {
+      cookie: ownerCookie,
+      method: "PATCH",
+      body: { isActive: false },
+    }).catch(() => null);
+    if (!deactivated || deactivated.response.status !== 200) {
+      console.error("Failed to deactivate the temporary stale editor.");
       process.exitCode = 1;
     }
   }

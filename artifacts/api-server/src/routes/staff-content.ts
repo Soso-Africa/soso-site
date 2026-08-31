@@ -663,6 +663,12 @@ export const buildFaqCreateAuditMetadata = (row: typeof faqItemsTable.$inferSele
   transition: { from: null, to: row.isPublished ? "published" : "draft" },
 });
 
+router.get("/staff/faq", requireStaffRoles("owner", "administrator", "editor"), async (_req, res): Promise<void> => {
+  const rows = await db.select().from(faqItemsTable)
+    .orderBy(asc(faqItemsTable.sortOrder), asc(faqItemsTable.createdAt));
+  res.json(rows);
+});
+
 router.post("/staff/faq", requireStaffRoles("owner", "administrator", "editor"), async (req, res): Promise<void> => {
   const { question, answer, category, sortOrder, isPublished } = req.body as Record<string, unknown>;
   if (typeof question !== "string" || !question.trim() || typeof answer !== "string" || !answer.trim()) {

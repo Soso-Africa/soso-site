@@ -7,6 +7,23 @@ import { HeaderSearch } from "./HeaderSearch";
 
 const isGlobalWhatsAppControl = (href: string) => /(?:wa\.me|whatsapp)/i.test(href);
 
+function BrandLockup({
+  logoUrl,
+  wordmarkClassName,
+}: {
+  logoUrl: string;
+  wordmarkClassName: string;
+}) {
+  return (
+    <span className="flex flex-col items-center justify-center gap-0.5" aria-hidden="true">
+      <img src={logoUrl} alt="" className="h-7 w-7 object-contain md:h-8 md:w-8" />
+      <span className={`soso-display text-[10px] font-semibold leading-none tracking-[0.3em] ${wordmarkClassName}`}>
+        SOSO
+      </span>
+    </span>
+  );
+}
+
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [location] = useLocation();
@@ -271,8 +288,16 @@ export function Navbar() {
           </nav>
         </div>
         
-        <Link href="/" className="md:absolute md:left-1/2 md:-translate-x-1/2 flex items-center justify-center transition-opacity duration-300 hover:opacity-70">
-          <img src={site.logoUrl} alt={site.logoAlt} className="h-8 md:h-9" />
+        <Link
+          href="/"
+          aria-label={site.logoAlt}
+          className="flex items-center justify-center transition-opacity duration-300 hover:opacity-70 md:absolute md:left-1/2 md:-translate-x-1/2"
+          data-testid="link-header-home"
+        >
+          <BrandLockup
+            logoUrl={site.logoUrl}
+            wordmarkClassName={isTransparent ? "text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)]" : "text-foreground"}
+          />
         </Link>
         
         <div className="flex items-center gap-4 md:gap-6">
@@ -302,7 +327,14 @@ export function Navbar() {
         <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-background flex flex-col overflow-hidden animate-in fade-in duration-300">
           {/* Header of mobile menu */}
           <div className="flex justify-between items-center p-4 px-6 border-b border-border shrink-0">
-            <img src={site.logoUrl} alt={site.logoAlt} className="h-8" />
+            <Link
+              href="/"
+              aria-label={site.logoAlt}
+              onClick={() => setMobileMenuOpen(false)}
+              data-testid="link-mobile-menu-home"
+            >
+              <BrandLockup logoUrl={site.logoUrl} wordmarkClassName="text-foreground" />
+            </Link>
             <button type="button" aria-label={site.header.closeMenuLabel} className="text-foreground p-2 -mr-2 opacity-70 hover:opacity-100 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M6 18L18 6M6 6l12 12" />

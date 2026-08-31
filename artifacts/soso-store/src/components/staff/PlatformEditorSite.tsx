@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { ArrowUp, ArrowDown, Plus, Trash2, AlertCircle } from "lucide-react";
 import type { CatalogProduct, PlatformContent } from "../../data/platformContent";
+import { PlatformEditorFooter, PlatformEditorSiteRoutineCopy } from "./PlatformEditorRoutineCopy";
 
 type SiteData = PlatformContent["site"];
 type MegaMenuGroup = SiteData["megaMenu"][number];
@@ -11,15 +12,26 @@ export function PlatformEditorSite({
   onChange,
   allowedTargets,
   products,
+  onValidityChange,
 }: {
   data: SiteData;
   onChange: (data: SiteData) => void;
   allowedTargets: string[];
   products: ProductOption[];
+  onValidityChange?: (valid: boolean) => void;
 }) {
   const suggestions = data.header?.searchSuggestions || [];
   const megaMenu = data.megaMenu || [];
   const announcementItems = data.announcementItems;
+  const contactEmailValid = !data.contactEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.contactEmail);
+  const contactPhoneValid = !data.contactPhone || (
+    /^\+?[0-9().\s-]{7,40}$/.test(data.contactPhone)
+    && (data.contactPhone.match(/\d/g)?.length ?? 0) >= 7
+  );
+
+  useEffect(() => {
+    onValidityChange?.(contactEmailValid && contactPhoneValid);
+  }, [contactEmailValid, contactPhoneValid, onValidityChange]);
 
   const updateAnnouncementItem = (index: number, value: string) => {
     const items = [...announcementItems];
@@ -141,6 +153,14 @@ export function PlatformEditorSite({
     });
   };
 
+  const moveColumn = (groupIndex: number, columnIndex: number, direction: "up" | "down") => {
+    const nextIndex = direction === "up" ? columnIndex - 1 : columnIndex + 1;
+    const columns = [...megaMenu[groupIndex].columns];
+    if (nextIndex < 0 || nextIndex >= columns.length) return;
+    [columns[columnIndex], columns[nextIndex]] = [columns[nextIndex], columns[columnIndex]];
+    updateGroup(groupIndex, { columns });
+  };
+
   const addLink = (groupIndex: number, columnIndex: number) => {
     const columns = [...megaMenu[groupIndex].columns];
     columns[columnIndex] = {
@@ -169,6 +189,16 @@ export function PlatformEditorSite({
       ...columns[columnIndex],
       links: columns[columnIndex].links.filter((_, index) => index !== linkIndex),
     };
+    updateGroup(groupIndex, { columns });
+  };
+
+  const moveLink = (groupIndex: number, columnIndex: number, linkIndex: number, direction: "up" | "down") => {
+    const nextIndex = direction === "up" ? linkIndex - 1 : linkIndex + 1;
+    const columns = [...megaMenu[groupIndex].columns];
+    const links = [...columns[columnIndex].links];
+    if (nextIndex < 0 || nextIndex >= links.length) return;
+    [links[linkIndex], links[nextIndex]] = [links[nextIndex], links[linkIndex]];
+    columns[columnIndex] = { ...columns[columnIndex], links };
     updateGroup(groupIndex, { columns });
   };
 
@@ -255,7 +285,7 @@ export function PlatformEditorSite({
     <div className="mt-5 space-y-5">
       <section className="border border-border bg-card p-5" aria-labelledby="site-info-editor-heading">
         <h3 id="site-info-editor-heading" className="mb-4 text-xs font-semibold uppercase tracking-wider text-primary">Global Site Info</h3>
-        <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">HQ Address</span>
             <textarea
@@ -269,6 +299,47 @@ export function PlatformEditorSite({
               data-testid="input-site-hq-address"
             />
           </label>
+          <div className="grid gap-4">
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Contact Email</span>
+              <input
+                type="email"
+                value={data.contactEmail}
+                onChange={(e) => onChange({ ...data, contactEmail: e.target.value })}
+                className="staff-input text-xs"
+                placeholder="hello@example.com"
+                maxLength={254}
+                aria-invalid={!contactEmailValid}
+                aria-describedby={!contactEmailValid ? "site-contact-email-error" : undefined}
+                data-testid="input-site-contact-email"
+              />
+              {!contactEmailValid && (
+                <span id="site-contact-email-error" role="alert" className="mt-1 block text-xs text-destructive">
+                  Enter a valid email address.
+                </span>
+              )}
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Contact Phone</span>
+              <input
+                type="tel"
+                value={data.contactPhone}
+                onChange={(e) => onChange({ ...data, contactPhone: e.target.value })}
+                className="staff-input text-xs"
+                placeholder="+234 800 000 0000"
+                pattern="\+?[0-9().\s-]{7,40}"
+                maxLength={40}
+                aria-invalid={!contactPhoneValid}
+                aria-describedby={!contactPhoneValid ? "site-contact-phone-error" : undefined}
+                data-testid="input-site-contact-phone"
+              />
+              {!contactPhoneValid && (
+                <span id="site-contact-phone-error" role="alert" className="mt-1 block text-xs text-destructive">
+                  Enter a valid phone number using digits and standard phone punctuation.
+                </span>
+              )}
+            </label>
+          </div>
         </div>
       </section>
 
@@ -383,6 +454,9 @@ export function PlatformEditorSite({
         </div>
       </section>
 
+      <PlatformEditorFooter data={data.footer} onChange={(footer) => onChange({ ...data, footer })} />
+      <PlatformEditorSiteRoutineCopy data={data} onChange={onChange} />
+
       <section className="border border-border bg-card p-5" aria-labelledby="mega-menu-editor-heading">
         <div className="mb-4 flex items-center justify-between gap-4">
           <h3 id="mega-menu-editor-heading" className="text-xs font-semibold uppercase tracking-wider text-primary">Mega Menu</h3>
@@ -481,11 +555,13 @@ export function PlatformEditorSite({
                           <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Column Heading</span>
                           <input type="text" value={column.heading} onChange={(event) => updateColumnHeading(groupIndex, columnIndex, event.target.value)} className="staff-input text-xs" data-testid={`input-mega-menu-column-heading-${groupIndex}-${columnIndex}`} />
                         </label>
-                        <button type="button" onClick={() => removeColumn(groupIndex, columnIndex)} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10" aria-label={`Remove column ${columnIndex + 1}`} data-testid={`button-mega-menu-column-remove-${groupIndex}-${columnIndex}`}><Trash2 size={15} /></button>
+                         <button type="button" onClick={() => moveColumn(groupIndex, columnIndex, "up")} disabled={columnIndex === 0} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30" aria-label={`Move column ${columnIndex + 1} up`}><ArrowUp size={15} /></button>
+                         <button type="button" onClick={() => moveColumn(groupIndex, columnIndex, "down")} disabled={columnIndex === group.columns.length - 1} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30" aria-label={`Move column ${columnIndex + 1} down`}><ArrowDown size={15} /></button>
+                         <button type="button" onClick={() => removeColumn(groupIndex, columnIndex)} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10" aria-label={`Remove column ${columnIndex + 1}`} data-testid={`button-mega-menu-column-remove-${groupIndex}-${columnIndex}`}><Trash2 size={15} /></button>
                       </div>
                       <div className="mt-3 space-y-2">
                         {column.links.map((link, linkIndex) => (
-                          <div key={linkIndex} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]" data-testid={`site-mega-menu-link-${groupIndex}-${columnIndex}-${linkIndex}`}>
+                           <div key={linkIndex} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto_auto_auto]" data-testid={`site-mega-menu-link-${groupIndex}-${columnIndex}-${linkIndex}`}>
                             <label>
                               <span className="sr-only">Link label</span>
                               <input type="text" value={link.label} onChange={(event) => updateLink(groupIndex, columnIndex, linkIndex, { label: event.target.value })} className="staff-input text-xs" placeholder="Link label" data-testid={`input-mega-menu-link-label-${groupIndex}-${columnIndex}-${linkIndex}`} />
@@ -498,6 +574,8 @@ export function PlatformEditorSite({
                               <input type="checkbox" checked={Boolean(link.external)} onChange={(event) => updateLink(groupIndex, columnIndex, linkIndex, { external: event.target.checked || undefined })} data-testid={`checkbox-mega-menu-link-external-${groupIndex}-${columnIndex}-${linkIndex}`} />
                               External
                             </label>
+                             <button type="button" onClick={() => moveLink(groupIndex, columnIndex, linkIndex, "up")} disabled={linkIndex === 0} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30" aria-label={`Move link ${link.label || linkIndex + 1} up`}><ArrowUp size={15} /></button>
+                             <button type="button" onClick={() => moveLink(groupIndex, columnIndex, linkIndex, "down")} disabled={linkIndex === column.links.length - 1} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30" aria-label={`Move link ${link.label || linkIndex + 1} down`}><ArrowDown size={15} /></button>
                             <button type="button" onClick={() => removeLink(groupIndex, columnIndex, linkIndex)} className="flex h-[2.75rem] w-[2.75rem] items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive/10" aria-label={`Remove link ${link.label || linkIndex + 1}`} data-testid={`button-mega-menu-link-remove-${groupIndex}-${columnIndex}-${linkIndex}`}><Trash2 size={15} /></button>
                           </div>
                         ))}
