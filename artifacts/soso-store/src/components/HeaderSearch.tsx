@@ -107,11 +107,12 @@ export function HeaderSearch({ buttonClassName = "text-secondary hover:text-prim
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className={`flex min-h-10 min-w-10 items-center justify-center transition-colors ${buttonClassName}`}
+        className={`flex min-h-10 min-w-10 items-center justify-center gap-2 transition-colors md:min-w-0 md:border md:border-current md:px-3 ${buttonClassName}`}
         aria-label={siteHeader.searchLabel}
         data-testid="button-header-search"
       >
         <Search size={18} aria-hidden="true" />
+        <span className="hidden text-[11px] font-medium uppercase tracking-[0.12em] md:inline">Search products</span>
       </button>
 
       {isOpen && createPortal(

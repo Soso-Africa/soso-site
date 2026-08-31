@@ -2,6 +2,7 @@ import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } f
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
 import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
+import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
   customFetch,
   getStaffExport,
@@ -384,6 +385,7 @@ function PlatformContentManagementSection() {
   const [revisions, setRevisions] = useState<PlatformRevision[]>([]);
   const [uploadedObjectPath, setUploadedObjectPath] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [structuredEditorValid, setStructuredEditorValid] = useState(true);
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const jsonEditorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -395,6 +397,7 @@ function PlatformContentManagementSection() {
       sizeGuide: document.sizeGuide,
       productCopy: document.productCopy,
       supportCopy: document.supportCopy,
+      interfaceCopy: document.interfaceCopy,
     };
     if (selected === "pages") return document.pages;
     return document[selected];
@@ -416,6 +419,7 @@ function PlatformContentManagementSection() {
   useEffect(() => { void load(); }, [load]);
 
   const selectSection = (next: PlatformSection) => {
+    setStructuredEditorValid(true);
     if (!content) {
       if (section !== "complete") { setStatus("Create the complete document before editing individual sections."); return; }
       try {
@@ -440,6 +444,10 @@ function PlatformContentManagementSection() {
     return applyPlatformSection(content, section, JSON.parse(json) as unknown);
   };
   const save = async () => {
+    if (!structuredEditorValid) {
+      setStatus("Fix the highlighted fields before saving this draft.");
+      return;
+    }
     setSaving(true);
     try {
       const document = parsedDocument();
@@ -514,6 +522,7 @@ function PlatformContentManagementSection() {
           products={content?.products ?? []}
           allowedTargets={allowedTargets}
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+          onValidityChange={setStructuredEditorValid}
         />;
       } else if (section === "homepage") {
         const allowedTargets = [
@@ -523,7 +532,9 @@ function PlatformContentManagementSection() {
         ];
         structuredEditor = <PlatformEditorHomepage data={parsed as PlatformContent["homepage"]} products={content?.products ?? []} allowedTargets={allowedTargets} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
       } else if (section === "catalogue") {
-        structuredEditor = <PlatformEditorCatalogue data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy">} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+        structuredEditor = <PlatformEditorCatalogue data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy" | "interfaceCopy">} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+      } else if (section === "pages") {
+        structuredEditor = <PlatformEditorPages data={parsed as PlatformContent["pages"]} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
       }
     } catch {
       // JSON is invalid, don't render structured editor
@@ -589,7 +600,7 @@ function PlatformContentManagementSection() {
 
       {structuredEditor}
 
-      {section === "site" || section === "homepage" || section === "catalogue" ? (
+      {section !== "complete" ? (
         <details className="mt-5 border border-border group" data-testid="advanced-json-details">
           <summary className="cursor-pointer bg-muted/20 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-primary list-none flex items-center justify-between">
             <span>Advanced JSON Details</span>
@@ -610,7 +621,7 @@ function PlatformContentManagementSection() {
       )}
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button data-testid="btn-save-draft" type="button" disabled={saving} onClick={() => void save()} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
+        <button data-testid="btn-save-draft" type="button" disabled={saving || !structuredEditorValid} onClick={() => void save()} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
         <button data-testid="btn-publish" type="button" disabled={saving || !row?.draft} onClick={() => void action("publish")} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish</button>
         <button data-testid="btn-unpublish" type="button" disabled={saving || !row?.published} onClick={() => void action("unpublish")} className="min-h-10 border border-border px-4 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Unpublish</button>
       </div>
@@ -635,7 +646,7 @@ function applyPlatformSection(document: PlatformContent | null, section: Platfor
   if (section === "site") return { ...document, site: value as PlatformContent["site"] };
   if (section === "homepage") return { ...document, homepage: value as PlatformContent["homepage"] };
   if (section === "pages") return { ...document, pages: value as PlatformContent["pages"] };
-  const catalogue = value as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy">;
+  const catalogue = value as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy" | "interfaceCopy">;
   if (!Array.isArray(catalogue.products) || !Array.isArray(catalogue.collections)) throw new Error("Catalogue products and collections must be arrays.");
   return { ...document, ...catalogue };
 }

@@ -29,6 +29,38 @@ export function Footer() {
               {site.hqAddress}
             </address>
           )}
+          {(site.contactEmail || site.contactPhone) && (
+            <dl className="mb-6 grid gap-2 text-[13px] text-secondary">
+              {site.contactEmail && (
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="font-medium text-foreground">Email</dt>
+                  <dd>
+                    <a
+                      href={`mailto:${site.contactEmail}`}
+                      className="hover:text-foreground hover:underline underline-offset-4"
+                      data-testid="link-footer-contact-email"
+                    >
+                      {site.contactEmail}
+                    </a>
+                  </dd>
+                </div>
+              )}
+              {site.contactPhone && (
+                <div className="flex flex-wrap gap-x-2">
+                  <dt className="font-medium text-foreground">Phone</dt>
+                  <dd>
+                    <a
+                      href={`tel:${site.contactPhone.replace(/[^\d+]/g, "")}`}
+                      className="hover:text-foreground hover:underline underline-offset-4"
+                      data-testid="link-footer-contact-phone"
+                    >
+                      {site.contactPhone}
+                    </a>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
           <div className="flex flex-wrap gap-4">
             {site.instagramUrl && (
               <a
@@ -46,9 +78,6 @@ export function Footer() {
                 {label}
               </a>
             ))}
-            {site.contactEmail && (
-              <a href={`mailto:${site.contactEmail}`} className="text-[11px] uppercase tracking-[0.2em] font-medium text-foreground hover:text-secondary hover:underline underline-offset-4">{site.contactEmail}</a>
-            )}
           </div>
         </div>
         {site.footer.columns.map((column) => <div key={column.heading}>

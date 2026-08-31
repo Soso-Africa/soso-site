@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
-import { auditLogsTable, db } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { auditLogsTable, db, faqItemsTable } from "@workspace/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { requireStaffRoles } from "../middlewares/staff";
 import {
   buildFaqCreateAuditMetadata,
@@ -25,6 +25,8 @@ import {
   mergePublishedPlatformContentDefaults,
   PlatformContentSchema,
   platformContentHash,
+  readLegacyPublishedFaqItems,
+  reconcileLegacyPublishedFaqItems,
 } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateProductMediaAssets } from "../lib/product-media-validation";
@@ -204,6 +206,88 @@ test("deleting the last FAQ remains empty across subsequent public reads", async
   assert.equal((responses[0] as unknown[]).length, 1);
   assert.deepEqual(responses[1], []);
   assert.deepEqual(responses[2], []);
+});
+
+test("legacy FAQ extraction only accepts the published PlatformContent location", () => {
+  const item = { id: "legacy-delivery", category: "Delivery", question: "When?", answer: "Soon." };
+  assert.deepEqual(readLegacyPublishedFaqItems({ pages: { faq: { items: [item] } } }), [item]);
+  assert.deepEqual(readLegacyPublishedFaqItems({ faq: { items: [item] } }), []);
+  assert.deepEqual(readLegacyPublishedFaqItems({ pages: { faq: { items: [{ ...item, id: "Not a slug" }] } } }), []);
+});
+
+test("legacy published FAQs reconcile once without replacing staff-managed questions", async () => {
+  const unique = randomUUID();
+  const retainedQuestion = `How is this staff answer retained ${unique}?`;
+  const importedQuestion = `How is this legacy answer imported ${unique}?`;
+  const markerId = "platform-pages-faq-items-v1";
+  const [staffRow] = await db.insert(faqItemsTable).values({
+    question: `  ${retainedQuestion.toLocaleUpperCase()}  `,
+    answer: "A staff-edited answer",
+    category: "Staff category",
+    sortOrder: 91,
+    isPublished: false,
+  }).returning();
+  const legacy = {
+    pages: {
+      faq: {
+        items: [
+          { id: "staff-owned-question", category: "Legacy", question: retainedQuestion, answer: "Must not overwrite staff" },
+          { id: "legacy-import-question", category: "Ordering", question: importedQuestion, answer: "The preserved public answer" },
+        ],
+      },
+    },
+  };
+
+  try {
+    await db.delete(auditLogsTable).where(and(
+      eq(auditLogsTable.entityType, "faq_reconciliation"),
+      eq(auditLogsTable.entityId, markerId),
+    ));
+
+    const first = await reconcileLegacyPublishedFaqItems(legacy);
+    assert.deepEqual(first, { importedCount: 1, skippedCount: 1, alreadyReconciled: false });
+    const rows = await db.select().from(faqItemsTable).where(inArray(
+      faqItemsTable.question,
+      [`  ${retainedQuestion.toLocaleUpperCase()}  `, importedQuestion],
+    ));
+    assert.equal(rows.length, 2);
+    assert.equal(rows.find((row) => row.id === staffRow!.id)?.answer, "A staff-edited answer");
+    const imported = rows.find((row) => row.question === importedQuestion);
+    assert.equal(imported?.answer, "The preserved public answer");
+    assert.equal(imported?.category, "Ordering");
+    assert.equal(imported?.sortOrder, 1);
+    assert.equal(imported?.isPublished, true);
+
+    assert.deepEqual(await reconcileLegacyPublishedFaqItems(legacy), {
+      importedCount: 0, skippedCount: 0, alreadyReconciled: true,
+    });
+    await db.delete(faqItemsTable).where(eq(faqItemsTable.id, imported!.id));
+    assert.deepEqual(await reconcileLegacyPublishedFaqItems(legacy), {
+      importedCount: 0, skippedCount: 0, alreadyReconciled: true,
+    });
+    const [resurrected] = await db.select({ id: faqItemsTable.id }).from(faqItemsTable)
+      .where(eq(faqItemsTable.question, importedQuestion)).limit(1);
+    assert.equal(resurrected, undefined);
+  } finally {
+    await db.delete(auditLogsTable).where(and(
+      eq(auditLogsTable.entityType, "faq_reconciliation"),
+      eq(auditLogsTable.entityId, markerId),
+    ));
+    await db.delete(faqItemsTable).where(inArray(faqItemsTable.id, [
+      staffRow!.id,
+      ...((await db.select({ id: faqItemsTable.id }).from(faqItemsTable)
+        .where(eq(faqItemsTable.question, importedQuestion))).map((row) => row.id)),
+    ]));
+  }
+});
+
+test("staff FAQ list is a database-backed read endpoint", () => {
+  const routerStack = (staffContentRouter as unknown as {
+    stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }>;
+  }).stack;
+  const routes = routerStack.map((layer) => layer.route).filter((route) => route?.path === "/staff/faq");
+  assert.ok(routes.some((route) => route?.methods.get));
+  assert.ok(routes.some((route) => route?.methods.post));
 });
 
 test("platform content validates the complete seeded document and hashes deterministically", () => {
@@ -603,13 +687,20 @@ test("site settings validate governed ticker, address, and social links", () => 
   valid.site.announcementItems = [""];
   valid.site.hqAddress = "";
   valid.site.socialLinks.facebookUrl = "http://facebook.com/soso";
+  valid.site.contactPhone = "call SOSO";
   const parsed = PlatformContentSchema.safeParse(valid);
   assert.equal(parsed.success, false);
   if (!parsed.success) {
     assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "site.announcementItems.0"));
     assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "site.hqAddress"));
     assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "site.socialLinks.facebookUrl"));
+    assert.ok(parsed.error.issues.some((issue) => issue.path.join(".") === "site.contactPhone"));
   }
+
+  const validContacts = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  validContacts.site.contactEmail = "hello@shopsoso.co";
+  validContacts.site.contactPhone = "+234 (0) 800 123 4567";
+  assert.equal(PlatformContentSchema.safeParse(validContacts).success, true);
 });
 
 test("the women launch upgrade appends missing catalogue content without replacing men edits", () => {

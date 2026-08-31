@@ -41,7 +41,7 @@ export function createFaqReadHandler(
 ) {
   return async (_req: Request, res: Response): Promise<void> => {
     const rows = await readPublished();
-  res.json(rows.map((r) => ({ id: r.id, category: r.category ?? "General", question: r.question, answer: r.answer })));
+    res.json(rows.map((r) => ({ id: r.id, category: r.category ?? "General", question: r.question, answer: r.answer })));
   };
 }
 

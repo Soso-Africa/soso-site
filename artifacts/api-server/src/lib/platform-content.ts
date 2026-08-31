@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { auditLogsTable, db, siteContentRevisionsTable, siteContentTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { auditLogsTable, db, faqItemsTable, siteContentRevisionsTable, siteContentTable } from "@workspace/db";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(160);
@@ -15,6 +15,10 @@ const httpsUrl = z.string().max(1024).refine((value) => {
 const optionalHttpsUrl = z.union([z.literal(""), httpsUrl]);
 const copy = z.string().max(10_000);
 const interfaceLabel = z.string().trim().min(1).max(300);
+const contactPhone = z.string().max(40).refine(
+  (value) => value === "" || (/^\+?[0-9().\s-]{7,40}$/.test(value) && (value.match(/\d/g)?.length ?? 0) >= 7),
+  "Contact phone must contain at least seven digits and use standard phone punctuation",
+);
 const measurementRangeErrorTemplate = interfaceLabel.refine(
   (value) => ["{label}", "{min}", "{max}", "{unit}"].every((token) => value.includes(token)),
   "Measurement range error template must include {label}, {min}, {max}, and {unit}",
@@ -121,7 +125,7 @@ export const PlatformContentSchema = z.object({
       linkedinUrl: optionalHttpsUrl,
     }).strict(),
     skipLinkLabel: copy.min(1),
-    contactEmail: z.union([z.literal(""), z.string().email()]), contactPhone: z.string().max(40),
+    contactEmail: z.union([z.literal(""), z.string().email()]), contactPhone,
     instagramUrl: href, whatsappUrl: href,
     navigation: z.array(link).min(1), mobileNavigation: z.array(link).min(1),
     megaMenu: z.array(megaMenuGroup).min(1).max(8),
@@ -1414,6 +1418,99 @@ export function mergePublishedPlatformContentDefaults(current: unknown, publishe
   return mergePlatformContentDefaults(current);
 }
 
+const LEGACY_FAQ_RECONCILIATION_ID = "platform-pages-faq-items-v1";
+const LEGACY_FAQ_RECONCILIATION_ACTION = "faq.legacy_platform_items_reconciled";
+const legacyFaqItemsSchema = z.array(z.object({
+  id: slug,
+  category: copy,
+  question: copy,
+  answer: copy,
+}).strict());
+
+export type LegacyFaqItem = z.infer<typeof legacyFaqItemsSchema>[number];
+
+export function readLegacyPublishedFaqItems(content: unknown): LegacyFaqItem[] {
+  if (!content || typeof content !== "object" || Array.isArray(content)) return [];
+  const pages = (content as Record<string, unknown>).pages;
+  if (!pages || typeof pages !== "object" || Array.isArray(pages)) return [];
+  const faq = (pages as Record<string, unknown>).faq;
+  if (!faq || typeof faq !== "object" || Array.isArray(faq)) return [];
+  const parsed = legacyFaqItemsSchema.safeParse((faq as Record<string, unknown>).items);
+  return parsed.success ? parsed.data : [];
+}
+
+const normalizeFaqQuestion = (question: string) => question.trim().toLocaleLowerCase();
+
+/**
+ * Moves the formerly embedded, published FAQ list into the managed FAQ table.
+ * The audit event is the durable completion marker, so no schema change is
+ * needed. Both the marker check and inserts share a transaction and advisory
+ * lock. Existing questions always win, protecting staff changes made before
+ * rollout; the marker also prevents deleted imports from being resurrected.
+ */
+export async function reconcileLegacyPublishedFaqItems(
+  publishedContent: unknown,
+): Promise<{ importedCount: number; skippedCount: number; alreadyReconciled: boolean }> {
+  const legacyItems = readLegacyPublishedFaqItems(publishedContent);
+  if (legacyItems.length === 0) {
+    return { importedCount: 0, skippedCount: 0, alreadyReconciled: false };
+  }
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"soso:" + LEGACY_FAQ_RECONCILIATION_ID}))`);
+    const [marker] = await tx.select({ id: auditLogsTable.id }).from(auditLogsTable).where(and(
+      eq(auditLogsTable.action, LEGACY_FAQ_RECONCILIATION_ACTION),
+      eq(auditLogsTable.entityType, "faq_reconciliation"),
+      eq(auditLogsTable.entityId, LEGACY_FAQ_RECONCILIATION_ID),
+    )).limit(1);
+    if (marker) {
+      return { importedCount: 0, skippedCount: 0, alreadyReconciled: true };
+    }
+
+    const existing = await tx.select({ question: faqItemsTable.question }).from(faqItemsTable);
+    const knownQuestions = new Set(existing.map((item) => normalizeFaqQuestion(item.question)));
+    const importedItemIds: string[] = [];
+    const skippedSourceItemIds: string[] = [];
+
+    for (const [sortOrder, item] of legacyItems.entries()) {
+      const questionKey = normalizeFaqQuestion(item.question);
+      if (knownQuestions.has(questionKey)) {
+        skippedSourceItemIds.push(item.id);
+        continue;
+      }
+      const [created] = await tx.insert(faqItemsTable).values({
+        question: item.question.trim(),
+        answer: item.answer.trim(),
+        category: item.category.trim() || null,
+        sortOrder,
+        isPublished: true,
+      }).returning({ id: faqItemsTable.id });
+      importedItemIds.push(created!.id);
+      knownQuestions.add(questionKey);
+    }
+
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: "system:faq-reconciliation",
+      action: LEGACY_FAQ_RECONCILIATION_ACTION,
+      entityType: "faq_reconciliation",
+      entityId: LEGACY_FAQ_RECONCILIATION_ID,
+      metadata: {
+        sourceHash: platformContentHash(legacyItems),
+        sourceItemIds: legacyItems.map((item) => item.id),
+        importedItemIds,
+        skippedSourceItemIds,
+        importedCount: importedItemIds.length,
+        skippedCount: skippedSourceItemIds.length,
+      },
+    });
+    return {
+      importedCount: importedItemIds.length,
+      skippedCount: skippedSourceItemIds.length,
+      alreadyReconciled: false,
+    };
+  });
+}
+
 export async function ensurePlatformContent() {
   const now = new Date();
   await db.insert(siteContentTable).values({
@@ -1425,6 +1522,10 @@ export async function ensurePlatformContent() {
   const [current] = await db.select().from(siteContentTable)
     .where(eq(siteContentTable.key, "platform")).limit(1);
   if (!current) return;
+
+  // Reconcile before platform migrations can reshape the legacy document.
+  // Only published items are imported: draft-only copy must never become public.
+  await reconcileLegacyPublishedFaqItems(current.published);
 
   const updates: Partial<typeof siteContentTable.$inferInsert> = {};
   const mergedDraft = mergePlatformContentDefaults(current.draft);
