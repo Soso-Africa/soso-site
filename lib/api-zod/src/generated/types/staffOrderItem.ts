@@ -20,6 +20,26 @@ export interface StaffOrderItem {
   selectionType: StaffOrderItemSelectionType;
   /** @nullable */
   selectedSize?: string | null;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  selectedColourId?: string | null;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  selectedColourLabel?: string | null;
+  /**
+     * @nullable
+     * @pattern ^#[0-9A-Fa-f]{6}$
+     */
+  selectedColourHex?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  customColour?: string | null;
   /** @minimum 1 */
   quantity: number;
   measurement?: StaffMeasurement | null;

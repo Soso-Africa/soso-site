@@ -223,6 +223,10 @@ CREATE TABLE "soso_order_items" (
   "product_name" text NOT NULL,
   "selection_type" "soso_order_item_selection_type" DEFAULT 'standard' NOT NULL,
   "selected_size" text,
+  "selected_colour_id" text,
+  "selected_colour_label" text,
+  "selected_colour_hex" text,
+  "custom_colour" text,
   "quantity" integer NOT NULL,
   "unit_price" numeric(12, 2) NOT NULL,
   "created_at" timestamp with time zone DEFAULT now() NOT NULL
