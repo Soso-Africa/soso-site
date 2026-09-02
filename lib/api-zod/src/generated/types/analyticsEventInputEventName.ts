@@ -30,6 +30,7 @@ export const AnalyticsEventInputEventName = {
   consent_updated: 'consent_updated',
   marketing_opt_out: 'marketing_opt_out',
   blog_article_viewed: 'blog_article_viewed',
+  category_impression: 'category_impression',
   faq_expanded: 'faq_expanded',
   scroll_depth_reached: 'scroll_depth_reached',
   cta_clicked: 'cta_clicked',

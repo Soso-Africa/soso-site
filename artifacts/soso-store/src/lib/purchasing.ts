@@ -23,10 +23,20 @@ export function isMappedPurchaseChoice(product: CatalogProduct, choice: string |
 type CartLineSelection = {
   slug: string;
   size: string;
+  selectedColourId: string;
+  customColour?: string;
   quantity: number;
   commerceProductId?: string;
   commerceVariantId?: string;
 };
+
+export function isSameCartLine(
+  left: Pick<CartLineSelection, "slug" | "size" | "selectedColourId" | "customColour">,
+  right: Pick<CartLineSelection, "slug" | "size" | "selectedColourId" | "customColour">,
+): boolean {
+  return left.slug === right.slug && left.size === right.size
+    && left.selectedColourId === right.selectedColourId && left.customColour === right.customColour;
+}
 
 export function changeCartLineSelection<T extends CartLineSelection>(
   items: T[],
@@ -34,13 +44,17 @@ export function changeCartLineSelection<T extends CartLineSelection>(
   oldSize: string,
   newSize: string,
   newCommerceVariantId?: string,
+  selectedColourId?: string,
+  customColour?: string,
 ): T[] {
   if (oldSize === newSize || !newCommerceVariantId) return items;
 
-  const source = items.find((item) => item.slug === slug && item.size === oldSize);
+  const source = items.find((item) => item.slug === slug && item.size === oldSize
+    && (!selectedColourId || (item.selectedColourId === selectedColourId && item.customColour === customColour)));
   if (!source?.commerceProductId) return items;
 
-  const target = items.find((item) => item.slug === slug && item.size === newSize);
+  const target = items.find((item) => item.slug === slug && item.size === newSize
+    && item.selectedColourId === source.selectedColourId && item.customColour === source.customColour);
   if (target) {
     return items
       .filter((item) => item !== source)

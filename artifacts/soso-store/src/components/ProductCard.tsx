@@ -40,7 +40,8 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
   const handleQuickAdd = () => {
     if (!isMappedPurchaseChoice(product, selectedSize)) return;
     const commerceVariantId = product.commerceVariantIds?.[selectedSize];
-    if (!commerceVariantId || !product.commerceProductId) return;
+    const selectedColour = product.colourOptions[0];
+    if (!commerceVariantId || !product.commerceProductId || !selectedColour) return;
 
     addItem({
       slug: product.slug,
@@ -48,6 +49,9 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
       img: product.img,
       price: product.price,
       size: selectedSize,
+      selectedColourId: selectedColour.id,
+      selectedColourLabel: selectedColour.label,
+      selectedColourHex: selectedColour.hex,
       commerceProductId: product.commerceProductId,
       commerceVariantId: commerceVariantId,
     });
@@ -235,7 +239,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
                     ? productCopy?.sizeRequiredLabel
                     : !isMappedPurchaseChoice(product, selectedSize)
                       ? productCopy?.unavailableInSizeLabel
-                      : productCopy?.addToBagLabel}
+                      : productCopy?.addToBagLabel.replace(/bag/i, 'Cart')}
             </button>
             <Link
               href={`/product/${product.slug}`}

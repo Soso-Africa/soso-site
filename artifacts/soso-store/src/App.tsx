@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { lazy, Suspense, type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -14,60 +14,66 @@ import { Seo } from '@/components/Seo';
 import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
 import { customFetch } from '@workspace/api-client-react';
 import { usePlatformContent } from '@/data/platformContent';
+import { legacyRedirectByPath } from '@/data/legacy-redirects';
 
 import Home from '@/pages/Home';
-import Shop from '@/pages/Shop';
-import ProductDetail from '@/pages/ProductDetail';
-import Checkout from '@/pages/Checkout';
-import PaymentReturn from '@/pages/PaymentReturn';
-import Journal from '@/pages/Journal';
-import JournalPost from '@/pages/JournalPost';
-import JournalPreview from '@/pages/JournalPreview';
-import Policy from '@/pages/Policy';
-import PolicyHub from '@/pages/PolicyHub';
-import About from '@/pages/About';
-import FAQ from '@/pages/FAQ';
-import CollectionPage from '@/pages/CollectionPage';
-import SignIn from '@/pages/SignIn';
-import Staff from '@/pages/Staff';
-import NotFound from '@/pages/not-found';
+
+const About = lazy(() => import('@/pages/About'));
+const Checkout = lazy(() => import('@/pages/Checkout'));
+const CollectionPage = lazy(() => import('@/pages/CollectionPage'));
+const FAQ = lazy(() => import('@/pages/FAQ'));
+const Journal = lazy(() => import('@/pages/Journal'));
+const JournalPost = lazy(() => import('@/pages/JournalPost'));
+const JournalPreview = lazy(() => import('@/pages/JournalPreview'));
+const LegacyAboutPage = lazy(() => import('@/pages/LegacyAboutPage'));
+const NotFound = lazy(() => import('@/pages/not-found'));
+const PaymentReturn = lazy(() => import('@/pages/PaymentReturn'));
+const Policy = lazy(() => import('@/pages/Policy'));
+const PolicyHub = lazy(() => import('@/pages/PolicyHub'));
+const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
+const Shop = lazy(() => import('@/pages/Shop'));
+const SignIn = lazy(() => import('@/pages/SignIn'));
+const Staff = lazy(() => import('@/pages/Staff'));
 
 const queryClient = new QueryClient();
 
 function Router() {
   return (
     <RoutedErrorBoundary>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/women"><Redirect to="/shop?department=women" /></Route>
-        <Route path="/shop" component={Shop} />
-        <Route path="/product/:slug" component={ProductDetail} />
-        <Route path="/checkout" component={Checkout} />
-        <Route path="/checkout/return" component={PaymentReturn} />
-        <Route path="/journal" component={Journal} />
-        <Route path="/journal/:slug" component={JournalPost} />
-        <Route path="/journal/preview/:slug" component={JournalPreview} />
-        <Route path="/about" component={About} />
-        <Route path="/faq" component={FAQ} />
-        <Route path="/collections/:slug">
-          {(params) => <CollectionPage slug={params.slug ?? ""} />}
-        </Route>
-        <Route path="/policies" component={PolicyHub} />
-        <Route path="/policies/:slug">
-          {() => <Policy />}
-        </Route>
-        <Route path="/privacy" component={Policy} />
-        <Route path="/cookies" component={CookieRedirect} />
-        <Route path="/terms" component={Policy} />
-        <Route path="/delivery-returns" component={Policy} />
-        <Route path="/delivery" component={DeliveryRedirect} />
-        <Route path="/returns" component={ReturnsRedirect} />
-        <Route path="/care" component={Policy} />
-        <Route path="/sign-in/*?" component={SignIn} />
-        <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
-        <Route path="/staff" component={StaffGate} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<div className="flex min-h-[45vh] items-center justify-center text-sm text-muted-foreground">Loading page…</div>}>
+        <Switch>
+          <Route path="/" component={Home} />
+          <Route path="/women"><Redirect to="/shop?department=women" /></Route>
+          <Route path="/shop" component={Shop} />
+          <Route path="/product/:slug" component={ProductDetail} />
+          <Route path="/checkout" component={Checkout} />
+          <Route path="/checkout/return" component={PaymentReturn} />
+          <Route path="/journal" component={Journal} />
+          <Route path="/journal/:slug" component={JournalPost} />
+          <Route path="/journal/preview/:slug" component={JournalPreview} />
+          <Route path="/about" component={About} />
+          <Route path="/about/:slug" component={LegacyAboutPage} />
+          <Route path="/faq" component={FAQ} />
+          <Route path="/collections/:slug">
+            {(params) => <CollectionPage slug={params.slug ?? ""} />}
+          </Route>
+          <Route path="/policies" component={PolicyHub} />
+          <Route path="/policies/:slug">
+            {() => <Policy />}
+          </Route>
+          <Route path="/privacy" component={Policy} />
+          <Route path="/cookies" component={CookieRedirect} />
+          <Route path="/terms" component={Policy} />
+          <Route path="/delivery-returns" component={Policy} />
+          <Route path="/delivery" component={DeliveryRedirect} />
+          <Route path="/returns" component={ReturnsRedirect} />
+          <Route path="/care" component={Policy} />
+          <Route path="/sign-in/*?" component={SignIn} />
+          <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
+          <Route path="/staff" component={StaffGate} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </RoutedErrorBoundary>
   );
 }
@@ -164,6 +170,23 @@ function RedirectGuard({ children }: { children: ReactNode }) {
     let cancelled = false;
     let timedOut = false;
     setChecking(true);
+
+    const normalizedPath = location !== "/" && location.endsWith("/")
+      ? location
+      : `${location}/`;
+    const bundledRedirect = legacyRedirectByPath.get(location)
+      ?? legacyRedirectByPath.get(normalizedPath);
+    if (
+      bundledRedirect
+      && bundledRedirect.toPath !== location
+      && bundledRedirect.toPath.startsWith("/")
+      && !bundledRedirect.toPath.startsWith("//")
+    ) {
+      navigate(bundledRedirect.toPath, { replace: true });
+      setChecking(false);
+      return;
+    }
+
     // Redirects are a convenience layer; the storefront must remain available
     // if that lookup is slow or unavailable.
     const fallbackTimer = window.setTimeout(() => {

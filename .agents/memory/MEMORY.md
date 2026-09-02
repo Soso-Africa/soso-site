@@ -1,6 +1,6 @@
 - [Conversion review evidence](conversion-review-evidence.md) — distinguish absent content from content that exists but is buried or poorly connected to the purchase decision.
 - [Payment-first bespoke checkout](payment-first-bespoke-checkout.md) — shoppers pay first; atelier production confirmation follows, with stylist help kept optional.
-- [JusticeSure v1 activation gate](justicesure-v1-activation-gate.md) — keep Commerce fail-closed until its staged runtime, credentials, webhook, catalogue, and return flow pass acceptance together.
+- [JusticeSure v1 activation gate](justicesure-v1-activation-gate.md) — keep purchase controls fail-closed until acceptance, without hiding safe catalogue discovery.
 - [OpenAPI Zod format compatibility](openapi-zod-format-compatibility.md) — avoid unsupported generated format helpers until the workspace toolchain is upgraded together.
 - [Launch SEO safety gates](soso-launch-seo-gates.md) — direct responses stay private unless approved domain, route category, and editorial metadata are explicitly supplied.
 - [Lib package build order](lib-package-build-order.md) — after changing lib/db or lib/api-client-react schemas/exports, build those packages before typechecking consumers.
@@ -27,3 +27,7 @@
 - [Approved storefront visual direction](storefront-visual-direction.md) — public SOSO follows Hobbs-like retail rhythm and scroll behavior while preserving its blue logo and checkout-first path.
 - [Deterministic Chromium visual gates](chromium-visual-gates.md) — use fixed API/content, consent, motion, fonts, locale, and viewport inputs before approving pixel baselines.
 - [Vercel client-review gate](vercel-client-review-gate.md) — main requires the strict Vercel status; it owns storefront visual/release checks because workflow-file OAuth is unavailable.
+- [Vercel production data source](vercel-production-data-source.md) — live SOSO data resides in Vercel’s production-scoped Neon database, not a Replit production database.
+- [Country-aware consent defaults](country-aware-consent-defaults.md) — trust Vercel country classification only; revalidate automatic analytics grants and fail closed when location is unknown.
+- [Product colour integrity](product-colour-integrity.md) — persist colour per order line; enable live recolouring only with a verified, usable garment mask.
+- [Paired material turns](paired-material-turns.md) — front/back stills form ordered material sets and drive a page-scroll turn illusion without claiming reconstructed 3D motion.

@@ -286,6 +286,10 @@ function orderView(order: typeof ordersTable.$inferSelect, rows: StaffOrderItemR
       productName: row.item.productName,
       selectionType: row.item.selectionType,
       selectedSize: row.item.selectedSize,
+      selectedColourId: row.item.selectedColourId,
+      selectedColourLabel: row.item.selectedColourLabel,
+      selectedColourHex: row.item.selectedColourHex,
+      customColour: row.item.customColour,
       quantity: row.item.quantity,
       measurement: staffMeasurementView(row),
     })),
@@ -880,7 +884,9 @@ router.post("/staff/privacy-requests/:id/access-package", requireStaffRoles("own
     }).from(ordersTable).where(sql`lower(${ordersTable.customerEmail}) = ${email}`);
     const orderItems = orders.length ? await tx.select({
       orderId: orderItemsTable.orderId, productSlug: orderItemsTable.productSlug, productName: orderItemsTable.productName,
-      selectedSize: orderItemsTable.selectedSize, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
+      selectedSize: orderItemsTable.selectedSize, selectedColourId: orderItemsTable.selectedColourId,
+      selectedColourLabel: orderItemsTable.selectedColourLabel, selectedColourHex: orderItemsTable.selectedColourHex,
+      customColour: orderItemsTable.customColour, quantity: orderItemsTable.quantity, unitPrice: orderItemsTable.unitPrice, createdAt: orderItemsTable.createdAt,
     }).from(orderItemsTable).where(inArray(orderItemsTable.orderId, orders.map((order) => order.id))) : [];
     const measurements = orders.length ? await tx.select({
       id: measurementRequestsTable.id,

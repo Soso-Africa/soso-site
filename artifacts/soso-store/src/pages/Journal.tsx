@@ -6,6 +6,7 @@ import { Loader2, ArrowRight } from 'lucide-react';
 import { Seo } from '@/components/Seo';
 import { journalApproved } from '@/lib/seo';
 import { PlatformContentState, usePlatformContent } from '@/data/platformContent';
+import { legacyJournalPosts } from '@/data/legacy-content';
 
 export default function Journal() {
   const { data: posts, isLoading, isError } = useListJournalPosts();
@@ -13,6 +14,12 @@ export default function Journal() {
   const platformStateCopy = platform.data?.content.site.platformState;
   if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
   const copy = platform.data.content.pages.journal;
+  // The API remains authoritative when a migrated slug has been edited in the
+  // CMS. Bundled migration records ensure legacy articles cannot disappear
+  // during deployment or before the database import has completed.
+  const visiblePosts = Array.from(new Map(
+    [...legacyJournalPosts, ...(posts ?? [])].map((post) => [post.slug, post]),
+  ).values()).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
   return (
     <div className="min-h-screen bg-background fade-in">
@@ -35,17 +42,17 @@ export default function Journal() {
             <Loader2 className="w-8 h-8 animate-spin text-primary mb-6" />
             <p className="text-muted-foreground uppercase tracking-widest text-sm">{copy.loadingMessage}</p>
           </div>
-        ) : isError ? (
+        ) : isError && visiblePosts.length === 0 ? (
             <div className="text-center py-32 border border-border bg-card" role="alert">
             <p className="text-destructive uppercase tracking-widest font-medium">{copy.errorMessage}</p>
           </div>
-        ) : !posts?.length ? (
+        ) : visiblePosts.length === 0 ? (
           <div className="text-center py-32 border border-border bg-card">
             <p className="text-muted-foreground uppercase tracking-widest font-medium">{copy.emptyMessage}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
-            {posts.map((post) => (
+            {visiblePosts.map((post) => (
               <Link key={post.slug} href={`/journal/${post.slug}`} className="group block h-full">
                 <article className="h-full flex flex-col cursor-pointer">
                   <div className="aspect-[4/5] overflow-hidden bg-muted mb-6 relative">

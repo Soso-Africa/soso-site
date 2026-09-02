@@ -10,6 +10,7 @@
   "scripts": {
     "migrate:soso-content": "node ./scripts/apply-soso-content-migration.mjs",
     "seed:soso-journal-launch": "node ./scripts/seed-soso-journal-launch.mjs",
+    "seed:soso-legacy-redirects": "node ./scripts/seed-soso-legacy-redirects.mjs",
     "seed:soso-policies": "node ./scripts/seed-soso-policies.mjs",
     "test:migrations": "node ./scripts/validate-soso-content-migration.mjs",
     "push": "drizzle-kit push --config ./drizzle.config.ts",

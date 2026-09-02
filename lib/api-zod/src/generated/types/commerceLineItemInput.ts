@@ -28,4 +28,22 @@ export interface CommerceLineItemInput {
   displaySlug?: string;
   /** @maxLength 80 */
   selectedSize?: string;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  selectedColourId: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  selectedColourLabel?: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  selectedColourHex?: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  customColour?: string;
 }

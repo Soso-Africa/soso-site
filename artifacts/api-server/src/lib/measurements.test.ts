@@ -62,12 +62,18 @@ test("checkout selection type and price come from the authoritative variant mapp
       { id: standardVariantId, label: "L" },
     ],
   }];
+  const colour = {
+    selectedColourId: "soso-black",
+    selectedColourLabel: "SOSO Black",
+    selectedColourHex: "#111111",
+  };
 
   const resolvedCustom = resolveAuthoritativeCheckoutItems([{
     productId: customProductId,
     variantId: customVariantId,
     quantity: 1,
     displaySlug: "authority-kaftan",
+    ...colour,
   }], catalog);
   assert.equal(resolvedCustom?.[0]?.selectedSize, "Custom");
   assert.equal(resolvedCustom?.[0]?.displayName, "Authority Kaftan");
@@ -77,6 +83,7 @@ test("checkout selection type and price come from the authoritative variant mapp
     productId: customProductId,
     variantId: standardVariantId,
     quantity: 1,
+    ...colour,
   }], catalog);
   assert.equal(browserMislabelsStandard?.[0]?.selectedSize, "L");
 
@@ -84,7 +91,28 @@ test("checkout selection type and price come from the authoritative variant mapp
     productId: customProductId,
     variantId: "44444444-4444-4444-8444-444444444444",
     quantity: 1,
+    ...colour,
   }], catalog), null);
+});
+
+test("checkout rejects unapproved or disabled custom colours against storefront authority", () => {
+  const productId = "11111111-1111-4111-8111-111111111111";
+  const variantId = "33333333-3333-4333-8333-333333333333";
+  const catalog = [{ id: productId, name: "Vault", amountKobo: 100, inStock: true, variants: [{ id: variantId, label: "L" }] }];
+  const storefront = [{
+    slug: "vault",
+    commerceProductId: productId,
+    commerceVariantIds: { L: variantId },
+    colourOptions: [{ id: "soso-black", label: "SOSO Black", hex: "#111111" }],
+    allowCustomColour: false,
+  }];
+  const valid = { productId, variantId, quantity: 1, selectedColourId: "soso-black", selectedColourLabel: "SOSO Black", selectedColourHex: "#111111" };
+  assert.equal(resolveAuthoritativeCheckoutItems([valid], catalog, storefront)?.[0]?.displaySlug, "vault");
+  assert.equal(resolveAuthoritativeCheckoutItems([{ ...valid, selectedColourId: "unapproved" }], catalog, storefront), null);
+  assert.equal(resolveAuthoritativeCheckoutItems([{ ...valid, selectedColourHex: "#FFFFFF" }], catalog, storefront), null);
+  const custom = { productId, variantId, quantity: 1, selectedColourId: "custom", customColour: "Deep wine with muted gold accents" };
+  assert.equal(resolveAuthoritativeCheckoutItems([custom], catalog, storefront), null);
+  assert.ok(resolveAuthoritativeCheckoutItems([custom], catalog, [{ ...storefront[0], allowCustomColour: true }]));
 });
 
 test("measurement validation accepts inclusive cm and equivalent inch boundaries", () => {

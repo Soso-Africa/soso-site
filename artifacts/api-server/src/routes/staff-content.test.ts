@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
+import { PNG } from "pngjs";
 import { auditLogsTable, db, faqItemsTable } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { requireStaffRoles } from "../middlewares/staff";
@@ -31,6 +32,253 @@ import {
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateProductMediaAssets } from "../lib/product-media-validation";
 import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
+
+function validProductMediaInspection(path: string, size = 250_000) {
+  const contentType = path.endsWith(".png")
+    ? "image/png"
+    : path.endsWith(".webp")
+      ? "image/webp"
+      : "image/jpeg";
+  const inspection = {
+    contentType,
+    declaredContentType: contentType,
+    size,
+    width: 2,
+    height: 1,
+  };
+  if (!path.endsWith(".png")) return inspection;
+  const png = new PNG({ width: 2, height: 1, colorType: 6 });
+  png.data.set([255, 255, 255, 0, 255, 255, 255, 255]);
+  return { ...inspection, bytes: PNG.sync.write(png, { colorType: 6 }) };
+}
+
+test("colour option migration preserves merchant products and creates unique palettes", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as unknown as Record<string, unknown>;
+  legacy.contentVersion = 14;
+  const products = legacy.products as Array<Record<string, unknown>>;
+  products[0]!.colour = "Merchant Aubergine";
+  delete products[0]!.colourOptions;
+  delete products[0]!.allowCustomColour;
+  const upgraded = mergePlatformContentDefaults(legacy);
+  const parsed = PlatformContentSchema.safeParse(upgraded);
+  assert.equal(parsed.success, true);
+  if (!parsed.success) return;
+  assert.equal(parsed.data.products[0]!.colour, "Merchant Aubergine");
+  assert.equal(parsed.data.products[0]!.colourOptions[0]!.label, "Merchant Aubergine");
+  assert.equal(parsed.data.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  const options = parsed.data.products[0]!.colourOptions;
+  assert.equal(new Set(options.map(({ id }) => id)).size, options.length);
+  assert.equal(new Set(options.map(({ label }) => label.toLowerCase())).size, options.length);
+  assert.equal(new Set(options.map(({ hex }) => hex.toUpperCase())).size, options.length);
+});
+
+test("material turn set migration preserves merchant content without inferring gallery pairs", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as unknown as Record<string, unknown>;
+  legacy.contentVersion = 15;
+  const products = legacy.products as Array<Record<string, unknown>>;
+  const originalGallery = structuredClone(products[0]!.images);
+  delete products[0]!.materialTurnSets;
+  const merchantSets = [{
+    id: "merchant-brocade",
+    label: "Merchant brocade",
+    front: {
+      src: "/images/soso/merchant-brocade-front.jpg",
+      alt: "Merchant brocade front",
+      provenance: { source: "Merchant upload", rights: "Approved storefront use" },
+    },
+    back: {
+      src: "/images/soso/merchant-brocade-back.jpg",
+      alt: "Merchant brocade back",
+      provenance: { source: "Merchant upload", rights: "Approved storefront use" },
+    },
+  }];
+  products[1]!.materialTurnSets = structuredClone(merchantSets);
+
+  const parsed = PlatformContentSchema.safeParse(mergePlatformContentDefaults(legacy));
+  assert.equal(parsed.success, true);
+  if (!parsed.success) return;
+  assert.equal(parsed.data.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  assert.deepEqual(parsed.data.products[0]!.materialTurnSets, []);
+  assert.deepEqual(parsed.data.products[0]!.images, originalGallery);
+  assert.deepEqual(parsed.data.products[1]!.materialTurnSets, merchantSets);
+});
+
+test("Dashiki outer-fabric visualizer upgrade is exact, bounded, and preserves merchant replacements", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.contentVersion = 16;
+  const dashiki = legacy.products.find((product) => product.slug === "heritage-dashiki")!;
+  delete dashiki.colourVisualizer;
+  const asShown = dashiki.colourOptions.find((option) => option.id === "as-shown")!;
+  asShown.hex = "#B08D57";
+
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  const upgradedDashiki = upgraded.products.find((product) => product.slug === "heritage-dashiki")!;
+  assert.deepEqual(upgradedDashiki.colourVisualizer, {
+    baseImageSrc: "/images/soso/dashiki.jpg",
+    garmentMaskSrc: "/images/soso/dashiki-outer-mask.png",
+  });
+  assert.equal(upgradedDashiki.colourOptions.find((option) => option.id === "as-shown")?.hex, "#111111");
+  assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+
+  const merchantImage = structuredClone(legacy);
+  const merchantImageDashiki = merchantImage.products.find((product) => product.slug === "heritage-dashiki")!;
+  merchantImageDashiki.img = "/api/storage/objects/uploads/merchant-dashiki.jpg";
+  merchantImageDashiki.images[0]!.src = merchantImageDashiki.img;
+  const upgradedMerchantImage = mergePlatformContentDefaults(merchantImage) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(
+    upgradedMerchantImage.products.find((product) => product.slug === "heritage-dashiki")?.colourVisualizer,
+    undefined,
+  );
+
+  const merchantMask = structuredClone(legacy);
+  const merchantMaskDashiki = merchantMask.products.find((product) => product.slug === "heritage-dashiki")!;
+  merchantMaskDashiki.colourVisualizer = {
+    baseImageSrc: "/api/storage/objects/uploads/merchant-base.jpg",
+    garmentMaskSrc: "/api/storage/objects/uploads/merchant-mask.png",
+  };
+  const upgradedMerchantMask = mergePlatformContentDefaults(merchantMask) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.deepEqual(
+    upgradedMerchantMask.products.find((product) => product.slug === "heritage-dashiki")?.colourVisualizer,
+    merchantMaskDashiki.colourVisualizer,
+  );
+});
+
+test("colour visualizers require verified stored preview, base, and garment mask images", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.products[0]!.colourOptions[0]!.previewImageSrc = "/api/storage/objects/uploads/colour-preview.png";
+  content.products[0]!.colourVisualizer = {
+    baseImageSrc: "/api/storage/objects/uploads/colour-base.png",
+    garmentMaskSrc: "/api/storage/objects/uploads/colour-mask.png",
+  };
+  assert.equal(PlatformContentSchema.safeParse(content).success, true);
+  const png = new PNG({ width: 2, height: 1, colorType: 6 });
+  png.data.set([255, 255, 255, 0, 255, 255, 255, 255]);
+  const maskBytes = PNG.sync.write(png, { colorType: 6 });
+  const inspection = (path: string) => ({
+    contentType: path.endsWith(".png") ? "image/png" : path.endsWith(".webp") ? "image/webp" : "image/jpeg",
+    declaredContentType: path.endsWith(".png") ? "image/png" : path.endsWith(".webp") ? "image/webp" : "image/jpeg",
+    size: 100,
+    width: 2,
+    height: 1,
+    ...(path.endsWith("colour-mask.png") ? { bytes: maskBytes } : {}),
+  });
+  const valid = await validateProductMediaAssets(content, async (path) => inspection(path));
+  assert.deepEqual(valid, []);
+  const missingMask = await validateProductMediaAssets(content, async (path) => path.endsWith("colour-mask.png") ? null : inspection(path));
+  assert.equal(missingMask.some((issue) => issue.path.join(".") === "products.0.colourVisualizer.garmentMaskSrc"), true);
+});
+
+test("garment mask publishing rejects JPEG, opaque, and transparent masks but accepts mixed PNG alpha", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.products[0]!.colourVisualizer = {
+    baseImageSrc: "/api/storage/objects/uploads/base.png",
+    garmentMaskSrc: "/api/storage/objects/uploads/mask.png",
+  };
+  const png = (alpha: number[]) => {
+    const image = new PNG({ width: alpha.length, height: 1, colorType: 6 });
+    alpha.forEach((value, index) => image.data.set([255, 255, 255, value], index * 4));
+    return PNG.sync.write(image, { colorType: 6 });
+  };
+  const inspect = (bytes: Buffer, contentType = "image/png") => async (path: string) => ({
+    contentType: path.endsWith("mask.png") ? contentType : path.endsWith(".webp") ? "image/webp" : path.endsWith(".png") ? "image/png" : "image/jpeg",
+    declaredContentType: path.endsWith("mask.png") ? contentType : path.endsWith(".webp") ? "image/webp" : path.endsWith(".png") ? "image/png" : "image/jpeg",
+    size: bytes.length,
+    width: PNG.sync.read(bytes).width,
+    height: 1,
+    ...(path.endsWith("mask.png") ? { bytes } : {}),
+  });
+  assert.ok((await validateProductMediaAssets(content, inspect(png([0, 255]), "image/jpeg"))).some((issue) => issue.path.at(-1) === "garmentMaskSrc"));
+  assert.ok((await validateProductMediaAssets(content, inspect(png([255, 255])))).some((issue) => issue.message.includes("transparent background")));
+  assert.ok((await validateProductMediaAssets(content, inspect(png([0, 0])))).some((issue) => issue.message.includes("transparent background")));
+  assert.deepEqual(await validateProductMediaAssets(content, inspect(png([0, 255]))), []);
+});
+
+test("garment mask publishing rejects token mixed-alpha pixels that are not review-usable", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.products[0]!.colourVisualizer = {
+    baseImageSrc: "/api/storage/objects/uploads/base.png",
+    garmentMaskSrc: "/api/storage/objects/uploads/mask.png",
+  };
+  const image = new PNG({ width: 1001, height: 1, colorType: 6 });
+  for (let index = 0; index < 1001; index += 1) {
+    image.data.set([255, 255, 255, index === 0 ? 0 : 255], index * 4);
+  }
+  const bytes = PNG.sync.write(image, { colorType: 6 });
+  const issues = await validateProductMediaAssets(content, async (path) => ({
+    contentType: "image/png",
+    declaredContentType: "image/png",
+    size: bytes.length,
+    width: 1001,
+    height: 1,
+    ...(path.endsWith("mask.png") ? { bytes } : {}),
+  }));
+  assert.ok(issues.some((issue) => issue.message.includes("transparent background")));
+});
+
+test("garment mask publishing requires dimensions that exactly match the base photo", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.products[0]!.colourVisualizer = {
+    baseImageSrc: "/api/storage/objects/uploads/base.png",
+    garmentMaskSrc: "/api/storage/objects/uploads/mask.png",
+  };
+  const image = new PNG({ width: 2, height: 1, colorType: 6 });
+  image.data.set([255, 255, 255, 0, 255, 255, 255, 255]);
+  const bytes = PNG.sync.write(image, { colorType: 6 });
+  const issues = await validateProductMediaAssets(content, async (path) => ({
+    contentType: "image/png",
+    declaredContentType: "image/png",
+    size: bytes.length,
+    width: path.endsWith("base.png") ? 3 : 2,
+    height: 1,
+    ...(path.endsWith("mask.png") ? { bytes } : {}),
+  }));
+  assert.ok(issues.some((issue) => issue.message.includes("dimensions must exactly match")));
+});
+
+test("garment mask publishing rejects excessive decoded pixel dimensions before decoding", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.products[0]!.colourVisualizer = {
+    baseImageSrc: "/api/storage/objects/uploads/base.png",
+    garmentMaskSrc: "/api/storage/objects/uploads/mask.png",
+  };
+  const image = new PNG({ width: 2, height: 1, colorType: 6 });
+  image.data.set([255, 255, 255, 0, 255, 255, 255, 255]);
+  const bytes = PNG.sync.write(image, { colorType: 6 });
+  bytes.writeUInt32BE(20_000_000, 16);
+  const issues = await validateProductMediaAssets(content, async (path) => ({
+    contentType: "image/png",
+    declaredContentType: "image/png",
+    size: bytes.length,
+    width: 20_000_000,
+    height: 1,
+    ...(path.endsWith("mask.png") ? { bytes } : {}),
+  }));
+  assert.ok(issues.some((issue) => issue.message.includes("decoded pixels")));
+});
+
+test("garment mask checks cannot be bypassed by reusing the opaque base image path", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const sharedPath = "/api/storage/objects/uploads/shared.png";
+  content.products[0]!.colourVisualizer = {
+    baseImageSrc: sharedPath,
+    garmentMaskSrc: sharedPath,
+  };
+  const image = new PNG({ width: 2, height: 1, colorType: 6 });
+  image.data.set([255, 255, 255, 255, 255, 255, 255, 255]);
+  const bytes = PNG.sync.write(image, { colorType: 6 });
+  const issues = await validateProductMediaAssets(content, async () => ({
+    contentType: "image/png",
+    declaredContentType: "image/png",
+    size: bytes.length,
+    width: 2,
+    height: 1,
+    bytes,
+  }));
+  assert.ok(issues.some((issue) => (
+    issue.path.join(".") === "products.0.colourVisualizer.garmentMaskSrc"
+    && issue.message.includes("transparent background")
+  )));
+});
 
 const actor = "clerk_staff_editor";
 const draft = {
@@ -297,7 +545,8 @@ test("platform content validates the complete seeded document and hashes determi
 
 test("homepage merchandising defaults are explicit and have exact ordered cardinalities", () => {
   const { categories, newArrival, featured, occasions } = DEFAULT_PLATFORM_CONTENT.homepage;
-  assert.equal(categories.items.length, 4);
+  assert.equal(categories.items.length, 5);
+  assert.deepEqual(categories.items.map((item) => item.title), ["Kaftan", "Agbada", "Shirts", "Dashiki", "Two-Piece Sets"]);
   assert.ok(categories.heading && categories.accessibleLabel && categories.ctaLabel);
   assert.ok(categories.items.every((item) => item.eyebrow && item.title && item.imageUrl && item.imageAlt && item.href));
   assert.ok(newArrival.productSlug);
@@ -333,6 +582,124 @@ test("legacy homepage merchandising upgrades without replacing merchant edits", 
   assert.equal(upgraded.homepage.occasions.items[0]!.imageAlt, DEFAULT_PLATFORM_CONTENT.homepage.occasions.items[0]!.imageAlt);
 });
 
+test("v9 homepage category fields upgrade by canonical target without changing merchant order", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = 9;
+  const categories = legacy.homepage.categories.items;
+  const kaftan = categories.shift();
+  categories.push(kaftan);
+  categories.forEach((item: Record<string, unknown>) => {
+    delete item.description;
+    delete item.active;
+    delete item.imageMode;
+    delete item.rotationMs;
+  });
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  assert.deepEqual(upgraded.homepage.categories.items.map((item) => item.href), categories.map((item: { href: string }) => item.href));
+  assert.ok(upgraded.homepage.categories.items.every((item) => item.description && item.rotationMs));
+  assert.deepEqual(upgraded.homepage.hero.primaryCta, { label: "Shop New Arrivals", href: "/collections/new-arrivals" });
+});
+
+test("v9 incompatible category records migrate to canonical public slots for drafts and published content", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = 9;
+  legacy.homepage.categories.items = [
+    { eyebrow: "Merchant", title: "Private edit", imageUrl: "/images/soso/vault-black.jpg", imageAlt: "Merchant supplied garment image", href: "/shop?search=private" },
+    ...legacy.homepage.categories.items.slice(0, 4),
+  ];
+  legacy.homepage.categories.items[1]!.title = "Merchant Kaftan";
+  const expected = [
+    "/collections/kaftans", "/collections/agbadas", "/collections/shirts", "/collections/dashikis", "/collections/two-piece",
+  ];
+  const draft = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  const published = mergePublishedPlatformContentDefaults(legacy, new Date()) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.deepEqual(draft.homepage.categories.items.map((item) => item.href).sort(), expected.sort());
+  assert.deepEqual(published.homepage.categories.items.map((item) => item.href).sort(), expected.sort());
+  assert.equal(draft.homepage.categories.items.find((item) => item.href === "/collections/kaftans")!.title, "Merchant Kaftan");
+  assert.equal(PlatformContentSchema.safeParse(draft).success, true);
+  assert.deepEqual(mergePlatformContentDefaults(draft), draft);
+});
+
+test("v10 appends the required New Arrivals collection without replacing merchant collections", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = 10;
+  legacy.collections = legacy.collections.filter((item: { slug: string }) => item.slug !== "new-arrivals");
+  legacy.collections[0]!.intro = "Merchant collection introduction";
+
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  assert.equal(upgraded.collections[0]!.intro, "Merchant collection introduction");
+  assert.equal(upgraded.collections.filter((item) => item.slug === "new-arrivals").length, 1);
+  assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
+  assert.deepEqual(mergePlatformContentDefaults(upgraded), upgraded);
+});
+
+test("the approved category campaign activates only untouched static category media", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = 13;
+  legacy.homepage.categories.items.forEach((item: Record<string, any>) => {
+    item.imageUrls = [item.imageUrl];
+    item.imageMode = "static";
+    item.rotationMs = 5000;
+  });
+  legacy.homepage.categories.items[0].imageAlt = "Merchant-approved accessible kaftan description";
+
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  assert.ok(upgraded.homepage.categories.items.every((item) => item.imageMode === "crossfade"));
+  assert.ok(upgraded.homepage.categories.items.every((item) => item.imageUrls?.length === 3));
+  assert.equal(upgraded.homepage.categories.items[0]!.imageAlt, "Merchant-approved accessible kaftan description");
+  assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
+  assert.deepEqual(mergePlatformContentDefaults(upgraded), upgraded);
+
+  const merchant = structuredClone(legacy);
+  merchant.homepage.categories.items[0].imageUrls.push("/images/soso/kaftan-white.jpg");
+  merchant.homepage.categories.items[1].rotationMs = 9000;
+  const merchantUpgrade = mergePlatformContentDefaults(merchant) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.deepEqual(merchantUpgrade.homepage.categories.items[0].imageUrls, [
+    "/images/soso/vault-black.jpg",
+    "/images/soso/kaftan-white.jpg",
+  ]);
+  assert.equal(merchantUpgrade.homepage.categories.items[0].imageMode, "static");
+  assert.equal(merchantUpgrade.homepage.categories.items[1].rotationMs, 9000);
+  assert.equal(merchantUpgrade.homepage.categories.items[1].imageMode, "static");
+});
+
+test("the exact shipped sparse footer is repaired even after a partial version upgrade", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = DEFAULT_PLATFORM_CONTENT.contentVersion;
+  legacy.site.footer.columns = [
+    { heading: "Explore", links: [{ label: "Shop", href: "/shop" }, { label: "Journal", href: "/journal" }, { label: "FAQ", href: "/faq" }] },
+    { heading: "Collections", links: [{ label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }] },
+  ];
+  legacy.site.footer.legalLinks = [{ label: "Privacy", href: "/policies/privacy" }, { label: "Terms", href: "/policies/terms" }];
+
+  const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  assert.deepEqual(upgraded.site.footer, DEFAULT_PLATFORM_CONTENT.site.footer);
+  assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
+  assert.deepEqual(mergePlatformContentDefaults(upgraded), upgraded);
+
+  const merchant = structuredClone(legacy);
+  merchant.site.footer.columns[0].heading = "Visit";
+  merchant.site.footer.legalLinks[0].label = "Privacy notice";
+  const merchantUpgrade = mergePlatformContentDefaults(merchant) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(merchantUpgrade.site.footer.columns[0].heading, "Visit");
+  assert.equal(merchantUpgrade.site.footer.legalLinks[0].label, "Privacy notice");
+});
+
+test("scheduled campaign CTA requires valid dates and a useful collection when enabled", () => {
+  const invalid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  invalid.homepage.hero.campaignCta = {
+    enabled: true, label: "Shop campaign", href: "/collections/new-arrivals",
+    startsAt: "2026-02-01T00:00:00.000Z", endsAt: "2026-01-01T00:00:00.000Z",
+  };
+  assert.equal(PlatformContentSchema.safeParse(invalid).success, false);
+  invalid.homepage.hero.campaignCta.endsAt = "2026-03-01T00:00:00.000Z";
+  assert.equal(PlatformContentSchema.safeParse(invalid).success, true);
+});
+
 test("homepage migration replaces removed collection targets and keeps sparse catalogues renderable", () => {
   const renamedCollections = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
   renamedCollections.contentVersion = 4;
@@ -345,7 +712,7 @@ test("homepage migration replaces removed collection targets and keeps sparse ca
   renamedCollections.site.header.searchSuggestions = [{ label: "Shop", href: "/shop" }];
   const renamed = mergePlatformContentDefaults(renamedCollections) as typeof DEFAULT_PLATFORM_CONTENT;
   assert.equal(PlatformContentSchema.safeParse(renamed).success, true);
-  assert.equal(renamed.homepage.categories.items.length, 4);
+  assert.equal(renamed.homepage.categories.items.length, 5);
   assert.ok(renamed.homepage.categories.items.every((item) => item.href.startsWith("/shop?search=")));
 
   const sparse = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
@@ -417,7 +784,7 @@ test("homepage merchandising rejects wrong cardinalities and unknown or duplicat
   assert.equal(parsed.success, false);
   if (!parsed.success) {
     const messages = parsed.error.issues.map((issue) => issue.message);
-    assert.ok(messages.some((message) => message.includes("exactly 4")));
+    assert.ok(messages.some((message) => message.includes("exactly 5")));
     assert.ok(messages.some((message) => message.includes("exactly 2")));
     assert.ok(messages.some((message) => message.includes("Duplicate featured product")));
     assert.ok(messages.some((message) => message.includes("Unknown featured product")));
@@ -576,6 +943,69 @@ test("catalogue governance validates selectable sizes, variant keys, approved im
   }
 });
 
+test("material turn sets require complete ordered pairs with stable unique identities and sources", () => {
+  const valid = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const image = (src: string, alt: string) => ({
+    src,
+    alt,
+    provenance: { source: "SOSO Africa supplied asset", rights: "Approved for SOSO storefront use" },
+  });
+  valid.products[0]!.materialTurnSets = [
+    {
+      id: "midnight-wool",
+      label: "Midnight wool",
+      front: image("/images/soso/midnight-wool-front.jpg", "Midnight wool front"),
+      back: image("/images/soso/midnight-wool-back.jpg", "Midnight wool back"),
+    },
+    {
+      id: "ivory-linen",
+      label: "Ivory linen",
+      front: image("/images/soso/ivory-linen-front.jpg", "Ivory linen front"),
+      back: image("/images/soso/ivory-linen-back.jpg", "Ivory linen back"),
+    },
+  ];
+  assert.equal(PlatformContentSchema.safeParse(valid).success, true);
+
+  const invalid = structuredClone(valid);
+  invalid.products[0]!.materialTurnSets[1]!.id = "midnight-wool";
+  invalid.products[0]!.materialTurnSets[1]!.label = " ";
+  invalid.products[0]!.materialTurnSets[1]!.front.src = invalid.products[0]!.materialTurnSets[0]!.front.src;
+  invalid.products[0]!.materialTurnSets[1]!.back.src = invalid.products[0]!.materialTurnSets[1]!.front.src;
+  const parsed = PlatformContentSchema.safeParse(invalid);
+  assert.equal(parsed.success, false);
+  if (!parsed.success) {
+    assert.ok(parsed.error.issues.some((issue) =>
+      issue.path.join(".") === "products.0.materialTurnSets.1.id"
+      && issue.message.includes("Duplicate material turn set ID")));
+    assert.ok(parsed.error.issues.some((issue) =>
+      issue.path.join(".") === "products.0.materialTurnSets.1.label"));
+    assert.ok(parsed.error.issues.some((issue) =>
+      issue.path.join(".") === "products.0.materialTurnSets.1.back.src"
+      && issue.message.includes("must be distinct")));
+    assert.ok(parsed.error.issues.some((issue) => issue.message.includes("Duplicate material turn image source")));
+  }
+
+  const incomplete = structuredClone(valid) as unknown as {
+    products: Array<{ materialTurnSets: Array<Record<string, unknown>> }>;
+  };
+  delete incomplete.products[0]!.materialTurnSets[0]!.back;
+  const incompleteResult = PlatformContentSchema.safeParse(incomplete);
+  assert.equal(incompleteResult.success, false);
+  if (!incompleteResult.success) {
+    assert.ok(incompleteResult.error.issues.some((issue) =>
+      issue.path.join(".") === "products.0.materialTurnSets.0.back"));
+  }
+
+  const tooMany = structuredClone(valid);
+  tooMany.products[0]!.materialTurnSets = Array.from({ length: 9 }, (_, index) => ({
+    id: `material-${index}`,
+    label: `Material ${index}`,
+    front: image(`/images/soso/material-${index}-front.jpg`, `Material ${index} front`),
+    back: image(`/images/soso/material-${index}-back.jpg`, `Material ${index} back`),
+  }));
+  assert.equal(PlatformContentSchema.safeParse(tooMany).success, false);
+});
+
 test("product image publishing checks verify existence, image identity, extension, and budget", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   content.products[0]!.images = [
@@ -587,16 +1017,22 @@ test("product image publishing checks verify existence, image identity, extensio
     },
   ];
 
-  const validIssues = await validateProductMediaAssets(content, async (path) => ({
-    contentType: path.endsWith(".webp") ? "image/webp" : "image/jpeg",
-    declaredContentType: path.endsWith(".webp") ? "image/webp" : "image/jpeg",
-    size: 350_000,
-  }));
+  const validIssues = await validateProductMediaAssets(content, async (path) =>
+    validProductMediaInspection(path, 350_000));
   assert.deepEqual(validIssues, []);
 
   const missingIssues = await validateProductMediaAssets(content, async () => null);
-  assert.equal(missingIssues.length, new Set(content.products.flatMap((product) => product.images.map((image) => image.src))).size);
-  assert.ok(missingIssues.every((issue) => issue.message.includes("verified bundled or SOSO Cloudinary")));
+  const configuredLocations = content.products.reduce((total, product) => (
+    total
+    + product.images.length
+    + product.materialTurnSets.length * 2
+    + product.colourOptions.filter((option) => option.previewImageSrc).length
+    + (product.colourVisualizer ? 2 : 0)
+  ), 0);
+  assert.ok(missingIssues.length >= configuredLocations);
+  assert.ok(missingIssues.every((issue) =>
+    issue.message.includes("verified bundled or SOSO Cloudinary")
+    || issue.message.includes("could not be verified")));
 
   const invalidIssues = await validateProductMediaAssets(content, async (path) => ({
     contentType: "video/mp4",
@@ -612,6 +1048,36 @@ test("product image publishing checks verify existence, image identity, extensio
   assert.ok(unreadableIssues.every((issue) => issue.message.includes("could not be verified")));
 });
 
+test("material turn publication checks govern front and back images at their exact paths", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const provenance = { source: "SOSO Africa supplied asset", rights: "Approved for SOSO storefront use" };
+  content.products[0]!.materialTurnSets = [{
+    id: "woven-silk",
+    label: "Woven silk",
+    front: { src: "/images/soso/woven-silk-front.jpg", alt: "Woven silk front", provenance },
+    back: { src: "/images/soso/woven-silk-back.webp", alt: "Woven silk back", provenance },
+  }];
+  const inspected: string[] = [];
+  const validIssues = await validateProductMediaAssets(content, async (path) => {
+    inspected.push(path);
+    return validProductMediaInspection(path);
+  });
+  assert.deepEqual(validIssues, []);
+  assert.ok(inspected.includes("/images/soso/woven-silk-front.jpg"));
+  assert.ok(inspected.includes("/images/soso/woven-silk-back.webp"));
+
+  const issues = await validateProductMediaAssets(content, async (path) =>
+    path.includes("woven-silk") ? null : {
+      contentType: "image/jpeg",
+      declaredContentType: "image/jpeg",
+      size: 250_000,
+    });
+  assert.ok(issues.some((issue) =>
+    issue.path.join(".") === "products.0.materialTurnSets.0.front.src"));
+  assert.ok(issues.some((issue) =>
+    issue.path.join(".") === "products.0.materialTurnSets.0.back.src"));
+});
+
 test("homepage merchandising image checks inspect unique configured images and report their fields", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   assert.deepEqual(await validateHomepageMerchandisingMediaAssets(content), []);
@@ -623,15 +1089,16 @@ test("homepage merchandising image checks inspect unique configured images and r
     return { contentType: "image/jpeg", declaredContentType: "image/jpeg", size: 200_000 };
   });
   assert.deepEqual(validIssues, []);
-  const configured = new Set([
+  const configured = [
     ...content.homepage.categories.items.map((item) => item.imageUrl),
+    ...content.homepage.categories.items.flatMap((item) => item.imageUrls ?? []),
     content.homepage.newArrival.editorial.imageUrl,
     ...content.homepage.occasions.items.map((item) => item.imageUrl),
     content.homepage.fit.imageUrl,
-  ]);
-  assert.equal(inspected.length, configured.size);
+  ];
+  assert.equal(inspected.length, new Set(configured).size);
   const invalid = await validateHomepageMerchandisingMediaAssets(content, async () => null);
-  assert.equal(invalid.length, configured.size);
+  assert.equal(invalid.length, configured.length);
   assert.ok(invalid.some((issue) => issue.path.join(".") === "homepage.newArrival.editorial.imageUrl"));
 });
 
@@ -1068,6 +1535,35 @@ test("version 7 removes only the shipped announcements and permits Staff to hide
   merchant.site.announcementItems = ["Private client weekend · 10% off selected pieces"];
   const upgradedMerchant = mergePlatformContentDefaults(merchant) as typeof DEFAULT_PLATFORM_CONTENT;
   assert.deepEqual(upgradedMerchant.site.announcementItems, merchant.site.announcementItems);
+});
+
+test("version 8 category migration appends missing approved tiles without changing merchant order or image choices", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.contentVersion = 7;
+  legacy.homepage.categories.items = [
+    legacy.homepage.categories.items[3]!,
+    legacy.homepage.categories.items[0]!,
+    legacy.homepage.categories.items[2]!,
+    legacy.homepage.categories.items[1]!,
+  ];
+  legacy.homepage.categories.items[0]!.title = "Merchant Dashiki edit";
+  legacy.homepage.categories.items[0]!.imageUrls = [];
+  legacy.homepage.categories.items[1]!.imageUrls = ["/api/storage/objects/uploads/merchant-kaftan.webp"];
+
+  const upgraded = mergePublishedPlatformContentDefaults(legacy, new Date()) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
+  assert.deepEqual(
+    upgraded.homepage.categories.items.slice(0, 4).map((item) => item.href),
+    legacy.homepage.categories.items.map((item) => item.href),
+  );
+  assert.equal(upgraded.homepage.categories.items[0]!.title, "Merchant Dashiki edit");
+  assert.deepEqual(upgraded.homepage.categories.items[0]!.imageUrls, []);
+  assert.deepEqual(upgraded.homepage.categories.items[1]!.imageUrls, ["/api/storage/objects/uploads/merchant-kaftan.webp"]);
+  assert.deepEqual(upgraded.homepage.categories.items[4], DEFAULT_PLATFORM_CONTENT.homepage.categories.items[4]);
+  assert.deepEqual(mergePublishedPlatformContentDefaults(upgraded, new Date()), upgraded);
+
+  const unpublished = structuredClone(legacy);
+  assert.equal(mergePublishedPlatformContentDefaults(unpublished, null), unpublished);
 });
 
 test("version 4 interface fields are required, strict, and non-blank", () => {

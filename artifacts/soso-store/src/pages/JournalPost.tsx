@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useGetJournalPost, useListJournalPosts } from '@workspace/api-client-react';
+import {
+  getGetJournalPostQueryKey,
+  useGetJournalPost,
+  useListJournalPosts,
+} from '@workspace/api-client-react';
 import { useParams, Link } from 'wouter';
 import { format } from 'date-fns';
 import { Loader2, ArrowLeft, Share2, Clock, Tag } from 'lucide-react';
@@ -8,6 +12,8 @@ import { journalApproved, indexingEnabled } from '@/lib/seo';
 import { journalBodyBlocks, journalInlineParts } from '@/lib/journal-body';
 import { rememberEditorialOrigin, trackStorefrontEvent } from '@/components/ConsentManager';
 import { PlatformContentState, usePlatformContent } from '@/data/platformContent';
+import { legacyJournalBySlug, legacyJournalPosts } from '@/data/legacy-content';
+import { StylistEnquiryDialog } from '@/components/StylistEnquiryDialog';
 
 export function StructuredJournalBody({ body }: { body: string }) {
   const renderInline = (value: string) => journalInlineParts(value).map((part, index) =>
@@ -30,11 +36,21 @@ export function StructuredJournalBody({ body }: { body: string }) {
 export default function JournalPost() {
   const params = useParams();
   const slug = params.slug || '';
-  const { data: post, isLoading, isError, error: articleError } = useGetJournalPost(slug);
+  const legacyPost = legacyJournalBySlug.get(slug);
+  const { data: allPosts } = useListJournalPosts({
+    query: { queryKey: ["journal-list-for-related"] },
+  });
+  const hasCmsPost = allPosts?.some((article) => article.slug === slug) ?? false;
+  const { data: apiPost, isLoading, isError, error: articleError } = useGetJournalPost(slug, {
+    query: {
+      queryKey: getGetJournalPostQueryKey(slug),
+      enabled: !legacyPost || hasCmsPost,
+    },
+  });
+  const post = apiPost ?? legacyPost;
   const platform = usePlatformContent();
   const platformStateCopy = platform.data?.content.site.platformState;
-  const hasRelatedArticles = (post?.relatedArticleSlugs?.length ?? 0) > 0;
-  const { data: allPosts } = useListJournalPosts({ query: { queryKey: ["journal-list-for-related"], enabled: hasRelatedArticles } });
+  const [stylistOpen, setStylistOpen] = useState(false);
 
   // Track article view
   useEffect(() => {
@@ -46,7 +62,7 @@ export default function JournalPost() {
   if (platform.isLoading) return <PlatformContentState loading copy={platformStateCopy} />;
   if (!platform.data) return <PlatformContentState loading={false} error copy={platformStateCopy} />;
   const copy = platform.data.content.pages.journal;
-  if (isLoading) {
+  if (isLoading && !legacyPost) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center bg-background">
         <Seo title={copy.loadingSeo.title} description={copy.loadingSeo.description} path="/journal" noIndex />
@@ -56,8 +72,8 @@ export default function JournalPost() {
     );
   }
 
-  const articleNotFound = isError && (articleError as { status?: number } | null)?.status === 404;
-  if (isError && !articleNotFound) {
+  const articleNotFound = !post && isError && (articleError as { status?: number } | null)?.status === 404;
+  if (!post && isError && !articleNotFound) {
     return <PlatformContentState loading={false} error copy={platform.data.content.site.platformState} />;
   }
 
@@ -77,13 +93,19 @@ export default function JournalPost() {
   const seoTitle = post.seoTitle ?? post.title;
   const seoExcerpt = post.seoDescription ?? post.excerpt;
   const seoImageUrl = post.coverImageUrl ?? undefined;
+  // A CMS article with this slug is authoritative; archival takeaways apply
+  // only while the preserved source is what is being rendered.
+  const takeaway = (apiPost ? undefined : legacyPost?.takeaway) ?? post.excerpt;
   const canIndex = journalApproved && indexingEnabled;
 
   const relatedProducts = (post.relatedProductSlugs ?? [])
     .map((s) => platform.data.content.products.find((p) => p.slug === s))
     .filter((product): product is NonNullable<typeof product> => Boolean(product));
 
-  const relatedArticles = allPosts?.filter((a) => post.relatedArticleSlugs?.includes(a.slug) && a.slug !== post.slug) ?? [];
+  const availableArticles = Array.from(new Map(
+    [...legacyJournalPosts, ...(allPosts ?? [])].map((article) => [article.slug, article]),
+  ).values());
+  const relatedArticles = availableArticles.filter((a) => post.relatedArticleSlugs?.includes(a.slug) && a.slug !== post.slug);
 
   return (
     <div className="min-h-screen bg-background pb-24 fade-in">
@@ -139,7 +161,7 @@ export default function JournalPost() {
             {post.title}
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto italic font-serif leading-relaxed">
-            {post.excerpt}
+           {takeaway}
           </p>
           {/* Tags */}
           {post.tags && post.tags.length > 0 && (
@@ -166,13 +188,27 @@ export default function JournalPost() {
         </div>
       )}
 
-      <article className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 prose prose-invert prose-lg prose-headings:font-serif prose-headings:font-normal prose-headings:text-foreground prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-none prose-p:leading-relaxed prose-p:text-foreground/90">
+      <article className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 prose prose-lg prose-headings:font-serif prose-headings:font-normal prose-headings:text-foreground prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-none prose-p:leading-relaxed prose-p:text-foreground/90">
         <aside aria-label="Article summary" className="not-prose mb-10 border-l-2 border-primary pl-5 text-base leading-relaxed text-muted-foreground">
           <strong className="block mb-2 text-xs uppercase tracking-[0.2em] text-primary">In brief</strong>
           {post.excerpt}
         </aside>
         <StructuredJournalBody body={post.body} />
       </article>
+
+      <section aria-label="Journal reading actions" className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+        <div className="border border-border px-5 py-5 sm:flex sm:items-center sm:justify-between gap-5">
+          <div>
+            <h2 className="text-xs uppercase tracking-[0.2em] text-primary">Continue your consideration</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Browse current menswear, review fit guidance, or ask a SOSO Africa stylist.</p>
+          </div>
+          <div className="mt-4 sm:mt-0 flex flex-wrap gap-x-4 gap-y-3 text-xs uppercase tracking-widest font-medium">
+            <Link href="/shop" onClick={() => trackStorefrontEvent("cta_clicked", { ctaLabel: "journal_shop_collection", articleSlug: post.slug })} className="text-primary hover:text-primary/80">Shop menswear</Link>
+            <Link href="/faq" onClick={() => trackStorefrontEvent("cta_clicked", { ctaLabel: "journal_measurement_guide", articleSlug: post.slug })} className="text-primary hover:text-primary/80">Fit &amp; measurement guide</Link>
+            <button type="button" onClick={() => { setStylistOpen(true); trackStorefrontEvent("cta_clicked", { ctaLabel: "journal_ask_stylist", articleSlug: post.slug }); }} className="text-primary hover:text-primary/80">Ask a stylist</button>
+          </div>
+        </div>
+      </section>
 
       {/* Related articles */}
       {relatedArticles.length > 0 && (
@@ -230,6 +266,7 @@ export default function JournalPost() {
           <ShareArticleButton title={post.title} shareLabel={copy.shareLabel} copiedLabel={copy.copiedLabel} />
         </div>
       </div>
+      <StylistEnquiryDialog isOpen={stylistOpen} onClose={() => setStylistOpen(false)} productName={post.title} />
     </div>
   );
 }

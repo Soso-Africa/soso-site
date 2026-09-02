@@ -14,3 +14,31 @@ mtime_ms = 1787238068202
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:96823c18-8b26-45bb-85e0-15fd4fe45c93/e56ed30a-087b-44c1-92e4-97cb668e6112/8339272a-0471-446f-9127-11ae83be2b7e"
 storage_version_token = "1787238074192698"
 content_type = "text/markdown"
+
+[[outputs]]
+id = "BER8lwAqA43H8sDEybXWS"
+uri = "file://00-soso-high-conversion-simplified-site.md"
+type = "text"
+title = "SOSO High-Conversion Simplified Site Roadmap"
+description = "Approval-ready roadmap translating the client's feedback into homepage, branding, typography, footer, content migration, and SEO/AEO/GEO delivery requirements."
+logical_id = "1254abe9-574c-4e83-bccd-a6ce06ba1d0a"
+content_hash = "sha256:dc4a283369fbc44bb6acef89c85675dddb5f902ffde623dfe392b5ca2ca1b01f"
+size = 25919
+mtime_ms = 1788220118431
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:96823c18-8b26-45bb-85e0-15fd4fe45c93/1254abe9-574c-4e83-bccd-a6ce06ba1d0a/ab7b5971-48c7-4f84-af55-e8b2f1300d9a"
+storage_version_token = "1788220131326123"
+content_type = "text/markdown"
+
+[[outputs]]
+id = "fFD9d6LguX8iOZzsLxNgR"
+uri = "file://attached_assets/generated_images/soso-category-editorial-review.jpg"
+type = "image"
+title = "SOSO Dynamic Category Image Review"
+description = "Two original editorial image directions each for Kaftans, Agbadas, Dashikis, Shirts, and Two-Piece Sets. These are review assets only and have not been published to the storefront."
+logical_id = "0bad25fe-e04e-45bf-b4cc-067239f76963"
+content_hash = "sha256:0a482688586bdabf68d0658fb93a55b6e8fbdfde1370d348b816f1364417f3e9"
+size = 578010
+mtime_ms = 1788338786073
+storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:96823c18-8b26-45bb-85e0-15fd4fe45c93/0bad25fe-e04e-45bf-b4cc-067239f76963/212548ae-66a9-4fca-8428-84e325f41454"
+storage_version_token = "1788338796558605"
+content_type = "image/jpeg"

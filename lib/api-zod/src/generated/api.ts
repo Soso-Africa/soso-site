@@ -93,6 +93,15 @@ export const initiateCommerceCheckoutBodyItemsItemDisplaySlugMax = 160;
 
 export const initiateCommerceCheckoutBodyItemsItemSelectedSizeMax = 80;
 
+export const initiateCommerceCheckoutBodyItemsItemSelectedColourIdMax = 64;
+
+
+export const initiateCommerceCheckoutBodyItemsItemSelectedColourIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const initiateCommerceCheckoutBodyItemsItemSelectedColourLabelMax = 80;
+
+export const initiateCommerceCheckoutBodyItemsItemSelectedColourHexRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const initiateCommerceCheckoutBodyItemsItemCustomColourMax = 200;
+
 export const initiateCommerceCheckoutBodyItemsMax = 100;
 
 export const initiateCommerceCheckoutBodyFulfillmentLocationIdMin = 36;
@@ -117,7 +126,11 @@ export const InitiateCommerceCheckoutBody = zod.object({
   "quantity": zod.number().min(1).max(initiateCommerceCheckoutBodyItemsItemQuantityMax),
   "displayName": zod.string().max(initiateCommerceCheckoutBodyItemsItemDisplayNameMax).optional(),
   "displaySlug": zod.string().max(initiateCommerceCheckoutBodyItemsItemDisplaySlugMax).optional(),
-  "selectedSize": zod.string().max(initiateCommerceCheckoutBodyItemsItemSelectedSizeMax).optional()
+  "selectedSize": zod.string().max(initiateCommerceCheckoutBodyItemsItemSelectedSizeMax).optional(),
+  "selectedColourId": zod.string().min(1).max(initiateCommerceCheckoutBodyItemsItemSelectedColourIdMax).regex(initiateCommerceCheckoutBodyItemsItemSelectedColourIdRegExp),
+  "selectedColourLabel": zod.string().min(1).max(initiateCommerceCheckoutBodyItemsItemSelectedColourLabelMax).optional(),
+  "selectedColourHex": zod.string().regex(initiateCommerceCheckoutBodyItemsItemSelectedColourHexRegExp).optional(),
+  "customColour": zod.string().min(1).max(initiateCommerceCheckoutBodyItemsItemCustomColourMax).optional()
 })).min(1).max(initiateCommerceCheckoutBodyItemsMax),
   "fulfillment": zod.object({
   "type": zod.enum(['pickup', 'delivery']),
@@ -422,7 +435,7 @@ export const RecordAnalyticsEventBody = zod.object({
   "eventVersion": zod.number().min(1),
   "anonymousId": zod.string().min(recordAnalyticsEventBodyAnonymousIdMin).max(recordAnalyticsEventBodyAnonymousIdMax),
   "sessionId": zod.string().min(recordAnalyticsEventBodySessionIdMin).max(recordAnalyticsEventBodySessionIdMax),
-  "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
+  "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'category_impression', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
   "path": zod.string().max(recordAnalyticsEventBodyPathMax),
   "referrer": zod.string().max(recordAnalyticsEventBodyReferrerMax).optional(),
   "source": zod.string().max(recordAnalyticsEventBodySourceMax).optional(),
@@ -937,6 +950,13 @@ export const listStaffOrdersResponseCustomerEmailMax = 320;
 export const listStaffOrdersResponseItemsItemIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
 export const listStaffOrdersResponseItemsItemLineNumberMultipleOf = 1;
 
+export const listStaffOrdersResponseItemsItemSelectedColourIdMax = 64;
+
+export const listStaffOrdersResponseItemsItemSelectedColourLabelMax = 80;
+
+export const listStaffOrdersResponseItemsItemSelectedColourHexRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const listStaffOrdersResponseItemsItemCustomColourMax = 200;
+
 export const listStaffOrdersResponseItemsItemQuantityMultipleOf = 1;
 
 export const listStaffOrdersResponseItemsItemMeasurementOneOneIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -987,6 +1007,10 @@ export const ListStaffOrdersResponseItem = zod.object({
   "productName": zod.string(),
   "selectionType": zod.enum(['standard', 'custom']),
   "selectedSize": zod.string().nullish(),
+  "selectedColourId": zod.string().max(listStaffOrdersResponseItemsItemSelectedColourIdMax).nullish(),
+  "selectedColourLabel": zod.string().max(listStaffOrdersResponseItemsItemSelectedColourLabelMax).nullish(),
+  "selectedColourHex": zod.string().regex(listStaffOrdersResponseItemsItemSelectedColourHexRegExp).nullish(),
+  "customColour": zod.string().max(listStaffOrdersResponseItemsItemCustomColourMax).nullish(),
   "quantity": zod.number().min(1).multipleOf(listStaffOrdersResponseItemsItemQuantityMultipleOf),
   "measurement": zod.union([zod.object({
   "id": zod.string().regex(listStaffOrdersResponseItemsItemMeasurementOneOneIdRegExp),
@@ -1390,6 +1414,13 @@ export const updateStaffOrderResponseCustomerEmailMax = 320;
 export const updateStaffOrderResponseItemsItemIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
 export const updateStaffOrderResponseItemsItemLineNumberMultipleOf = 1;
 
+export const updateStaffOrderResponseItemsItemSelectedColourIdMax = 64;
+
+export const updateStaffOrderResponseItemsItemSelectedColourLabelMax = 80;
+
+export const updateStaffOrderResponseItemsItemSelectedColourHexRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const updateStaffOrderResponseItemsItemCustomColourMax = 200;
+
 export const updateStaffOrderResponseItemsItemQuantityMultipleOf = 1;
 
 export const updateStaffOrderResponseItemsItemMeasurementOneOneIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
@@ -1440,6 +1471,10 @@ export const UpdateStaffOrderResponse = zod.object({
   "productName": zod.string(),
   "selectionType": zod.enum(['standard', 'custom']),
   "selectedSize": zod.string().nullish(),
+  "selectedColourId": zod.string().max(updateStaffOrderResponseItemsItemSelectedColourIdMax).nullish(),
+  "selectedColourLabel": zod.string().max(updateStaffOrderResponseItemsItemSelectedColourLabelMax).nullish(),
+  "selectedColourHex": zod.string().regex(updateStaffOrderResponseItemsItemSelectedColourHexRegExp).nullish(),
+  "customColour": zod.string().max(updateStaffOrderResponseItemsItemCustomColourMax).nullish(),
   "quantity": zod.number().min(1).multipleOf(updateStaffOrderResponseItemsItemQuantityMultipleOf),
   "measurement": zod.union([zod.object({
   "id": zod.string().regex(updateStaffOrderResponseItemsItemMeasurementOneOneIdRegExp),

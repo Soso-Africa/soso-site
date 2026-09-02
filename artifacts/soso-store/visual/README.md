@@ -23,4 +23,12 @@ UPDATE_VISUAL_BASELINES=1 pnpm --filter @workspace/soso-store run validate:visua
 ```
 
 Review every changed PNG before committing it. Failed comparisons write captures
-and highlighted diffs to the ignored `output/` directory.
+and highlighted diffs to the ignored `output/` directory. Successful runs remove
+the output directory so stale or unnecessary captures are not retained.
+
+For pull requests, the **Client review evidence / Storefront visual review**
+check uploads failed PNG output and links it from the check summary. Evidence is
+generated only from the deterministic public fixtures, expires after seven days,
+and is not uploaded after a successful check. If setup or compilation fails
+before a browser capture is possible, the summary points reviewers to the failed
+step instead of promising an unavailable artifact.

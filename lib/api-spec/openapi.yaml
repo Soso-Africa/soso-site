@@ -1548,7 +1548,7 @@ components:
           maxLength: 128
         eventName:
           type: string
-          enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, faq_expanded, scroll_depth_reached, cta_clicked]
+          enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, category_impression, faq_expanded, scroll_depth_reached, cta_clicked]
         path:
           type: string
           maxLength: 512
@@ -2053,6 +2053,10 @@ components:
         productName: { type: string }
         selectionType: { type: string, enum: [standard, custom] }
         selectedSize: { type: ["string", "null"] }
+        selectedColourId: { type: ["string", "null"], maxLength: 64 }
+        selectedColourLabel: { type: ["string", "null"], maxLength: 80 }
+        selectedColourHex: { type: ["string", "null"], pattern: "^#[0-9A-Fa-f]{6}$" }
+        customColour: { type: ["string", "null"], maxLength: 200 }
         quantity: { type: number, minimum: 1, multipleOf: 1 }
         measurement:
           anyOf:
@@ -2083,7 +2087,7 @@ components:
         phone: { type: string, minLength: 3, maxLength: 80 }
     CommerceLineItemInput:
       type: object
-      required: [productId, quantity]
+      required: [productId, quantity, selectedColourId]
       properties:
         productId: { type: string, minLength: 36, maxLength: 64 }
         variantId: { type: string, minLength: 36, maxLength: 64 }
@@ -2091,6 +2095,10 @@ components:
         displayName: { type: string, maxLength: 200 }
         displaySlug: { type: string, maxLength: 160 }
         selectedSize: { type: string, maxLength: 80 }
+        selectedColourId: { type: string, minLength: 1, maxLength: 64, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        selectedColourLabel: { type: string, minLength: 1, maxLength: 80 }
+        selectedColourHex: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        customColour: { type: string, minLength: 1, maxLength: 200 }
     CommerceFulfillmentInput:
       type: object
       required: [type]

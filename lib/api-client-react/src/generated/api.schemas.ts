@@ -325,6 +325,7 @@ export const AnalyticsEventInputEventName = {
   consent_updated: 'consent_updated',
   marketing_opt_out: 'marketing_opt_out',
   blog_article_viewed: 'blog_article_viewed',
+  category_impression: 'category_impression',
   faq_expanded: 'faq_expanded',
   scroll_depth_reached: 'scroll_depth_reached',
   cta_clicked: 'cta_clicked',
@@ -1150,6 +1151,26 @@ export interface StaffOrderItem {
   selectionType: StaffOrderItemSelectionType;
   /** @nullable */
   selectedSize?: string | null;
+  /**
+     * @maxLength 64
+     * @nullable
+     */
+  selectedColourId?: string | null;
+  /**
+     * @maxLength 80
+     * @nullable
+     */
+  selectedColourLabel?: string | null;
+  /**
+     * @nullable
+     * @pattern ^#[0-9A-Fa-f]{6}$
+     */
+  selectedColourHex?: string | null;
+  /**
+     * @maxLength 200
+     * @nullable
+     */
+  customColour?: string | null;
   /** @minimum 1 */
   quantity: number;
   measurement?: StaffMeasurement | null;
@@ -1358,6 +1379,24 @@ export interface CommerceLineItemInput {
   displaySlug?: string;
   /** @maxLength 80 */
   selectedSize?: string;
+  /**
+     * @minLength 1
+     * @maxLength 64
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  selectedColourId: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  selectedColourLabel?: string;
+  /** @pattern ^#[0-9A-Fa-f]{6}$ */
+  selectedColourHex?: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  customColour?: string;
 }
 
 export type CommerceFulfillmentInputType = typeof CommerceFulfillmentInputType[keyof typeof CommerceFulfillmentInputType];

@@ -131,7 +131,7 @@ test("accepts current and newly launched public storefront paths", () => {
     eventVersion: 1,
     anonymousId: "anonymous-valid-001",
     sessionId: "session-valid-001",
-    eventName: "page_view",
+    eventName: "category_impression",
     path: "/shop",
     consent: "analytics",
     occurredAt: now.toISOString(),
@@ -140,6 +140,7 @@ test("accepts current and newly launched public storefront paths", () => {
   assert.equal(body.success, true);
   if (body.success) {
     assert.equal(validateAnalyticsEvent(body.data, now.getTime()), null);
+    assert.equal(body.data.eventName, "category_impression");
     assert.equal(body.data.consent, "analytics");
   }
 });

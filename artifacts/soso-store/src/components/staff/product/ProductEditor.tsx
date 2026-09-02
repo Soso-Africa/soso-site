@@ -2,16 +2,18 @@ import { useMemo } from "react";
 import { ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 import type { CatalogProduct, PlatformCollection } from "../../../data/platformContent";
 import { validateProduct } from "./ProductValidation";
-import { 
-  handleToggleCustomEligible, 
-  handleToggleStandardEligible, 
-  handleUpdateAvailableSizes, 
+import {
+  handleToggleCustomEligible,
+  handleToggleStandardEligible,
+  handleUpdateAvailableSizes,
   handleUpdateStandardSizes,
   handleUpdateFulfilmentState,
   handleUpdateDepartment,
 } from "./ProductTransitions";
 import { StringListEditor } from "./StringListEditor";
 import { ImagesEditor } from "./ImagesEditor";
+import { MaterialTurnSetsEditor } from "./MaterialTurnSetsEditor";
+import { ColourEditor } from "./ColourEditor";
 
 export function ProductEditor({
   product,
@@ -19,7 +21,8 @@ export function ProductEditor({
   collections,
   isExpanded,
   onToggle,
-  onChange
+  onChange,
+  onUploadMedia,
 }: {
   product: CatalogProduct;
   allProducts: CatalogProduct[];
@@ -27,6 +30,7 @@ export function ProductEditor({
   isExpanded: boolean;
   onToggle: () => void;
   onChange: (product: CatalogProduct) => void;
+  onUploadMedia: (file: File) => Promise<string>;
 }) {
   const categoryOptions = useMemo(
     () => Array.from(new Set(collections
@@ -41,7 +45,7 @@ export function ProductEditor({
 
   return (
     <div className="border border-border bg-background" data-testid={`catalogue-product-${product.slug}`}>
-      <button 
+      <button
         type="button"
         className="flex w-full cursor-pointer items-center justify-between p-4 hover:bg-muted/30"
         onClick={onToggle}
@@ -67,7 +71,7 @@ export function ProductEditor({
 
       {isExpanded && (
         <div className="border-t border-border p-5 space-y-8 bg-muted/10">
-          
+
           <div className="space-y-4">
             <h5 className="text-[10px] font-semibold uppercase tracking-wider text-primary border-b border-border pb-2">Core Details & Merchandising</h5>
             <div className="grid gap-6 md:grid-cols-2">
@@ -255,8 +259,12 @@ export function ProductEditor({
             </div>
           </div>
 
-          <ImagesEditor product={product} onChange={onChange} />
-          
+          <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
+
+          <MaterialTurnSetsEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
+
+          <ColourEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
+
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-4">
               <h5 className="text-[10px] font-semibold uppercase tracking-wider text-primary border-b border-border pb-2">Information & Copy</h5>
@@ -304,18 +312,18 @@ export function ProductEditor({
 
             <div className="space-y-4">
               <h5 className="text-[10px] font-semibold uppercase tracking-wider text-primary border-b border-border pb-2">Discovery</h5>
-              
+
               <div>
                 <span className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Searchable Terms</span>
-                <StringListEditor 
-                  items={product.searchableTerms || []} 
-                  onChange={(terms) => onChange({ ...product, searchableTerms: terms })} 
+                <StringListEditor
+                  items={product.searchableTerms || []}
+                  onChange={(terms) => onChange({ ...product, searchableTerms: terms })}
                   placeholder="e.g. wedding"
                   testIdPrefix={`search-term-${product.slug}`}
                   inputLabel={`Add a searchable term for ${product.name}`}
                 />
               </div>
-              
+
               <div className="pt-2">
                 <span className="mb-2 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Related Product Slugs</span>
                 <div className="space-y-2 border border-border bg-background p-3">
@@ -347,7 +355,7 @@ export function ProductEditor({
 
           <div className="space-y-4">
             <h5 className="text-[10px] font-semibold uppercase tracking-wider text-primary border-b border-border pb-2">Commerce, Eligibility & Fulfilment</h5>
-            
+
             {validations.length > 0 && (
               <div className="bg-destructive/10 border border-destructive/30 p-3 text-destructive text-xs space-y-1 mb-4" data-testid={`validation-errors-${product.slug}`}>
                 {validations.map((val, i) => <div key={i}>{val}</div>)}
@@ -358,12 +366,12 @@ export function ProductEditor({
               <div className="space-y-4">
                 <div className="border border-border bg-background p-4 mb-4">
                   <h6 className="text-[10px] font-semibold uppercase tracking-wider text-primary mb-3">All Available Sizes</h6>
-                  <StringListEditor 
-                    items={(product.sizes || []).filter(s => s !== "Custom")} 
+                  <StringListEditor
+                    items={(product.sizes || []).filter(s => s !== "Custom")}
                     onChange={(sizes) => {
                       const next = handleUpdateAvailableSizes(product, sizes, window.confirm);
                       if (next) onChange(next);
-                    }} 
+                    }}
                     placeholder="e.g. S, M, L"
                     testIdPrefix={`available-size-${product.slug}`}
                     inputLabel={`Add an available size for ${product.name}`}
@@ -373,7 +381,7 @@ export function ProductEditor({
 
                 <div className="flex flex-col gap-3 border border-border bg-background p-4">
                   <h6 className="text-[10px] font-semibold uppercase tracking-wider text-primary">Eligibility & Sizes</h6>
-                  
+
                   <label className="flex items-center gap-2 cursor-pointer pt-1">
                     <input
                       type="checkbox"
@@ -431,10 +439,10 @@ export function ProductEditor({
               </div>
 
               <div className="space-y-4">
-                
+
                 <div className="border border-border bg-background p-4 space-y-4">
                   <h6 className="text-[10px] font-semibold uppercase tracking-wider text-primary">Fulfilment</h6>
-                  
+
                   <label className="block">
                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">State</span>
                     <select
@@ -509,7 +517,7 @@ export function ProductEditor({
 
                 <div className="border border-border bg-background p-4 space-y-4">
                   <h6 className="text-[10px] font-semibold uppercase tracking-wider text-primary">Commerce Variant IDs Mapping</h6>
-                  
+
                   <label className="block">
                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Commerce Product ID (UUID)</span>
                     <input
@@ -542,7 +550,7 @@ export function ProductEditor({
                         />
                       </label>
                     ))}
-                    
+
                     {product.customEligible && (
                       <label className="flex flex-col gap-1 mt-3">
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Custom Option</span>
@@ -562,7 +570,7 @@ export function ProductEditor({
                         />
                       </label>
                     )}
-                    
+
                     {!product.standardEligible && !product.customEligible && (
                       <p className="text-[10px] text-muted-foreground italic">Enable standard or custom eligibility to map variants.</p>
                     )}

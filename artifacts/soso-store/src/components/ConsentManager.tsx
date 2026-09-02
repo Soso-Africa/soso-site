@@ -44,6 +44,7 @@ export type StorefrontEventName =
   | "consent_updated"
   | "marketing_opt_out"
   | "blog_article_viewed"
+  | "category_impression"
   | "faq_expanded"
   | "scroll_depth_reached"
   | "cta_clicked";

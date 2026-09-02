@@ -11,6 +11,10 @@ export type HeroMediaInspection = {
   declaredContentType?: string;
   size: number;
   animated?: boolean;
+  /** Present only for bounded mask validation reads. */
+  bytes?: Buffer;
+  width?: number;
+  height?: number;
 };
 export type HeroMediaInspector = (path: string) => Promise<HeroMediaInspection | null>;
 export type HeroMediaValidationIssue = { path: string[]; message: string };

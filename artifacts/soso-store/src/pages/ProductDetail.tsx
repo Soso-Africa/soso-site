@@ -14,16 +14,144 @@ import { ChevronLeft, ChevronRight, ChevronDown, ZoomIn, ZoomOut } from "lucide-
 import * as Accordion from "@radix-ui/react-accordion";
 import { isMappedPurchaseChoice, mappedPurchaseChoices } from "@/lib/purchasing";
 import { WhatsAppIcon } from "@/components/Icons";
+import { MaterialTurnStage } from "@/components/MaterialTurnStage";
+
+function FallbackGallery({
+  gallery,
+  product,
+  productCopy,
+  emblaRef,
+  scrollPrev,
+  scrollNext,
+  zoomed,
+  img,
+  setZoomed,
+  setImg,
+  trackStorefrontEvent
+}: any) {
+  return (
+    <>
+      <div className="soso-gallery relative overflow-hidden group bg-background" ref={emblaRef}>
+        <div className="flex touch-pan-y">
+          {gallery.map((g: any, i: number) => (
+            <div key={i} className="flex-[0_0_100%] min-w-0 relative overflow-hidden">
+              {g.type === 'mask' ? (
+                <div
+                  className="w-full aspect-[2/3] transition-transform duration-500 relative"
+                  style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)", backgroundColor: 'hsl(var(--muted))' }}
+                  aria-label={g.label}
+                >
+                  <img src={g.baseSrc} alt={g.label} className="absolute inset-0 w-full h-full object-cover" />
+                  <div
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{
+                      backgroundColor: g.hex,
+                      opacity: 0.72,
+                      WebkitMaskImage: `url(${g.maskSrc})`,
+                      WebkitMaskSize: 'cover',
+                      WebkitMaskPosition: 'center',
+                      maskImage: `url(${g.maskSrc})`,
+                      maskSize: 'cover',
+                      maskPosition: 'center'
+                    }}
+                  />
+                </div>
+              ) : (
+                <img
+                  src={g.src}
+                  alt={g.label}
+                  className="w-full aspect-[2/3] object-cover transition-transform duration-500"
+                  style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)" }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {gallery.length > 1 && (
+          <>
+            <button
+              onClick={scrollPrev}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
+              aria-label={productCopy.previousImageLabel}
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={scrollNext}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
+              aria-label={productCopy.nextImageLabel}
+            >
+              <ChevronRight size={20} />
+            </button>
+          </>
+        )}
+
+        <div className="absolute top-4 left-4 text-[10px] tracking-[0.25em] uppercase px-3 py-1.5" style={{ background: "rgba(255,255,255,.9)", color: "hsl(var(--foreground))", backdropFilter: "blur(4px)", border: "1px solid hsl(var(--border))" }}>
+          {product.tag}
+        </div>
+        <button
+          type="button"
+          onClick={() => setZoomed((value: boolean) => !value)}
+          className="absolute bottom-4 right-4 flex min-h-10 min-w-10 items-center justify-center bg-white/90 text-foreground backdrop-blur-sm border border-border"
+          aria-label={zoomed ? productCopy.zoomOutImageLabel : productCopy.zoomInImageLabel}
+          aria-pressed={zoomed}
+          data-testid="button-gallery-zoom"
+        >
+          {zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
+        </button>
+      </div>
+      <div className="flex gap-3 mt-3 overflow-x-auto pb-2 snap-x">
+        {gallery.map((g: any, i: number) => (
+          <button
+            key={i}
+            onClick={() => { setImg(i); if (i !== img) trackStorefrontEvent("product_image_viewed", { productSlug: product.slug, imageIndex: i }); }}
+            className="w-20 shrink-0 snap-start overflow-hidden relative"
+            style={{ outline: i === img ? `2px solid hsl(var(--foreground))` : "1px solid hsl(var(--border))", outlineOffset: 2 }}
+            aria-label={`${productCopy.viewProductLabel}: ${g.label}`}
+            aria-current={i === img}
+          >
+            {g.type === 'mask' ? (
+              <div className="aspect-[3/4] relative w-full bg-muted">
+                <img src={g.baseSrc} alt={g.label} className="absolute inset-0 w-full h-full object-cover" />
+                <div
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{
+                    backgroundColor: g.hex,
+                    opacity: 0.72,
+                    WebkitMaskImage: `url(${g.maskSrc})`,
+                    WebkitMaskSize: 'cover',
+                    WebkitMaskPosition: 'center',
+                    maskImage: `url(${g.maskSrc})`,
+                    maskSize: 'cover',
+                    maskPosition: 'center'
+                  }}
+                />
+              </div>
+            ) : (
+              <img src={g.src} alt={g.label} className="aspect-[3/4] object-cover w-full" />
+            )}
+          </button>
+        ))}
+      </div>
+      {(gallery[img]?.provenance?.credit || gallery[img]?.provenance?.source) && <p className="mt-3 text-[10px] uppercase tracking-wider opacity-55">
+        {productCopy.imageCreditLabel}: {gallery[img].provenance.credit || gallery[img].provenance.source}
+      </p>}
+    </>
+  );
+}
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:slug");
   const [, setLocation] = useLocation();
   const { addItem } = useCart();
-  
+
   const platform = usePlatformContent();
   const platformContent = platform.data?.content;
   const product = platformContent?.products.find((item) => item.slug === params?.slug);
-  
+
+  const [selectedColourId, setSelectedColourId] = useState<string | "custom">(() => product?.colourOptions?.[0]?.id || "custom");
+  const [customColour, setCustomColour] = useState("");
   const [size, setSize] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [fitAssistantSubmitted, setFitAssistantSubmitted] = useState(false);
@@ -73,12 +201,14 @@ export default function ProductDetail() {
     setImg(0);
     setZoomed(false);
     setLoaded(false);
+    setCustomColour("");
+    if (product?.colourOptions?.[0]) setSelectedColourId(product.colourOptions[0].id);
 
     if (!product && platform.data) {
       setLocation("/shop");
       return;
     }
-    
+
     const t = setTimeout(() => setLoaded(true), 60);
     return () => clearTimeout(t);
   }, [product, platform.data, setLocation]);
@@ -96,13 +226,59 @@ export default function ProductDetail() {
     });
   }, [product]);
 
+  const selectedColour = product?.colourOptions?.find(c => c.id === selectedColourId);
+  const visualizer = product?.colourVisualizer;
+  // Published content validates these assets server-side. Retain this narrow
+  // client guard so incomplete/stale content can never mount an unmasked tint.
+  const hasValidMaskVisualizer = Boolean(
+    visualizer?.baseImageSrc
+    && /^\/(?:images\/soso\/|api\/storage\/objects\/uploads\/)[^?#]*\.(?:jpe?g|png|webp)$/i.test(visualizer.baseImageSrc)
+    && visualizer.garmentMaskSrc
+    && /^\/(?:images\/soso\/|api\/storage\/objects\/uploads\/)[^?#]*\.png$/i.test(visualizer.garmentMaskSrc),
+  );
+  const isOriginalColourSelection = selectedColourId === "as-shown";
+  const hasDynamicPreview = selectedColourId !== "custom" && selectedColour
+    && (isOriginalColourSelection || selectedColour.previewImageSrc || hasValidMaskVisualizer);
+
+  useEffect(() => {
+    if (hasDynamicPreview) setImg(0);
+  }, [selectedColourId, hasDynamicPreview]);
+
   if (!product) {
     return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platform.data?.content.site.platformState} />;
   }
 
-  const gallery = product.images?.length
-    ? product.images.map((image) => ({ src: image.src, label: image.alt, provenance: image.provenance }))
-    : [{ src: product.img, label: `${product.name} ${platformContent!.productCopy.detailImageAltSuffix}`, provenance: null }];
+  type GalleryItem =
+    | { type: 'static' | 'image'; src: string; label: string; provenance: any }
+    | { type: 'mask'; baseSrc: string; maskSrc: string; hex: string; label: string; provenance: any };
+
+  const galleryItems: GalleryItem[] = [];
+  if (selectedColour && selectedColourId !== "custom" && !isOriginalColourSelection) {
+    if (selectedColour.previewImageSrc) {
+      galleryItems.push({
+        type: 'static',
+        src: selectedColour.previewImageSrc,
+        label: `${product.name} in ${selectedColour.label}`,
+        provenance: null
+      });
+    } else if (hasValidMaskVisualizer && visualizer) {
+      galleryItems.push({
+        type: 'mask',
+        baseSrc: visualizer.baseImageSrc,
+        maskSrc: visualizer.garmentMaskSrc,
+        hex: selectedColour.hex,
+        label: `${product.name} in ${selectedColour.label}`,
+        provenance: null
+      });
+    }
+  }
+
+  const baseGallery: GalleryItem[] = product.images?.length
+    ? product.images.map((image) => ({ type: 'image', src: image.src, label: image.alt, provenance: image.provenance }))
+    : [{ type: 'image', src: product.img, label: `${product.name} ${platformContent!.productCopy.detailImageAltSuffix}`, provenance: null }];
+
+  const gallery: GalleryItem[] = [...galleryItems, ...baseGallery];
+
   const productCopy = platformContent!.productCopy;
   const supportCopy = platformContent!.supportCopy;
   const sizeGuide = platformContent!.sizeGuide;
@@ -113,13 +289,21 @@ export default function ProductDetail() {
   const hasMappedChoices = purchaseChoices.length > 0;
 
   const needSize = size === null;
+  const needCustomColour = selectedColourId === "custom" && !customColour.trim();
   const isPurchasable = isMappedPurchaseChoice(product, size);
   const isUnavailable = product.fulfilmentState === "unavailable";
 
   const handleAddToCart = () => {
-    if (needSize || isUnavailable || !isPurchasable || !size) return;
+    if (needSize || needCustomColour || isUnavailable || !isPurchasable || !size) return;
     const variantId = product.commerceVariantIds?.[size];
-    if (!variantId) return;
+
+    if (selectedColourId === "custom" && !customColour.trim()) return;
+
+    const colourId = selectedColourId === "custom" ? "custom" : selectedColour?.id;
+    const colourLabel = selectedColourId === "custom" ? "Custom" : selectedColour?.label;
+    const colourHex = selectedColourId === "custom" ? "#000000" : selectedColour?.hex;
+
+    if (!variantId || !colourId || !colourLabel || !colourHex) return;
 
     addItem({
       slug: product.slug,
@@ -127,6 +311,10 @@ export default function ProductDetail() {
       img: product.img,
       price: product.price,
       size: size,
+      selectedColourId: colourId,
+      selectedColourLabel: colourLabel,
+      selectedColourHex: colourHex,
+      ...(selectedColourId === "custom" ? { customColour: customColour.trim() } : {}),
       commerceProductId: product.commerceProductId,
       commerceVariantId: variantId,
     });
@@ -189,7 +377,7 @@ export default function ProductDetail() {
           </Link>
         </div>
 
-        {/* Gallery */}
+        {/* Gallery / Stage */}
         <div
           style={{
             opacity: loaded ? 1 : 0,
@@ -197,75 +385,31 @@ export default function ProductDetail() {
             transition: "opacity 1s cubic-bezier(.16,1,.3,1), transform 1s cubic-bezier(.16,1,.3,1)",
           }}
         >
-          <div className="soso-gallery relative overflow-hidden group bg-background" ref={emblaRef}>
-            <div className="flex touch-pan-y">
-              {gallery.map((g, i) => (
-                <div key={i} className="flex-[0_0_100%] min-w-0 relative overflow-hidden">
-                  <img
-                    src={g.src}
-                    alt={g.label}
-                    className="w-full aspect-[2/3] object-cover transition-transform duration-500"
-                    style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)" }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            {/* Gallery Navigation Controls */}
-            {gallery.length > 1 && (
-              <>
-                <button
-                  onClick={scrollPrev}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
-                  aria-label={productCopy.previousImageLabel}
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button
-                  onClick={scrollNext}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center bg-background/80 text-foreground backdrop-blur-sm opacity-100 transition-opacity disabled:opacity-40"
-                  aria-label={productCopy.nextImageLabel}
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </>
-            )}
-
-            <div className="absolute top-4 left-4 text-[10px] tracking-[0.25em] uppercase px-3 py-1.5" style={{ background: "rgba(255,255,255,.9)", color: "hsl(var(--foreground))", backdropFilter: "blur(4px)", border: "1px solid hsl(var(--border))" }}>
-              {product.tag}
-            </div>
-            <button
-              type="button"
-              onClick={() => setZoomed((value) => !value)}
-              className="absolute bottom-4 right-4 flex min-h-10 min-w-10 items-center justify-center bg-white/90 text-foreground backdrop-blur-sm border border-border"
-              aria-label={zoomed ? productCopy.zoomOutImageLabel : productCopy.zoomInImageLabel}
-              aria-pressed={zoomed}
-              data-testid="button-gallery-zoom"
-            >
-              {zoomed ? <ZoomOut size={18} /> : <ZoomIn size={18} />}
-            </button>
-          </div>
-          <div className="flex gap-3 mt-3 overflow-x-auto pb-2 snap-x">
-            {gallery.map((g, i) => (
-              <button
-                key={i}
-                onClick={() => { setImg(i); if (i !== img) trackStorefrontEvent("product_image_viewed", { productSlug: product.slug, imageIndex: i }); }}
-                className="w-20 shrink-0 snap-start overflow-hidden relative"
-                style={{ outline: i === img ? `2px solid hsl(var(--foreground))` : "1px solid hsl(var(--border))", outlineOffset: 2 }}
-                aria-label={`${productCopy.viewProductLabel}: ${g.label}`}
-                aria-current={i === img}
-              >
-                <img src={g.src} alt={g.label} className="aspect-[3/4] object-cover w-full" />
-              </button>
-            ))}
-          </div>
-          {gallery[img]?.provenance && <p className="mt-3 text-[10px] uppercase tracking-wider opacity-55">
-            {productCopy.imageCreditLabel}: {gallery[img].provenance.credit || gallery[img].provenance.source}
-          </p>}
+          {product.materialTurnSets && product.materialTurnSets.length > 0 && !hasDynamicPreview ? (
+             <MaterialTurnStage
+               sets={product.materialTurnSets}
+               productCopy={productCopy}
+             />
+          ) : (
+            <FallbackGallery
+              gallery={gallery}
+              product={product}
+              productCopy={productCopy}
+              emblaRef={emblaRef}
+              scrollPrev={scrollPrev}
+              scrollNext={scrollNext}
+              zoomed={zoomed}
+              img={img}
+              setZoomed={setZoomed}
+              setImg={setImg}
+              trackStorefrontEvent={trackStorefrontEvent}
+            />
+          )}
         </div>
 
         {/* Buy panel */}
         <div
+          className="h-max"
           style={{
             opacity: loaded ? 1 : 0,
             transform: loaded ? "none" : "translateY(24px)",
@@ -273,7 +417,7 @@ export default function ProductDetail() {
           }}
         >
           <p className="text-[11px] tracking-[0.3em] uppercase mb-3 text-secondary">{product.category} · {productCopy.categorySuffix}</p>
-          <h1 className="soso-display text-5xl md:text-6xl font-light leading-[1.02] text-foreground">{product.name}</h1>
+          <h1 className="soso-display text-5xl md:text-6xl font-normal leading-[1.02] text-foreground">{product.name}</h1>
           <p className="soso-display text-lg mt-2 opacity-70 italic text-foreground">{product.note}</p>
 
           {/* Availability / Price */}
@@ -308,7 +452,7 @@ export default function ProductDetail() {
             </div>)}
           </dl>
 
-          {/* Sizing / Purchase Options */}
+          {/* Colour / Sizing / Purchase Options */}
           {product.fulfilmentState !== "unavailable" && (
             <div className="mt-8 space-y-8">
               {!hasMappedChoices && (
@@ -316,6 +460,75 @@ export default function ProductDetail() {
                   {productCopy.productUnmappedPurchaseMessage}
                 </p>
               )}
+
+              {/* Colour Picker */}
+              {(product.colourOptions?.length > 0 || product.allowCustomColour) && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[12px] tracking-[0.2em] uppercase font-medium text-foreground">{productCopy.colourLabel}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-3">
+                    {product.colourOptions?.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedColourId(c.id)}
+                        className={`group relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all ${selectedColourId === c.id ? 'border-foreground' : 'border-transparent hover:border-border'}`}
+                        aria-label={`Select colour ${c.label}`}
+                      >
+                        <span className="w-8 h-8 rounded-full border border-black/10" style={{ backgroundColor: c.hex }} />
+                      </button>
+                    ))}
+                    {product.allowCustomColour && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedColourId("custom")}
+                        className={`group relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all ${selectedColourId === "custom" ? 'border-foreground' : 'border-transparent hover:border-border'}`}
+                        aria-label="Custom Colour"
+                      >
+                        <span className="w-8 h-8 rounded-full border border-border flex items-center justify-center bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background transition-colors">
+                          +
+                        </span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Selected Colour Details */}
+                  <div className="mt-4">
+                    {selectedColourId === "custom" ? (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium">{productCopy.customLabel} {productCopy.colourLabel}</p>
+                        <input
+                          type="text"
+                          value={customColour}
+                          onChange={(e) => setCustomColour(e.target.value.slice(0, 50))}
+                          placeholder="e.g. Emerald Green, Navy Blue..."
+                          className="w-full bg-transparent border border-border px-4 py-3 outline-none focus:border-foreground text-sm"
+                          maxLength={50}
+                        />
+                        <p className="text-[11px] opacity-60">Subject to atelier confirmation. We will contact you to confirm fabric availability.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium">
+                          {selectedColour?.label}
+                        </p>
+                        {!hasDynamicPreview && (
+                          <p className="text-[11px] opacity-60 text-amber-600/90 mt-1">
+                            A preview is currently unavailable for {selectedColour?.label}. The garment will be crafted in this colour.
+                          </p>
+                        )}
+                        {hasDynamicPreview && !selectedColour?.previewImageSrc && (
+                          <p className="text-[11px] opacity-60 mt-1">
+                            This preview is an illustration of {selectedColour?.label}. Actual garment colour may vary slightly by fabric.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {product.standardEligible && validStandardSizes.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -403,17 +616,19 @@ export default function ProductDetail() {
           <div className="mt-8 space-y-3">
             <button
               onClick={handleAddToCart}
-              disabled={needSize || isUnavailable || !isPurchasable}
-              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 border ${!needSize && !isUnavailable && isPurchasable ? "hover:opacity-90 border-foreground bg-foreground text-background" : "cursor-not-allowed opacity-50 border-border bg-muted text-muted-foreground"}`}
+              disabled={needSize || needCustomColour || isUnavailable || !isPurchasable}
+              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 border ${!needSize && !needCustomColour && !isUnavailable && isPurchasable ? "hover:opacity-90 border-foreground bg-foreground text-background" : "cursor-not-allowed opacity-50 border-border bg-muted text-muted-foreground"}`}
               data-testid="button-add-to-cart"
             >
               {isUnavailable
                 ? productCopy.unavailableLabel
                 : needSize
                   ? productCopy.sizeRequiredLabel
-                  : !isPurchasable
-                    ? productCopy.unavailableInSizeLabel
-                    : `${productCopy.addToBagLabel}${productCopy.addToBagPriceSeparator}${naira(product.price)}`}
+                  : needCustomColour
+                    ? "Enter Custom Colour"
+                    : !isPurchasable
+                      ? productCopy.unavailableInSizeLabel
+                      : `${productCopy.addToBagLabel.replace(/bag/i, 'Cart')}${productCopy.addToBagPriceSeparator}${naira(product.price)}`}
             </button>
             <button
               type="button"
@@ -507,7 +722,7 @@ export default function ProductDetail() {
       {look.length > 0 && (
         <section className="max-w-[1440px] mx-auto px-6 md:px-12 py-24">
           <Reveal>
-            <h2 className="soso-display text-4xl font-light mb-10">{productCopy.relatedHeading}</h2>
+            <h2 className="soso-display text-4xl font-normal mb-10">{productCopy.relatedHeading}</h2>
           </Reveal>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {look.map((p, i) => (
@@ -527,13 +742,13 @@ export default function ProductDetail() {
           <p className="text-[11px] uppercase tracking-widest text-secondary">{product.name}</p>
           <p className="text-sm text-foreground font-medium">{naira(product.price)}</p>
         </div>
-        <button 
+        <button
           onClick={handleAddToCart}
-          disabled={needSize || isUnavailable || !isPurchasable}
-          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all border ${needSize || isUnavailable || !isPurchasable ? "opacity-50 cursor-not-allowed border-border bg-muted text-muted-foreground" : "border-foreground bg-foreground text-background"}`}
+          disabled={needSize || needCustomColour || isUnavailable || !isPurchasable}
+          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all border ${needSize || needCustomColour || isUnavailable || !isPurchasable ? "opacity-50 cursor-not-allowed border-border bg-muted text-muted-foreground" : "border-foreground bg-foreground text-background"}`}
           data-testid="button-mobile-add-to-cart"
         >
-          {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : !isPurchasable ? productCopy.unavailableInSizeLabel : productCopy.addToBagLabel}
+          {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : needCustomColour ? "Colour Required" : !isPurchasable ? productCopy.unavailableInSizeLabel : productCopy.addToBagLabel.replace(/bag/i, 'Cart')}
         </button>
       </div>
 
@@ -544,7 +759,7 @@ export default function ProductDetail() {
             <button className="absolute top-4 right-5 text-2xl opacity-60 hover:opacity-100 text-foreground" onClick={() => setGuideOpen(false)} aria-label={productCopy.sizeGuideCloseLabel}>
               ×
             </button>
-            <h3 id="size-guide-title" className="soso-display text-3xl font-light text-foreground">{sizeGuide.title}</h3>
+            <h3 id="size-guide-title" className="soso-display text-3xl font-normal text-foreground">{sizeGuide.title}</h3>
             <p className="text-sm opacity-70 mt-2 text-foreground">{sizeGuide.intro}</p>
             <table className="w-full mt-6 text-sm text-foreground">
               <thead>

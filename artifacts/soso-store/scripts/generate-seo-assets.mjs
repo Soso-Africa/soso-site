@@ -42,6 +42,43 @@ const safeSlug = (value) => typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]
 const iso = (value) => new Date(value || Date.now()).toISOString();
 const now = iso();
 
+// This data module deliberately contains JSON literals (rather than runtime-only
+// React data) so it is the shared archival source for the client and this Node
+// build step. Keep this small loader here instead of maintaining a second copy
+// of the imported WordPress content for prerendering.
+const legacySource = await readFile(resolve(root, "src/data/legacy-content.ts"), "utf8");
+function loadLegacyCollection(name) {
+  const match = legacySource.match(new RegExp(`export const ${name}[^=]*= (\\[[\\s\\S]*?\\n\\]);`));
+  if (!match) throw new Error(`Unable to load ${name} from the shared legacy content source.`);
+  const records = JSON.parse(match[1]);
+  if (!Array.isArray(records) || records.some((record) => !safeSlug(record.slug) || !record.canonicalPath)) {
+    throw new Error(`The shared ${name} source contains an invalid archival route.`);
+  }
+  if (new Set(records.map((record) => record.slug)).size !== records.length) {
+    throw new Error(`The shared ${name} source contains duplicate archival slugs.`);
+  }
+  return records;
+}
+function loadJournalRefresh() {
+  const match = legacySource.match(/const journalRefresh[^=]*= (\{[\s\S]*?\n\});/);
+  if (!match) throw new Error("Unable to load the legacy journal editorial refresh source.");
+  const serialized = match[1]
+    .replace(/([,{]\s*)(takeaway|coverImageAlt)\s*:/g, '$1"$2":')
+    .replace(/,\s*}$/, "\n}");
+  const refresh = JSON.parse(serialized);
+  if (!refresh || typeof refresh !== "object") throw new Error("The legacy journal editorial refresh source is invalid.");
+  return refresh;
+}
+const legacyAboutPages = loadLegacyCollection("legacyAboutPages");
+const legacyJournalPosts = loadLegacyCollection("legacyJournalSourcePosts");
+const legacyJournalRefresh = loadJournalRefresh();
+if (legacyAboutPages.length !== 7 || legacyJournalPosts.length !== 14) {
+  throw new Error("The shared legacy content source must retain all 7 About pages and 14 Journal posts.");
+}
+if (legacyJournalPosts.some(({ slug }) => !legacyJournalRefresh[slug]?.takeaway || !legacyJournalRefresh[slug]?.coverImageAlt)) {
+  throw new Error("Every legacy journal article requires an editorial takeaway and descriptive image alt text.");
+}
+
 await mkdir(out, { recursive: true });
 const robotsPath = resolve(out, "robots.txt");
 const fallbackPath = resolve(out, "spa-fallback.html");
@@ -98,7 +135,7 @@ try {
       from soso_journal_posts where status = 'published' and published_at is not null order by published_at desc`) : Promise.resolve({ rows: [] }),
   ]);
   platform = content.rows[0]?.published || {};
-  articles = journal.rows.map((row) => ({
+  const cmsArticles = journal.rows.map((row) => ({
     ...row,
     pageTitle: row.seoTitle || row.title,
     description: row.seoDescription || row.excerpt,
@@ -106,6 +143,35 @@ try {
     publishedAt: iso(row.publishedAt),
     updatedAt: iso(row.updatedAt),
   }));
+  // A reviewed CMS entry always wins over an archival record with the same
+  // public slug. This lets editors replace migration copy without duplicate
+  // pages, feed items, or sitemap URLs.
+  articles = journalApproved ? Array.from(new Map([
+    ...legacyJournalPosts.map((post) => {
+      const refresh = legacyJournalRefresh[post.slug];
+      const index = legacyJournalPosts.findIndex(({ slug }) => slug === post.slug);
+      const presentationBody = post.slug === "abuja-modern-menswear-hub"
+        ? `## A new era of kaftan style\n\n${post.body}`
+        : post.body;
+      return [post.slug, {
+      ...post,
+      ...refresh,
+      seoTitle: `${post.title.replace(/\.$/, "")} | SOSO Africa`,
+      seoDescription: refresh.takeaway,
+      coverImageAlt: refresh.coverImageAlt,
+      pageTitle: `${post.title.replace(/\.$/, "")} | SOSO Africa`,
+      description: refresh.takeaway,
+      body: presentationBody,
+      bodyText: stripMarkdown(presentationBody),
+      relatedArticleSlugs: [
+        legacyJournalPosts[index - 1]?.slug,
+        legacyJournalPosts[index + 1]?.slug,
+      ].filter(Boolean),
+      publishedAt: iso(post.publishedAt),
+      updatedAt: iso(post.updatedAt),
+    }]; }),
+    ...cmsArticles.map((post) => [post.slug, post]),
+  ]).values()) : [];
 } finally { await pool.end(); }
 
 const products = catalogApproved && Array.isArray(platform.products) ? platform.products.filter((p) => safeSlug(p.slug) && p.name && p.description) : [];
@@ -123,6 +189,15 @@ const staticPages = [
   ] : []),
   ...(journalApproved && articles.length ? [{ path: "/journal", title: platform.journal?.seo?.title || "Journal | SOSO Africa", description: platform.journal?.seo?.description || "Stories from SOSO Africa.", h1: platform.journal?.heading || "The Journal", body: platform.journal?.intro || "Stories from SOSO Africa." }] : []),
 ];
+const legacyAboutRoutes = legacyAboutPages.map((about) => ({
+  path: about.canonicalPath,
+  title: about.seoTitle || `${about.title} | SOSO Africa`,
+  description: about.seoDescription || about.summary,
+  h1: about.title,
+  body: stripMarkdown(about.body),
+  lastmod: iso(about.modifiedAt),
+  about,
+}));
 
 function links(items) { return `<nav aria-label="Related pages">${items.map((i) => `<a href="${escapeHtml(i.path)}">${escapeHtml(i.h1 || i.name || i.title)}</a>`).join(" · ")}</nav>`; }
 function safeInlineMarkdown(value) {
@@ -170,6 +245,28 @@ for (const item of staticPages) {
   const schema = item.path === "/faq" ? [{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((x) => ({ "@type": "Question", name: x.question, acceptedAnswer: { "@type": "Answer", text: x.answer } })) }] : item.path === "/journal" ? [{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: articles.map((a, i) => ({ "@type": "ListItem", position: i + 1, url: absolute(`/journal/${a.slug}`), name: a.title })) }] : [];
   await emit(item.path, page({ ...item, schema }));
 }
+for (const item of legacyAboutRoutes) {
+  const { about } = item;
+  routes.push(item);
+  await emit(item.path, page({
+    ...item,
+    type: "website",
+    image: about.mediaUrls?.[0],
+    imageAlt: `${about.title} — SOSO Africa`,
+    bodyHtml: `<article><p>${escapeHtml(stripMarkdown(about.summary))}</p>${renderMarkdown(about.body)}</article>`,
+    schema: [{
+      "@context": "https://schema.org",
+      "@type": "AboutPage",
+      name: about.title,
+      description: item.description,
+      url: absolute(item.path),
+      datePublished: iso(about.publishedAt),
+      dateModified: iso(about.modifiedAt),
+      isPartOf: { "@id": `${siteUrl}/#website` },
+      mainEntity: { "@id": `${siteUrl}/#organization` },
+    }],
+  }));
+}
 for (const product of products) {
   const price = Number(product.price);
   const authoritativeState = ["ready_now", "made_immediately", "unavailable"].includes(product.fulfilmentState);
@@ -190,9 +287,16 @@ for (const collection of collections) {
 }
 if (journalApproved) for (const article of articles) {
   const item = { path: `/journal/${article.slug}`, title: article.pageTitle, description: article.description, h1: article.title, body: article.bodyText || article.excerpt, lastmod: article.updatedAt };
-  routes.push(item); const related = [...(article.relatedProductSlugs || []).map((slug) => `/product/${slug}`), ...(article.relatedArticleSlugs || []).map((slug) => `/journal/${slug}`)].filter((href) => /^\/(product|journal)\/[a-z0-9-]+$/.test(href));
+  const articleIndex = articles.findIndex(({ slug }) => slug === article.slug);
+  const archivalRelated = articleIndex >= 0 ? [articles[articleIndex - 1]?.slug, articles[articleIndex + 1]?.slug].filter(Boolean) : [];
+  routes.push(item); const related = [...(article.relatedProductSlugs || []).map((slug) => `/product/${slug}`), ...((article.relatedArticleSlugs?.length ? article.relatedArticleSlugs : archivalRelated)).map((slug) => `/journal/${slug}`)].filter((href) => /^\/(product|journal)\/[a-z0-9-]+$/.test(href));
   const relatedHtml = related.length ? `<nav aria-label="Related content">${related.map((href) => `<a href="${escapeHtml(href)}">${escapeHtml(href.split("/").at(-1).replaceAll("-", " "))}</a>`).join(" · ")}</nav>` : "";
-  await emit(item.path, page({ ...item, type: "article", image: article.coverImageUrl, imageAlt: article.coverImageAlt, article, bodyHtml: `${renderMarkdown(article.body)}${relatedHtml}`, schema: [{ "@context": "https://schema.org", "@type": "BlogPosting", headline: article.title, description: article.description, articleBody: article.bodyText, datePublished: article.publishedAt, dateModified: article.updatedAt, author: { "@type": "Person", name: article.authorName }, publisher: { "@id": `${siteUrl}/#organization` }, mainEntityOfPage: { "@type": "WebPage", "@id": absolute(item.path) }, ...(article.category ? { articleSection: article.category } : {}), ...(article.tags?.length ? { keywords: article.tags.join(", ") } : {}), ...(article.coverImageUrl ? { image: { "@type": "ImageObject", url: absolute(article.coverImageUrl), ...(article.coverImageAlt ? { caption: article.coverImageAlt } : {}) } } : {}), relatedLink: related.map(absolute) }] }));
+  const actionsHtml = `<nav aria-label="Article actions"><a href="/shop">Shop current menswear</a> · <a href="/faq">Fit and measurement guide</a></nav>`;
+  const takeawayHtml = `<aside aria-label="Article summary"><strong>In brief</strong><p>${escapeHtml(article.takeaway || article.description)}</p></aside>`;
+  await emit(item.path, page({ ...item, type: "article", image: article.coverImageUrl, imageAlt: article.coverImageAlt, article, bodyHtml: `${takeawayHtml}${renderMarkdown(article.body)}${actionsHtml}${relatedHtml}`, schema: [{ "@context": "https://schema.org", "@type": "BlogPosting", headline: article.title, description: article.description, articleBody: article.bodyText, datePublished: article.publishedAt, dateModified: article.updatedAt, author: { "@type": "Person", name: article.authorName }, publisher: { "@id": `${siteUrl}/#organization` }, mainEntityOfPage: { "@type": "WebPage", "@id": absolute(item.path) }, ...(article.category ? { articleSection: article.category } : {}), ...(article.tags?.length ? { keywords: article.tags.join(", ") } : {}), ...(article.coverImageUrl ? { image: { "@type": "ImageObject", url: absolute(article.coverImageUrl), ...(article.coverImageAlt ? { caption: article.coverImageAlt } : {}) } } : {}), relatedLink: related.map(absolute) }] }));
+}
+if (new Set(routes.map((route) => route.path)).size !== routes.length) {
+  throw new Error("Refusing to generate duplicate crawler routes.");
 }
 await writeFile(robotsPath, `User-agent: *\nAllow: /\nDisallow: /checkout\nDisallow: /staff\nDisallow: /sign-in\nDisallow: /sign-up\nDisallow: /journal/preview\nSitemap: ${siteUrl}/sitemap.xml\n`);
 await writeFile(resolve(out, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${routes.map((r) => `  <url><loc>${xml(absolute(r.path))}</loc><lastmod>${iso(r.lastmod)}</lastmod></url>`).join("\n")}\n</urlset>\n`);
@@ -205,6 +309,7 @@ if (journalApproved) {
 const journalLlms = journalApproved && articles.length
   ? `\n\n## Journal\n${articles.map((a) => `- [${a.title}](${absolute(`/journal/${a.slug}`)}): ${a.excerpt}`).join("\n")}`
   : "";
-await writeFile(resolve(out, "llms.txt"), `# SOSO Africa\n\n${staticPages.map((p) => `- [${p.h1}](${absolute(p.path)}): ${p.description}`).join("\n")}${journalLlms}\n`);
+const legacyAboutLlms = `\n\n## About SOSO Africa\n${legacyAboutRoutes.map((page) => `- [${page.h1}](${absolute(page.path)}): ${page.description}`).join("\n")}`;
+await writeFile(resolve(out, "llms.txt"), `# SOSO Africa\n\n${staticPages.map((p) => `- [${p.h1}](${absolute(p.path)}): ${p.description}`).join("\n")}${legacyAboutLlms}${journalLlms}\n`);
 await writeFile(resolve(out, "seo-manifest.json"), `${JSON.stringify({ canonicalOrigin: siteUrl, routes, products, journalEntries: articles }, null, 2)}\n`);
 process.stdout.write(`Crawlable SEO assets generated for ${siteUrl}.\n`);

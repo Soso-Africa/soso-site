@@ -13,6 +13,8 @@ Content migrations that add catalogue records must be version-gated and one-time
 
 **How to apply:** Upgrade draft and published snapshots independently. Never apply publication defaults when the record is intentionally unpublished, and never silently repair invalid edited values beyond adding fields that did not exist in the earlier schema. Detect known legacy object shapes by semantic fields rather than serialized object equality, because PostgreSQL JSONB may reorder keys.
 
+For a narrowly recognized shipped payload, keep the shape guard active after the nominal migration version so a partial upgrade can recover on the next reconciliation. The exact semantic match—not the version alone—protects merchant-authored variants.
+
 Hash platform documents from recursively key-sorted objects while preserving array order.
 
 **Why:** PostgreSQL JSONB can return semantically identical objects with a different key order. Raw JSON serialization then makes every read-triggered upgrade look like a content change, advances the optimistic revision, and causes an editor’s next save to conflict. Merchandising arrays remain order-sensitive and must not be sorted.

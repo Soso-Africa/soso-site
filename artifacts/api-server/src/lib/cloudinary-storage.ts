@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
   detectMediaContentType,
+  imageDimensions,
   isAnimatedImage,
   MAX_HERO_POSTER_BYTES,
   mediaMimeTypeForPath,
@@ -35,6 +36,9 @@ export type CloudinaryMediaInspection = {
   declaredContentType?: string;
   size: number;
   animated?: boolean;
+  bytes?: Buffer;
+  width?: number;
+  height?: number;
 };
 
 export class MediaNotFoundError extends Error {
@@ -154,11 +158,13 @@ async function inspectDeliveryUrl(url: string): Promise<CloudinaryMediaInspectio
   const size = Number(rangeSize ?? contentLength ?? bytes.length);
   const declaredContentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
   const contentType = detectMediaContentType(bytes) ?? "";
+  const dimensions = imageDimensions(bytes, contentType);
   return {
     contentType,
     declaredContentType,
     size,
     animated: contentType.startsWith("image/") && isAnimatedImage(bytes, contentType),
+    ...(dimensions ?? {}),
   };
 }
 
@@ -275,6 +281,39 @@ export class CloudinaryStorageService {
 
   inspectPublicMedia(relativePath: string): Promise<CloudinaryMediaInspection> {
     return inspectDeliveryUrl(this.publicDeliveryUrl(relativePath));
+  }
+
+  async readUploadedImageBytes(relativePath: string, maxBytes: number): Promise<Buffer> {
+    const url = this.uploadedDeliveryUrl(relativePath);
+    const response = await fetch(url, {
+      headers: { Range: `bytes=0-${maxBytes - 1}` },
+      redirect: "follow",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (response.status === 404) throw new MediaNotFoundError();
+    if (!response.ok) throw new Error(`Cloudinary image read failed (${response.status})`);
+    const total = Number(response.headers.get("content-range")?.match(/\/(\d+)$/)?.[1]
+      ?? response.headers.get("content-length"));
+    if (!Number.isSafeInteger(total) || total < 1 || total > maxBytes) {
+      throw new Error("Cloudinary image exceeds the bounded validation read");
+    }
+    if (!response.body) throw new Error("Cloudinary image response has no body");
+    const chunks: Buffer[] = [];
+    let received = 0;
+    const reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        await reader.cancel();
+        throw new Error("Cloudinary image exceeded the bounded validation read");
+      }
+      chunks.push(Buffer.from(value));
+    }
+    const bytes = Buffer.concat(chunks);
+    if (bytes.length !== total) throw new Error("Cloudinary image did not return complete bounded bytes");
+    return bytes;
   }
 
   async deleteUploadedMedia(relativePath: string): Promise<void> {

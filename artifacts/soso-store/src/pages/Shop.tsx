@@ -223,7 +223,7 @@ export default function Shop() {
             ))}
           </nav>
           <p className="text-[11px] uppercase tracking-[0.3em] text-secondary">{departmentCopy.eyebrow}</p>
-          <h1 className="mt-3 text-4xl font-light text-foreground soso-display md:text-5xl">{departmentCopy.title}</h1>
+          <h1 className="mt-3 text-4xl font-normal text-foreground soso-display md:text-5xl">{departmentCopy.title}</h1>
           <p className="mx-auto mt-4 max-w-xl text-sm text-secondary">{departmentCopy.intro}</p>
         </header>
       </Reveal>

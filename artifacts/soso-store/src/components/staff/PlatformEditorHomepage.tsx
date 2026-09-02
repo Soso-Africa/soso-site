@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { ArrowDown, ArrowUp, AlertCircle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowDown, ArrowUp, AlertCircle, ImageUp, Star, Trash2 } from "lucide-react";
 import type { CatalogProduct, PlatformContent } from "../../data/platformContent";
 
 type Homepage = PlatformContent["homepage"];
@@ -23,12 +23,16 @@ export function PlatformEditorHomepage({
   products,
   allowedTargets,
   onChange,
+  onUploadMedia,
 }: {
   data: Homepage;
   products: Pick<CatalogProduct, "slug" | "name">[];
   allowedTargets: string[];
   onChange: (data: Homepage) => void;
+  onUploadMedia: (file: File) => Promise<string>;
 }) {
+  const [uploadingCategory, setUploadingCategory] = useState<number | null>(null);
+  const [mediaStatus, setMediaStatus] = useState("");
   const update = <K extends keyof Homepage>(key: K, value: Homepage[K]) => onChange({ ...data, [key]: value });
   const move = <T,>(items: T[], from: number, to: number, commit: (next: T[]) => void) => {
     if (to < 0 || to >= items.length) return;
@@ -40,7 +44,7 @@ export function PlatformEditorHomepage({
   const issues = useMemo(() => {
     const result: string[] = [];
     const productSlugs = new Set(products.map((product) => product.slug));
-    if (data.categories.items.length !== 4) result.push("Categories must contain exactly 4 ordered tiles.");
+    if (data.categories.items.length !== 5) result.push("Categories must contain exactly 5 ordered tiles.");
     if (new Set(data.categories.items.map((item) => item.href)).size !== data.categories.items.length) result.push("Category links must be unique.");
     if (!productSlugs.has(data.newArrival.productSlug)) result.push("Choose a published product for New arrival.");
     if (data.featured.productSlugs.length !== 4) result.push("Featured must contain exactly 4 products.");
@@ -49,7 +53,7 @@ export function PlatformEditorHomepage({
     if (data.occasions.items.length !== 2) result.push("Occasions must contain exactly 2 panels.");
     const imagePaths = [
       data.hero.imageUrl, data.hero.mobileImageUrl, data.fit.imageUrl, data.newArrival.editorial.imageUrl,
-      ...data.categories.items.map((item) => item.imageUrl), ...data.occasions.items.map((item) => item.imageUrl),
+      ...data.categories.items.flatMap((item) => [item.imageUrl, ...(item.imageUrls || [])]), ...data.occasions.items.map((item) => item.imageUrl),
     ];
     if (imagePaths.some((path) => !/^\/(?!\/).+\.(?:jpe?g|png|webp|gif)$/i.test(path))) result.push("Homepage images must use local JPEG, PNG, WebP, or GIF paths.");
     if ([data.hero.imageUrl, data.hero.mobileImageUrl].some((path) => !/^\/(?!\/).+\.(?:jpe?g|png|webp)$/i.test(path))) result.push("Hero poster images must be local static JPEG, PNG, or WebP paths.");
@@ -86,6 +90,16 @@ export function PlatformEditorHomepage({
         </>}
         <Field label="Hero primary CTA label" value={data.hero.primaryCta.label} onChange={(label) => update("hero", { ...data.hero, primaryCta: { ...data.hero.primaryCta, label } })} />
         <Field label="Hero primary CTA path" value={data.hero.primaryCta.href} onChange={(href) => update("hero", { ...data.hero, primaryCta: { ...data.hero.primaryCta, href } })} />
+        <label className={`${labelClass} flex items-center gap-2 pt-5`}><input type="checkbox" checked={data.hero.campaignCta?.enabled ?? false} onChange={(event) => update("hero", {
+          ...data.hero,
+          campaignCta: { ...(data.hero.campaignCta ?? { label: "", href: "", startsAt: new Date().toISOString(), endsAt: new Date(Date.now() + 86_400_000).toISOString() }), enabled: event.target.checked },
+        })} />Enable scheduled campaign CTA</label>
+        {data.hero.campaignCta && <>
+          <Field label="Campaign CTA label" value={data.hero.campaignCta.label} onChange={(label) => update("hero", { ...data.hero, campaignCta: { ...data.hero.campaignCta!, label } })} />
+          <Field label="Campaign CTA path" value={data.hero.campaignCta.href} onChange={(href) => update("hero", { ...data.hero, campaignCta: { ...data.hero.campaignCta!, href } })} />
+          <Field label="Campaign starts (ISO timestamp)" value={data.hero.campaignCta.startsAt} onChange={(startsAt) => update("hero", { ...data.hero, campaignCta: { ...data.hero.campaignCta!, startsAt } })} />
+          <Field label="Campaign ends (ISO timestamp)" value={data.hero.campaignCta.endsAt} onChange={(endsAt) => update("hero", { ...data.hero, campaignCta: { ...data.hero.campaignCta!, endsAt } })} />
+        </>}
       </div>
       <div className="mt-4"><p className={labelClass}>Hero assurances (ordered)</p>{data.hero.assurances.map((assurance, index) => <div key={index} className="mt-2 flex gap-2"><input className="staff-input" value={assurance} onChange={(event) => { const assurances = [...data.hero.assurances]; assurances[index] = event.target.value; update("hero", { ...data.hero, assurances }); }} /><MoveButtons index={index} length={data.hero.assurances.length} move={(from, to) => move(data.hero.assurances, from, to, (assurances) => update("hero", { ...data.hero, assurances }))} /><button type="button" disabled={data.hero.assurances.length <= 1} onClick={() => update("hero", { ...data.hero, assurances: data.hero.assurances.filter((_, itemIndex) => itemIndex !== index) })} className="border border-border px-3 text-xs disabled:opacity-30">Remove</button></div>)}<button type="button" onClick={() => update("hero", { ...data.hero, assurances: [...data.hero.assurances, ""] })} className="mt-2 border border-border px-3 py-2 text-xs">Add assurance</button></div>
     </details>
@@ -97,21 +111,120 @@ export function PlatformEditorHomepage({
     </details>
 
     <section className="border border-border p-4">
-      <h3 className="font-semibold">Categories · exactly 4</h3>
+      <h3 className="font-semibold">Categories · exactly 5</h3>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <Field label="Visible heading" value={data.categories.heading} onChange={(heading) => update("categories", { ...data.categories, heading })} />
         <Field label="Accessible section label" value={data.categories.accessibleLabel} onChange={(accessibleLabel) => update("categories", { ...data.categories, accessibleLabel })} />
         <Field label="Tile CTA label" value={data.categories.ctaLabel} onChange={(ctaLabel) => update("categories", { ...data.categories, ctaLabel })} />
       </div>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
-        {data.categories.items.map((item, index) => <div key={`${index}-${item.title}`} className="border border-border bg-muted/10 p-3" data-testid={`homepage-category-${index}`} data-merchandising-value={item.title}>
+        {data.categories.items.map((item, index) => {
+          const images = item.imageUrls?.length ? item.imageUrls : [item.imageUrl];
+          const commitImages = (nextImages: string[]) => {
+            if (!nextImages.length) return;
+            const items = [...data.categories.items];
+            const fallback = nextImages.includes(item.imageUrl) ? item.imageUrl : nextImages[0]!;
+            items[index] = {
+              ...item,
+              imageUrl: fallback,
+              imageUrls: nextImages,
+              imageMode: nextImages.length >= 2 ? "crossfade" : "static",
+            };
+            update("categories", { ...data.categories, items });
+          };
+          return <div key={`${index}-${item.title}`} className="border border-border bg-muted/10 p-3" data-testid={`homepage-category-${index}`} data-merchandising-value={item.title}>
           <div className="mb-3 flex items-center justify-between"><strong className="text-xs">Position {index + 1}</strong><MoveButtons index={index} length={data.categories.items.length} move={(from, to) => move(data.categories.items, from, to, (items) => update("categories", { ...data.categories, items }))} /></div>
+          <div className="mb-4 border border-border bg-background p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold">Rotating category photos</p>
+                <p className="mt-1 text-xs text-muted-foreground">{images.length >= 2 ? `${images.length} photos · Crossfade active` : "Add a second photo to activate Crossfade."}</p>
+              </div>
+              <label className={`inline-flex min-h-9 cursor-pointer items-center gap-2 border border-primary px-3 text-[10px] font-semibold uppercase tracking-wider text-primary ${images.length >= 4 ? "pointer-events-none opacity-40" : ""}`}>
+                <ImageUp size={13} /> {uploadingCategory === index ? "Uploading…" : "Upload photo"}
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={uploadingCategory !== null || images.length >= 4}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.currentTarget.value = "";
+                    if (!file) return;
+                    setUploadingCategory(index);
+                    setMediaStatus("");
+                    void onUploadMedia(file)
+                      .then((path) => {
+                        if (images.includes(path)) {
+                          setMediaStatus("That photo is already in this category.");
+                          return;
+                        }
+                        commitImages([...images, path]);
+                        setMediaStatus(`${item.title}: photo uploaded and added to the rotation.`);
+                      })
+                      .catch((error: unknown) => setMediaStatus(error instanceof Error ? error.message : "Photo upload failed."))
+                      .finally(() => setUploadingCategory(null));
+                  }}
+                />
+              </label>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {images.map((path, imageIndex) => <div key={`${path}-${imageIndex}`} className="border border-border bg-muted/10 p-2">
+                <div className="aspect-[3/4] overflow-hidden bg-muted">
+                  <img src={path} alt="" className="h-full w-full object-cover" />
+                </div>
+                <p className="mt-2 truncate text-[10px] text-muted-foreground" title={path}>{path}</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    disabled={item.imageUrl === path}
+                    onClick={() => {
+                      const items = [...data.categories.items];
+                      items[index] = { ...item, imageUrl: path };
+                      update("categories", { ...data.categories, items });
+                    }}
+                    className="inline-flex min-h-8 items-center gap-1 border border-border px-2 text-[9px] font-semibold uppercase disabled:border-primary disabled:text-primary"
+                  >
+                    <Star size={11} /> {item.imageUrl === path ? "Fallback" : "Set fallback"}
+                  </button>
+                  <MoveButtons index={imageIndex} length={images.length} move={(from, to) => move(images, from, to, commitImages)} />
+                  <button
+                    type="button"
+                    aria-label={`Remove photo ${imageIndex + 1} from ${item.title}`}
+                    disabled={images.length === 1}
+                    onClick={() => commitImages(images.filter((_, candidateIndex) => candidateIndex !== imageIndex))}
+                    className="inline-flex min-h-8 items-center gap-1 border border-border px-2 text-[9px] font-semibold uppercase disabled:opacity-30"
+                  >
+                    <Trash2 size={11} /> Remove
+                  </button>
+                </div>
+              </div>)}
+            </div>
+            {mediaStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{mediaStatus}</p>}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {(["eyebrow", "title", "imageUrl", "imageAlt", "href"] as const).map((key) => <Field key={key} label={key} value={item[key]} onChange={(value) => {
+            {(["eyebrow", "title", "description", "imageUrl", "imageAlt", "href", "desktopCropPosition", "mobileCropPosition"] as const).map((key) => <Field key={key} label={key} value={item[key] ?? ""} onChange={(value) => {
               const items = [...data.categories.items]; items[index] = { ...item, [key]: value }; update("categories", { ...data.categories, items });
             }} />)}
+            <label className={labelClass}>Mobile Image URLs (comma separated)
+              <input className={inputClass} value={item.mobileImageUrls?.join(", ") || ""} onChange={(event) => {
+                const items = [...data.categories.items];
+                items[index] = { ...item, mobileImageUrls: event.target.value ? event.target.value.split(",").map((value) => value.trim()).filter(Boolean) : [] };
+                update("categories", { ...data.categories, items });
+              }} />
+            </label>
+            <label className={labelClass}>Image behaviour<select className={inputClass} value={item.imageMode ?? "static"} onChange={(event) => {
+              const items = [...data.categories.items]; items[index] = { ...item, imageMode: event.target.value as "static" | "crossfade" }; update("categories", { ...data.categories, items });
+            }}><option value="static">Static</option><option value="crossfade">Crossfade</option></select></label>
+            <label className={labelClass}>Rotation timing (milliseconds)<input type="number" min="3000" max="15000" className={inputClass} value={item.rotationMs ?? 5000} onChange={(event) => {
+              const items = [...data.categories.items]; items[index] = { ...item, rotationMs: Number(event.target.value) }; update("categories", { ...data.categories, items });
+            }} /></label>
+            <label className={`${labelClass} flex items-center gap-2 pt-5`}><input type="checkbox" checked={item.active !== false} onChange={(event) => {
+              const items = [...data.categories.items]; items[index] = { ...item, active: event.target.checked }; update("categories", { ...data.categories, items });
+            }} />Active on homepage</label>
           </div>
-        </div>)}
+        </div>;
+        })}
       </div>
     </section>
 

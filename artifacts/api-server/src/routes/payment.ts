@@ -43,6 +43,7 @@ import {
   shouldActivateMeasurements,
   validateMeasurementValues,
 } from "../lib/measurements";
+import { readPublishedPlatformContent } from "../lib/platform-content";
 
 const router: IRouter = Router();
 const OWNERSHIP_COOKIE = "soso_checkout_owner";
@@ -66,6 +67,10 @@ type CheckoutItem = {
   displayName?: string;
   displaySlug?: string;
   selectedSize?: string;
+  selectedColourId: string;
+  selectedColourLabel?: string;
+  selectedColourHex?: string;
+  customColour?: string;
   unitPriceKobo?: number;
 };
 
@@ -158,7 +163,15 @@ function checkoutBody(value: unknown): CheckoutBody | null {
     const productId = stringValue(item.productId, 64);
     const variantId = stringValue(item.variantId, 64);
     const quantity = item.quantity;
-    if (!isUuid(productId) || (variantId && !isUuid(variantId)) || !Number.isInteger(quantity) || typeof quantity !== "number" || quantity < 1 || quantity > 100) return null;
+    const selectedColourId = stringValue(item.selectedColourId, 64);
+    const selectedColourLabel = stringValue(item.selectedColourLabel, 80);
+    const selectedColourHex = stringValue(item.selectedColourHex, 7);
+    const customColour = stringValue(item.customColour, 200);
+    if (!isUuid(productId) || (variantId && !isUuid(variantId)) || !Number.isInteger(quantity) || typeof quantity !== "number" || quantity < 1 || quantity > 100
+      || !selectedColourId || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(selectedColourId)
+      || (selectedColourId === "custom"
+        ? (!customColour || selectedColourLabel !== undefined || selectedColourHex !== undefined)
+        : (!selectedColourLabel || !selectedColourHex || !/^#[0-9A-Fa-f]{6}$/.test(selectedColourHex) || customColour !== undefined))) return null;
     items.push({
       productId,
       variantId,
@@ -166,6 +179,10 @@ function checkoutBody(value: unknown): CheckoutBody | null {
       displayName: stringValue(item.displayName, 200),
       displaySlug: stringValue(item.displaySlug, 160),
       selectedSize: stringValue(item.selectedSize, 80),
+      selectedColourId,
+      ...(selectedColourLabel ? { selectedColourLabel } : {}),
+      ...(selectedColourHex ? { selectedColourHex: selectedColourHex.toUpperCase() } : {}),
+      ...(customColour ? { customColour } : {}),
     });
   }
   const locationId = stringValue(fulfillment.locationId, 64);
@@ -208,6 +225,7 @@ async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promi
     const status = remoteStatus(order);
     let localOrderId = attempt.localOrderId;
     if (!localOrderId) {
+      const items = attempt.items as CheckoutItem[];
       const [created] = await tx.insert(ordersTable).values({
         orderNumber: order.number,
         customerName: attempt.customerName,
@@ -223,7 +241,6 @@ async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promi
         deliveryNotes: JSON.stringify(attempt.fulfillment),
       }).returning({ id: ordersTable.id });
       localOrderId = created!.id;
-      const items = attempt.items as CheckoutItem[];
       if (items.some(({ unitPriceKobo }) => !Number.isInteger(unitPriceKobo) || unitPriceKobo! < 0)) {
         throw new Error("Authoritative checkout item pricing is unavailable for this order.");
       }
@@ -236,6 +253,10 @@ async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promi
         productName: item.displayName ?? item.productId,
         selectionType: selectionType(item.selectedSize),
         selectedSize: item.selectedSize ?? null,
+        selectedColourId: item.selectedColourId,
+        selectedColourLabel: item.selectedColourLabel ?? null,
+        selectedColourHex: item.selectedColourHex ?? null,
+        customColour: item.customColour ?? null,
         quantity: item.quantity,
         unitPrice: toNaira(item.unitPriceKobo!),
       })));
@@ -376,7 +397,8 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
 
   const requestHash = hash(JSON.stringify({
     customer: body.customer,
-    items: body.items.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity })),
+    items: body.items.map(({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour }) =>
+      ({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour })),
     fulfillment: body.fulfillment,
     notes: body.notes ?? "",
   }));
@@ -398,7 +420,12 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
     let authoritativeItems: CheckoutItem[];
     try {
       const catalog = await new JusticeSureCommerceClient(config).listProducts();
-      const resolved = resolveAuthoritativeCheckoutItems(body.items, catalog);
+      const storefront = await readPublishedPlatformContent();
+      if (!storefront) {
+        res.status(503).json({ error: "Published product options are unavailable. No payment has been taken.", noPaymentTaken: true });
+        return;
+      }
+      const resolved = resolveAuthoritativeCheckoutItems(body.items, catalog, storefront.products);
       if (!resolved) {
         res.status(400).json({ error: "A selected product or size is no longer available for secure checkout." });
         return;

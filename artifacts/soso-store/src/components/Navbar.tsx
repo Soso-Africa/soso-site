@@ -4,25 +4,9 @@ import { useCart } from "@/context/CartContext";
 import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/data/platformContent";
 import { ChevronDown } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
+import { BrandLockup } from "./BrandLockup";
 
 const isGlobalWhatsAppControl = (href: string) => /(?:wa\.me|whatsapp)/i.test(href);
-
-function BrandLockup({
-  logoUrl,
-  wordmarkClassName,
-}: {
-  logoUrl: string;
-  wordmarkClassName: string;
-}) {
-  return (
-    <span className="flex flex-col items-center justify-center gap-0.5" aria-hidden="true">
-      <img src={logoUrl} alt="" className="h-7 w-7 object-contain md:h-8 md:w-8" />
-      <span className={`soso-display text-[10px] font-semibold leading-none tracking-[0.3em] ${wordmarkClassName}`}>
-        SOSO
-      </span>
-    </span>
-  );
-}
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -294,10 +278,7 @@ export function Navbar() {
           className="flex items-center justify-center transition-opacity duration-300 hover:opacity-70 md:absolute md:left-1/2 md:-translate-x-1/2"
           data-testid="link-header-home"
         >
-          <BrandLockup
-            logoUrl={site.logoUrl}
-            wordmarkClassName={isTransparent ? "text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.65)]" : "text-foreground"}
-          />
+          <BrandLockup variant={isTransparent ? "white" : "black"} />
         </Link>
         
         <div className="flex items-center gap-4 md:gap-6">
@@ -307,7 +288,7 @@ export function Navbar() {
             className={`flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase transition-colors duration-300 relative ${headerControlClass}`}
             aria-label={site.header.openCartLabel}
           >
-            <span className="hidden sm:inline font-medium">{site.header.cartLabel}</span>
+            <span className="hidden sm:inline font-medium">{site.header.cartLabel.replace(/bag/i, 'Cart')}</span>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
               <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -333,7 +314,7 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
               data-testid="link-mobile-menu-home"
             >
-              <BrandLockup logoUrl={site.logoUrl} wordmarkClassName="text-foreground" />
+              <BrandLockup variant="black" />
             </Link>
             <button type="button" aria-label={site.header.closeMenuLabel} className="text-foreground p-2 -mr-2 opacity-70 hover:opacity-100 transition-opacity" onClick={() => setMobileMenuOpen(false)}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

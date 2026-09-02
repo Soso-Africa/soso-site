@@ -530,9 +530,27 @@ function PlatformContentManagementSection() {
           ...(content?.products.map((product) => `/product/${product.slug}`) ?? []),
           ...(content?.collections.map((collection) => `/collections/${collection.slug}`) ?? []),
         ];
-        structuredEditor = <PlatformEditorHomepage data={parsed as PlatformContent["homepage"]} products={content?.products ?? []} allowedTargets={allowedTargets} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+        structuredEditor = <PlatformEditorHomepage
+          data={parsed as PlatformContent["homepage"]}
+          products={content?.products ?? []}
+          allowedTargets={allowedTargets}
+          onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+          onUploadMedia={async (file) => {
+            const path = await uploadStaffMedia(file);
+            setStatus("Category photo uploaded and added to the draft. Save the draft, review it, then publish.");
+            return path;
+          }}
+        />;
       } else if (section === "catalogue") {
-        structuredEditor = <PlatformEditorCatalogue data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy" | "interfaceCopy">} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+        structuredEditor = <PlatformEditorCatalogue
+          data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy" | "interfaceCopy">}
+          onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+          onUploadMedia={async (file) => {
+            const path = await uploadStaffMedia(file);
+            setStatus("Catalogue asset uploaded and added to the draft. Save the draft to keep it.");
+            return path;
+          }}
+        />;
       } else if (section === "pages") {
         structuredEditor = <PlatformEditorPages data={parsed as PlatformContent["pages"]} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
       }
@@ -837,7 +855,7 @@ function OrderRow({ order, canRefund, onChanged, readOnly, canManageMeasurements
                       {item.selectionType}
                     </span>
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">Line {item.lineNumber} {item.selectedSize ? `— Size: ${item.selectedSize}` : ""}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Line {item.lineNumber} {item.selectedSize ? `— Size: ${item.selectedSize}` : ""}{item.customColour ? ` · Colour: ${item.customColour}` : item.selectedColourLabel ? ` · Colour: ${item.selectedColourLabel}${item.selectedColourHex ? ` (${item.selectedColourHex})` : ""}` : ""}</p>
                 </div>
               </div>
 

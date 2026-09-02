@@ -28,6 +28,10 @@ export type CheckoutSelectionInput = {
   variantId?: string;
   quantity: number;
   displaySlug?: string;
+  selectedColourId: string;
+  selectedColourLabel?: string;
+  selectedColourHex?: string;
+  customColour?: string;
 };
 
 export type AuthoritativeCatalogProduct = {
@@ -43,6 +47,14 @@ export type AuthoritativeCheckoutItem = CheckoutSelectionInput & {
   displayName: string;
   selectedSize: string;
   unitPriceKobo: number;
+};
+
+export type AuthoritativeStorefrontProduct = {
+  slug: string;
+  commerceProductId?: string;
+  commerceVariantIds?: Record<string, string>;
+  colourOptions: Array<{ id: string; label: string; hex: string }>;
+  allowCustomColour: boolean;
 };
 
 const centimeterBounds: Record<keyof MeasurementValues, readonly [number, number]> = {
@@ -79,6 +91,7 @@ export function reconciledOrderStatus(
 export function resolveAuthoritativeCheckoutItems(
   items: CheckoutSelectionInput[],
   catalog: AuthoritativeCatalogProduct[],
+  storefrontProducts?: AuthoritativeStorefrontProduct[],
 ): AuthoritativeCheckoutItem[] | null {
   const resolved: AuthoritativeCheckoutItem[] = [];
   for (const item of items) {
@@ -89,8 +102,22 @@ export function resolveAuthoritativeCheckoutItems(
     }
     const label = variant.label.trim();
     if (!label) return null;
+    const storefrontProduct = storefrontProducts?.find(({ commerceProductId }) => commerceProductId === item.productId);
+    if (storefrontProducts) {
+      const mappedVariantId = storefrontProduct?.commerceVariantIds?.[label.toLowerCase() === "custom" ? "Custom" : label];
+      const isCustom = item.selectedColourId === "custom";
+      const selectedColour = storefrontProduct?.colourOptions.find(({ id }) => id === item.selectedColourId);
+      const validColour = isCustom
+        ? Boolean(storefrontProduct?.allowCustomColour && item.customColour?.trim())
+        : Boolean(selectedColour && !item.customColour && selectedColour.label === item.selectedColourLabel
+          && selectedColour.hex.toUpperCase() === item.selectedColourHex?.toUpperCase());
+      if (!storefrontProduct || mappedVariantId !== variant.id || !validColour) {
+        return null;
+      }
+    }
     resolved.push({
       ...item,
+      ...(storefrontProduct ? { displaySlug: storefrontProduct.slug } : {}),
       variantId: variant.id,
       displayName: product.name,
       selectedSize: label.toLowerCase() === "custom" ? "Custom" : label,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RequestUploadUrlBody } from "@workspace/api-zod";
-import { isAnimatedImage } from "../lib/media-files";
+import { imageDimensions, isAnimatedImage } from "../lib/media-files";
 import {
   cloudinaryDeliveryUrlForPath,
   createCloudinarySignature,
@@ -34,6 +34,21 @@ test("stored media detection accepts only approved image and video signatures", 
   assert.equal(detectMediaContentType(Buffer.from([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42])), null);
   assert.equal(detectMediaContentType(Buffer.from("<script>alert(1)</script>", "utf8")), null);
   assert.equal(detectMediaContentType(Buffer.from("<svg onload=alert(1)>", "utf8")), null);
+});
+
+test("stored image dimensions are read from governed PNG and WebP headers", () => {
+  const png = Buffer.alloc(24);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(png);
+  png.writeUInt32BE(1200, 16);
+  png.writeUInt32BE(1600, 20);
+  assert.deepEqual(imageDimensions(png, "image/png"), { width: 1200, height: 1600 });
+
+  const webp = Buffer.alloc(30);
+  Buffer.from("RIFF", "ascii").copy(webp, 0);
+  Buffer.from("WEBPVP8X", "ascii").copy(webp, 8);
+  webp.writeUIntLE(799, 24, 3);
+  webp.writeUIntLE(999, 27, 3);
+  assert.deepEqual(imageDimensions(webp, "image/webp"), { width: 800, height: 1000 });
 });
 
 test("video byte ranges support bounded, open-ended, and suffix requests", () => {
