@@ -23,6 +23,20 @@ export type CatalogProduct = {
     alt: string;
     provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
   }[];
+  materialTurnSets?: {
+    id: string;
+    label: string;
+    front: {
+      src: string;
+      alt: string;
+      provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
+    };
+    back: {
+      src: string;
+      alt: string;
+      provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
+    };
+  }[];
   price: number;
   tag: string;
   note: string;
@@ -35,6 +49,14 @@ export type CatalogProduct = {
   commerceProductId?: string;
   commerceVariantIds?: Record<string, string>;
   colour: string;
+  colourOptions: {
+    id: string;
+    label: string;
+    hex: string;
+    previewImageSrc?: string;
+  }[];
+  allowCustomColour: boolean;
+  colourVisualizer?: { baseImageSrc: string; garmentMaskSrc: string };
   fabric: string;
   fit: string;
   searchableTerms: string[];
@@ -62,7 +84,11 @@ export type PlatformCollection = {
 };
 export type FaqItem = { id: string; category: string; question: string; answer: string };
 export type CopyItem = { title: string; body: string; imageUrl?: string; href?: string; linkLabel?: string };
-export type HomepageCategoryTile = { eyebrow: string; title: string; imageUrl: string; imageAlt: string; href: string };
+export type HomepageCategoryTile = {
+  eyebrow: string; title: string; description: string; imageUrl: string; imageUrls?: string[];
+  mobileImageUrls?: string[]; imageAlt: string; href: string; desktopCropPosition?: string;
+  mobileCropPosition?: string; active?: boolean; imageMode?: "static" | "crossfade"; rotationMs?: number;
+};
 export type HomepageOccasion = { title: string; body: string; imageUrl: string; imageAlt: string; href: string; linkLabel: string };
 export type PlatformContent = {
   contentVersion: number;
@@ -115,7 +141,7 @@ export type PlatformContent = {
       mediaMode: "image" | "video";
       imageUrl: string; mobileImageUrl: string; imageAlt: string;
       videoUrl?: string; mobileVideoUrl?: string; playLabel: string; pauseLabel: string;
-      primaryCta: ContentLink; stylistCtaLabel: string;
+      primaryCta: ContentLink; campaignCta?: { enabled: boolean; label: string; href: string; startsAt: string; endsAt: string }; stylistCtaLabel: string;
       assurances: string[];
     };
     trustItems: CopyItem[];

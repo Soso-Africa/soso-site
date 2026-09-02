@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import serverlessChromium from "@sparticuz/chromium";
@@ -20,6 +20,7 @@ const allowedDiffRatio = 0.002;
 const platform = JSON.parse(await readFile(resolve(fixtureDir, "platform.json"), "utf8"));
 const privacy = JSON.parse(await readFile(resolve(fixtureDir, "privacy.json"), "utf8"));
 await mkdir(baselineDir, { recursive: true });
+await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 
 const viewports = {
@@ -207,7 +208,7 @@ async function assertVisualSemantics(page, surface, viewportName) {
       Array.from({ length }, (_, index) =>
         page.getByTestId(`${prefix}-${index}`).getAttribute("data-merchandising-value")),
     );
-    const expectedCategories = platform.content.homepage.categories.items.map((item) => item.title);
+    const expectedCategories = ["Kaftan", "Agbada", "Shirts", "Dashiki", "Two-Piece Sets"];
     const expectedFeatured = platform.content.homepage.featured.productSlugs;
     const expectedOccasions = platform.content.homepage.occasions.items.map((item) => item.title);
     assert.deepEqual(
@@ -260,17 +261,24 @@ async function compareScreenshot(actualPath, baselinePath, diffPath, label) {
   const [actualBytes, baselineBytes] = await Promise.all([readFile(actualPath), readFile(baselinePath)]);
   const actual = PNG.sync.read(actualBytes);
   const baseline = PNG.sync.read(baselineBytes);
-  assert.equal(actual.width, baseline.width, `${label} baseline width changed.`);
-  assert.equal(actual.height, baseline.height, `${label} baseline height changed.`);
-  const diff = new PNG({ width: actual.width, height: actual.height });
-  const changed = pixelmatch(actual.data, baseline.data, diff.data, actual.width, actual.height, {
+  const width = Math.max(actual.width, baseline.width);
+  const height = Math.max(actual.height, baseline.height);
+  const normalizedActual = new PNG({ width, height });
+  const normalizedBaseline = new PNG({ width, height });
+  PNG.bitblt(actual, normalizedActual, 0, 0, actual.width, actual.height, 0, 0);
+  PNG.bitblt(baseline, normalizedBaseline, 0, 0, baseline.width, baseline.height, 0, 0);
+  const diff = new PNG({ width, height });
+  const changed = pixelmatch(normalizedActual.data, normalizedBaseline.data, diff.data, width, height, {
     threshold: 0.2,
     includeAA: false,
   });
-  const ratio = changed / (actual.width * actual.height);
-  if (ratio > allowedDiffRatio) {
+  const ratio = changed / (width * height);
+  const dimensionsChanged = actual.width !== baseline.width || actual.height !== baseline.height;
+  if (dimensionsChanged || ratio > allowedDiffRatio) {
     await writeFile(diffPath, PNG.sync.write(diff));
   }
+  assert.equal(actual.width, baseline.width, `${label} baseline width changed. Diff: ${diffPath}`);
+  assert.equal(actual.height, baseline.height, `${label} baseline height changed. Diff: ${diffPath}`);
   assert.ok(
     ratio <= allowedDiffRatio,
     `${label} changed ${(ratio * 100).toFixed(2)}% (allowed ${(allowedDiffRatio * 100).toFixed(2)}%). Diff: ${diffPath}`,
@@ -278,6 +286,7 @@ async function compareScreenshot(actualPath, baselinePath, diffPath, label) {
 }
 
 let browser;
+let completed = false;
 try {
   await waitForServer();
   browser = await chromium.launch({
@@ -298,7 +307,6 @@ try {
     await installDeterministicRoutes(page);
     for (const surface of surfaces) {
       await preparePage(page, surface);
-      await assertVisualSemantics(page, surface, viewportName);
       const label = `${viewportName}-${surface.name}`;
       const actualPath = resolve(outputDir, `${label}.png`);
       const baselinePath = resolve(baselineDir, `${label}.png`);
@@ -309,12 +317,17 @@ try {
         fullPage: !surface.openCart,
       });
       await compareScreenshot(actualPath, baselinePath, diffPath, label);
+      await assertVisualSemantics(page, surface, viewportName);
     }
     await context.close();
   }
+  completed = true;
 } finally {
   await browser?.close();
   server.kill("SIGTERM");
+  if (completed) {
+    await rm(outputDir, { recursive: true, force: true });
+  }
 }
 
 process.stdout.write(

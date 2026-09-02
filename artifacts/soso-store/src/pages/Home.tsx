@@ -7,6 +7,11 @@ import { indexingEnabled } from "@/lib/seo";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 import { ProductCard } from "@/components/ProductCard";
 import { HomeHeroMedia } from "@/components/HomeHeroMedia";
+import { CategoryFeature } from "@/components/CategoryFeature";
+import { HomeJournalPreview } from "@/components/HomeJournalPreview";
+import { trackStorefrontEvent } from "@/components/ConsentManager";
+
+const canonicalCategoryTargets = ["/collections/kaftans", "/collections/agbadas", "/collections/shirts", "/collections/dashikis", "/collections/two-piece"];
 
 export default function Home() {
   const [stylistOpen, setStylistOpen] = useState(false);
@@ -14,10 +19,19 @@ export default function Home() {
   const platformStateCopy = platform.data?.content.site.platformState;
   if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
   const { homepage, products, site } = platform.data.content;
-  const featured = homepage.featured.productSlugs
+  const configuredFeatured = homepage.featured.productSlugs
     .map((slug) => products.find((product) => product.slug === slug))
-    .filter((product): product is NonNullable<typeof product> => Boolean(product));
-  const newArrival = products.find((product) => product.slug === homepage.newArrival.productSlug);
+    .filter((product): product is (typeof products)[number] => product !== undefined && product.fulfilmentState !== "unavailable");
+  const featured = [...configuredFeatured, ...products
+    .filter((product) => product.fulfilmentState !== "unavailable")
+    .sort((left, right) => Number(right.merchandising.isNew) - Number(left.merchandising.isNew) || left.merchandising.sortPriority - right.merchandising.sortPriority)]
+    .filter((product, index, all) => all.findIndex((candidate) => candidate.slug === product.slug) === index)
+    .slice(0, 4);
+  const campaign = homepage.hero.campaignCta;
+  const now = Date.now();
+  const heroCta = campaign?.enabled && Date.parse(campaign.startsAt) <= now && now < Date.parse(campaign.endsAt)
+    ? campaign
+    : homepage.hero.primaryCta;
 
   return <div className="flex flex-col bg-background">
     <Seo title={homepage.seo.title} description={homepage.seo.description} noIndex={!indexingEnabled} />
@@ -32,90 +46,53 @@ export default function Home() {
       </div>
       <div className="relative z-10 mx-auto flex w-full max-w-7xl justify-center px-6 text-center lg:px-12">
         <Link
-          href={homepage.hero.primaryCta.href}
+          href={heroCta.href}
+          onClick={() => trackStorefrontEvent("cta_clicked", { placement: "homepage_hero", action: "primary_click", campaign: campaign === heroCta })}
           className="soso-btn-gold inline-flex bg-background px-12 py-5 text-[13px] font-bold uppercase tracking-[0.2em] text-foreground shadow-lg transition-colors hover:bg-foreground hover:text-background"
           data-testid="link-home-hero-primary"
         >
-          {homepage.hero.primaryCta.label}
+          {heroCta.label}
         </Link>
       </div>
     </section>
 
-    {/* 2. Four-column product categories */}
-    <section className="bg-background py-2" aria-label={homepage.categories.accessibleLabel}>
-      <div className="max-w-[2000px] mx-auto px-2">
-        <h2 className="soso-display px-4 py-8 text-center text-3xl text-foreground md:py-10 md:text-4xl">{homepage.categories.heading}</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {homepage.categories.items.map((item, index) => (
-            <Link key={item.title} href={item.href} className="group relative block overflow-hidden aspect-[3/4] md:aspect-[4/5]" data-testid={`home-category-${index}`} data-merchandising-value={item.title}>
-              <img src={item.imageUrl} alt={item.imageAlt} className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
-              <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/80">{item.eyebrow}</p>
-                <h3 className="soso-display text-2xl md:text-3xl text-white drop-shadow-md tracking-wide mb-4">{item.title}</h3>
-                <span className="category-card-cta inline-block bg-background text-foreground px-6 py-3 text-[11px] font-bold uppercase tracking-[0.15em] border border-transparent hover:border-foreground shadow-sm">
-                  {homepage.categories.ctaLabel}
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    {/* 3. New arrival paired with motion-ready editorial media */}
-    <section className="my-16 md:my-32 max-w-[1600px] mx-auto px-4 md:px-6">
-      <div className="mb-8 flex items-end justify-between gap-6 md:mb-12">
-        <div>
-          <p className="mb-3 text-[11px] uppercase tracking-[0.3em] text-secondary">{homepage.newArrival.eyebrow}</p>
-          <h2 className="soso-display text-4xl leading-tight text-foreground md:text-5xl">{homepage.newArrival.title}</h2>
-        </div>
-        <Link href={homepage.newArrival.link.href} className="hidden text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground underline underline-offset-8 transition-colors hover:text-secondary sm:block">
-          {homepage.newArrival.link.label}
-        </Link>
-      </div>
-      <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-6">
-        {newArrival && (
-          <article className="min-w-0" data-testid="home-new-arrival" data-merchandising-value={newArrival.slug}>
-            <ProductCard product={newArrival} testIdPrefix="home-new-arrival" />
-          </article>
-        )}
-        <div className="relative aspect-[3/4] overflow-hidden bg-muted/20 lg:aspect-auto lg:h-full lg:min-h-[720px]">
-          <HomeHeroMedia
-            hero={{
-              ...homepage.hero,
-              mediaMode: "image",
-              imageUrl: homepage.newArrival.editorial.imageUrl,
-              mobileImageUrl: homepage.newArrival.editorial.imageUrl,
-              imageAlt: homepage.newArrival.editorial.imageAlt,
-              videoUrl: undefined,
-              mobileVideoUrl: undefined,
-            }}
+    {/* 2. Five alternating category destinations */}
+    <div aria-label="Shop SOSO Categories">
+      {canonicalCategoryTargets.map((target) => homepage.categories.items.find((item) => item.href === target)).filter((item): item is NonNullable<typeof item> => Boolean(item) && item?.active !== false).map((item, index) => {
+        return (
+          <CategoryFeature
+            key={item.href}
+            categoryName={item.title}
+            eyebrow={item.eyebrow}
+            images={item.imageUrls?.length ? item.imageUrls : [item.imageUrl]}
+            mobileImages={item.mobileImageUrls}
+            description={item.description}
+            imageAlt={item.imageAlt}
+            href={item.href}
+            isEven={index % 2 === 0}
+            testId={`home-category-${index}`}
+            desktopCropPosition={item.desktopCropPosition}
+            mobileCropPosition={item.mobileCropPosition}
+            imageMode={item.imageMode}
+            rotationMs={item.rotationMs}
+            eager={index === 0}
           />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center px-6 pb-10 text-center text-white md:pb-14">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.28em] text-white/80">{homepage.newArrival.editorial.eyebrow}</p>
-            <h3 className="soso-display mb-3 max-w-lg text-3xl leading-tight md:text-4xl">{homepage.newArrival.editorial.title}</h3>
-            <p className="mb-6 max-w-lg text-sm leading-relaxed text-white/90">{homepage.newArrival.editorial.body}</p>
-            <Link href={homepage.newArrival.editorial.link.href} className="bg-white px-8 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-foreground transition-colors hover:bg-foreground hover:text-white">
-              {homepage.newArrival.editorial.link.label}
-            </Link>
-          </div>
-        </div>
-        <Link href={homepage.newArrival.link.href} className="mt-4 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground underline underline-offset-8 sm:hidden">
-          {homepage.newArrival.link.label}
-        </Link>
-      </div>
-    </section>
+        );
+      })}
+    </div>
 
-    {/* 4. Four Individual Shoppable Pieces */}
-    <section className="mb-16 md:mb-32 max-w-[1600px] mx-auto px-4 md:px-6">
+    {/* 3. New Arrivals product grid */}
+    <section
+      className="my-16 md:my-32 max-w-[1600px] mx-auto px-4 md:px-6"
+      data-testid="home-new-arrival"
+      data-merchandising-value={homepage.newArrival.productSlug}
+    >
       <div className="mb-10 flex items-end justify-between gap-6">
         <div>
-          {homepage.featured.eyebrow && <p className="mb-3 text-[11px] uppercase tracking-[0.3em] text-secondary">{homepage.featured.eyebrow}</p>}
-          <h2 className="soso-display text-4xl text-foreground md:text-5xl">{homepage.featured.title}</h2>
+          <p className="mb-3 text-[11px] uppercase tracking-[0.3em] text-secondary">The Collection</p>
+          <h2 className="soso-display text-4xl text-foreground md:text-5xl">New Arrivals</h2>
         </div>
-        <Link href={homepage.featured.link.href} className="text-[11px] font-semibold uppercase tracking-[0.2em] underline underline-offset-8">{homepage.featured.link.label}</Link>
+        <Link href={homepage.newArrival.link.href} className="text-[11px] font-semibold uppercase tracking-[0.2em] underline underline-offset-8">{homepage.newArrival.link.label}</Link>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {featured.map((product, index) => (
@@ -128,7 +105,7 @@ export default function Home() {
       </div>
     </section>
 
-    {/* 5. Two-column occasion categories */}
+    {/* 4. Two-column occasion categories */}
     <section className="my-16 px-2 md:my-32" aria-labelledby="home-occasion-heading">
       <div className="mb-10 text-center md:mb-14">
         <p className="mb-3 text-[11px] uppercase tracking-[0.3em] text-secondary">{homepage.occasions.eyebrow}</p>
@@ -204,6 +181,8 @@ export default function Home() {
         </div>
       </div>
     </section>
+
+    <HomeJournalPreview />
 
     {/* 9. Final CTA */}
     <section className="py-24 md:py-40 bg-background text-center">

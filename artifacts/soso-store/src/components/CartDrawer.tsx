@@ -62,12 +62,12 @@ export function CartDrawer() {
     <>
       {isDrawerOpen && (
         <>
-      <div 
+      <div
         className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity"
         onClick={closeDrawer}
         aria-hidden="true"
       />
-      <div 
+      <div
         ref={drawerRef}
         role="dialog"
         aria-modal="true"
@@ -83,8 +83,8 @@ export function CartDrawer() {
         className="fixed inset-y-0 right-0 z-[101] w-full max-w-[400px] flex flex-col shadow-2xl animate-in slide-in-from-right-full duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] bg-background text-foreground border-l border-border"
       >
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 id="cart-drawer-title" className="soso-display text-2xl font-light">{copy.title}</h2>
-          <button 
+          <h2 id="cart-drawer-title" className="soso-display text-2xl font-normal">{copy.title.replace(/bag/i, 'Cart')}</h2>
+          <button
             onClick={closeDrawer}
             data-cart-initial-focus
             className="text-3xl opacity-60 hover:opacity-100 transition-opacity"
@@ -97,8 +97,8 @@ export function CartDrawer() {
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-60 space-y-4">
-               <p className="soso-display text-xl">{copy.emptyMessage}</p>
-              <button 
+               <p className="soso-display text-xl">{copy.emptyMessage.replace(/bag/i, 'cart')}</p>
+              <button
                 onClick={closeDrawer}
                 className="text-[11px] tracking-[0.2em] uppercase"
                 style={{ color: "hsl(var(--primary))" }}
@@ -115,11 +115,11 @@ export function CartDrawer() {
                 : [item.size, ...mappedSizes];
 
               return (
-              <div key={`${item.slug}-${item.size}`} className="flex gap-4">
+              <div key={`${item.slug}-${item.size}-${item.selectedColourId}-${item.customColour ?? ""}`} className="flex gap-4">
                 <Link href={`/product/${item.slug}`} onClick={closeDrawer}>
-                  <img 
-                    src={item.img} 
-                    alt={item.name} 
+                  <img
+                    src={item.img}
+                    alt={item.name}
                     className="w-24 aspect-[3/4] cursor-pointer bg-muted object-cover transition-opacity hover:opacity-90"
                      width={96}
                      height={128}
@@ -127,6 +127,10 @@ export function CartDrawer() {
                      decoding="async"
                   />
                 </Link>
+                       <div className="flex items-center gap-2 mt-1">
+                         <span className="w-3 h-3 rounded-full border border-black/10 inline-block" style={{ backgroundColor: item.customColour ? 'transparent' : item.selectedColourHex }} />
+                         <p className="text-[12px] opacity-70">{item.customColour ?? item.selectedColourLabel ?? "Custom colour"}</p>
+                       </div>
                 <div className="flex-1 flex flex-col">
                   <div className="flex justify-between items-start">
                     <div>
@@ -141,7 +145,7 @@ export function CartDrawer() {
                              const newSize = e.target.value;
                              const variantId = product?.commerceVariantIds?.[newSize];
                               if (!variantId || !mappedSizes.includes(newSize)) return;
-                             updateSize(item.slug, item.size, newSize, variantId);
+                             updateSize(item.slug, item.size, newSize, variantId, item.selectedColourId, item.customColour);
                            }}
                            className="bg-transparent text-[12px] opacity-70 uppercase tracking-widest outline-none cursor-pointer hover:text-primary border-b border-transparent hover:border-primary pb-0.5"
                             aria-label={copy.changeSizeLabel}
@@ -170,26 +174,26 @@ export function CartDrawer() {
                           </p>
                         )}
                     </div>
-                    <button 
-                      onClick={() => removeItem(item.slug, item.size)}
+                    <button
+                      onClick={() => removeItem(item.slug, item.size, item.selectedColourId, item.customColour)}
                       className="text-xs opacity-50 hover:opacity-100 underline underline-offset-2"
                     >
                        {copy.removeLabel}
                     </button>
                   </div>
-                  
+
                   <div className="mt-auto flex items-center justify-between">
                     <div className="flex items-center border" style={{ borderColor: "hsl(var(--border))" }}>
-                      <button 
-                        onClick={() => updateQuantity(item.slug, item.size, item.quantity - 1)}
+                      <button
+                        onClick={() => updateQuantity(item.slug, item.size, item.selectedColourId, item.quantity - 1, item.customColour)}
                         className="flex h-8 w-8 items-center justify-center transition-colors hover:bg-muted"
                          aria-label={copy.decreaseQuantityLabel}
                       >
                         &minus;
                       </button>
                        <span className="w-8 text-center text-sm" aria-label={copy.quantityLabel}>{item.quantity}</span>
-                      <button 
-                        onClick={() => updateQuantity(item.slug, item.size, item.quantity + 1)}
+                      <button
+                        onClick={() => updateQuantity(item.slug, item.size, item.selectedColourId, item.quantity + 1, item.customColour)}
                         className="flex h-8 w-8 items-center justify-center transition-colors hover:bg-muted"
                          aria-label={copy.increaseQuantityLabel}
                       >

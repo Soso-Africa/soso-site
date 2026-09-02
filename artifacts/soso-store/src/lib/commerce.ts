@@ -108,6 +108,8 @@ export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
     commerceProductId: product.id,
     commerceVariantIds,
     colour: "Not specified",
+    colourOptions: [{ id: "not-specified", label: "Not specified", hex: "#777777" }],
+    allowCustomColour: false,
     fabric: "Not specified",
     fit: "Standard",
     searchableTerms: [],
@@ -170,6 +172,10 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
           displayName: item.name,
           displaySlug: item.slug,
           selectedSize: item.size,
+          selectedColourId: item.selectedColourId,
+          selectedColourLabel: item.selectedColourLabel,
+          selectedColourHex: item.selectedColourHex,
+          customColour: item.customColour,
         })),
       }),
     });
@@ -187,7 +193,10 @@ const PAYMENT_ATTEMPT_KEY = "soso-payment-attempt";
 
 function checkoutOperationKey(request: CheckoutRequest): string {
   const signature = JSON.stringify({
-    items: request.items.map((item) => [item.commerceProductId, item.commerceVariantId, item.quantity]),
+    items: request.items.map((item) => [
+      item.commerceProductId, item.commerceVariantId, item.quantity,
+      item.selectedColourId, item.selectedColourHex, item.customColour ?? "",
+    ]),
     email: request.customer.email.trim().toLowerCase(),
     fulfillment: request.fulfillment,
   });

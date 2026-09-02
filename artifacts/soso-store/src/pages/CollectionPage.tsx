@@ -4,6 +4,7 @@ import { Seo } from "@/components/Seo";
 import { catalogApproved, siteUrl, absoluteUrl } from "@/lib/seo";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 import { ProductCard } from "@/components/ProductCard";
+import { selectCollectionProducts } from "@/lib/collectionSelection";
 
 export default function CollectionPage({ slug }: { slug: string }) {
   const platform = usePlatformContent();
@@ -17,9 +18,7 @@ export default function CollectionPage({ slug }: { slug: string }) {
       <Link href={platform.data.content.pages.shop.collectionNotFoundCta.href} className="text-primary hover:underline text-sm uppercase tracking-widest">{platform.data.content.pages.shop.collectionNotFoundCta.label}</Link>
     </div></main>;
   }
-  const pieces = products
-    .filter((product) => product.department === meta.department && product.category === meta.category)
-    .sort((a, b) => b.merchandising.sortPriority - a.merchandising.sortPriority);
+  const pieces = selectCollectionProducts(meta, products);
   const schema = siteUrl && catalogApproved ? {
     "@context": "https://schema.org",
     "@type": "CollectionPage",

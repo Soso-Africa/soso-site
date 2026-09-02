@@ -3,6 +3,53 @@ export const VIDEO_MEDIA_TYPES = new Set(["video/mp4", "video/webm"]);
 export const MAX_UPLOADED_IMAGE_BYTES = 12 * 1024 * 1024;
 export const MAX_HERO_POSTER_BYTES = 512 * 1024;
 export const MAX_HERO_VIDEO_BYTES = 8 * 1024 * 1024;
+export const MAX_GARMENT_MASK_PIXELS = 16_000_000;
+
+export function imageDimensions(
+  bytes: Uint8Array,
+  contentType: string,
+): { width: number; height: number } | null {
+  const buffer = Buffer.from(bytes);
+  if (contentType === "image/png" && bytes.length >= 24) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+  if (contentType === "image/jpeg") {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1]!;
+      const length = buffer.readUInt16BE(offset + 2);
+      if (length < 2 || offset + length + 2 > bytes.length) return null;
+      if ((marker >= 0xc0 && marker <= 0xc3) || (marker >= 0xc5 && marker <= 0xc7) || (marker >= 0xc9 && marker <= 0xcb) || (marker >= 0xcd && marker <= 0xcf)) {
+        return { width: buffer.readUInt16BE(offset + 7), height: buffer.readUInt16BE(offset + 5) };
+      }
+      offset += length + 2;
+    }
+  }
+  if (contentType === "image/webp" && bytes.length >= 30) {
+    const chunk = buffer.subarray(12, 16).toString("ascii");
+    if (chunk === "VP8X") {
+      return {
+        width: 1 + buffer.readUIntLE(24, 3),
+        height: 1 + buffer.readUIntLE(27, 3),
+      };
+    }
+    if (chunk === "VP8 " && buffer.subarray(23, 26).equals(Buffer.from([0x9d, 0x01, 0x2a]))) {
+      return {
+        width: buffer.readUInt16LE(26) & 0x3fff,
+        height: buffer.readUInt16LE(28) & 0x3fff,
+      };
+    }
+    if (chunk === "VP8L" && bytes[20] === 0x2f) {
+      const packed = buffer.readUInt32LE(21);
+      return {
+        width: 1 + (packed & 0x3fff),
+        height: 1 + ((packed >>> 14) & 0x3fff),
+      };
+    }
+  }
+  return null;
+}
 
 export function mediaMimeTypeForPath(path: string): string | null {
   const pathname = path.split(/[?#]/, 1)[0]?.toLowerCase() ?? "";

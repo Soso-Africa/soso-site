@@ -9,12 +9,14 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test": "pnpm --dir ../../scripts exec tsx --test ../artifacts/soso-store/src/**/*.test.ts",
     "test:homepage-merchandising": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-homepage-merchandising.mjs",
+    "test:garment-mask-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-garment-mask-browser.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate:visual": "pnpm run build && node scripts/validate-storefront-visual-contract.mjs",
+    "validate:typography": "node scripts/validate-typography.mjs",
     "validate:seo": "node scripts/validate-seo-production.mjs",
     "validate:performance": "node scripts/validate-performance.mjs",
     "validate:client-review": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && node scripts/validate-release.mjs",
-    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:homepage-merchandising && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
+    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:homepage-merchandising && pnpm run test:garment-mask-browser && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs"
   },
   "devDependencies": {
@@ -82,5 +84,8 @@
     "vite": "catalog:",
     "wouter": "^3.3.5",
     "zod": "catalog:"
+  },
+  "dependencies": {
+    "@fontsource/montserrat": "^5.3.0"
   }
 }

@@ -83,7 +83,7 @@ export default function Checkout() {
       <div className="grid lg:grid-cols-[1fr_0.8fr] gap-10 lg:gap-16 mt-10">
         <section>
           <p className="text-[11px] tracking-[0.3em] uppercase text-secondary">{copy.eyebrow}</p>
-          <h1 className="soso-display font-light text-4xl md:text-5xl text-foreground mt-3">{copy.title}</h1>
+          <h1 className="soso-display font-normal text-4xl md:text-5xl text-foreground mt-3">{copy.title}</h1>
           <p className="mt-4 text-sm leading-relaxed text-secondary max-w-xl">
              {copy.intro}
           </p>
@@ -127,7 +127,7 @@ export default function Checkout() {
                         {copy.retryLabel}
                      </button>
                       <button type="button" onClick={openDrawer} className="px-3 py-2 text-xs font-semibold uppercase tracking-[.14em] text-foreground underline underline-offset-4">
-                        {copy.returnToBagLabel}
+                        {copy.returnToBagLabel.replace(/bag/i, 'Cart')}
                       </button>
                    </div>
                 </div>
@@ -147,14 +147,18 @@ export default function Checkout() {
 
         {items.length > 0 && (
           <aside className="h-fit border border-border p-6 md:p-8 bg-muted/20">
-             <h2 className="soso-display text-2xl text-foreground">{copy.bagTitle}</h2>
+             <h2 className="soso-display text-2xl text-foreground">{copy.bagTitle.replace(/bag/i, "Cart")}</h2>
             <div className="mt-6 space-y-5">
               {items.map((item) => (
-                <div key={`${item.slug}-${item.size}`} className="flex gap-4">
+                <div key={`${item.slug}-${item.size}-${item.selectedColourId}-${item.customColour ?? ""}`} className="flex gap-4">
                   <img src={item.img} alt={item.name} width="72" height="96" className="w-[72px] h-24 object-cover" />
                   <div className="flex-1">
                     <p className="soso-display text-lg text-foreground">{item.name}</p>
                     <p className="text-xs uppercase tracking-wider text-secondary mt-1">{copy.sizeQuantityLabel.replace("{size}", item.size).replace("{quantity}", String(item.quantity))}</p>
+                     <div className="flex items-center gap-2 mt-1">
+                       <span className="w-3 h-3 rounded-full border border-black/10 inline-block" style={{ backgroundColor: item.customColour ? 'transparent' : item.selectedColourHex }} />
+                       <p className="text-xs text-secondary">{item.customColour ?? item.selectedColourLabel ?? "Custom colour"}</p>
+                     </div>
                   </div>
                   <p className="text-sm text-foreground">{naira(item.price * item.quantity)}</p>
                 </div>

@@ -133,6 +133,28 @@ export function validateProduct(
   }
 
   // Images
+  const validateImage = (img: any, label: string) => {
+    if (!img.src) errors.push(`${label} is missing a source path`);
+    else if (!LOCAL_PATH_REGEX.test(img.src)) errors.push(`${label} must use a local SOSO path`);
+
+    if (!img.alt) errors.push(`${label} is missing alt text`);
+    if (!img.provenance?.source) errors.push(`${label} is missing provenance source`);
+    if (!img.provenance?.rights) errors.push(`${label} is missing provenance rights`);
+    if (img.provenance?.sourceUrl) {
+      let validSourceUrl = LOCAL_PATH_REGEX.test(img.provenance.sourceUrl);
+      if (!validSourceUrl) {
+        try {
+          validSourceUrl = new URL(img.provenance.sourceUrl).protocol === "https:";
+        } catch {
+          validSourceUrl = false;
+        }
+      }
+      if (!validSourceUrl) {
+        errors.push(`${label} provenance source URL must be an internal path or HTTPS URL`);
+      }
+    }
+  };
+
   const imgs = product.images || [];
   if (imgs.length === 0) {
     errors.push("Product must have at least one image");
@@ -140,29 +162,11 @@ export function validateProduct(
     const srcSet = new Set();
     let hasImg = false;
     imgs.forEach((img, i) => {
-      if (!img.src) errors.push(`Image ${i + 1} is missing a source path`);
-      else {
-        if (!LOCAL_PATH_REGEX.test(img.src)) errors.push(`Image ${i + 1} must use a local SOSO path`);
+      validateImage(img, `Image ${i + 1}`);
+      if (img.src) {
         if (srcSet.has(img.src)) errors.push(`Duplicate image path: ${img.src}`);
         srcSet.add(img.src);
         if (img.src === product.img) hasImg = true;
-      }
-      if (!img.alt) errors.push(`Image ${i + 1} is missing alt text`);
-      if (!img.provenance?.source) errors.push(`Image ${i + 1} is missing provenance source`);
-      if (!img.provenance?.rights) errors.push(`Image ${i + 1} is missing provenance rights`);
-      if (img.provenance?.sourceUrl) {
-        const sourceUrl = img.provenance.sourceUrl;
-        let validSourceUrl = LOCAL_PATH_REGEX.test(sourceUrl);
-        if (!validSourceUrl) {
-          try {
-            validSourceUrl = new URL(sourceUrl).protocol === "https:";
-          } catch {
-            validSourceUrl = false;
-          }
-        }
-        if (!validSourceUrl) {
-          errors.push(`Image ${i + 1} provenance source URL must be an internal path or HTTPS URL`);
-        }
       }
     });
     if (!product.img) {
@@ -170,6 +174,40 @@ export function validateProduct(
     } else if (!hasImg) {
       errors.push("Primary image (img) must be one of the approved images");
     }
+  }
+
+  // Material Turn Sets
+  if (product.materialTurnSets) {
+    if (product.materialTurnSets.length > 8) {
+      errors.push("Maximum 8 material turn sets allowed");
+    }
+    const setIds = new Set<string>();
+    const turnImageSources = new Set<string>();
+    product.materialTurnSets.forEach((set, i) => {
+      if (!set.id) errors.push(`Material set ${i + 1} is missing an ID`);
+      else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(set.id)) errors.push(`Material set ${i + 1} ID must use lowercase letters, numbers, and hyphens`);
+      else if (setIds.has(set.id)) errors.push(`Duplicate material set ID: ${set.id}`);
+      else setIds.add(set.id);
+
+      if (!set.label.trim()) errors.push(`Material set ${i + 1} is missing a label`);
+
+      if (!set.front) errors.push(`Material set ${i + 1} is missing front image`);
+      else {
+        validateImage(set.front, `Material set ${i + 1} front image`);
+        if (turnImageSources.has(set.front.src)) errors.push(`Duplicate material turn image path: ${set.front.src}`);
+        turnImageSources.add(set.front.src);
+      }
+
+      if (!set.back) errors.push(`Material set ${i + 1} is missing back image`);
+      else {
+        validateImage(set.back, `Material set ${i + 1} back image`);
+        if (turnImageSources.has(set.back.src)) errors.push(`Duplicate material turn image path: ${set.back.src}`);
+        turnImageSources.add(set.back.src);
+      }
+      if (set.front?.src && set.front.src === set.back?.src) {
+        errors.push(`Material set ${i + 1} front and back images must be different`);
+      }
+    });
   }
 
   // Related products

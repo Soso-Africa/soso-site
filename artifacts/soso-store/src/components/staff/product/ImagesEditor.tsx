@@ -1,10 +1,12 @@
-import { ArrowUp, ArrowDown, Plus, Trash2, Star } from "lucide-react";
+import { ArrowUp, ArrowDown, Plus, Trash2, Star, ImageUp, Loader2 } from "lucide-react";
 import type { CatalogProduct } from "../../../data/platformContent";
+import { useState } from "react";
 
 type ProductImage = NonNullable<CatalogProduct["images"]>[0];
 
-export function ImagesEditor({ product, onChange }: { product: CatalogProduct; onChange: (product: CatalogProduct) => void }) {
+export function ImagesEditor({ product, onChange, onUploadMedia }: { product: CatalogProduct; onChange: (product: CatalogProduct) => void; onUploadMedia: (file: File) => Promise<string> }) {
   const images = product.images || [];
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   const updateImages = (newImages: CatalogProduct["images"]) => {
     onChange({ ...product, images: newImages });
@@ -71,7 +73,7 @@ export function ImagesEditor({ product, onChange }: { product: CatalogProduct; o
           return (
             <div key={index} className={`flex flex-col gap-4 border p-4 bg-background sm:flex-row ${isPrimary ? "border-primary/60" : "border-border"}`} data-testid={`product-image-${product.slug}-${index}`}>
               <div className="flex flex-1 flex-col gap-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-end gap-3">
                   <label className="block flex-1">
                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Source Path (src)</span>
                     <input
@@ -83,12 +85,35 @@ export function ImagesEditor({ product, onChange }: { product: CatalogProduct; o
                       data-testid={`input-image-src-${product.slug}-${index}`}
                     />
                   </label>
-                  <div className="pl-4 pt-4">
+                  <label className={`flex h-[2.75rem] cursor-pointer items-center justify-center gap-2 border border-border px-3 text-[10px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-muted ${uploadingIndex === index ? "opacity-50 pointer-events-none" : ""}`}>
+                    {uploadingIndex === index ? <Loader2 size={14} className="animate-spin" /> : <ImageUp size={14} />}
+                    {uploadingIndex === index ? "Uploading" : "Upload"}
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={uploadingIndex !== null}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file) return;
+                        setUploadingIndex(index);
+                        onUploadMedia(file).then((path) => {
+                           updateImage(index, { src: path });
+                        }).catch((error) => {
+                           alert(error instanceof Error ? error.message : "Image upload failed.");
+                        }).finally(() => {
+                           setUploadingIndex(null);
+                        });
+                      }}
+                    />
+                  </label>
+                  <div className="pt-4">
                     <button
                       type="button"
                       onClick={() => setPrimary(img.src)}
                       disabled={isPrimary || !img.src}
-                      className={`flex h-10 items-center gap-2 px-3 text-[10px] font-semibold uppercase tracking-wider border ${isPrimary ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30"}`}
+                      className={`flex h-[2.75rem] items-center gap-2 px-3 text-[10px] font-semibold uppercase tracking-wider border ${isPrimary ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-30"}`}
                       data-testid={`button-image-primary-${product.slug}-${index}`}
                     >
                       <Star size={14} className={isPrimary ? "fill-current" : ""} />

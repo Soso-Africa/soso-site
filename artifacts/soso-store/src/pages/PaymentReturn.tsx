@@ -116,9 +116,9 @@ export default function PaymentReturn() {
             {items.length > 0 && (
               <ul className="mt-4 space-y-2 text-sm">
                 {items.map((item) => (
-                  <li key={`${item.slug}-${item.size}`}>
+                  <li key={`${item.slug}-${item.size}-${item.selectedColourId}-${item.customColour ?? ""}`}>
                     <Link href={`/product/${item.slug}`} className="text-[hsl(var(--primary))] underline underline-offset-4">
-                       {copy.reviewLabel} {item.name} — {copy.sizeLabel} {item.size}
+                       {copy.reviewLabel} {item.name} — {copy.sizeLabel} {item.size} · {item.customColour ?? item.selectedColourLabel ?? "Custom colour"}
                     </Link>
                      <span className="text-[hsl(var(--secondary))]"> · {copy.quantityLabel} {item.quantity}</span>
                   </li>
@@ -130,7 +130,7 @@ export default function PaymentReturn() {
 
         <div className="mt-8 flex flex-wrap gap-3">
           {!paid && (cancelled || errorMessage) ? (
-            <Link href={copy.returnBagCta.href} className="soso-btn-gold px-5 py-3 text-xs font-bold uppercase tracking-[.18em]" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>{copy.returnBagCta.label}</Link>
+            <Link href={copy.returnBagCta.href} className="soso-btn-gold px-5 py-3 text-xs font-bold uppercase tracking-[.18em]" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>{copy.returnBagCta.label.replace(/bag/i, 'Cart')}</Link>
           ) : (
             <Link href={copy.continueCta.href} className="soso-btn-gold px-5 py-3 text-xs font-bold uppercase tracking-[.18em]" style={{ backgroundColor: "hsl(var(--primary))", color: "hsl(var(--primary-foreground))" }}>{copy.continueCta.label}</Link>
           )}

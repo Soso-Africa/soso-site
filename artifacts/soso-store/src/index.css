@@ -1,12 +1,7 @@
-@import '@fontsource/outfit/latin-300.css';
-@import '@fontsource/outfit/latin-400.css';
-@import '@fontsource/outfit/latin-500.css';
-@import '@fontsource/outfit/latin-600.css';
-@import '@fontsource/outfit/latin-700.css';
-@import '@fontsource/playfair-display/latin-400.css';
-@import '@fontsource/playfair-display/latin-400-italic.css';
-@import '@fontsource/playfair-display/latin-500.css';
-@import '@fontsource/playfair-display/latin-600.css';
+@import '@fontsource/montserrat/latin-400.css';
+@import '@fontsource/montserrat/latin-500.css';
+@import '@fontsource/montserrat/latin-600.css';
+@import '@fontsource/montserrat/latin-700.css';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -90,9 +85,9 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --app-font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --app-font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", serif;
-  --app-font-display: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --app-font-sans: "Montserrat", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --app-font-serif: "Montserrat", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --app-font-display: "Montserrat", ui-serif, Georgia, Cambria, "Times New Roman", serif;
   
   --radius: 0; 
 }

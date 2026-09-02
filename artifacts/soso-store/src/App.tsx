@@ -14,6 +14,7 @@ import { Seo } from '@/components/Seo';
 import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
 import { customFetch } from '@workspace/api-client-react';
 import { usePlatformContent } from '@/data/platformContent';
+import { legacyRedirectByPath } from '@/data/legacy-redirects';
 
 import Home from '@/pages/Home';
 import Shop from '@/pages/Shop';
@@ -26,6 +27,7 @@ import JournalPreview from '@/pages/JournalPreview';
 import Policy from '@/pages/Policy';
 import PolicyHub from '@/pages/PolicyHub';
 import About from '@/pages/About';
+import LegacyAboutPage from '@/pages/LegacyAboutPage';
 import FAQ from '@/pages/FAQ';
 import CollectionPage from '@/pages/CollectionPage';
 import SignIn from '@/pages/SignIn';
@@ -48,6 +50,7 @@ function Router() {
         <Route path="/journal/:slug" component={JournalPost} />
         <Route path="/journal/preview/:slug" component={JournalPreview} />
         <Route path="/about" component={About} />
+        <Route path="/about/:slug" component={LegacyAboutPage} />
         <Route path="/faq" component={FAQ} />
         <Route path="/collections/:slug">
           {(params) => <CollectionPage slug={params.slug ?? ""} />}
@@ -164,6 +167,23 @@ function RedirectGuard({ children }: { children: ReactNode }) {
     let cancelled = false;
     let timedOut = false;
     setChecking(true);
+
+    const normalizedPath = location !== "/" && location.endsWith("/")
+      ? location
+      : `${location}/`;
+    const bundledRedirect = legacyRedirectByPath.get(location)
+      ?? legacyRedirectByPath.get(normalizedPath);
+    if (
+      bundledRedirect
+      && bundledRedirect.toPath !== location
+      && bundledRedirect.toPath.startsWith("/")
+      && !bundledRedirect.toPath.startsWith("//")
+    ) {
+      navigate(bundledRedirect.toPath, { replace: true });
+      setChecking(false);
+      return;
+    }
+
     // Redirects are a convenience layer; the storefront must remain available
     // if that lookup is slow or unavailable.
     const fallbackTimer = window.setTimeout(() => {

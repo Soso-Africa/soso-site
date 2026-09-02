@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { trackStorefrontEvent } from '@/components/ConsentManager';
-import { changeCartLineSelection } from '@/lib/purchasing';
+import { changeCartLineSelection, isSameCartLine } from '@/lib/purchasing';
 
 export type CartItem = {
   slug: string;
@@ -8,6 +8,10 @@ export type CartItem = {
   img: string;
   price: number;
   size: string;
+  selectedColourId: string;
+  selectedColourLabel?: string;
+  selectedColourHex?: string;
+  customColour?: string;
   quantity: number;
   commerceProductId?: string;
   commerceVariantId?: string;
@@ -19,9 +23,9 @@ type CartContextType = {
   openDrawer: () => void;
   closeDrawer: () => void;
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
-  removeItem: (slug: string, size: string) => void;
-  updateQuantity: (slug: string, size: string, quantity: number) => void;
-  updateSize: (slug: string, oldSize: string, newSize: string, newCommerceVariantId?: string) => void;
+  removeItem: (slug: string, size: string, selectedColourId: string, customColour?: string) => void;
+  updateQuantity: (slug: string, size: string, selectedColourId: string, quantity: number, customColour?: string) => void;
+  updateSize: (slug: string, oldSize: string, newSize: string, newCommerceVariantId: string | undefined, selectedColourId: string, customColour?: string) => void;
   clearCart: () => void;
   cartTotal: number;
   itemCount: number;
@@ -45,6 +49,9 @@ function readStoredCart(): CartItem[] {
         || typeof candidate.name !== 'string'
         || typeof candidate.img !== 'string'
         || typeof candidate.size !== 'string'
+        || typeof candidate.selectedColourId !== 'string'
+        || (candidate.selectedColourLabel !== undefined && typeof candidate.selectedColourLabel !== 'string')
+        || (candidate.selectedColourHex !== undefined && (typeof candidate.selectedColourHex !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(candidate.selectedColourHex)))
         || typeof candidate.price !== 'number'
         || !Number.isFinite(candidate.price)
         || typeof candidate.quantity !== 'number'
@@ -58,6 +65,10 @@ function readStoredCart(): CartItem[] {
         size: candidate.size,
         price: candidate.price,
         quantity: candidate.quantity,
+         selectedColourId: candidate.selectedColourId,
+         ...(typeof candidate.selectedColourLabel === 'string' ? { selectedColourLabel: candidate.selectedColourLabel } : {}),
+         ...(typeof candidate.selectedColourHex === 'string' ? { selectedColourHex: candidate.selectedColourHex } : {}),
+         ...(typeof candidate.customColour === 'string' ? { customColour: candidate.customColour } : {}),
         ...(typeof candidate.commerceProductId === 'string' ? { commerceProductId: candidate.commerceProductId } : {}),
         ...(typeof candidate.commerceVariantId === 'string' ? { commerceVariantId: candidate.commerceVariantId } : {}),
       }];
@@ -102,10 +113,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       itemCount: 1,
     });
     setItems(current => {
-      const existing = current.find(i => i.slug === newItem.slug && i.size === newItem.size);
+      const sameLine = (i: CartItem) => isSameCartLine(i, newItem);
+      const existing = current.find(sameLine);
       if (existing) {
         return current.map(i => 
-          i.slug === newItem.slug && i.size === newItem.size 
+          sameLine(i)
             ? { ...i, quantity: i.quantity + 1 }
             : i
         );
@@ -115,26 +127,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     openDrawer();
   };
 
-  const removeItem = (slug: string, size: string) => {
-    setItems(current => current.filter(i => !(i.slug === slug && i.size === size)));
+  const removeItem = (slug: string, size: string, selectedColourId: string, customColour?: string) => {
+    setItems(current => current.filter(i => !(i.slug === slug && i.size === size && i.selectedColourId === selectedColourId && i.customColour === customColour)));
   };
 
-  const updateQuantity = (slug: string, size: string, quantity: number) => {
-    if (quantity < 1) return removeItem(slug, size);
+  const updateQuantity = (slug: string, size: string, selectedColourId: string, quantity: number, customColour?: string) => {
+    if (quantity < 1) return removeItem(slug, size, selectedColourId, customColour);
     setItems(current => 
       current.map(i => 
-        i.slug === slug && i.size === size ? { ...i, quantity } : i
+        i.slug === slug && i.size === size && i.selectedColourId === selectedColourId && i.customColour === customColour ? { ...i, quantity } : i
       )
     );
   };
 
-  const updateSize = (slug: string, oldSize: string, newSize: string, newCommerceVariantId?: string) => {
+  const updateSize = (slug: string, oldSize: string, newSize: string, newCommerceVariantId: string | undefined, selectedColourId: string, customColour?: string) => {
     setItems((current) => changeCartLineSelection(
       current,
       slug,
       oldSize,
       newSize,
       newCommerceVariantId,
+      selectedColourId,
+      customColour,
     ));
   };
 

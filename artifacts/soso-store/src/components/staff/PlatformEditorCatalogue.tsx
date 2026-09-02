@@ -9,9 +9,11 @@ type CatalogueData = Pick<PlatformContent, "products" | "collections" | "sizeGui
 export function PlatformEditorCatalogue({
   data,
   onChange,
+  onUploadMedia,
 }: {
   data: CatalogueData;
   onChange: (data: CatalogueData) => void;
+  onUploadMedia: (file: File) => Promise<string>;
 }) {
   const [expandedProductIndex, setExpandedProductIndex] = useState<number | null>(null);
 
@@ -35,6 +37,7 @@ export function PlatformEditorCatalogue({
             isExpanded={expandedProductIndex === index}
             onToggle={() => setExpandedProductIndex(expandedProductIndex === index ? null : index)}
             onChange={(updatedProduct) => updateProduct(index, updatedProduct)}
+            onUploadMedia={onUploadMedia}
           />
         ))}
         </div>
