@@ -34,6 +34,18 @@
       "continue": true
     },
     {
+      "src": "/(my-account|checkout|cart|privacy-policy-2|reviews|post-reviews|newarrivals|blog|track-orders|track-your-order|guest-track-order-form|track-fedex-order|our-story|the-architect-of-the-modern-man|the-client|craftsmanship|about-soso-legacy-vision|about-soso-the-soso-foundation|partner-with-us|danshiki)/?$",
+      "dest": "/api/handler?__soso_path=legacy-redirect&path=$1"
+    },
+    {
+      "src": "/((?:2025|2026)/.*)$",
+      "dest": "/api/handler?__soso_path=legacy-redirect&path=$1"
+    },
+    {
+      "src": "/(product-category/.*)$",
+      "dest": "/api/handler?__soso_path=legacy-redirect&path=$1"
+    },
+    {
       "handle": "filesystem"
     },
     {
