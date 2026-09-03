@@ -31,3 +31,4 @@
 - [Country-aware consent defaults](country-aware-consent-defaults.md) — trust Vercel country classification only; revalidate automatic analytics grants and fail closed when location is unknown.
 - [Product colour integrity](product-colour-integrity.md) — persist colour per order line; enable live recolouring only with a verified, usable garment mask.
 - [Paired material turns](paired-material-turns.md) — front/back stills form ordered material sets and drive a page-scroll turn illusion without claiming reconstructed 3D motion.
+- [Legacy catalogue review gate](legacy-catalogue-review-gate.md) — import current stock and managed media into Staff draft; keep it unpublished and unmapped until item-level approval.
