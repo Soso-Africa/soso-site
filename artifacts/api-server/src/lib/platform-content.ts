@@ -681,7 +681,7 @@ const prominentSosoColours = [
   { id: "midnight-navy", label: "Midnight Navy", hex: "#17233C" },
 ] as const;
 const heritageDashikiImageSrc = "/images/soso/dashiki.jpg";
-const heritageDashikiVisualizer = {
+const retiredHeritageDashikiVisualizer = {
   baseImageSrc: heritageDashikiImageSrc,
   garmentMaskSrc: "/images/soso/dashiki-outer-mask.png",
 } as const;
@@ -900,7 +900,7 @@ const womenReadyToWearCollection: PlatformContent["collections"][number] = {
   },
 };
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
-  contentVersion: 17,
+  contentVersion: 19,
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
     announcement: "Ready now and made immediately · Dispatch within five days",
@@ -978,8 +978,8 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       imageUrl: "/images/soso/vault-black.jpg",
       mobileImageUrl: "/images/soso/vault-black.jpg",
       imageAlt: "Black SOSO Africa kaftan",
-      videoUrl: "/media/soso-black-hero-desktop.webm",
-      mobileVideoUrl: "/media/soso-black-hero-mobile.webm",
+      videoUrl: "/media/soso-craft-hero-desktop.webm",
+      mobileVideoUrl: "/media/soso-craft-hero-mobile.webm",
       playLabel: "Play hero motion",
       pauseLabel: "Pause hero motion",
       primaryCta: { label: "Shop New Arrivals", href: "/collections/new-arrivals" }, stylistCtaLabel: "Ask a stylist",
@@ -1137,7 +1137,6 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       colourOptions: defaultColourOptions("As shown").map((option) => (
         option.id === "as-shown" ? { ...option, hex: "#111111" } : option
       )).filter((option) => option.id !== "soso-black"),
-      colourVisualizer: heritageDashikiVisualizer,
     },
     product("boardroom-shirt", "The Boardroom Shirt", "/images/soso/shirts.jpg", 150000, "Collection", "A sharp shirt for business days", "Shirts", "A refined shirt designed for business and formal settings. A SOSO stylist can help with sizing before you place an order."),
     product("twin-set", "Twin Set — Two Piece", "/images/soso/twopiece.jpg", 220000, "Collection", "Coordinated, relaxed tailoring", "Two-Piece", "A coordinated two-piece set with an easy, polished presence. Select your usual size or choose Custom for made-to-measure support."),
@@ -1297,7 +1296,9 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
   const shouldApplyNewArrivalsCollection = currentContentVersion < 11;
   const shouldApplyColourOptions = currentContentVersion < 15;
   const shouldApplyMaterialTurnSets = currentContentVersion < 16;
-  const shouldApplyHeritageDashikiVisualizer = currentContentVersion < 17;
+  const shouldNormalizeHeritageDashikiPalette = currentContentVersion < 17;
+  const shouldRepairPartialCategoryRotation = currentContentVersion >= 17 && currentContentVersion < 19;
+  const shouldRetireShippedDashikiVisualizer = currentContentVersion < 19;
   let upgradeSource = current;
   if (current && typeof current === "object" && !Array.isArray(current)) {
     upgradeSource = structuredClone(current);
@@ -1433,15 +1434,24 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         const target = typeof record.href === "string" ? record.href : "";
         const shippedImage = shippedImageByTarget.get(target);
         const currentImages = record.imageUrls;
+        const hasMissingCrossfadeImages = shouldRepairPartialCategoryRotation
+          && (currentImages === undefined || (Array.isArray(currentImages) && currentImages.length === 0))
+          && record.imageMode === "crossfade";
         const hasOnlyShippedImage = currentImages === undefined
           || (Array.isArray(currentImages) && currentImages.length === 1 && currentImages[0] === shippedImage);
         const hasNoMobileSet = record.mobileImageUrls === undefined
           || (Array.isArray(record.mobileImageUrls) && record.mobileImageUrls.length === 0);
         const hasShippedMotion = (record.imageMode === undefined || record.imageMode === "static")
           && (record.rotationMs === undefined || record.rotationMs === 5000);
-        if (!shippedImage || record.imageUrl !== shippedImage || !hasOnlyShippedImage || !hasNoMobileSet || !hasShippedMotion) return;
+        if (!shippedImage || record.imageUrl !== shippedImage || !hasNoMobileSet) return;
         const defaults = DEFAULT_PLATFORM_CONTENT.homepage.categories.items.find((candidate) => candidate.href === target);
         if (!defaults) return;
+        if (hasMissingCrossfadeImages) {
+          record.imageUrls = structuredClone(defaults.imageUrls);
+          record.rotationMs = defaults.rotationMs;
+          return;
+        }
+        if (!hasOnlyShippedImage || !hasShippedMotion) return;
         record.imageUrls = structuredClone(defaults.imageUrls);
         record.imageMode = defaults.imageMode;
         record.rotationMs = defaults.rotationMs;
@@ -1594,6 +1604,8 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
       [["homepage", "hero", "description"], "Shop premium kaftans, agbadas and refined separates in Standard sizes or Custom. Buy directly, with fit guidance and optional stylist support when you want it.", DEFAULT_PLATFORM_CONTENT.homepage.hero.description],
       [["homepage", "hero", "videoUrl"], "/media/soso-black-hero-desktop.mp4", DEFAULT_PLATFORM_CONTENT.homepage.hero.videoUrl!],
       [["homepage", "hero", "mobileVideoUrl"], "/media/soso-black-hero-mobile.mp4", DEFAULT_PLATFORM_CONTENT.homepage.hero.mobileVideoUrl!],
+      [["homepage", "hero", "videoUrl"], "/media/soso-black-hero-desktop.webm", DEFAULT_PLATFORM_CONTENT.homepage.hero.videoUrl!],
+      [["homepage", "hero", "mobileVideoUrl"], "/media/soso-black-hero-mobile.webm", DEFAULT_PLATFORM_CONTENT.homepage.hero.mobileVideoUrl!],
       [["homepage", "hero", "primaryCta", "label"], "Shop the Collection", DEFAULT_PLATFORM_CONTENT.homepage.hero.primaryCta.label],
       [["homepage", "hero", "primaryCta", "label"], "Explore the collection", DEFAULT_PLATFORM_CONTENT.homepage.hero.primaryCta.label],
       [["homepage", "hero", "primaryCta", "href"], "/shop", DEFAULT_PLATFORM_CONTENT.homepage.hero.primaryCta.href],
@@ -1645,7 +1657,7 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
           productRecord.materialTurnSets = [];
         }
         if (
-          shouldApplyHeritageDashikiVisualizer
+          shouldNormalizeHeritageDashikiPalette
           && productRecord.slug === "heritage-dashiki"
           && productRecord.img === heritageDashikiImageSrc
           && Array.isArray(productRecord.images)
@@ -1653,9 +1665,7 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
             image && typeof image === "object" && !Array.isArray(image)
             && (image as Record<string, unknown>).src === heritageDashikiImageSrc
           ))
-          && productRecord.colourVisualizer === undefined
         ) {
-          productRecord.colourVisualizer = structuredClone(heritageDashikiVisualizer);
           if (Array.isArray(productRecord.colourOptions)) {
             let correctedDefaultAsShown = false;
             productRecord.colourOptions = productRecord.colourOptions.map((option) => {
@@ -1678,6 +1688,17 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
               && (option as Record<string, unknown>).hex === "#111111"
             ));
           }
+        }
+        if (
+          shouldRetireShippedDashikiVisualizer
+          && productRecord.slug === "heritage-dashiki"
+          && productRecord.colourVisualizer
+          && typeof productRecord.colourVisualizer === "object"
+          && !Array.isArray(productRecord.colourVisualizer)
+          && (productRecord.colourVisualizer as Record<string, unknown>).baseImageSrc === retiredHeritageDashikiVisualizer.baseImageSrc
+          && (productRecord.colourVisualizer as Record<string, unknown>).garmentMaskSrc === retiredHeritageDashikiVisualizer.garmentMaskSrc
+        ) {
+          delete productRecord.colourVisualizer;
         }
         return productRecord;
       });

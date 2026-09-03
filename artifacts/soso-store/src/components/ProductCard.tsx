@@ -7,7 +7,7 @@ import { useCart } from "@/context/CartContext";
 import { usePlatformContent } from "@/data/platformContent";
 import { trackStorefrontEvent, editorialOrigin } from "@/components/ConsentManager";
 import { X } from "lucide-react";
-import { isMappedPurchaseChoice, mappedPurchaseChoices } from "@/lib/purchasing";
+import { isMappedPurchaseChoice, mappedPurchaseChoices, visibleStandardSizes } from "@/lib/purchasing";
 
 interface ProductCardProps {
   product: CatalogProduct;
@@ -27,7 +27,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
   const productCopy = data?.content.productCopy;
 
   const purchaseChoices = mappedPurchaseChoices(product);
-  const validStandardSizes = purchaseChoices.filter((choice) => choice !== "Custom");
+  const standardSizes = visibleStandardSizes(product);
   const customIsMappable = purchaseChoices.includes("Custom");
   const hasMappedChoices = purchaseChoices.length > 0;
 
@@ -177,11 +177,11 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               </div>
             </div>
 
-            {product.standardEligible && validStandardSizes.length > 0 && (
+            {standardSizes.length > 0 && (
               <div className="mb-6">
                 <span className="text-[11px] tracking-[0.2em] uppercase text-secondary mb-3 block">{productCopy?.sizeSelectorLabel}</span>
                 <div className="flex flex-wrap gap-2">
-                  {validStandardSizes.map((s) => {
+                  {standardSizes.map((s) => {
                     return (
                       <button
                         key={s}

@@ -9,8 +9,8 @@ Treat a storage-backed hero asset as publishable only when its configured extens
 
 **How to apply:** Enforce these checks at both draft save and publication for governed hero media. Keep bundled-asset release validation aligned with the same static-fallback and transfer-budget rules.
 
-Use one approved black-garment studio source for both desktop and mobile homepage hero motion, reframing the same footage responsively rather than switching creative between viewports.
+Use the approved watermark-free atelier footage for both desktop and mobile homepage hero motion, reframing the same source responsively rather than switching creative between viewports or embedding a fixed logo.
 
-**Why:** The merchant explicitly chose a coordinated desktop/mobile treatment so the hero keeps one visual identity across devices.
+**Why:** The merchant approved the clean source because the responsive site header already supplies SOSO branding; an embedded centre watermark duplicates the logo, competes with craft details, and crops poorly on mobile.
 
-**How to apply:** Derive a landscape desktop export and centered portrait mobile crop from the same source, keeping both muted, loop-safe, browser-compatible, and within the transfer budget.
+**How to apply:** Derive a 30fps landscape desktop export and centred portrait mobile crop from the clean source, keeping both muted, loop-safe, browser-compatible, and within the transfer budget.

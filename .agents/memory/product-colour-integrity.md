@@ -15,6 +15,12 @@ Never tint a complete editorial product photograph. Live recolouring requires a 
 
 **How to apply:** Keep generated masks as local review drafts until explicit approval. Validate mask ownership, MIME, extension, decoded-pixel budget, alpha coverage, and exact base-image dimensions before publication; keep the visualizer fail-closed when any check fails.
 
+Technical mask validity is not shopper-facing approval. Do not publish generated masking merely because its file checks pass; use a dedicated colour-specific photo/render or require a human side-by-side review of several light and dark colours at full size.
+
+**Why:** The shipped Dashiki mask met byte, alpha, and dimension checks but still looked crude and amateur in the actual product composition.
+
+**How to apply:** Keep the public visualizer absent until each product has its own visually approved asset. Hex swatches may preserve a shopper's colour choice, but must not imply that an on-photo preview exists.
+
 Treat brush history, not the mutable display canvas, as the source of truth for refined masks. Rebuild each committed draft from the immutable original plus serialized strokes, and keep approval locked until validation and any canvas repaint finish.
 
 **Why:** Asynchronous canvas serialization and image decoding can otherwise overwrite a newly drawn stroke or let Staff approve the previous mask while the latest correction is still visible.

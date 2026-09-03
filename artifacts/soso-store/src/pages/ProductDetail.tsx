@@ -12,7 +12,7 @@ import { ProductCard } from "@/components/ProductCard";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight, ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
 import * as Accordion from "@radix-ui/react-accordion";
-import { isMappedPurchaseChoice, mappedPurchaseChoices } from "@/lib/purchasing";
+import { isMappedPurchaseChoice, mappedPurchaseChoices, visibleStandardSizes } from "@/lib/purchasing";
 import { WhatsAppIcon } from "@/components/Icons";
 import { MaterialTurnStage } from "@/components/MaterialTurnStage";
 
@@ -284,7 +284,7 @@ export default function ProductDetail() {
   const sizeGuide = platformContent!.sizeGuide;
 
   const purchaseChoices = mappedPurchaseChoices(product);
-  const validStandardSizes = purchaseChoices.filter((choice) => choice !== "Custom");
+  const standardSizes = visibleStandardSizes(product);
   const customIsMappable = purchaseChoices.includes("Custom");
   const hasMappedChoices = purchaseChoices.length > 0;
 
@@ -529,7 +529,7 @@ export default function ProductDetail() {
                 </div>
               )}
 
-              {product.standardEligible && validStandardSizes.length > 0 && (
+              {standardSizes.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[12px] tracking-[0.2em] uppercase font-medium text-foreground">{productCopy.sizeSelectorLabel}</span>
@@ -538,7 +538,7 @@ export default function ProductDetail() {
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {validStandardSizes.map((s) => {
+                    {standardSizes.map((s) => {
                       const isReadyNow = product.readyNowSizes?.includes(s);
                       return (
                         <button

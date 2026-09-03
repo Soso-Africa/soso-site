@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { CatalogProduct } from "@/data/platformContent";
-import { changeCartLineSelection, isMappedPurchaseChoice, isSameCartLine, mappedPurchaseChoices } from "./purchasing";
+import {
+  changeCartLineSelection,
+  isMappedPurchaseChoice,
+  isSameCartLine,
+  mappedPurchaseChoices,
+  visibleStandardSizes,
+} from "./purchasing";
 
 const product = {
   fulfilmentState: "ready_now",
@@ -14,9 +20,22 @@ const product = {
 
 test("purchase choices include only eligible mapped variants", () => {
   assert.deepEqual(mappedPurchaseChoices(product), ["S", "Custom"]);
+  assert.deepEqual(visibleStandardSizes(product), ["S", "M"]);
   assert.equal(isMappedPurchaseChoice(product, "S"), true);
   assert.equal(isMappedPurchaseChoice(product, "M"), false);
   assert.equal(isMappedPurchaseChoice({ ...product, fulfilmentState: "unavailable" }, "S"), false);
+});
+
+test("standard sizes stay visible when checkout mappings are absent", () => {
+  const unmapped = {
+    ...product,
+    commerceProductId: undefined,
+    commerceVariantIds: {},
+  };
+  assert.deepEqual(mappedPurchaseChoices(unmapped), []);
+  assert.deepEqual(visibleStandardSizes(unmapped), ["S", "M"]);
+  assert.equal(isMappedPurchaseChoice(unmapped, "S"), false);
+  assert.deepEqual(visibleStandardSizes({ ...unmapped, standardEligible: false }), []);
 });
 
 test("cart selection changes reject unmapped variants and merge existing lines", () => {
