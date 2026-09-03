@@ -42,3 +42,10 @@ mtime_ms = 1788338786073
 storage_uri = "gcs://replit-rams-assets-spock/rams/assets/repl:96823c18-8b26-45bb-85e0-15fd4fe45c93/0bad25fe-e04e-45bf-b4cc-067239f76963/212548ae-66a9-4fca-8428-84e325f41454"
 storage_version_token = "1788338796558605"
 content_type = "image/jpeg"
+
+[[outputs]]
+id = "6MCsSGQa4wcJ94i51xVU-"
+uri = "file://exports/soso-catalogue-review.csv"
+type = "table"
+title = "SOSO Catalogue Review Sheet"
+description = "Review queue for all 143 imported products, newest first, including photos, proposed categories, prices, metadata gaps, and checkout status."
