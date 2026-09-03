@@ -11,6 +11,11 @@ export function mappedPurchaseChoices(product: CatalogProduct): string[] {
   return eligibleChoices.filter((choice) => Boolean(product.commerceVariantIds?.[choice]));
 }
 
+export function visibleStandardSizes(product: CatalogProduct): string[] {
+  if (!product.standardEligible) return [];
+  return product.standardSizes.filter((size) => size.trim() !== "" && size !== "Custom");
+}
+
 export function isMappedPurchaseChoice(product: CatalogProduct, choice: string | null): choice is string {
   return Boolean(
     choice

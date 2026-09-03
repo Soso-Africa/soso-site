@@ -103,32 +103,19 @@ test("material turn set migration preserves merchant content without inferring g
   assert.deepEqual(parsed.data.products[1]!.materialTurnSets, merchantSets);
 });
 
-test("Dashiki outer-fabric visualizer upgrade is exact, bounded, and preserves merchant replacements", () => {
+test("version 19 retires only the shipped Dashiki visualizer and preserves merchant replacements", () => {
   const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
-  legacy.contentVersion = 16;
+  legacy.contentVersion = 18;
   const dashiki = legacy.products.find((product) => product.slug === "heritage-dashiki")!;
-  delete dashiki.colourVisualizer;
-  const asShown = dashiki.colourOptions.find((option) => option.id === "as-shown")!;
-  asShown.hex = "#B08D57";
+  dashiki.colourVisualizer = {
+    baseImageSrc: "/images/soso/dashiki.jpg",
+    garmentMaskSrc: "/images/soso/dashiki-outer-mask.png",
+  };
 
   const upgraded = mergePlatformContentDefaults(legacy) as typeof DEFAULT_PLATFORM_CONTENT;
   const upgradedDashiki = upgraded.products.find((product) => product.slug === "heritage-dashiki")!;
-  assert.deepEqual(upgradedDashiki.colourVisualizer, {
-    baseImageSrc: "/images/soso/dashiki.jpg",
-    garmentMaskSrc: "/images/soso/dashiki-outer-mask.png",
-  });
-  assert.equal(upgradedDashiki.colourOptions.find((option) => option.id === "as-shown")?.hex, "#111111");
+  assert.equal(upgradedDashiki.colourVisualizer, undefined);
   assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
-
-  const merchantImage = structuredClone(legacy);
-  const merchantImageDashiki = merchantImage.products.find((product) => product.slug === "heritage-dashiki")!;
-  merchantImageDashiki.img = "/api/storage/objects/uploads/merchant-dashiki.jpg";
-  merchantImageDashiki.images[0]!.src = merchantImageDashiki.img;
-  const upgradedMerchantImage = mergePlatformContentDefaults(merchantImage) as typeof DEFAULT_PLATFORM_CONTENT;
-  assert.equal(
-    upgradedMerchantImage.products.find((product) => product.slug === "heritage-dashiki")?.colourVisualizer,
-    undefined,
-  );
 
   const merchantMask = structuredClone(legacy);
   const merchantMaskDashiki = merchantMask.products.find((product) => product.slug === "heritage-dashiki")!;
@@ -664,6 +651,28 @@ test("the approved category campaign activates only untouched static category me
   assert.equal(merchantUpgrade.homepage.categories.items[0].imageMode, "static");
   assert.equal(merchantUpgrade.homepage.categories.items[1].rotationMs, 9000);
   assert.equal(merchantUpgrade.homepage.categories.items[1].imageMode, "static");
+});
+
+test("version 19 repairs the partial crossfade state without replacing merchant category media", () => {
+  const partial = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  partial.contentVersion = 18;
+  partial.homepage.categories.items.slice(0, 4).forEach((item) => {
+    delete item.imageUrls;
+    item.imageMode = "crossfade";
+  });
+  const merchant = partial.homepage.categories.items[1]!;
+  merchant.imageUrl = "/api/storage/objects/uploads/merchant-agbada.jpg";
+  delete merchant.imageUrls;
+
+  const upgraded = mergePlatformContentDefaults(partial) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgraded.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  assert.ok(upgraded.homepage.categories.items[0]!.imageUrls?.length === 3);
+  assert.equal(upgraded.homepage.categories.items[0]!.imageMode, "crossfade");
+  assert.equal(upgraded.homepage.categories.items[1]!.imageUrl, merchant.imageUrl);
+  assert.equal(upgraded.homepage.categories.items[1]!.imageUrls, undefined);
+  assert.ok(upgraded.homepage.categories.items[2]!.imageUrls?.length === 3);
+  assert.ok(upgraded.homepage.categories.items[3]!.imageUrls?.length === 3);
+  assert.ok(upgraded.homepage.categories.items[4]!.imageUrls?.length === 3);
 });
 
 test("the exact shipped sparse footer is repaired even after a partial version upgrade", () => {
@@ -1505,8 +1514,8 @@ test("version 6 unifies hero motion with merchandising without replacing a merch
   const upgradedDefault = mergePlatformContentDefaults(legacyDefault) as typeof DEFAULT_PLATFORM_CONTENT;
   assert.equal(upgradedDefault.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
   assert.equal(upgradedDefault.homepage.hero.mediaMode, "video");
-  assert.equal(upgradedDefault.homepage.hero.videoUrl, "/media/soso-black-hero-desktop.webm");
-  assert.equal(upgradedDefault.homepage.hero.mobileVideoUrl, "/media/soso-black-hero-mobile.webm");
+  assert.equal(upgradedDefault.homepage.hero.videoUrl, "/media/soso-craft-hero-desktop.webm");
+  assert.equal(upgradedDefault.homepage.hero.mobileVideoUrl, "/media/soso-craft-hero-mobile.webm");
 
   const merchantImage = structuredClone(legacyDefault);
   merchantImage.homepage.hero.imageUrl = "/images/soso/agbada.jpg";
@@ -1517,6 +1526,25 @@ test("version 6 unifies hero motion with merchandising without replacing a merch
   assert.equal(upgradedMerchantImage.homepage.hero.videoUrl, undefined);
   assert.equal(upgradedMerchantImage.homepage.hero.mobileVideoUrl, undefined);
   assert.equal(PlatformContentSchema.safeParse(upgradedMerchantImage).success, true);
+});
+
+test("version 18 adopts the approved craft hero without replacing merchant video choices", () => {
+  const shippedDefault = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  shippedDefault.contentVersion = 17;
+  shippedDefault.homepage.hero.videoUrl = "/media/soso-black-hero-desktop.webm";
+  shippedDefault.homepage.hero.mobileVideoUrl = "/media/soso-black-hero-mobile.webm";
+
+  const upgradedDefault = mergePlatformContentDefaults(shippedDefault) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgradedDefault.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
+  assert.equal(upgradedDefault.homepage.hero.videoUrl, "/media/soso-craft-hero-desktop.webm");
+  assert.equal(upgradedDefault.homepage.hero.mobileVideoUrl, "/media/soso-craft-hero-mobile.webm");
+
+  const merchantVideo = structuredClone(shippedDefault);
+  merchantVideo.homepage.hero.videoUrl = "/api/storage/objects/uploads/merchant-desktop.webm";
+  merchantVideo.homepage.hero.mobileVideoUrl = "/api/storage/objects/uploads/merchant-mobile.webm";
+  const upgradedMerchantVideo = mergePlatformContentDefaults(merchantVideo) as typeof DEFAULT_PLATFORM_CONTENT;
+  assert.equal(upgradedMerchantVideo.homepage.hero.videoUrl, merchantVideo.homepage.hero.videoUrl);
+  assert.equal(upgradedMerchantVideo.homepage.hero.mobileVideoUrl, merchantVideo.homepage.hero.mobileVideoUrl);
 });
 
 test("version 7 removes only the shipped announcements and permits Staff to hide the strip", () => {

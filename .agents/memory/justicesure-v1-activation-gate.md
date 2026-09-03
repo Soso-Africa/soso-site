@@ -9,8 +9,8 @@ Keep JusticeSure Commerce fail-closed until the matching published v1 runtime, s
 
 **How to apply:** Treat a runtime-ready configuration flag as an activation decision, not a development convenience. Before turning it on, run a staged order/session idempotency retry, delivery quote, provider return/status recovery, signed webhook replay/retry, and verified-paid-order acceptance test. Never mark an order paid from a browser redirect.
 
-Keep current, available catalogue records discoverable even when they do not yet have authoritative JusticeSure mappings. Disable offers and purchase controls for those records rather than hiding the collection or inventing a mapping.
+Keep current, available catalogue records, standard sizes, and size guidance discoverable even when they do not yet have authoritative JusticeSure mappings. Disable offers and purchase controls rather than hiding useful catalogue facts or inventing a mapping.
 
 **Why:** Editorial/catalogue availability and checkout eligibility are separate truths. Conflating them either empties useful shopping pages or risks exposing an unsafe payment path.
 
-**How to apply:** Collection and New Arrivals selection may use governed availability and merchandising fields. Product offers, Cart actions, checkout, and campaign claims of purchasability must use the stricter mapped-product and eligible-variant predicate.
+**How to apply:** Collections, size selectors, and size guides may use governed catalogue fields. Product offers, Cart actions, checkout, and campaign claims of purchasability must use the stricter mapped-product and eligible-variant predicate.
