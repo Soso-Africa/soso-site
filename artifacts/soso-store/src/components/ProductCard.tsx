@@ -15,9 +15,10 @@ interface ProductCardProps {
   ctaLabel?: string;
   onClickCta?: (e: React.MouseEvent) => void;
   testIdPrefix?: string;
+  showPrice?: boolean;
 }
 
-export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "product" }: ProductCardProps) {
+export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "product", showPrice = true }: ProductCardProps) {
   const isUnavailable = product.fulfilmentState === "unavailable";
   const primaryImage = product.images?.[0];
   const secondaryImage = product.images?.[1];
@@ -154,7 +155,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               {product.dispatchMessage}
             </p>}
           </div>
-          {!isUnavailable && <p className="text-[15px] font-semibold whitespace-nowrap text-foreground" data-testid={`text-price-${product.slug}`}>
+          {!isUnavailable && showPrice && <p className="text-[15px] font-semibold whitespace-nowrap text-foreground" data-testid={`text-price-${product.slug}`}>
             {naira(product.price)}
           </p>}
         </Link>
