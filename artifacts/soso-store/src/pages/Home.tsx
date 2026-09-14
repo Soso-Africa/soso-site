@@ -98,7 +98,7 @@ export default function Home() {
         {featured.map((product, index) => (
           <div key={product.slug} data-testid={`home-featured-${index}`} data-merchandising-value={product.slug}>
             <Reveal delay={index * 100}>
-              <ProductCard product={product} testIdPrefix="home-featured" />
+              <ProductCard product={product} testIdPrefix="home-featured" showPrice={false} />
             </Reveal>
           </div>
         ))}
