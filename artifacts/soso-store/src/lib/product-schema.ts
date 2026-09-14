@@ -1,4 +1,5 @@
 import type { CatalogProduct, PlatformContent } from "../data/platformContent";
+import { isProductReleased } from "./purchasing";
 
 type StructuredSite = Pick<PlatformContent["site"], "name" | "logoAlt" | "structuredData">;
 
@@ -15,7 +16,9 @@ export function buildProductStructuredData(
   urls: ProductSchemaUrls,
 ): Record<string, unknown> {
   const hasAuthoritativeOffer = Boolean(
-    product.commerceProductId
+    isProductReleased(product)
+      && product.fulfilmentState !== "unavailable"
+      && product.commerceProductId
       && Number.isFinite(product.price)
       && product.price >= 0
       && ["ready_now", "made_immediately", "unavailable"].includes(product.fulfilmentState),

@@ -435,7 +435,7 @@ export const RecordAnalyticsEventBody = zod.object({
   "eventVersion": zod.number().min(1),
   "anonymousId": zod.string().min(recordAnalyticsEventBodyAnonymousIdMin).max(recordAnalyticsEventBodyAnonymousIdMax),
   "sessionId": zod.string().min(recordAnalyticsEventBodySessionIdMin).max(recordAnalyticsEventBodySessionIdMax),
-  "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'category_impression', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked']),
+  "eventName": zod.enum(['page_view', 'session_started', 'active_time_heartbeat', 'product_view', 'product_image_viewed', 'size_guide_opened', 'size_selected', 'stylist_inquiry_started', 'stylist_inquiry_completed', 'add_to_bag', 'cart_opened', 'checkout_started', 'checkout_field_error', 'checkout_form_completed', 'payment_clicked', 'checkout_payment_unavailable', 'consent_banner_viewed', 'consent_updated', 'marketing_opt_out', 'blog_article_viewed', 'category_impression', 'faq_expanded', 'scroll_depth_reached', 'cta_clicked', 'accessory_launch_notification_submitted']),
   "path": zod.string().max(recordAnalyticsEventBodyPathMax),
   "referrer": zod.string().max(recordAnalyticsEventBodyReferrerMax).optional(),
   "source": zod.string().max(recordAnalyticsEventBodySourceMax).optional(),
@@ -531,6 +531,35 @@ export const CreateEnquiryResponse = zod.object({
   "handlingNotes": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * Accepts an email notification request without promising timing, price, or availability.
+ * @summary Request a notification when an unavailable accessory launches
+ */
+export const createAccessoryLaunchNotificationBodyEmailMin = 3;
+export const createAccessoryLaunchNotificationBodyEmailMax = 320;
+
+
+export const createAccessoryLaunchNotificationBodyEmailRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+export const createAccessoryLaunchNotificationBodyProductSlugMax = 160;
+
+
+export const createAccessoryLaunchNotificationBodyProductSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const createAccessoryLaunchNotificationBodyAccessoryCategoryMax = 120;
+
+
+
+export const CreateAccessoryLaunchNotificationBody = zod.object({
+  "email": zod.string().min(createAccessoryLaunchNotificationBodyEmailMin).max(createAccessoryLaunchNotificationBodyEmailMax).regex(createAccessoryLaunchNotificationBodyEmailRegExp),
+  "productSlug": zod.string().min(1).max(createAccessoryLaunchNotificationBodyProductSlugMax).regex(createAccessoryLaunchNotificationBodyProductSlugRegExp),
+  "accessoryCategory": zod.string().min(1).max(createAccessoryLaunchNotificationBodyAccessoryCategoryMax),
+  "emailNotificationConsent": zod.literal(true)
+})
+
+export const CreateAccessoryLaunchNotificationResponse = zod.object({
+  "accepted": zod.boolean()
 })
 
 
@@ -1375,6 +1404,27 @@ export const ListStaffEnquiriesResponseItem = zod.object({
   "updatedAt": zod.coerce.date()
 })
 export const ListStaffEnquiriesResponse = zod.array(ListStaffEnquiriesResponseItem)
+
+
+/**
+ * @summary List accessory launch notification requests
+ */
+export const listStaffAccessoryLaunchNotificationsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const listStaffAccessoryLaunchNotificationsResponsePolicyVersionMax = 80;
+
+
+
+export const ListStaffAccessoryLaunchNotificationsResponseItem = zod.object({
+  "id": zod.string().regex(listStaffAccessoryLaunchNotificationsResponseIdRegExp),
+  "email": zod.string(),
+  "productSlug": zod.string(),
+  "accessoryCategory": zod.string(),
+  "emailNotificationConsent": zod.boolean(),
+  "policyVersion": zod.string().min(1).max(listStaffAccessoryLaunchNotificationsResponsePolicyVersionMax),
+  "consentedAt": zod.coerce.date(),
+  "createdAt": zod.coerce.date()
+})
+export const ListStaffAccessoryLaunchNotificationsResponse = zod.array(ListStaffAccessoryLaunchNotificationsResponseItem)
 
 
 /**

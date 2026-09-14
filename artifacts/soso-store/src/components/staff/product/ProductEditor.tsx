@@ -145,6 +145,26 @@ export function ProductEditor({
                     </select>
                   </label>
                 </div>
+                {product.department === "accessories" && (
+                  <label className="block">
+                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Accessory release state</span>
+                    <select
+                      value={product.releaseState}
+                      onChange={(event) => onChange({
+                        ...product,
+                        releaseState: event.target.value as CatalogProduct["releaseState"],
+                      })}
+                      className="staff-input text-xs"
+                      data-testid={`select-product-release-state-${product.slug}`}
+                    >
+                      <option value="placeholder">Placeholder · browse only</option>
+                      <option value="approved">Approved · validate for publication</option>
+                    </select>
+                    <p className="mt-2 text-[10px] text-muted-foreground">
+                      Approved accessories publish only after real copy, governed photography, price, stock, fulfilment, and every eligible JusticeSure mapping pass validation.
+                    </p>
+                  </label>
+                )}
                 <div className="grid gap-4 md:grid-cols-3">
                   <label className="block">
                     <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Colour</span>

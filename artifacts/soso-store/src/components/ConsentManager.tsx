@@ -47,7 +47,8 @@ export type StorefrontEventName =
   | "category_impression"
   | "faq_expanded"
   | "scroll_depth_reached"
-  | "cta_clicked";
+  | "cta_clicked"
+  | "accessory_launch_notification_submitted";
 
 const CONSENT_KEY = "soso-consent-v1";
 const CONSENT_SOURCE_KEY = "soso-consent-source-v1";

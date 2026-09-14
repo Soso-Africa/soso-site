@@ -329,6 +329,7 @@ export const AnalyticsEventInputEventName = {
   faq_expanded: 'faq_expanded',
   scroll_depth_reached: 'scroll_depth_reached',
   cta_clicked: 'cta_clicked',
+  accessory_launch_notification_submitted: 'accessory_launch_notification_submitted',
 } as const;
 
 export type AnalyticsEventInputDeviceType = typeof AnalyticsEventInputDeviceType[keyof typeof AnalyticsEventInputDeviceType];
@@ -474,6 +475,43 @@ export interface Enquiry {
   handlingNotes?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AccessoryLaunchNotificationInput {
+  /**
+     * @minLength 3
+     * @maxLength 320
+     * @pattern ^[^\s@]+@[^\s@]+\.[^\s@]+$
+     */
+  email: string;
+  /**
+     * @minLength 1
+     * @maxLength 160
+     * @pattern ^[a-z0-9]+(?:-[a-z0-9]+)*$
+     */
+  productSlug: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  accessoryCategory: string;
+  emailNotificationConsent: true;
+}
+
+export interface StaffAccessoryLaunchNotification {
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  id: string;
+  email: string;
+  productSlug: string;
+  accessoryCategory: string;
+  emailNotificationConsent: boolean;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  policyVersion: string;
+  consentedAt: string;
+  createdAt: string;
 }
 
 export type PrivacyRequestInputRequestType = typeof PrivacyRequestInputRequestType[keyof typeof PrivacyRequestInputRequestType];

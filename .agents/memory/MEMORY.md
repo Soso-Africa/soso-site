@@ -1,3 +1,4 @@
+- [Video-only hero artwork](hero-video-only.md) — never show unrelated image-mode artwork before or instead of an uploaded hero video.
 - [Conversion review evidence](conversion-review-evidence.md) — distinguish absent content from content that exists but is buried or poorly connected to the purchase decision.
 - [Payment-first bespoke checkout](payment-first-bespoke-checkout.md) — shoppers pay first; atelier production confirmation follows, with stylist help kept optional.
 - [JusticeSure v1 activation gate](justicesure-v1-activation-gate.md) — keep purchase controls fail-closed until acceptance, without hiding safe catalogue discovery.
@@ -32,3 +33,7 @@
 - [Product colour integrity](product-colour-integrity.md) — persist colour per order line; enable live recolouring only with a verified, usable garment mask.
 - [Paired material turns](paired-material-turns.md) — front/back stills form ordered material sets and drive a page-scroll turn illusion without claiming reconstructed 3D motion.
 - [Legacy catalogue review gate](legacy-catalogue-review-gate.md) — import current stock and managed media into Staff draft; keep it unpublished and unmapped until item-level approval.
+- [Legacy claim approval](legacy-claim-approval.md) — source preservation proves provenance, not truth; unsupported claims must be bounded and slug-level approval must fail closed.
+- [Browse-only catalogue placeholders](browse-only-catalogue-placeholders.md) — unavailable planned products may be discoverable, but prices, offers, and purchase controls must stay hidden.
+- [Accessory item release gates](accessory-item-release-gates.md) — release accessories independently; approved state requires real content, governed media, fulfilment, stock, and exact commerce mappings.
+- [Purpose-limited launch interest](purpose-limited-launch-interest.md) — accessory alerts use explicit per-purpose consent independent of optional measurement consent and retain the wording version.

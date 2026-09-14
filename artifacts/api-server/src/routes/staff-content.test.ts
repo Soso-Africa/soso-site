@@ -130,6 +130,53 @@ test("version 19 retires only the shipped Dashiki visualizer and preserves merch
   );
 });
 
+test("accessory launch adds safe placeholders while preserving merchant products, collections, and navigation", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.contentVersion = 19;
+  legacy.products = legacy.products.filter((product) => product.department !== "accessories");
+  legacy.collections = legacy.collections.filter((collection) => collection.slug !== "accessories");
+  const accessories = legacy.site.megaMenu.find((group) => group.id === "accessories")!;
+  accessories.visible = false;
+  accessories.columns = [{ heading: "Shop", links: [{ label: "Accessories", href: "/shop?department=accessories" }] }];
+  accessories.featuredProductSlugs = [];
+  legacy.products[0]!.name = "Merchant-edited Vault";
+  legacy.site.navigation = [{ label: "Merchant journal", href: "/journal" }];
+
+  const parsed = PlatformContentSchema.parse(mergePlatformContentDefaults(legacy));
+  const accessoryProducts = parsed.products.filter((product) => product.department === "accessories");
+  assert.deepEqual(accessoryProducts.map((product) => product.slug).sort(), [
+    "hausa-cap-coming-soon",
+    "igbo-cap-coming-soon",
+    "soso-bag-coming-soon",
+    "soso-cufflinks-coming-soon",
+    "soso-key-holder-coming-soon",
+    "yoruba-cap-coming-soon",
+  ]);
+  assert.ok(accessoryProducts.every((product) =>
+    product.fulfilmentState === "unavailable"
+    && !product.commerceProductId
+    && !product.commerceVariantIds
+    && Boolean(product.unavailableMessage)));
+  assert.equal(parsed.products[0]!.name, "Merchant-edited Vault");
+  assert.deepEqual(parsed.site.navigation, [{ label: "Merchant journal", href: "/journal" }]);
+  assert.equal(parsed.collections.some((collection) => collection.slug === "accessories"), true);
+  assert.equal(parsed.site.megaMenu.find((group) => group.id === "accessories")?.visible, true);
+});
+
+test("accessory launch does not replace an authored accessory listing or menu", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.contentVersion = 19;
+  const bag = legacy.products.find((product) => product.slug === "soso-bag-coming-soon")!;
+  bag.name = "Merchant bag preview";
+  const menu = legacy.site.megaMenu.find((group) => group.id === "accessories")!;
+  menu.label = "Finishing Pieces";
+  menu.visible = true;
+
+  const parsed = PlatformContentSchema.parse(mergePlatformContentDefaults(legacy));
+  assert.equal(parsed.products.find((product) => product.slug === bag.slug)?.name, "Merchant bag preview");
+  assert.equal(parsed.site.megaMenu.find((group) => group.id === "accessories")?.label, "Finishing Pieces");
+});
+
 test("colour visualizers require verified stored preview, base, and garment mask images", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   content.products[0]!.colourOptions[0]!.previewImageSrc = "/api/storage/objects/uploads/colour-preview.png";
@@ -742,19 +789,24 @@ test("homepage migration replaces removed collection targets and keeps sparse ca
   delete sparse.homepage.newArrival;
   const upgradedSparse = mergePlatformContentDefaults(sparse) as typeof DEFAULT_PLATFORM_CONTENT;
   assert.equal(PlatformContentSchema.safeParse(upgradedSparse).success, true);
-  assert.deepEqual(upgradedSparse.homepage.featured.productSlugs, [onlyProduct.slug, onlyProduct.slug, onlyProduct.slug, onlyProduct.slug]);
-  assert.equal(upgradedSparse.homepage.featured.legacySparseCompatibility, true);
+  assert.deepEqual(upgradedSparse.homepage.featured.productSlugs, [
+    onlyProduct.slug,
+    "soso-bag-coming-soon",
+    "soso-key-holder-coming-soon",
+    "soso-cufflinks-coming-soon",
+  ]);
+  assert.equal(upgradedSparse.homepage.featured.legacySparseCompatibility, undefined);
   assert.equal(upgradedSparse.homepage.newArrival.productSlug, onlyProduct.slug);
-  assert.equal(upgradedSparse.products.length, 1);
+  assert.equal(upgradedSparse.products.length, 7);
   const unrelatedCopyEdit = structuredClone(upgradedSparse);
   unrelatedCopyEdit.homepage.hero.title = "Updated campaign title";
   assert.equal(preservesLegacySparseFeaturedProvenance(upgradedSparse, unrelatedCopyEdit), true);
-  assert.equal(preservesLegacySparseFeaturedProvenance(DEFAULT_PLATFORM_CONTENT, upgradedSparse), false);
+  assert.equal(preservesLegacySparseFeaturedProvenance(DEFAULT_PLATFORM_CONTENT, upgradedSparse), true);
 
   const ordinarySparseDraft = structuredClone(upgradedSparse);
   ordinarySparseDraft.contentVersion = 6;
   delete ordinarySparseDraft.homepage.featured.legacySparseCompatibility;
-  assert.equal(PlatformContentSchema.safeParse(ordinarySparseDraft).success, false);
+  assert.equal(PlatformContentSchema.safeParse(ordinarySparseDraft).success, true);
 
   const markerOnNormalCatalogue = structuredClone(DEFAULT_PLATFORM_CONTENT);
   markerOnNormalCatalogue.homepage.featured.legacySparseCompatibility = true;
@@ -762,18 +814,7 @@ test("homepage migration replaces removed collection targets and keeps sparse ca
 
   const changedCatalogue = structuredClone(upgradedSparse);
   changedCatalogue.products.push(structuredClone(DEFAULT_PLATFORM_CONTENT.products[1]!));
-  assert.equal(preservesLegacySparseFeaturedProvenance(upgradedSparse, changedCatalogue), false);
-
-  const twoPieceSparse = structuredClone(upgradedSparse);
-  const secondProduct = structuredClone(DEFAULT_PLATFORM_CONTENT.products[1]!);
-  secondProduct.relatedProductSlugs = [];
-  twoPieceSparse.products.push(secondProduct);
-  twoPieceSparse.homepage.featured.productSlugs = [onlyProduct.slug, secondProduct.slug, onlyProduct.slug, onlyProduct.slug];
-  assert.equal(PlatformContentSchema.safeParse(twoPieceSparse).success, true);
-  const reorderedSparse = structuredClone(twoPieceSparse);
-  reorderedSparse.homepage.featured.productSlugs = [secondProduct.slug, onlyProduct.slug, onlyProduct.slug, onlyProduct.slug];
-  assert.equal(PlatformContentSchema.safeParse(reorderedSparse).success, true);
-  assert.equal(preservesLegacySparseFeaturedProvenance(twoPieceSparse, reorderedSparse), false);
+  assert.equal(preservesLegacySparseFeaturedProvenance(upgradedSparse, changedCatalogue), true);
 });
 
 test("homepage merchandising rejects wrong cardinalities and unknown or duplicate product references", () => {
@@ -1473,7 +1514,7 @@ test("payment return measurement copy is strict and v4 default merging preserves
   assert.equal(PlatformContentSchema.safeParse(upgraded).success, true);
 });
 
-test("version 4 adds governed interface copy without restoring v3 menu or ticker choices", () => {
+test("version 4 adds governed interface copy and the later accessories launch without restoring ticker choices", () => {
   const version3 = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
   version3.contentVersion = 3;
   version3.site.announcementItems = ["Merchant ticker only"];
@@ -1493,7 +1534,7 @@ test("version 4 adds governed interface copy without restoring v3 menu or ticker
   if (parsed.success) {
     assert.equal(parsed.data.contentVersion, DEFAULT_PLATFORM_CONTENT.contentVersion);
     assert.deepEqual(parsed.data.site.announcementItems, ["Merchant ticker only"]);
-    assert.equal(parsed.data.site.megaMenu.some((group) => group.id === "accessories"), false);
+    assert.equal(parsed.data.site.megaMenu.some((group) => group.id === "accessories" && group.visible), true);
     assert.equal(parsed.data.site.header.clearSearchLabel, "Merchant clear search");
     assert.equal(parsed.data.pages.shop.sortOptions.featured, "Merchant picks");
     assert.equal(parsed.data.productCopy.quickShopTitle, "Merchant quick shop");

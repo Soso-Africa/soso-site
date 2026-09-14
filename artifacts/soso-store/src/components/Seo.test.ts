@@ -18,6 +18,7 @@ const site: Pick<PlatformContent["site"], "name" | "logoAlt" | "structuredData">
 const product: CatalogProduct = {
   slug: "tailored-jacket", name: "Tailored Jacket", img: "/jacket.jpg", images: [],
   price: 100000, tag: "", note: "", category: "Jackets", department: "men",
+  releaseState: "approved",
   description: "A jacket", sizes: [], colour: "Black", fabric: "Wool", fit: "Tailored",
   searchableTerms: [], merchandising: { isNew: false, sortPriority: 0 },
   standardEligible: true, customEligible: false, standardSizes: [], readyNowSizes: [],
@@ -41,4 +42,12 @@ test("product schema only exposes an offer for commerce-authoritative inventory"
   assert.equal((linked.offers as { priceCurrency: string }).priceCurrency, "NGN");
   assert.equal((linked.offers as { price: number }).price, 100000);
   assert.equal((linked.offers as { availability: string }).availability, "https://schema.org/InStock");
+
+  const unavailable = buildProductStructuredData(
+    { ...product, fulfilmentState: "unavailable", commerceProductId: "stale-product-id" },
+    site,
+    "/product/tailored-jacket",
+    urls,
+  );
+  assert.equal("offers" in unavailable, false);
 });

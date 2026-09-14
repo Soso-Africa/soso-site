@@ -75,7 +75,20 @@ for (const path of sourcePaths) {
     assert.match(tag, /\bmuted\b/, `${relative(packageRoot, path)} has video that is not muted.`);
     assert.match(tag, /\bloop\b/, `${relative(packageRoot, path)} has hero video that does not loop.`);
     assert.match(tag, /\bplaysInline\b/, `${relative(packageRoot, path)} has video that may force fullscreen playback.`);
-    assert.match(tag, /\bpreload="none"/, `${relative(packageRoot, path)} has video that preloads outside the motion gate.`);
+    if (/\bpreload="auto"/.test(tag)) {
+      assert.equal(
+        relative(packageRoot, path),
+        "src/components/HomeHeroMedia.tsx",
+        `${relative(packageRoot, path)} preloads video without an approved performance exception.`,
+      );
+      assert.match(
+        source,
+        /const videoEnabled = selected\.motionAllowed\b/,
+        `${relative(packageRoot, path)} preloads video outside the motion gate.`,
+      );
+    } else {
+      assert.match(tag, /\bpreload="none"/, `${relative(packageRoot, path)} has video without an approved preload policy.`);
+    }
     assert.match(tag, /\bposter=/, `${relative(packageRoot, path)} has video without an approved poster.`);
   }
 }

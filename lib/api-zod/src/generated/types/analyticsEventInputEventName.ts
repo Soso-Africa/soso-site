@@ -34,4 +34,5 @@ export const AnalyticsEventInputEventName = {
   faq_expanded: 'faq_expanded',
   scroll_depth_reached: 'scroll_depth_reached',
   cta_clicked: 'cta_clicked',
+  accessory_launch_notification_submitted: 'accessory_launch_notification_submitted',
 } as const;

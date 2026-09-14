@@ -293,8 +293,16 @@ export const PlatformContentSchema = z.object({
   }).strict(),
   products: z.array(z.object({
     slug, name: copy, img: localPath, images: z.array(image).min(1),
+    legacyMigration: z.object({
+      sourceProductId: z.number().int().positive(),
+      sourceUrl: z.string().url().refine((value) => {
+        const hostname = new URL(value).hostname.toLocaleLowerCase();
+        return hostname === "shopsoso.co" || hostname === "www.shopsoso.co";
+      }, "Legacy source URL must use shopsoso.co"),
+    }).strict().optional(),
     materialTurnSets: z.array(materialTurnSet).max(8).default([]),
     price: z.number().int().positive(), tag: copy, note: copy, category: copy, department,
+    releaseState: z.enum(["placeholder", "approved"]).default("approved"),
     description: copy, sizes: z.array(z.string().min(1).max(40)).min(1),
     colour: copy.min(1),
     colourOptions: z.array(colourOption).min(1).max(16),
@@ -482,6 +490,18 @@ export const PlatformContentSchema = z.object({
       preferredFitOptions: z.array(z.object({ value: slug, label: copy }).strict()).min(1),
       occasionLabel: copy, occasionPlaceholder: copy, submitLabel: copy, submittedMessage: copy,
     }).strict(),
+    accessoryLaunchNotification: z.object({
+      title: copy.min(1),
+      body: copy.min(1),
+      emailLabel: interfaceLabel,
+      consentLabel: copy.min(1),
+      privacyLink: link,
+      submitLabel: interfaceLabel,
+      submittingLabel: interfaceLabel,
+      successMessage: copy.min(1),
+      invalidEmailMessage: copy.min(1),
+      errorMessage: copy.min(1),
+    }).strict().optional(),
   }).strict(),
   supportCopy: z.object({
     stylistLabel: copy, stylistHelp: copy, productCtaLabel: copy,
@@ -560,7 +580,8 @@ export const PlatformContentSchema = z.object({
     }
     if (group.visible && group.department) {
       const liveProducts = content.products.filter((item) => item.department === group.department && item.fulfilmentState !== "unavailable");
-      if (liveProducts.length === 0) {
+      const browseOnlyProducts = content.products.filter((item) => item.department === group.department && item.fulfilmentState === "unavailable");
+      if (liveProducts.length === 0 && !(group.department === "accessories" && browseOnlyProducts.length > 0)) {
         ctx.addIssue({ code: "custom", message: `Visible ${group.label} menu requires at least one available product`, path: ["site", "megaMenu", groupIndex, "visible"] });
       }
       if (group.featuredProductSlugs.length === 0) {
@@ -730,6 +751,7 @@ const hybridProductDefaults = {
 const product = (slugValue: string, name: string, img: string, price: number, tag: string, note: string, category: string, description: string) => ({
   slug: slugValue, name, img, images: [{ src: img, alt: name, provenance: suppliedImageProvenance }],
   materialTurnSets: [],
+  releaseState: "approved" as const,
   price, tag, note, category, description, sizes, ...hybridProductDefaults,
   searchableTerms: [name, category, tag],
   featured: true,
@@ -770,6 +792,7 @@ const womenReadyToWearProduct = (input: {
   note: input.note,
   category: "Women's Ready-to-Wear",
   department: "women",
+  releaseState: "approved",
   description: input.description,
   sizes: standardSizes,
   colour: input.colour,
@@ -899,8 +922,75 @@ const womenReadyToWearCollection: PlatformContent["collections"][number] = {
     description: "Shop SOSO Africa women’s ready-to-wear in Standard sizes, including linen, silk, shirts, and refined two-piece sets.",
   },
 };
+const accessoryPlaceholderProvenance = {
+  source: "SOSO Africa placeholder artwork",
+  rights: "Created for SOSO Africa storefront use",
+};
+const accessoryPlaceholder = (input: {
+  slug: string;
+  name: string;
+  category: string;
+  image: string;
+  alt: string;
+  terms: string[];
+  sortPriority: number;
+}): PlatformContent["products"][number] => ({
+  slug: input.slug,
+  name: input.name,
+  img: input.image,
+  images: [{ src: input.image, alt: input.alt, provenance: accessoryPlaceholderProvenance }],
+  materialTurnSets: [],
+  price: 1,
+  tag: "Coming soon",
+  note: "Planned SOSO accessory",
+  category: input.category,
+  department: "accessories",
+  releaseState: "placeholder",
+  description: `${input.name} is part of the planned SOSO accessories range. Product details, materials, price, availability, and delivery timing will be published only after approval.`,
+  sizes: ["One size"],
+  colour: "To be confirmed",
+  colourOptions: [{ id: "to-be-confirmed", label: "To be confirmed", hex: "#173B67" }],
+  allowCustomColour: false,
+  fabric: "To be confirmed",
+  fit: "To be confirmed",
+  searchableTerms: [input.name, "accessories", "coming soon", ...input.terms],
+  merchandising: { isNew: false, label: "Coming soon", sortPriority: input.sortPriority },
+  standardEligible: false,
+  customEligible: false,
+  standardSizes: [],
+  readyNowSizes: [],
+  fulfilmentState: "unavailable",
+  dispatchMessage: "Availability and fulfilment are not yet approved",
+  unavailableMessage: "Coming soon — this placeholder is not available to purchase.",
+});
+const accessoryPlaceholderProducts: PlatformContent["products"] = [
+  accessoryPlaceholder({ slug: "soso-bag-coming-soon", name: "SOSO Bag", category: "Bags", image: "/images/soso/accessories/bag-placeholder.png", alt: "SOSO Africa bag collection placeholder artwork", terms: ["bag", "bags", "carry"], sortPriority: 60 }),
+  accessoryPlaceholder({ slug: "soso-key-holder-coming-soon", name: "SOSO Key Holder", category: "Key Holders", image: "/images/soso/accessories/key-holder-placeholder.png", alt: "SOSO Africa key holder collection placeholder artwork", terms: ["key holder", "keyring", "keys"], sortPriority: 50 }),
+  accessoryPlaceholder({ slug: "soso-cufflinks-coming-soon", name: "SOSO Cufflinks", category: "Cufflinks", image: "/images/soso/accessories/cufflinks-placeholder.png", alt: "SOSO Africa cufflinks collection placeholder artwork", terms: ["cufflinks", "formal accessories"], sortPriority: 40 }),
+  accessoryPlaceholder({ slug: "igbo-cap-coming-soon", name: "Igbo Traditional Cap", category: "Traditional Caps", image: "/images/soso/accessories/igbo-cap-placeholder.png", alt: "SOSO Africa Igbo traditional cap collection placeholder artwork", terms: ["Igbo cap", "traditional cap", "red cap"], sortPriority: 30 }),
+  accessoryPlaceholder({ slug: "hausa-cap-coming-soon", name: "Hausa Traditional Cap", category: "Traditional Caps", image: "/images/soso/accessories/hausa-cap-placeholder.png", alt: "SOSO Africa Hausa traditional cap collection placeholder artwork", terms: ["Hausa cap", "traditional cap", "hula"], sortPriority: 20 }),
+  accessoryPlaceholder({ slug: "yoruba-cap-coming-soon", name: "Yoruba Traditional Cap", category: "Traditional Caps", image: "/images/soso/accessories/yoruba-cap-placeholder.png", alt: "SOSO Africa Yoruba traditional cap collection placeholder artwork", terms: ["Yoruba cap", "traditional cap", "fila"], sortPriority: 10 }),
+];
+const accessoriesCollection: PlatformContent["collections"][number] = {
+  slug: "accessories",
+  label: "Accessories",
+  category: "Accessories",
+  department: "accessories",
+  h1: "SOSO Accessories",
+  intro: "Preview the planned range of bags, key holders, cufflinks, and traditional caps. These placeholders are for discovery only and are not available to purchase.",
+  seo: {
+    title: "Accessories Coming Soon | SOSO Africa",
+    description: "Preview SOSO Africa’s planned accessories range. Placeholder listings are not yet available to purchase.",
+  },
+};
+const accessoryCategoryCollections: PlatformContent["collections"] = [
+  { ...accessoriesCollection, slug: "accessory-bags", label: "Bags", category: "Bags", h1: "SOSO Bags", intro: "Preview the planned SOSO bag range. These placeholders are not available to purchase.", seo: { title: "Bags Coming Soon | SOSO Africa", description: "Preview SOSO Africa’s planned bag range before approved products are released." } },
+  { ...accessoriesCollection, slug: "accessory-key-holders", label: "Key Holders", category: "Key Holders", h1: "SOSO Key Holders", intro: "Preview the planned SOSO key holder range. These placeholders are not available to purchase.", seo: { title: "Key Holders Coming Soon | SOSO Africa", description: "Preview SOSO Africa’s planned key holder range before approved products are released." } },
+  { ...accessoriesCollection, slug: "accessory-cufflinks", label: "Cufflinks", category: "Cufflinks", h1: "SOSO Cufflinks", intro: "Preview the planned SOSO cufflinks range. These placeholders are not available to purchase.", seo: { title: "Cufflinks Coming Soon | SOSO Africa", description: "Preview SOSO Africa’s planned cufflinks range before approved products are released." } },
+  { ...accessoriesCollection, slug: "traditional-caps", label: "Traditional Caps", category: "Traditional Caps", h1: "Traditional Caps", intro: "Preview planned Igbo, Hausa, and Yoruba cap listings. These placeholders are not available to purchase.", seo: { title: "Traditional Caps Coming Soon | SOSO Africa", description: "Preview SOSO Africa’s planned Igbo, Hausa, and Yoruba traditional cap range." } },
+];
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
-  contentVersion: 19,
+  contentVersion: 20,
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
     announcement: "Ready now and made immediately · Dispatch within five days",
@@ -931,9 +1021,12 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
         featuredProductSlugs: ["canvas", "varen"],
       },
       {
-        id: "accessories", label: "Accessories", href: "/shop?department=accessories", department: "accessories", visible: false,
-        columns: [{ heading: "Shop", links: [{ label: "Accessories", href: "/shop?department=accessories" }] }],
-        featuredProductSlugs: [],
+        id: "accessories", label: "Accessories", href: "/shop?department=accessories", department: "accessories", visible: true,
+        columns: [
+          { heading: "Discover", links: [{ label: "Shop all accessories", href: "/shop?department=accessories" }, { label: "Bags", href: "/shop?department=accessories&category=Bags" }, { label: "Key holders", href: "/shop?department=accessories&category=Key%20Holders" }, { label: "Cufflinks", href: "/shop?department=accessories&category=Cufflinks" }] },
+          { heading: "Traditional caps", links: [{ label: "All traditional caps", href: "/shop?department=accessories&category=Traditional%20Caps" }, { label: "Accessories collection", href: "/collections/accessories" }] },
+        ],
+        featuredProductSlugs: ["soso-bag-coming-soon", "igbo-cap-coming-soon"],
       },
     ],
     platformState: { loadingMessage: "Loading the published storefront…", unavailableMessage: "Storefront content is not published or is temporarily unavailable." },
@@ -1058,8 +1151,8 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
           eyebrow: "Women · Ready-to-wear", title: "Women at SOSO", intro: "A curated ready-to-wear collection shaped with the same restraint, proportion, and presence.",
         },
         accessories: {
-          seo: { title: "Accessories | SOSO Africa", description: "Discover SOSO Africa accessories when the first collection is ready." },
-          eyebrow: "Accessories", title: "The finishing pieces", intro: "A considered accessories collection will be published when the first pieces are ready.",
+          seo: { title: "Accessories Coming Soon | SOSO Africa", description: "Preview SOSO Africa’s planned bags, key holders, cufflinks, and traditional caps. These listings are not yet available to purchase." },
+          eyebrow: "Accessories · Coming soon", title: "The finishing pieces", intro: "Discover the planned SOSO accessories range. Every listing is a preview only until its product details, media, price, stock, fulfilment, and checkout mapping are approved.",
         },
       },
     },
@@ -1141,6 +1234,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     product("boardroom-shirt", "The Boardroom Shirt", "/images/soso/shirts.jpg", 150000, "Collection", "A sharp shirt for business days", "Shirts", "A refined shirt designed for business and formal settings. A SOSO stylist can help with sizing before you place an order."),
     product("twin-set", "Twin Set — Two Piece", "/images/soso/twopiece.jpg", 220000, "Collection", "Coordinated, relaxed tailoring", "Two-Piece", "A coordinated two-piece set with an easy, polished presence. Select your usual size or choose Custom for made-to-measure support."),
     ...womenReadyToWearProducts,
+    ...accessoryPlaceholderProducts,
   ],
   collections: [
     { slug: "kaftans", label: "Kaftans", category: "Kaftans", department: "men", h1: "Kaftans", intro: "Considered kaftans for significant occasions and daily distinction. Each piece is made to order for the person who wears it.", seo: { title: "Bespoke Kaftans | SOSO Africa, Abuja", description: "Premium made-to-order kaftans from SOSO Africa. Contemporary silhouettes made for the individual in Abuja, Nigeria." } },
@@ -1150,6 +1244,8 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     { slug: "shirts", label: "Shirts", category: "Shirts", department: "men", h1: "Shirts", intro: "Sharp, considered shirting for business settings and formal occasions.", seo: { title: "Premium Men's Shirts | SOSO Africa, Abuja", description: "Refined made-to-order shirts from SOSO Africa." } },
     { slug: "new-arrivals", label: "New Arrivals", category: "New Arrivals", department: "men", h1: "New Arrivals", intro: "The latest SOSO pieces, with online purchase shown only where an authoritative checkout mapping is available.", seo: { title: "New Arrivals | SOSO Africa", description: "Discover the latest SOSO Africa pieces." } },
     womenReadyToWearCollection,
+    accessoriesCollection,
+    ...accessoryCategoryCollections,
   ],
   sizeGuide: {
     title: "Size guide", intro: "Use these finished-garment measurements as a starting point. Ask a stylist if you are between sizes.",
@@ -1205,6 +1301,18 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
       occasionLabel: "Occasion", occasionPlaceholder: "e.g. wedding or evening event",
       submitLabel: "Prepare details for a stylist",
       submittedMessage: "Your details are ready to discuss. No size recommendation has been made, and these details are not sent automatically. A stylist can help you decide before you add to cart.",
+    },
+    accessoryLaunchNotification: {
+      title: "Hear when this accessory launches",
+      body: "Leave your email if you would like SOSO to contact you about this accessory. We cannot promise a launch date, price, or availability.",
+      emailLabel: "Email address",
+      consentLabel: "I agree to receive an email from SOSO about this accessory launch only.",
+      privacyLink: { label: "Read our privacy policy", href: "/privacy" },
+      submitLabel: "Request launch notification",
+      submittingLabel: "Saving request…",
+      successMessage: "Your request has been recorded. We will contact you only if there is an update about this accessory.",
+      invalidEmailMessage: "Enter a valid email address and confirm consent.",
+      errorMessage: "We could not save your request. Please try again.",
     },
   },
   supportCopy: {
@@ -1299,6 +1407,7 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
   const shouldNormalizeHeritageDashikiPalette = currentContentVersion < 17;
   const shouldRepairPartialCategoryRotation = currentContentVersion >= 17 && currentContentVersion < 19;
   const shouldRetireShippedDashikiVisualizer = currentContentVersion < 19;
+  const shouldApplyAccessoriesLaunch = currentContentVersion < 20;
   let upgradeSource = current;
   if (current && typeof current === "object" && !Array.isArray(current)) {
     upgradeSource = structuredClone(current);
@@ -1711,6 +1820,29 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
           if (!productSlugs.has(entry.slug)) upgradedProducts.push(structuredClone(entry));
         });
       }
+      if (shouldApplyAccessoriesLaunch) {
+        const productSlugs = new Set(upgradedProducts.flatMap((entry) =>
+          entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
+            ? [(entry as Record<string, unknown>).slug as string]
+            : []));
+        accessoryPlaceholderProducts.forEach((entry) => {
+          if (!productSlugs.has(entry.slug)) upgradedProducts.push(structuredClone(entry));
+        });
+        const featured = (merged as {
+          homepage?: { featured?: { productSlugs?: unknown[]; legacySparseCompatibility?: unknown } };
+        }).homepage?.featured;
+        if (featured?.legacySparseCompatibility) {
+          const allSlugs = upgradedProducts.flatMap((entry) =>
+            entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
+              ? [(entry as Record<string, unknown>).slug as string]
+              : []);
+          featured.productSlugs = [...new Set([
+            ...(Array.isArray(featured.productSlugs) ? featured.productSlugs.filter((value): value is string => typeof value === "string") : []),
+            ...allSlugs,
+          ])].slice(0, 4);
+          delete featured.legacySparseCompatibility;
+        }
+      }
       (merged as { products: unknown[] }).products = upgradedProducts;
     }
     const collections = (merged as { collections?: unknown }).collections;
@@ -1725,6 +1857,18 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
         if (!collectionSlugs.has(womenReadyToWearCollection.slug)) {
           upgradedCollections.push(structuredClone(womenReadyToWearCollection));
         }
+      }
+      if (shouldApplyAccessoriesLaunch) {
+        const collectionSlugs = new Set(upgradedCollections.flatMap((entry) =>
+          entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"
+            ? [(entry as Record<string, unknown>).slug as string]
+            : []));
+        if (!collectionSlugs.has(accessoriesCollection.slug)) {
+          upgradedCollections.push(structuredClone(accessoriesCollection));
+        }
+        accessoryCategoryCollections.forEach((entry) => {
+          if (!collectionSlugs.has(entry.slug)) upgradedCollections.push(structuredClone(entry));
+        });
       }
       (merged as { collections: unknown[] }).collections = upgradedCollections;
     }
@@ -1757,6 +1901,25 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
       if (legacyWomenGroupIndex >= 0) {
         const launchedWomenGroup = DEFAULT_PLATFORM_CONTENT.site.megaMenu.find((group) => group.id === "women");
         if (launchedWomenGroup) megaMenu[legacyWomenGroupIndex] = structuredClone(launchedWomenGroup);
+      }
+    }
+    if (shouldApplyAccessoriesLaunch && Array.isArray(megaMenu)) {
+      const accessoryGroupIndex = megaMenu.findIndex((entry) =>
+        entry && typeof entry === "object" && !Array.isArray(entry)
+        && (entry as Record<string, unknown>).id === "accessories");
+      const launchedAccessories = DEFAULT_PLATFORM_CONTENT.site.megaMenu.find((group) => group.id === "accessories");
+      if (accessoryGroupIndex < 0 && launchedAccessories) {
+        megaMenu.push(structuredClone(launchedAccessories));
+      } else if (accessoryGroupIndex >= 0 && launchedAccessories) {
+        const existing = megaMenu[accessoryGroupIndex] as Record<string, unknown>;
+        // Activate only the shipped dormant group. Merchant-authored accessory
+        // navigation remains untouched.
+        if (existing.visible === false
+          && existing.href === "/shop?department=accessories"
+          && Array.isArray(existing.featuredProductSlugs)
+          && existing.featuredProductSlugs.length === 0) {
+          megaMenu[accessoryGroupIndex] = structuredClone(launchedAccessories);
+        }
       }
     }
     if (shouldApplySiteSettingsLaunch && Array.isArray(megaMenu)) {

@@ -304,6 +304,29 @@ export const customerEnquiriesTable = pgTable(
   (table) => [index("soso_customer_enquiries_status_created_idx").on(table.status, table.createdAt)],
 );
 
+/**
+ * Public, purpose-limited requests for accessory launch notifications. The
+ * email is normalized before storage and the composite key makes retries
+ * idempotent without allowing the public response to enumerate subscribers.
+ */
+export const accessoryLaunchNotificationsTable = pgTable(
+  "soso_accessory_launch_notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: text("email").notNull(),
+    productSlug: text("product_slug").notNull(),
+    accessoryCategory: text("accessory_category").notNull(),
+    emailNotificationConsent: boolean("email_notification_consent").notNull(),
+    policyVersion: text("policy_version").notNull().default("accessory-launch-v1"),
+    consentedAt: timestamp("consented_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("soso_accessory_launch_notifications_identity_idx").on(table.email, table.productSlug, table.accessoryCategory),
+    index("soso_accessory_launch_notifications_created_idx").on(table.createdAt),
+  ],
+);
+
 export const privacyRequestsTable = pgTable(
   "soso_privacy_requests",
   {
@@ -638,6 +661,7 @@ export const insertOrderItemSchema = createInsertSchema(orderItemsTable).omit({ 
 export const insertMeasurementRequestSchema = createInsertSchema(measurementRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMeasurementRevisionSchema = createInsertSchema(measurementRevisionsTable).omit({ id: true, createdAt: true });
 export const insertCustomerEnquirySchema = createInsertSchema(customerEnquiriesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAccessoryLaunchNotificationSchema = createInsertSchema(accessoryLaunchNotificationsTable).omit({ id: true, policyVersion: true, consentedAt: true, createdAt: true });
 export const insertPrivacyRequestSchema = createInsertSchema(privacyRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOperationalNotificationSchema = createInsertSchema(operationalNotificationsTable).omit({ id: true, createdAt: true, acknowledgedAt: true, acknowledgedByClerkUserId: true });
 export const insertOperationalNotificationAcknowledgementSchema = createInsertSchema(operationalNotificationAcknowledgementsTable).omit({ id: true, createdAt: true });
@@ -664,6 +688,7 @@ export type MeasurementRevision = typeof measurementRevisionsTable.$inferSelect;
 export type CommerceCheckoutAttempt = typeof commerceCheckoutAttemptsTable.$inferSelect;
 export type CommerceWebhookEvent = typeof commerceWebhookEventsTable.$inferSelect;
 export type CustomerEnquiry = typeof customerEnquiriesTable.$inferSelect;
+export type AccessoryLaunchNotification = typeof accessoryLaunchNotificationsTable.$inferSelect;
 export type PrivacyRequest = typeof privacyRequestsTable.$inferSelect;
 export type PolicyVersion = typeof policyVersionsTable.$inferSelect;
 export type OperationalNotification = typeof operationalNotificationsTable.$inferSelect;

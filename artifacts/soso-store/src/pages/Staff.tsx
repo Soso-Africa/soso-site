@@ -18,6 +18,7 @@ import {
   useListStaffNotifications,
   useListStaffOrders,
   useListStaffPrivacyRequests,
+  useListStaffAccessoryLaunchNotifications,
   listStaffFaqHistory,
   useUpdateStaffEnquiry,
   useUpdateStaffJournalPost,
@@ -33,6 +34,7 @@ import {
   type StaffOrder,
   type StaffOrderUpdateStatus,
   type StaffPrivacyRequest,
+  type StaffAccessoryLaunchNotification,
   useGetStaffMarketingPixels,
   useUpdateStaffMarketingPixels,
   useListStaffMarketingPixelRevisions,
@@ -163,7 +165,7 @@ function formatDateSafe(value: string | Date | null | undefined, pattern: string
   return Number.isNaN(date.getTime()) ? fallback : format(date, pattern);
 }
 
-type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "journal" | "platform" | "faq" | "policies" | "redirects" | "marketing-pixels" | "analytics" | "staff";
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "redirects" | "marketing-pixels" | "analytics" | "staff";
 type StaffNavGroup = {
   label: string;
   items: { id: StaffTab; label: string; icon: React.ElementType }[];
@@ -181,18 +183,21 @@ export default function Staff() {
   const canManageEnquiries = canManageOrders || profile?.role === "stylist";
   const canSeeAnalytics = profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "analyst";
   const canManagePrivacy = canManageOrders;
+  const canReviewAccessoryLaunchNotifications = ["owner", "administrator", "editor"].includes(profile?.role as string);
   const isEditorial = ["owner", "administrator", "editor"].includes(profile?.role as string);
 
   const overview = useGetStaffOverview(range, { query: { queryKey: ["staff-overview", range.from, range.to], enabled: Boolean(profile), refetchInterval: 60_000 } });
   const orders = useListStaffOrders(range, { query: { queryKey: ["staff-orders", range.from, range.to], enabled: canViewOrders, refetchInterval: 45_000 } });
   const enquiries = useListStaffEnquiries({ query: { queryKey: ["staff-enquiries"], enabled: canManageEnquiries, refetchInterval: 45_000 } });
   const privacy = useListStaffPrivacyRequests({ query: { queryKey: ["staff-privacy"], enabled: canManagePrivacy, refetchInterval: 45_000 } });
+  const accessoryLaunchNotifications = useListStaffAccessoryLaunchNotifications({ query: { queryKey: ["staff-accessory-launch-notifications"], enabled: canReviewAccessoryLaunchNotifications, refetchInterval: 45_000 } });
   const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications"], enabled: Boolean(profile), refetchInterval: 45_000 } });
 
   const availableTabs = new Set<StaffTab>(["overview"]);
   if (canViewOrders) availableTabs.add("orders");
   if (canManageEnquiries) availableTabs.add("enquiries");
   if (canManagePrivacy) availableTabs.add("privacy");
+  if (canReviewAccessoryLaunchNotifications) availableTabs.add("accessory-launch-notifications");
   if (isEditorial) {
     availableTabs.add("journal"); availableTabs.add("platform"); availableTabs.add("faq"); availableTabs.add("policies");
   }
@@ -229,7 +234,10 @@ export default function Staff() {
       ...(canViewOrders ? [staffNavItem("orders", "Orders", Package)] : []),
       ...(canManageEnquiries ? [staffNavItem("enquiries", "Enquiries", MessageSquare)] : []),
     ] },
-    { label: "Customer care", items: canManagePrivacy ? [staffNavItem("privacy", "Privacy requests", LockKeyhole)] : [] },
+    { label: "Customer care", items: [
+      ...(canManagePrivacy ? [staffNavItem("privacy", "Privacy requests", LockKeyhole)] : []),
+      ...(canReviewAccessoryLaunchNotifications ? [staffNavItem("accessory-launch-notifications", "Accessory launch requests", Bell)] : []),
+    ] },
     { label: "Editorial", items: isEditorial ? [
       staffNavItem("journal", "Journal", PenLine), staffNavItem("platform", "Platform content", Globe), staffNavItem("faq", "FAQs", FileText),
     ] : [] },
@@ -247,6 +255,7 @@ export default function Staff() {
     if (canViewOrders) refreshes.push(orders.refetch());
     if (canManageEnquiries) refreshes.push(enquiries.refetch());
     if (canManagePrivacy) refreshes.push(privacy.refetch());
+    if (canReviewAccessoryLaunchNotifications) refreshes.push(accessoryLaunchNotifications.refetch());
     void Promise.all(refreshes);
   };
 
@@ -295,6 +304,7 @@ export default function Staff() {
         {activeTab === "orders" && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} readOnly={!canManageOrders} canManageMeasurements={canManageMeasurements} />}
         {activeTab === "enquiries" && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
         {activeTab === "privacy" && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
+        {activeTab === "accessory-launch-notifications" && <AccessoryLaunchNotificationsSection data={accessoryLaunchNotifications.data} loading={accessoryLaunchNotifications.isLoading} error={accessoryLaunchNotifications.isError} />}
         {activeTab === "journal" && <JournalManagementSection />}
         {activeTab === "platform" && <PlatformContentManagementSection />}
         {activeTab === "faq" && <FaqManagementSection />}
@@ -356,6 +366,38 @@ function StaffAccessRow({ member, update, onReset }: { member: { id: string; ema
     finally { setResetting(false); }
   };
   return <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="font-medium">{member.email}</p><p className="mt-1 text-xs text-muted-foreground">SOSO-managed account · added {format(new Date(member.createdAt), "d MMM yyyy")}</p></div><div className="flex flex-wrap items-center gap-2"><span className={`border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${member.isActive ? "border-green-500/30 text-green-600" : "border-border text-muted-foreground"}`}>{member.isActive ? "Active" : "Inactive"}</span><select value={member.role} onChange={(e) => void update(member.id, { role: e.target.value })} className="staff-input w-auto" aria-label={`Role for ${member.email}`}>{["owner", "administrator", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select><button type="button" disabled={resetting} onClick={() => void reset()} className="border border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider hover:border-primary disabled:opacity-50"><KeyRound size={13} className="mr-1 inline" /> Reset password</button><button type="button" onClick={() => void update(member.id, { isActive: !member.isActive })} className="border border-border px-3 py-2 text-[10px] font-semibold uppercase tracking-wider hover:border-primary">{member.isActive ? "Deactivate" : "Reactivate"}</button></div></div>;
+}
+
+function AccessoryLaunchNotificationsSection({
+  data,
+  loading,
+  error,
+}: {
+  data?: StaffAccessoryLaunchNotification[];
+  loading: boolean;
+  error: boolean;
+}) {
+  return <section className="mt-12 border-t border-border pt-10">
+    <SectionHeading
+      icon={Bell}
+      title="Accessory launch requests"
+      description="Purpose-limited email notification requests from shoppers. These requests do not promise a launch date, price, or availability."
+    />
+    <div className="mt-5 border border-border bg-card">
+      {loading ? <LoadingRows /> : error ? (
+        <p role="alert" className="p-5 text-sm text-red-600">Accessory launch requests could not be loaded. Please try again.</p>
+      ) : !data?.length ? <Empty label="No accessory launch requests yet." /> : (
+        <div className="divide-y divide-border">
+          {data.map((request) => <div key={request.id} className="grid gap-3 p-5 text-sm md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-center">
+            <div><p className="font-medium">{request.email}</p><p className="mt-1 text-xs text-muted-foreground">Consent recorded {formatDateSafe(request.consentedAt, "d MMM yyyy, HH:mm")}</p><p className="mt-1 text-xs text-muted-foreground">Copy version: {request.policyVersion}</p></div>
+            <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Product</p><p className="mt-1 font-medium">{request.productSlug}</p></div>
+            <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Accessory category</p><p className="mt-1">{request.accessoryCategory}</p></div>
+            <span className="justify-self-start border border-green-500/30 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-green-600">Consented</span>
+          </div>)}
+        </div>
+      )}
+    </div>
+  </section>;
 }
 
 type PlatformContentRow = {
@@ -597,7 +639,7 @@ function PlatformContentManagementSection() {
           <li>Description and assurances remain in the document for compatibility, but supporting purchase guidance belongs in trustItems below the hero.</li>
           <li>Use mediaMode image with imageUrl, mobileImageUrl and imageAlt for a still hero. Do not include video fields.</li>
           <li>Use mediaMode video only with local MP4 or WebM paths in both videoUrl and mobileVideoUrl.</li>
-          <li>imageUrl and mobileImageUrl remain the required approved poster and fallback for motion, reduced-motion, data-saving and failed playback. Use a static JPEG, PNG or WebP—animated images are rejected.</li>
+          <li>imageUrl and mobileImageUrl are required for image mode only in the display. Video mode never shows this artwork as a poster or playback fallback; loading, reduced-motion, data-saving and failed playback use a neutral background. Use static JPEG, PNG or WebP artwork—animated images are rejected.</li>
           <li>Keep poster images at or under 512 KB and each motion file at or under 8 MB. playLabel and pauseLabel must clearly describe the control.</li>
         </ul>
       </div>}

@@ -263,6 +263,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Enquiry"
+  /accessory-launch-notifications:
+    post:
+      operationId: createAccessoryLaunchNotification
+      tags: [storefront]
+      summary: Request a notification when an unavailable accessory launches
+      description: Accepts an email notification request without promising timing, price, or availability.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessoryLaunchNotificationInput"
+      responses:
+        "202":
+          description: Request accepted without disclosing whether a matching request already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Acknowledgement"
+        "400":
+          description: Invalid notification request
+        "429":
+          description: Too many requests from this source
   /privacy-requests:
     post:
       operationId: createPrivacyRequest
@@ -657,6 +680,24 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Enquiry"
+  /staff/accessory-launch-notifications:
+    get:
+      operationId: listStaffAccessoryLaunchNotifications
+      tags: [staff]
+      summary: List accessory launch notification requests
+      responses:
+        "200":
+          description: Accessory launch notification requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StaffAccessoryLaunchNotification"
+        "401":
+          description: Authentication required
+        "403":
+          description: Owner, administrator, or editor access required
   /staff/orders/{id}:
     patch:
       operationId: updateStaffOrder
@@ -1548,7 +1589,7 @@ components:
           maxLength: 128
         eventName:
           type: string
-          enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, category_impression, faq_expanded, scroll_depth_reached, cta_clicked]
+          enum: [page_view, session_started, active_time_heartbeat, product_view, product_image_viewed, size_guide_opened, size_selected, stylist_inquiry_started, stylist_inquiry_completed, add_to_bag, cart_opened, checkout_started, checkout_field_error, checkout_form_completed, payment_clicked, checkout_payment_unavailable, consent_banner_viewed, consent_updated, marketing_opt_out, blog_article_viewed, category_impression, faq_expanded, scroll_depth_reached, cta_clicked, accessory_launch_notification_submitted]
         path:
           type: string
           maxLength: 512
@@ -1637,6 +1678,40 @@ components:
         handlingNotes: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    AccessoryLaunchNotificationInput:
+      type: object
+      additionalProperties: false
+      required: [email, productSlug, accessoryCategory, emailNotificationConsent]
+      properties:
+        email:
+          type: string
+          minLength: 3
+          maxLength: 320
+          pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        productSlug:
+          type: string
+          minLength: 1
+          maxLength: 160
+          pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'
+        accessoryCategory:
+          type: string
+          minLength: 1
+          maxLength: 120
+        emailNotificationConsent:
+          type: boolean
+          enum: [true]
+    StaffAccessoryLaunchNotification:
+      type: object
+      required: [id, email, productSlug, accessoryCategory, emailNotificationConsent, policyVersion, consentedAt, createdAt]
+      properties:
+        id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        email: { type: string }
+        productSlug: { type: string }
+        accessoryCategory: { type: string }
+        emailNotificationConsent: { type: boolean }
+        policyVersion: { type: string, minLength: 1, maxLength: 80 }
+        consentedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
     PrivacyRequestInput:
       type: object
       required: [requestType, requesterEmail]

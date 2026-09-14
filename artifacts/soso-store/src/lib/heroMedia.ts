@@ -25,7 +25,10 @@ export function selectHeroMedia(
   environment: HeroMotionEnvironment,
   canPlayType: (mimeType: string) => boolean,
 ) {
-  const posterUrl = environment.isMobile ? hero.mobileImageUrl : hero.imageUrl;
+  // Image-mode artwork is not necessarily a frame from the uploaded video.
+  const posterUrl = hero.mediaMode === "image"
+    ? (environment.isMobile ? hero.mobileImageUrl : hero.imageUrl)
+    : undefined;
   const videoUrl = environment.isMobile ? hero.mobileVideoUrl : hero.videoUrl;
   const mimeType = videoUrl ? videoMimeType(videoUrl) : null;
   const constrainedConnection = environment.effectiveType === "slow-2g"

@@ -8,6 +8,7 @@ const mockBaseProduct: CatalogProduct = {
   slug: "test-product",
   name: "Test Product",
   department: "men",
+  releaseState: "approved",
   price: 100,
   category: "tops",
   colour: "Black",

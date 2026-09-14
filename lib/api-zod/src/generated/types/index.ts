@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accessoryLaunchNotificationInput';
 export * from './acknowledgement';
 export * from './analyticsComparison';
 export * from './analyticsEventInput';
@@ -121,6 +122,7 @@ export * from './staffAccessInput';
 export * from './staffAccessInputRole';
 export * from './staffAccessMapping';
 export * from './staffAccessMappingRole';
+export * from './staffAccessoryLaunchNotification';
 export * from './staffAccessUpdate';
 export * from './staffAccessUpdateRole';
 export * from './staffAnalyticsMetrics';
