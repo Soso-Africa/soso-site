@@ -8,6 +8,7 @@ import { usePlatformContent } from "@/data/platformContent";
 import { trackStorefrontEvent, editorialOrigin } from "@/components/ConsentManager";
 import { X } from "lucide-react";
 import { isMappedPurchaseChoice, mappedPurchaseChoices, visibleStandardSizes } from "@/lib/purchasing";
+import { AccessoryLaunchNotificationForm } from "@/components/AccessoryLaunchNotificationForm";
 
 interface ProductCardProps {
   product: CatalogProduct;
@@ -153,10 +154,19 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               {product.dispatchMessage}
             </p>}
           </div>
-          <p className={`text-[15px] font-semibold whitespace-nowrap ${isUnavailable ? "text-secondary opacity-50" : "text-foreground"}`} data-testid={`text-price-${product.slug}`}>
+          {!isUnavailable && <p className="text-[15px] font-semibold whitespace-nowrap text-foreground" data-testid={`text-price-${product.slug}`}>
             {naira(product.price)}
-          </p>
+          </p>}
         </Link>
+        {isUnavailable && product.department === "accessories" && (
+          <div className="mt-5">
+            <AccessoryLaunchNotificationForm
+              productSlug={product.slug}
+              accessoryCategory={product.category}
+              copy={productCopy?.accessoryLaunchNotification}
+            />
+          </div>
+        )}
       </article>
 
     <Drawer.Root open={quickShopOpen} onOpenChange={setQuickShopOpen}>

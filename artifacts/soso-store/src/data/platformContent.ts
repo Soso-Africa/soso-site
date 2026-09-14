@@ -23,6 +23,7 @@ export type CatalogProduct = {
     alt: string;
     provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
   }[];
+  legacyMigration?: { sourceProductId: number; sourceUrl: string };
   materialTurnSets?: {
     id: string;
     label: string;
@@ -42,6 +43,7 @@ export type CatalogProduct = {
   note: string;
   category: string;
   department: ProductDepartment;
+  releaseState: "placeholder" | "approved";
   description: string;
   sizes: string[];
   featured?: boolean;
@@ -271,6 +273,10 @@ export type PlatformContent = {
       preferredFitLabel: string; preferredFitPlaceholder: string;
       preferredFitOptions: { value: string; label: string }[];
       occasionLabel: string; occasionPlaceholder: string; submitLabel: string; submittedMessage: string;
+    };
+    accessoryLaunchNotification?: {
+      title: string; body: string; emailLabel: string; consentLabel: string; privacyLink: ContentLink;
+      submitLabel: string; submittingLabel: string; successMessage: string; invalidEmailMessage: string; errorMessage: string;
     };
   };
   supportCopy: {

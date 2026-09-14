@@ -33,10 +33,12 @@ import {
   UpdateStaffPrivacyRequestBody,
   UpdateStaffPrivacyRequestParams,
   UpdateStaffPrivacyRequestResponse,
+  ListStaffAccessoryLaunchNotificationsResponse,
   INVALID_STOREFRONT_PATH_PATTERN,
 } from "@workspace/api-zod";
 import {
   analyticsEventsTable,
+  accessoryLaunchNotificationsTable,
   auditLogsTable,
   customerEnquiriesTable,
   commerceCheckoutAttemptsTable,
@@ -67,6 +69,7 @@ import {
   QUALITY_EVENT_LIMIT,
 } from "./analytics-quality";
 import { buildReportingRates, comparisonDelta, eventCountMap } from "./analytics-reporting";
+import { ACCESSORY_LAUNCH_NOTIFICATION_STAFF_ROLES } from "../lib/accessory-launch-notifications";
 
 const router: IRouter = Router();
 
@@ -741,6 +744,15 @@ router.patch(
 router.get("/staff/enquiries", requireStaffRoles("owner", "administrator", "operations", "stylist"), async (_req, res): Promise<void> => {
   const enquiries = await db.select().from(customerEnquiriesTable).orderBy(desc(customerEnquiriesTable.createdAt)).limit(100);
   res.json(ListStaffEnquiriesResponse.parse(enquiries));
+});
+
+router.get("/staff/accessory-launch-notifications", requireStaffRoles(...ACCESSORY_LAUNCH_NOTIFICATION_STAFF_ROLES), async (_req, res): Promise<void> => {
+  const requests = await db
+    .select()
+    .from(accessoryLaunchNotificationsTable)
+    .orderBy(desc(accessoryLaunchNotificationsTable.createdAt))
+    .limit(250);
+  res.json(ListStaffAccessoryLaunchNotificationsResponse.parse(requests));
 });
 
 router.patch("/staff/enquiries/:id", requireStaffRoles("owner", "operations", "stylist"), async (req, res): Promise<void> => {

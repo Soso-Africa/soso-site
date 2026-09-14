@@ -6,9 +6,10 @@ export function selectCollectionProducts(
   products: CatalogProduct[],
 ): CatalogProduct[] {
   return products
-    .filter((product) => product.fulfilmentState !== "unavailable")
     .filter((product) => collection.slug === "new-arrivals"
-      ? product.merchandising.isNew
-      : product.department === collection.department && product.category === collection.category)
+      ? product.merchandising.isNew && product.fulfilmentState !== "unavailable"
+      : collection.slug === "accessories"
+        ? product.department === "accessories"
+        : product.department === collection.department && product.category === collection.category)
     .sort((left, right) => left.merchandising.sortPriority - right.merchandising.sortPriority || left.slug.localeCompare(right.slug));
 }

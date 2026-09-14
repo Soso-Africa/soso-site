@@ -11,6 +11,7 @@ import {
 
 const product = {
   fulfilmentState: "ready_now",
+  releaseState: "approved",
   commerceProductId: "product-id",
   commerceVariantIds: { S: "variant-s", Custom: "variant-custom" },
   standardEligible: true,
@@ -36,6 +37,12 @@ test("standard sizes stay visible when checkout mappings are absent", () => {
   assert.deepEqual(visibleStandardSizes(unmapped), ["S", "M"]);
   assert.equal(isMappedPurchaseChoice(unmapped, "S"), false);
   assert.deepEqual(visibleStandardSizes({ ...unmapped, standardEligible: false }), []);
+});
+
+test("unavailable accessory placeholders remain non-purchasable even with stale mappings", () => {
+  const placeholder = { ...product, department: "accessories" as const, fulfilmentState: "unavailable" as const };
+  assert.deepEqual(mappedPurchaseChoices(placeholder), []);
+  assert.equal(isMappedPurchaseChoice(placeholder, "S"), false);
 });
 
 test("cart selection changes reject unmapped variants and merge existing lines", () => {

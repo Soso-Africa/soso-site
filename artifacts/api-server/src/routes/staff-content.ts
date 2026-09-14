@@ -28,6 +28,8 @@ import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { ensurePlatformContent, platformContentHash, PlatformContentSchema, type PlatformContent } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
+import { validateLegacyProductPublication } from "../lib/legacy-product-publication";
+import { validateAccessoryProductPublication } from "../lib/accessory-product-publication";
 import { validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
@@ -202,6 +204,22 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     res.status(400).json({ error: "The current draft is invalid", issues: candidateContent.error.issues });
     return;
   }
+  const legacyProductIssues = validateLegacyProductPublication(candidateContent.data);
+  if (legacyProductIssues.length > 0) {
+    res.status(400).json({
+      error: "Legacy products did not pass publishing checks",
+      issues: legacyProductIssues,
+    });
+    return;
+  }
+  const accessoryProductIssues = validateAccessoryProductPublication(candidateContent.data);
+  if (accessoryProductIssues.length > 0) {
+    res.status(400).json({
+      error: "Accessories did not pass publishing checks",
+      issues: accessoryProductIssues,
+    });
+    return;
+  }
   const mediaIssues = [
     ...await validateHomepageHeroMediaAssets(candidateContent.data),
     ...await validateHomepageMerchandisingMediaAssets(candidateContent.data),
@@ -217,6 +235,14 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     if (!current) return { kind: "conflict" as const };
     const parsed = PlatformContentSchema.safeParse(current.draft);
     if (!parsed.success) return { kind: "invalid" as const, issues: parsed.error.issues };
+    const legacyProductIssues = validateLegacyProductPublication(parsed.data);
+    if (legacyProductIssues.length > 0) {
+      return { kind: "legacy_invalid" as const, issues: legacyProductIssues };
+    }
+    const accessoryProductIssues = validateAccessoryProductPublication(parsed.data);
+    if (accessoryProductIssues.length > 0) {
+      return { kind: "accessory_invalid" as const, issues: accessoryProductIssues };
+    }
     const now = new Date();
     const [updated] = await tx.update(siteContentTable).set({
       published: parsed.data, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
@@ -235,6 +261,14 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
   });
   if (result.kind === "conflict") { res.status(409).json({ error: "Platform content changed before it could be published." }); return; }
   if (result.kind === "invalid") { res.status(400).json({ error: "The current draft is invalid", issues: result.issues }); return; }
+  if (result.kind === "legacy_invalid") {
+    res.status(400).json({ error: "Legacy products did not pass publishing checks", issues: result.issues });
+    return;
+  }
+  if (result.kind === "accessory_invalid") {
+    res.status(400).json({ error: "Accessories did not pass publishing checks", issues: result.issues });
+    return;
+  }
   res.json(result.row);
 });
 

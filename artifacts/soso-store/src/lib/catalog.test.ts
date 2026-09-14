@@ -99,6 +99,22 @@ test("filterAndSortProducts", async (t) => {
     assert.equal(result[0].slug, "shirt-1");
   });
 
+  await t.test("discovers unavailable accessory placeholders by department, category, and search terms", () => {
+    const accessory = {
+      ...mockProducts[0],
+      slug: "igbo-cap-coming-soon",
+      name: "Igbo Traditional Cap",
+      department: "accessories" as const,
+      category: "Traditional Caps",
+      fulfilmentState: "unavailable" as const,
+      searchableTerms: ["Igbo cap", "red cap"],
+    };
+    const products = [...mockProducts, accessory];
+    assert.deepEqual(filterAndSortProducts(products, { department: "accessories" }).map(({ slug }) => slug), [accessory.slug]);
+    assert.deepEqual(filterAndSortProducts(products, { category: "Traditional Caps" }).map(({ slug }) => slug), [accessory.slug]);
+    assert.deepEqual(filterAndSortProducts(products, { searchQuery: "red cap" }).map(({ slug }) => slug), [accessory.slug]);
+  });
+
   await t.test("filters by Standard size and Custom eligibility", () => {
     assert.deepEqual(
       filterAndSortProducts(mockProducts, { size: "S" }).map((product) => product.slug),

@@ -28,7 +28,7 @@ definitions against the reviewed schema fingerprint before committing.
 On an existing SOSO database, the command recognizes the complete legacy base
 and skips the fresh-only baseline. It then reruns the additive, idempotent
 migrations in filename order, currently `0001_soso_content_cms.sql` through
-`0004_custom_atelier_handoff.sql`. Existing rows are preserved and the approved
+`0007_accessory_launch_notifications.sql`. Existing rows are preserved and the approved
 FAQ seed is recorded once.
 
 Validate fresh initialization, repeat execution, a real legacy upgrade, and

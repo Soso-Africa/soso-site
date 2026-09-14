@@ -28,7 +28,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
   const [environment, setEnvironment] = useState<HeroMotionEnvironment>(() => readEnvironment());
   const [failed, setFailed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
+  const [readyVideoUrl, setReadyVideoUrl] = useState<string>();
   const selected = useMemo(() => selectHeroMedia(
     hero,
     environment,
@@ -53,7 +53,6 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
   useEffect(() => {
     setFailed(false);
     setIsPlaying(false);
-    setIsVisible(false);
   }, [selected.videoUrl]);
 
   const videoEnabled = selected.motionAllowed && !failed && selected.videoUrl && selected.mimeType;
@@ -71,8 +70,8 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
     }
   };
 
-  return <div className="absolute inset-0" data-testid="home-hero-media">
-    <picture className="block h-full w-full">
+  return <div className="absolute inset-0 bg-neutral-800" data-testid="home-hero-media">
+    {selected.posterUrl && <picture className="block h-full w-full">
       <source media="(max-width: 767px)" srcSet={hero.mobileImageUrl} />
       <img
         src={hero.imageUrl}
@@ -81,28 +80,28 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
         loading="eager"
         fetchPriority="high"
       />
-    </picture>
+    </picture>}
     {videoEnabled && <>
       <video
         key={selected.videoUrl}
         ref={videoRef}
-        className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-500 ${isVisible ? "opacity-85" : "opacity-0"}`}
+        src={selected.videoUrl}
+        className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-150 motion-reduce:transition-none ${readyVideoUrl === selected.videoUrl ? "opacity-85" : "opacity-0"}`}
         poster={selected.posterUrl}
         muted
         loop
         playsInline
         autoPlay
-        preload="none"
+        preload="auto"
         aria-hidden="true"
         tabIndex={-1}
         data-testid="home-hero-video"
-        onPlaying={() => { setIsPlaying(true); setIsVisible(true); }}
+        onLoadedData={() => setReadyVideoUrl(selected.videoUrl)}
+        onPlaying={() => { setIsPlaying(true); setReadyVideoUrl(selected.videoUrl); }}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
-        onError={() => { setFailed(true); setIsPlaying(false); setIsVisible(false); }}
-      >
-        <source src={selected.videoUrl} type={selected.mimeType ?? undefined} />
-      </video>
+        onError={() => { setFailed(true); setIsPlaying(false); setReadyVideoUrl(undefined); }}
+      />
       <button
         type="button"
         onClick={() => void togglePlayback()}

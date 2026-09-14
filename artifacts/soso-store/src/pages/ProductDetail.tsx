@@ -12,9 +12,10 @@ import { ProductCard } from "@/components/ProductCard";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight, ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
 import * as Accordion from "@radix-ui/react-accordion";
-import { isMappedPurchaseChoice, mappedPurchaseChoices, visibleStandardSizes } from "@/lib/purchasing";
+import { isMappedPurchaseChoice, isProductReleased, mappedPurchaseChoices, visibleStandardSizes } from "@/lib/purchasing";
 import { WhatsAppIcon } from "@/components/Icons";
 import { MaterialTurnStage } from "@/components/MaterialTurnStage";
+import { AccessoryLaunchNotificationForm } from "@/components/AccessoryLaunchNotificationForm";
 
 function FallbackGallery({
   gallery,
@@ -346,7 +347,7 @@ export default function ProductDetail() {
         description={`${product.description} ${productCopy.seoDescriptionSuffix}`}
         path={`/product/${product.slug}`}
         product={product}
-        noIndex={!catalogApproved}
+        noIndex={!catalogApproved || !isProductReleased(product)}
         breadcrumbs={[
           { name: productCopy.shopBreadcrumbLabel, path: "/shop" },
           { name: product.category, path: `/shop?category=${encodeURIComponent(product.category)}` },
@@ -423,7 +424,7 @@ export default function ProductDetail() {
           {/* Availability / Price */}
           <div className="flex flex-col gap-2 mt-5 text-foreground">
             <div className="flex items-center gap-4">
-              <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>
+              {!isUnavailable && <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>}
               {product.fulfilmentState === "ready_now" && (
                 <span className="text-[10px] uppercase tracking-widest text-green-600/90 font-bold border border-green-600/20 px-2 py-1" data-testid="status-ready-now">{productCopy.readyNowLabel}</span>
               )}
@@ -437,6 +438,15 @@ export default function ProductDetail() {
                 </div>
             )}
           </div>
+          {isUnavailable && product.department === "accessories" && (
+            <div className="mt-6">
+              <AccessoryLaunchNotificationForm
+                productSlug={product.slug}
+                accessoryCategory={product.category}
+                copy={productCopy.accessoryLaunchNotification}
+              />
+            </div>
+          )}
 
           <p className="mt-6 text-[15px] leading-relaxed opacity-85 max-w-md text-foreground">
             {product.description}

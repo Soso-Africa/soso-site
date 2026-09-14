@@ -1,7 +1,7 @@
 import type { CatalogProduct } from "@/data/platformContent";
 
 export function mappedPurchaseChoices(product: CatalogProduct): string[] {
-  if (product.fulfilmentState === "unavailable" || !product.commerceProductId) return [];
+  if (!isProductReleased(product) || product.fulfilmentState === "unavailable" || !product.commerceProductId) return [];
 
   const eligibleChoices = [
     ...(product.standardEligible ? product.standardSizes : []),
@@ -9,6 +9,10 @@ export function mappedPurchaseChoices(product: CatalogProduct): string[] {
   ];
 
   return eligibleChoices.filter((choice) => Boolean(product.commerceVariantIds?.[choice]));
+}
+
+export function isProductReleased(product: CatalogProduct): boolean {
+  return product.department !== "accessories" || product.releaseState === "approved";
 }
 
 export function visibleStandardSizes(product: CatalogProduct): string[] {
@@ -20,6 +24,7 @@ export function isMappedPurchaseChoice(product: CatalogProduct, choice: string |
   return Boolean(
     choice
     && product.fulfilmentState !== "unavailable"
+    && isProductReleased(product)
     && product.commerceProductId
     && product.commerceVariantIds?.[choice],
   );

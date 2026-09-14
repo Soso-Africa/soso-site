@@ -3,6 +3,7 @@ import type { CatalogProduct } from "../../../data/platformContent";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOCAL_PATH_REGEX = /^\/(?!\/)/;
+const ACCESSORY_PLACEHOLDER_SIGNAL = /coming soon|placeholder|planned soso accessor|to be confirmed/i;
 
 export function validateProduct(
   product: CatalogProduct,
@@ -28,6 +29,7 @@ export function validateProduct(
   if (!product.fit) errors.push("Fit is required");
   if (!product.dispatchMessage) errors.push("Dispatch message is required");
   if (!["men", "women", "accessories"].includes(product.department)) errors.push("Department must be Men, Women, or Accessories");
+  if (!["placeholder", "approved"].includes(product.releaseState)) errors.push("Release state is required");
   if (product.merchandising?.sortPriority == null) errors.push("Sort priority is required");
 
   // Arrays structure
@@ -99,6 +101,33 @@ export function validateProduct(
     }
   } else if (product.unavailableMessage) {
     errors.push("Only unavailable products may include an unavailable message");
+  }
+
+  if (product.department === "accessories" && product.releaseState === "placeholder") {
+    if (product.fulfilmentState !== "unavailable") errors.push("Accessory placeholders must remain unavailable");
+    if (product.commerceProductId || product.commerceVariantIds) errors.push("Accessory placeholders cannot have commerce mappings");
+  }
+  if (product.department === "accessories" && product.releaseState === "approved") {
+    const eligibleChoices = [
+      ...(product.standardEligible ? standardSizes : []),
+      ...(product.customEligible ? ["Custom"] : []),
+    ];
+    const hasPlaceholderCopy = [
+      product.slug, product.tag, product.note, product.description, product.colour,
+      product.fabric, product.fit, product.merchandising?.label || "", ...(product.searchableTerms || []),
+    ].some((value) => ACCESSORY_PLACEHOLDER_SIGNAL.test(value));
+    const hasPlaceholderMedia = (product.images || []).some((image) => (
+      ACCESSORY_PLACEHOLDER_SIGNAL.test(image.src)
+      || ACCESSORY_PLACEHOLDER_SIGNAL.test(image.provenance?.source || "")
+      || ACCESSORY_PLACEHOLDER_SIGNAL.test(image.provenance?.rights || "")
+    ));
+    if (hasPlaceholderCopy || product.unavailableMessage) errors.push("Approved accessories must remove placeholder and coming-soon copy");
+    if (hasPlaceholderMedia) errors.push("Approved accessories must replace placeholder artwork with governed product photography");
+    if (product.fulfilmentState === "unavailable") errors.push("Approved accessories require an available fulfilment state");
+    if (!product.commerceProductId) errors.push("Approved accessories require a JusticeSure product mapping");
+    if (eligibleChoices.length === 0 || eligibleChoices.some((choice) => !product.commerceVariantIds?.[choice])) {
+      errors.push("Approved accessories require a JusticeSure variant mapping for every eligible purchase choice");
+    }
   }
 
   // Commerce variants

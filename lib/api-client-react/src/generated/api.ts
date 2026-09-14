@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccessoryLaunchNotificationInput,
   Acknowledgement,
   AnalyticsEventInput,
   AnalyticsQualityReport,
@@ -71,6 +72,7 @@ import type {
   StaffAccessInput,
   StaffAccessMapping,
   StaffAccessUpdate,
+  StaffAccessoryLaunchNotification,
   StaffAnalyticsMetrics,
   StaffAuditEvent,
   StaffEnquiryUpdate,
@@ -1018,6 +1020,78 @@ export const useCreateEnquiry = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateEnquiryMutationOptions(options));
+    }
+
+export const getCreateAccessoryLaunchNotificationUrl = () => {
+
+
+
+
+  return `/api/accessory-launch-notifications`
+}
+
+/**
+ * Accepts an email notification request without promising timing, price, or availability.
+ * @summary Request a notification when an unavailable accessory launches
+ */
+export const createAccessoryLaunchNotification = async (accessoryLaunchNotificationInput: AccessoryLaunchNotificationInput, options?: Parameters<typeof customFetch>[1]): Promise<Acknowledgement> => {
+
+  return customFetch<Acknowledgement>(getCreateAccessoryLaunchNotificationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accessoryLaunchNotificationInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAccessoryLaunchNotificationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAccessoryLaunchNotification>>, TError,{data: BodyType<AccessoryLaunchNotificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAccessoryLaunchNotification>>, TError,{data: BodyType<AccessoryLaunchNotificationInput>}, TContext> => {
+
+const mutationKey = ['createAccessoryLaunchNotification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAccessoryLaunchNotification>>, {data: BodyType<AccessoryLaunchNotificationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAccessoryLaunchNotification(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAccessoryLaunchNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof createAccessoryLaunchNotification>>>
+    export type CreateAccessoryLaunchNotificationMutationBody = BodyType<AccessoryLaunchNotificationInput>
+    export type CreateAccessoryLaunchNotificationMutationError = ErrorType<void>
+
+    /**
+ * @summary Request a notification when an unavailable accessory launches
+ */
+export const useCreateAccessoryLaunchNotification = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAccessoryLaunchNotification>>, TError,{data: BodyType<AccessoryLaunchNotificationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAccessoryLaunchNotification>>,
+        TError,
+        {data: BodyType<AccessoryLaunchNotificationInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAccessoryLaunchNotificationMutationOptions(options));
     }
 
 export const getCreatePrivacyRequestUrl = () => {
@@ -2575,6 +2649,83 @@ export function useListStaffEnquiries<TData = Awaited<ReturnType<typeof listStaf
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListStaffEnquiriesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStaffAccessoryLaunchNotificationsUrl = () => {
+
+
+
+
+  return `/api/staff/accessory-launch-notifications`
+}
+
+/**
+ * @summary List accessory launch notification requests
+ */
+export const listStaffAccessoryLaunchNotifications = async ( options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessoryLaunchNotification[]> => {
+
+  return customFetch<StaffAccessoryLaunchNotification[]>(getListStaffAccessoryLaunchNotificationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffAccessoryLaunchNotificationsQueryKey = () => {
+    return [
+    `/api/staff/accessory-launch-notifications`
+    ] as const;
+    }
+
+
+export const getListStaffAccessoryLaunchNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffAccessoryLaunchNotifications>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccessoryLaunchNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffAccessoryLaunchNotificationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffAccessoryLaunchNotifications>>> = ({ signal }) => listStaffAccessoryLaunchNotifications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffAccessoryLaunchNotifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffAccessoryLaunchNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffAccessoryLaunchNotifications>>>
+export type ListStaffAccessoryLaunchNotificationsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List accessory launch notification requests
+ */
+
+export function useListStaffAccessoryLaunchNotifications<TData = Awaited<ReturnType<typeof listStaffAccessoryLaunchNotifications>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffAccessoryLaunchNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffAccessoryLaunchNotificationsQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
