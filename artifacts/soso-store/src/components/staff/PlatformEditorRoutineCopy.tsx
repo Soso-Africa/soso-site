@@ -25,7 +25,6 @@ export function PlatformEditorSiteRoutineCopy({
     logoUrl: data.logoUrl,
     logoAlt: data.logoAlt,
     skipLinkLabel: data.skipLinkLabel,
-    instagramUrl: data.instagramUrl,
     whatsappUrl: data.whatsappUrl,
     navigation: data.navigation,
     mobileNavigation: data.mobileNavigation,

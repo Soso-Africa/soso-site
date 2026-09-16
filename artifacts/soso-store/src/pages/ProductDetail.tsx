@@ -286,7 +286,6 @@ export default function ProductDetail() {
 
   const purchaseChoices = mappedPurchaseChoices(product);
   const standardSizes = visibleStandardSizes(product);
-  const customIsMappable = purchaseChoices.includes("Custom");
   const hasMappedChoices = purchaseChoices.length > 0;
 
   const needSize = size === null;
@@ -587,7 +586,7 @@ export default function ProductDetail() {
               )}
               {!product.standardEligible && <p className="border border-black/10 p-4 text-sm opacity-65">{productCopy.standardUnavailableMessage}</p>}
 
-              {product.customEligible && customIsMappable && (
+              {product.customEligible && (
                 <div className="pt-5 border-t border-border">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[12px] tracking-[0.2em] uppercase font-medium">{productCopy.customLabel}</span>
