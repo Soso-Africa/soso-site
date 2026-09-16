@@ -392,6 +392,18 @@ export function PlatformEditorSite({
         <p className="mb-4 text-xs text-muted-foreground">Use complete HTTPS links. Leave a field blank to hide that network from the storefront.</p>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Instagram URL</span>
+            <input
+              type="url"
+              value={data.instagramUrl}
+              onChange={(e) => onChange({ ...data, instagramUrl: e.target.value })}
+              className="staff-input text-xs"
+              placeholder="https://instagram.com/..."
+              pattern="https://.*"
+              data-testid="input-social-instagram"
+            />
+          </label>
+          <label className="block">
             <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Facebook URL</span>
             <input
               type="url"
