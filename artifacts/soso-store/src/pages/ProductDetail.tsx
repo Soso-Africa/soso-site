@@ -764,8 +764,8 @@ export default function ProductDetail() {
 
       {/* Size guide modal */}
       {guideOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setGuideOpen(false)}>
-          <div role="dialog" aria-modal="true" aria-labelledby="size-guide-title" className="max-w-lg w-full p-8 relative bg-background border border-border" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/50 p-4 backdrop-blur-sm md:items-center" onClick={() => setGuideOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="size-guide-title" className="relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain border border-border bg-background p-6 md:p-8" onClick={(e) => e.stopPropagation()}>
             <button className="absolute top-4 right-5 text-2xl opacity-60 hover:opacity-100 text-foreground" onClick={() => setGuideOpen(false)} aria-label={productCopy.sizeGuideCloseLabel}>
               ×
             </button>
