@@ -9,6 +9,7 @@ for (const file of ["index.html", "spa-fallback.html", "robots.txt"]) await acce
 const index = await readFile(resolve(out, "index.html"), "utf8");
 assert.match(index, /<meta[^>]+name="viewport"/i);
 assert.match(index, /<script[^>]+src="\/assets\/[^"]+"/i);
+assert.match(index, /<link[^>]+rel="stylesheet"[^>]+href="\/assets\/[^"]+\.css"/i);
 assert.doesNotMatch(index, /localhost:\d+|127\.0\.0\.1:\d+/i);
 const robots = await readFile(resolve(out, "robots.txt"), "utf8");
 const fallback = await readFile(resolve(out, "spa-fallback.html"), "utf8");

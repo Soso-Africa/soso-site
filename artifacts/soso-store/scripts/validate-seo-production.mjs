@@ -78,6 +78,8 @@ assert.match(source, /product\.department === collection\.department && product\
 assert.match(source, /resolve\(out, `\$\{path\.slice\(1\)\}\.html`\)/);
 assert.match(source, /await clearPrerenders\(\)/);
 assert.match(source, /hydrationAsset/);
+assert.match(source, /builtHeadAssets/);
+assert.match(source, /Vite build output is missing its stylesheet asset/);
 assert.match(source, /data-soso-crawler-content/);
 assert.match(source, /assertNoIndexFallback\(builtShell\)/);
 assert.match(source, /writeFile\(resolve\(out, "index\.html"\), builtShell\)/);
