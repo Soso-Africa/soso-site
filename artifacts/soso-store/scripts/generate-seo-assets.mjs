@@ -106,6 +106,13 @@ assertNoIndexFallback(builtShell);
 await writeFile(fallbackPath, builtShell);
 const hydrationAsset = builtShell.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/i)?.[1];
 if (!hydrationAsset) throw new Error("Vite build output is missing its hydration client asset.");
+const builtHeadAssets = [...builtShell.matchAll(/<link\b[^>]*>/gi)]
+  .map(([tag]) => tag)
+  .filter((tag) => /\brel=["'](?:stylesheet|icon|apple-touch-icon|modulepreload)["']/i.test(tag))
+  .join("");
+if (!/\brel=["']stylesheet["']/i.test(builtHeadAssets)) {
+  throw new Error("Vite build output is missing its stylesheet asset.");
+}
 
 if (!canIndex) {
   await writeFile(resolve(out, "index.html"), builtShell);
@@ -233,7 +240,7 @@ function page({ path, title, description, h1, body, bodyHtml, schema = [], type 
   const socialImage = image ? absolute(image) : (socialImagePath ? absolute(socialImagePath) : "");
   const imageMeta = socialImage ? `<meta property="og:image" content="${escapeHtml(socialImage)}"><meta property="og:image:alt" content="${escapeHtml(imageAlt || title)}"><meta name="twitter:image" content="${escapeHtml(socialImage)}"><meta name="twitter:image:alt" content="${escapeHtml(imageAlt || title)}">` : "";
   const articleMeta = article ? `<meta property="article:published_time" content="${escapeHtml(article.publishedAt)}"><meta property="article:modified_time" content="${escapeHtml(article.updatedAt)}"><meta property="article:author" content="${escapeHtml(article.authorName)}">${(article.tags || []).map((tag) => `<meta property="article:tag" content="${escapeHtml(tag)}">`).join("")}` : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="${type}"><meta property="og:site_name" content="${escapeHtml(platform.site?.name || "SOSO Africa")}"><meta property="og:locale" content="en_NG"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}">${imageMeta}${articleMeta}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><script id="soso-server-schema" type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c")}</script></head><body><div id="root"><main data-soso-crawler-content><h1>${escapeHtml(h1)}</h1>${bodyHtml || `<p>${escapeHtml(body)}</p>`}${links(staticPages)}</main></div><script type="module" src="${escapeHtml(hydrationAsset)}"></script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="${type}"><meta property="og:site_name" content="${escapeHtml(platform.site?.name || "SOSO Africa")}"><meta property="og:locale" content="en_NG"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}">${imageMeta}${articleMeta}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><script id="soso-server-schema" type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c")}</script>${builtHeadAssets}</head><body><div id="root"><main data-soso-crawler-content><h1>${escapeHtml(h1)}</h1>${bodyHtml || `<p>${escapeHtml(body)}</p>`}${links(staticPages)}</main></div><script type="module" src="${escapeHtml(hydrationAsset)}"></script></body></html>`;
 }
 async function emit(path, html) {
   const file = path === "/" ? resolve(out, "index.html") : resolve(out, `${path.slice(1)}.html`);
