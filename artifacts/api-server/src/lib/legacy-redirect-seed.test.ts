@@ -7,6 +7,7 @@ import {
   redirectsTable,
 } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
+import app from "../app";
 
 const redirectSeed = await (new Function("url", "return import(url)")(
   new URL("../../../../lib/db/scripts/seed-soso-legacy-redirects.mjs", import.meta.url).href,
@@ -38,6 +39,11 @@ async function removeLegacySeedRows() {
 }
 
 test("legacy redirect seed inserts missing published permanent redirects and records their creation", async () => {
+  assert.equal(legacyRedirects.filter(({ fromPath }) => fromPath.startsWith("/product/")).length, 143);
+  assert.deepEqual(
+    legacyRedirects.find(({ fromPath }) => fromPath === "/shop/"),
+    { fromPath: "/shop/", toPath: "/shop", statusCode: 301 },
+  );
   await removeLegacySeedRows();
   const result = await seedSosoLegacyRedirects({ databaseUrl: process.env.DATABASE_URL });
   assert.deepEqual(result.createdPaths, legacyPaths);
@@ -71,6 +77,28 @@ test("legacy redirect seed inserts missing published permanent redirects and rec
     audit.actorClerkUserId === LEGACY_REDIRECT_SEED_ACTOR
     && (audit.metadata as { source?: string }).source === "approved_legacy_redirect_seed_v1"
   )));
+
+  const productRedirect = legacyRedirects.find(({ fromPath }) => fromPath.startsWith("/product/"))!;
+  const server = app.listen(0);
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/api/legacy-redirect?path=${encodeURIComponent(productRedirect.fromPath.slice(1))}`,
+      { redirect: "manual" },
+    );
+    assert.equal(response.status, 301);
+    assert.equal(response.headers.get("location"), productRedirect.toPath);
+
+    const shopResponse = await fetch(
+      `http://127.0.0.1:${address.port}/api/legacy-redirect?path=${encodeURIComponent("shop/")}`,
+      { redirect: "manual" },
+    );
+    assert.equal(shopResponse.status, 301);
+    assert.equal(shopResponse.headers.get("location"), "/shop");
+  } finally {
+    server.close();
+  }
 });
 
 test("legacy redirect seed is a no-op on rerun and preserves merchant redirects byte-for-byte", async () => {
@@ -108,7 +136,10 @@ test("legacy redirect seed is a no-op on rerun and preserves merchant redirects 
     .where(eq(redirectRevisionsTable.createdByClerkUserId, LEGACY_REDIRECT_SEED_ACTOR));
   const auditsBefore = await db.select({ count: sql<number>`count(*)::int` })
     .from(auditLogsTable)
-    .where(eq(auditLogsTable.actorClerkUserId, LEGACY_REDIRECT_SEED_ACTOR));
+    .where(and(
+      eq(auditLogsTable.actorClerkUserId, LEGACY_REDIRECT_SEED_ACTOR),
+      eq(auditLogsTable.action, "redirect.created"),
+    ));
   const rerun = await seedSosoLegacyRedirects({ databaseUrl: process.env.DATABASE_URL });
   assert.deepEqual(rerun.createdPaths, []);
   assert.deepEqual(rerun.skippedPaths, legacyPaths);
@@ -124,7 +155,10 @@ test("legacy redirect seed is a no-op on rerun and preserves merchant redirects 
     .where(eq(redirectRevisionsTable.createdByClerkUserId, LEGACY_REDIRECT_SEED_ACTOR));
   const auditsAfter = await db.select({ count: sql<number>`count(*)::int` })
     .from(auditLogsTable)
-    .where(eq(auditLogsTable.actorClerkUserId, LEGACY_REDIRECT_SEED_ACTOR));
+    .where(and(
+      eq(auditLogsTable.actorClerkUserId, LEGACY_REDIRECT_SEED_ACTOR),
+      eq(auditLogsTable.action, "redirect.created"),
+    ));
   assert.equal(revisionsAfter[0]?.count, revisionsBefore[0]?.count);
   assert.equal(auditsAfter[0]?.count, auditsBefore[0]?.count);
 });

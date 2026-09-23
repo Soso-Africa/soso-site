@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import {
   CreateAccessoryLaunchNotificationBody,
+  GetStaffAccessoryLaunchNotificationSummaryResponse,
   ListStaffAccessoryLaunchNotificationsResponse,
 } from "@workspace/api-zod";
 import {
@@ -17,6 +18,13 @@ import {
   isPublishedUnavailableAccessory,
 } from "../lib/accessory-launch-notifications";
 import { isRateLimited } from "./content";
+import {
+  accessoryDemandExportAuditValues,
+  accessoryDemandTrend,
+  buildAccessoryLaunchNotificationSummaryCsv,
+  getAccessoryLaunchNotificationSummary,
+  resolveDateRange,
+} from "./staff";
 
 test("public accessory notification validation requires affirmative purpose-limited consent", () => {
   const valid = CreateAccessoryLaunchNotificationBody.safeParse({
@@ -65,7 +73,7 @@ test("accessory launch rate limits use the DB-backed hashed source key", async (
 
 test("duplicate accessory notification identities remain one staff-visible record", async () => {
   const email = `duplicate-${randomUUID()}@example.com`;
-  const productSlug = "woven-pouch";
+  const productSlug = `summary-pouch-${randomUUID()}`;
   const accessoryCategory = "Bags";
   try {
     const values = {
@@ -85,10 +93,111 @@ test("duplicate accessory notification identities remain one staff-visible recor
   }
 });
 
+test("staff accessory demand summary deduplicates identities and respects the date range", async () => {
+  const identity = `summary-${randomUUID()}@example.com`;
+  const productSlug = `summary-pouch-${randomUUID()}`;
+  const accessoryCategory = "Bags";
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  try {
+    await db.insert(accessoryLaunchNotificationsTable).values([
+      { email: identity, productSlug, accessoryCategory, emailNotificationConsent: true, createdAt: now },
+      { email: identity.toUpperCase(), productSlug, accessoryCategory, emailNotificationConsent: true, createdAt: now },
+    ]);
+    const range = resolveDateRange({ from: date, to: date });
+    assert.ok(range);
+    const summary = GetStaffAccessoryLaunchNotificationSummaryResponse.parse(
+      await getAccessoryLaunchNotificationSummary(range),
+    );
+    assert.equal(JSON.stringify(summary).includes(identity), false);
+    assert.equal(JSON.stringify(summary).includes("email"), false);
+    assert.equal(summary.totalUniqueRequests, 1);
+    assert.deepEqual(summary.items, [{
+      accessoryCategory,
+      productSlug,
+      requestCount: 1,
+      previousRequestCount: 0,
+      change: 1,
+      trend: "new",
+    }]);
+
+    const priorDate = new Date(now.getTime() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const priorRange = resolveDateRange({ from: priorDate, to: priorDate });
+    assert.ok(priorRange);
+    const priorSummary = await getAccessoryLaunchNotificationSummary(priorRange);
+    assert.equal(priorSummary.totalUniqueRequests, 0);
+    assert.deepEqual(priorSummary.items, []);
+  } finally {
+    await db.delete(accessoryLaunchNotificationsTable).where(eq(accessoryLaunchNotificationsTable.productSlug, productSlug));
+  }
+});
+
+test("accessory demand trend distinguishes new, growth, decline, and no change", () => {
+  assert.equal(accessoryDemandTrend(2, 0), "new");
+  assert.equal(accessoryDemandTrend(3, 1), "growth");
+  assert.equal(accessoryDemandTrend(1, 3), "decline");
+  assert.equal(accessoryDemandTrend(2, 2), "no_change");
+});
+
 test("staff review access is limited to owner, administrator, and editor roles", () => {
   assert.equal(isAuthorizedAccessoryLaunchNotificationReviewer("owner"), true);
   assert.equal(isAuthorizedAccessoryLaunchNotificationReviewer("administrator"), true);
   assert.equal(isAuthorizedAccessoryLaunchNotificationReviewer("editor"), true);
   assert.equal(isAuthorizedAccessoryLaunchNotificationReviewer("operations"), false);
   assert.equal(isAuthorizedAccessoryLaunchNotificationReviewer("analyst"), false);
+});
+
+test("accessory demand CSV contains aggregate fields and reporting dates only", () => {
+  const csv = buildAccessoryLaunchNotificationSummaryCsv({
+    from: "2026-09-01",
+    to: "2026-09-14",
+    items: [{
+      accessoryCategory: "=unsafe",
+      productSlug: "@unsafe",
+      requestCount: 1,
+    }],
+  });
+
+  const audit = accessoryDemandExportAuditValues("staff_clerk_user", {
+    from: "2026-09-01",
+    to: "2026-09-14",
+  });
+
+  assert.equal(
+    csv,
+    "category,product_slug,deduplicated_request_count,reporting_from,reporting_to\r\n\"Bags, Pouches\",woven-pouch,3,2026-09-01,2026-09-14",
+  );
+  for (const identityField of ["email", "request_id", "consent", "created_at"]) {
+    assert.equal(csv.toLowerCase().includes(identityField), false);
+  }
+});
+
+test("accessory demand CSV neutralizes spreadsheet formulas", () => {
+  const csv = buildAccessoryLaunchNotificationSummaryCsv({
+    from: "2026-09-01",
+    to: "2026-09-14",
+    items: [{
+      accessoryCategory: "=unsafe",
+      productSlug: "@unsafe",
+      requestCount: 1,
+    }],
+  });
+
+  const audit = accessoryDemandExportAuditValues("staff_clerk_user", {
+    from: "2026-09-01",
+    to: "2026-09-14",
+  });
+
+  assert.deepEqual(audit, {
+    actorClerkUserId: "staff_clerk_user",
+    action: "staff.exported",
+    entityType: "staff_export",
+    entityId: null,
+    metadata: {
+      report: "accessory_demand",
+      from: "2026-09-01",
+      to: "2026-09-14",
+    },
+  });
+  assert.deepEqual(Object.keys(audit.metadata).sort(), ["from", "report", "to"]);
 });

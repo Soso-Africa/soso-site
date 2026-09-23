@@ -1,34 +1,15 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
-import serverlessChromium from "@sparticuz/chromium";
 import { PNG } from "pngjs";
-import pg from "pg";
+import { createStaffBrowserHarness } from "./staff-browser-harness.mjs";
 
-const storeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const workspaceRoot = resolve(storeRoot, "../..");
-const apiPort = 43181;
-const storePort = 43182;
-const apiOrigin = `http://127.0.0.1:${apiPort}`;
-const storeOrigin = `http://127.0.0.1:${storePort}`;
-const ownerEmail = `mask-owner-${randomUUID()}@example.test`;
-const editorEmail = `mask-editor-${randomUUID()}@example.test`;
-const ownerPassword = "MaskOwnerBrowser123!";
 const editorPassword = "MaskEditorBrowser123!";
-const bootstrapToken = `mask-bootstrap-${randomUUID()}`;
 const baseAPath = "/api/storage/objects/uploads/browser-mask-base-a.png";
 const baseBPath = "/api/storage/objects/uploads/browser-mask-base-b.png";
 const approvedPath = "/api/storage/objects/uploads/browser-approved-garment-mask.png";
 const initialMaskPath = "/api/storage/objects/uploads/existing-approved-garment-mask.png";
-const children = [];
-let ownerCookie = "";
-let editorId = "";
-let originalRow;
 let browser;
-let contentMutated = false;
+const harness = await createStaffBrowserHarness({ prefix: "mask", ownerPassword: "MaskOwnerBrowser123!" });
+const { api, replaceDraftFixture, storeOrigin } = harness;
 
 function makePng(width, height) {
   const png = new PNG({ width, height });
@@ -60,105 +41,9 @@ function makeMask(width, height) {
   return PNG.sync.write(png);
 }
 
-function start(command, args, options) {
-  const child = spawn(command, args, { ...options, stdio: ["ignore", "pipe", "pipe"] });
-  let output = "";
-  child.stdout.on("data", (chunk) => { output += chunk; });
-  child.stderr.on("data", (chunk) => { output += chunk; });
-  children.push({ child, getOutput: () => output });
-}
-
-async function waitFor(url, processRecord) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    if (processRecord.child.exitCode !== null) {
-      throw new Error(`Process exited before ${url} was ready.\n${processRecord.getOutput()}`);
-    }
-    try {
-      const response = await fetch(url);
-      if (response.status < 500) return;
-    } catch {
-      // The server is still starting.
-    }
-    await new Promise((resolveWait) => setTimeout(resolveWait, 250));
-  }
-  throw new Error(`Timed out waiting for ${url}.\n${processRecord.getOutput()}`);
-}
-
-async function api(path, { cookie = "", method = "GET", body } = {}) {
-  const response = await fetch(`${apiOrigin}${path}`, {
-    method,
-    headers: {
-      ...(cookie ? { cookie } : {}),
-      ...(["POST", "PUT", "PATCH", "DELETE"].includes(method) ? { origin: apiOrigin } : {}),
-      ...(body === undefined ? {} : { "content-type": "application/json" }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  return { response, value: text ? JSON.parse(text) : null };
-}
-
-function sessionCookie(response) {
-  const setCookie = response.headers.get("set-cookie");
-  assert.ok(setCookie, "Expected staff authentication to set a session cookie.");
-  return setCookie.split(";", 1)[0];
-}
-
-async function currentRow(cookie) {
-  const result = await api("/api/staff/content/platform", { cookie });
-  assert.equal(result.response.status, 200, JSON.stringify(result.value));
-  return result.value;
-}
-
-async function saveContent(cookie, content, expectedDraftUpdatedAt) {
-  return api("/api/staff/content/platform", {
-    cookie,
-    method: "PUT",
-    body: { content, expectedDraftUpdatedAt },
-  });
-}
-
-async function replaceDraftFixture(content) {
-  const database = new pg.Client({ connectionString: process.env.DATABASE_URL });
-  await database.connect();
-  await database.query(
-    `update soso_site_content
-     set draft = $1::jsonb, draft_updated_at = now()
-     where key = 'platform'`,
-    [JSON.stringify(content)],
-  );
-  await database.end();
-}
-
-async function restoreContent() {
-  if (!contentMutated || !originalRow || !ownerCookie) return;
-  await replaceDraftFixture(originalRow.draft);
-}
-
 try {
-  assert.ok(process.env.DATABASE_URL, "DATABASE_URL is required.");
-  const database = new pg.Client({ connectionString: process.env.DATABASE_URL });
-  await database.connect();
-  await database.query(
-    `insert into soso_staff_users (clerk_user_id, email, role, is_active)
-     values ($1, $2, 'owner', true)`,
-    [`mask-owner-${randomUUID()}`, ownerEmail],
-  );
-  await database.end();
-
-  start("node", ["--enable-source-maps", "dist/index.mjs"], {
-    cwd: resolve(workspaceRoot, "artifacts/api-server"),
-    env: { ...process.env, NODE_ENV: "development", PORT: String(apiPort), STAFF_BOOTSTRAP_TOKEN: bootstrapToken },
-  });
-  await waitFor(`${apiOrigin}/api/content/platform`, children[0]);
-
-  const bootstrap = await api("/api/staff-auth/bootstrap", {
-    method: "POST",
-    body: { email: ownerEmail, password: ownerPassword, token: bootstrapToken },
-  });
-  assert.equal(bootstrap.response.status, 201, JSON.stringify(bootstrap.value));
-  ownerCookie = sessionCookie(bootstrap.response);
-  originalRow = await currentRow(ownerCookie);
+  await harness.startServers();
+  const originalRow = harness.originalPlatformRow;
   assert.ok(originalRow.draft?.products?.length, "The isolated fixture must contain a catalogue product.");
 
   const product = originalRow.draft.products[0];
@@ -168,23 +53,10 @@ try {
     garmentMaskSrc: initialMaskPath,
   };
   await replaceDraftFixture(seededContent);
-  contentMutated = true;
 
-  const created = await api("/api/staff/access", {
-    cookie: ownerCookie,
-    method: "POST",
-    body: { email: editorEmail, password: editorPassword, role: "editor" },
-  });
-  assert.equal(created.response.status, 201, JSON.stringify(created.value));
-  editorId = created.value.id;
+  const { email: editorEmail } = await harness.createStaffUser({ label: "editor", password: editorPassword });
 
-  start("pnpm", ["exec", "vite", "--config", "vite.config.ts", "--host", "127.0.0.1", "--port", String(storePort)], {
-    cwd: storeRoot,
-    env: { ...process.env, NODE_ENV: "development", PORT: String(storePort), SOSO_API_PROXY_TARGET: apiOrigin },
-  });
-  await waitFor(storeOrigin, children[1]);
-
-  browser = await chromium.launch({ headless: true, executablePath: await serverlessChromium.executablePath() });
+  browser = await harness.launchBrowser();
   const context = await browser.newContext();
   const page = await context.newPage();
   const basePng = makePng(8, 8);
@@ -267,23 +139,8 @@ try {
   await context.close();
   console.log("Garment mask browser approval regressions passed.");
 } finally {
-  if (browser) await browser.close().catch(() => {});
-  await restoreContent().catch((error) => {
-    console.error("Failed to restore platform content:", error);
+  await harness.cleanup().catch((error) => {
+    console.error(error);
     process.exitCode = 1;
   });
-  if (editorId && ownerCookie) {
-    const deactivated = await api(`/api/staff/access/${editorId}`, {
-      cookie: ownerCookie,
-      method: "PATCH",
-      body: { isActive: false },
-    }).catch(() => null);
-    if (!deactivated || deactivated.response.status !== 200) {
-      console.error("Failed to deactivate the temporary editor.");
-      process.exitCode = 1;
-    }
-  }
-  for (const { child } of children.reverse()) {
-    if (child.exitCode === null) child.kill("SIGTERM");
-  }
 }

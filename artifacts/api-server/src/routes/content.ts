@@ -180,13 +180,19 @@ router.get("/journal", async (_req, res): Promise<void> => {
       slug: journalPostsTable.slug,
       title: journalPostsTable.title,
       excerpt: journalPostsTable.excerpt,
+      body: journalPostsTable.body,
       coverImageUrl: journalPostsTable.coverImageUrl,
       coverImageAlt: journalPostsTable.coverImageAlt,
       authorName: journalPostsTable.authorName,
       category: journalPostsTable.category,
       tags: journalPostsTable.tags,
+      seoTitle: journalPostsTable.seoTitle,
+      seoDescription: journalPostsTable.seoDescription,
       readTimeMinutes: journalPostsTable.readTimeMinutes,
+      relatedProductSlugs: journalPostsTable.relatedProductSlugs,
+      relatedArticleSlugs: journalPostsTable.relatedArticleSlugs,
       publishedAt: journalPostsTable.publishedAt,
+      updatedAt: journalPostsTable.updatedAt,
     })
     .from(journalPostsTable)
     .where(and(eq(journalPostsTable.status, "published"), isNotNull(journalPostsTable.publishedAt)))

@@ -5,8 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { CommercePaymentStatusCurrency } from './commercePaymentStatusCurrency';
 import type { CommercePaymentStatusProvider } from './commercePaymentStatusProvider';
+import type { CommercePaymentStatusQuoteCurrencyMinorUnitExponents } from './commercePaymentStatusQuoteCurrencyMinorUnitExponents';
 import type { CommercePaymentStatusStatus } from './commercePaymentStatusStatus';
 
 export interface CommercePaymentStatus {
@@ -23,6 +23,14 @@ export interface CommercePaymentStatus {
   provider?: CommercePaymentStatusProvider;
   /** @minimum 0 */
   totalKobo?: number;
-  currency?: CommercePaymentStatusCurrency;
+  /** @pattern ^[A-Z]{3}$ */
+  currency?: string;
+  /** @pattern ^[A-Z]{3}$ */
+  quoteDisplayCurrency?: string;
+  /** @pattern ^[A-Z]{3}$ */
+  quoteChargeCurrency?: string;
+  /** @pattern ^[A-Z]{3}$ */
+  quoteSettlementCurrency?: string;
+  quoteCurrencyMinorUnitExponents?: CommercePaymentStatusQuoteCurrencyMinorUnitExponents;
   checkedAt: Date;
 }

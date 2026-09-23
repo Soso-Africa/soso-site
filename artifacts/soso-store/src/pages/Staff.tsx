@@ -5,6 +5,7 @@ import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepa
 import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
   customFetch,
+  exportStaffAccessoryLaunchNotificationSummary,
   getStaffExport,
   useAcknowledgeStaffNotification,
   useCreateStaffJournalPost,
@@ -19,6 +20,7 @@ import {
   useListStaffOrders,
   useListStaffPrivacyRequests,
   useListStaffAccessoryLaunchNotifications,
+  useGetStaffAccessoryLaunchNotificationSummary,
   listStaffFaqHistory,
   useUpdateStaffEnquiry,
   useUpdateStaffJournalPost,
@@ -35,6 +37,7 @@ import {
   type StaffOrderUpdateStatus,
   type StaffPrivacyRequest,
   type StaffAccessoryLaunchNotification,
+  type StaffAccessoryLaunchNotificationSummary,
   useGetStaffMarketingPixels,
   useUpdateStaffMarketingPixels,
   useListStaffMarketingPixelRevisions,
@@ -60,6 +63,7 @@ import {
   History,
   Info,
   ImageUp,
+  Images,
   Loader2,
   LockKeyhole,
   LayoutDashboard,
@@ -76,6 +80,8 @@ import {
   Target,
   Trash2,
   Truck,
+  TrendingDown,
+  TrendingUp,
   Users,
   X,
 } from "lucide-react";
@@ -165,12 +171,13 @@ function formatDateSafe(value: string | Date | null | undefined, pattern: string
   return Number.isNaN(date.getTime()) ? fallback : format(date, pattern);
 }
 
-type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "redirects" | "marketing-pixels" | "analytics" | "staff";
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "media-cleanup" | "redirects" | "marketing-pixels" | "analytics" | "staff";
 type StaffNavGroup = {
   label: string;
   items: { id: StaffTab; label: string; icon: React.ElementType }[];
 };
 const staffNavItem = (id: StaffTab, label: string, icon: React.ElementType) => ({ id, label, icon });
+type StaleCatalogueProduct = { slug: string; name: string };
 
 export default function Staff() {
   const { data: profile, isLoading: profileLoading, isError: profileError } = useGetStaffProfile();
@@ -191,7 +198,34 @@ export default function Staff() {
   const enquiries = useListStaffEnquiries({ query: { queryKey: ["staff-enquiries"], enabled: canManageEnquiries, refetchInterval: 45_000 } });
   const privacy = useListStaffPrivacyRequests({ query: { queryKey: ["staff-privacy"], enabled: canManagePrivacy, refetchInterval: 45_000 } });
   const accessoryLaunchNotifications = useListStaffAccessoryLaunchNotifications({ query: { queryKey: ["staff-accessory-launch-notifications"], enabled: canReviewAccessoryLaunchNotifications, refetchInterval: 45_000 } });
+  const accessoryLaunchNotificationSummary = useGetStaffAccessoryLaunchNotificationSummary(range, { query: { queryKey: ["staff-accessory-launch-notification-summary", range.from, range.to], enabled: canReviewAccessoryLaunchNotifications, refetchInterval: 45_000 } });
   const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications"], enabled: Boolean(profile), refetchInterval: 45_000 } });
+  const [staleCatalogueProducts, setStaleCatalogueProducts] = useState<StaleCatalogueProduct[]>([]);
+
+  useEffect(() => {
+    if (!isEditorial) {
+      setStaleCatalogueProducts([]);
+      return;
+    }
+    const controller = new AbortController();
+    const loadStaleMappings = async () => {
+      try {
+        const result = await customFetch<{ products?: StaleCatalogueProduct[] }>("/api/staff/commerce/catalogue-mapping/stale", {
+          responseType: "json",
+          signal: controller.signal,
+        });
+        if (Array.isArray(result.products)) setStaleCatalogueProducts(result.products);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    };
+    void loadStaleMappings();
+    const interval = window.setInterval(() => { void loadStaleMappings(); }, 15_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [isEditorial]);
 
   const availableTabs = new Set<StaffTab>(["overview"]);
   if (canViewOrders) availableTabs.add("orders");
@@ -199,7 +233,7 @@ export default function Staff() {
   if (canManagePrivacy) availableTabs.add("privacy");
   if (canReviewAccessoryLaunchNotifications) availableTabs.add("accessory-launch-notifications");
   if (isEditorial) {
-    availableTabs.add("journal"); availableTabs.add("platform"); availableTabs.add("faq"); availableTabs.add("policies");
+    availableTabs.add("journal"); availableTabs.add("platform"); availableTabs.add("faq"); availableTabs.add("policies"); availableTabs.add("media-cleanup");
   }
   if (profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "operations") availableTabs.add("redirects");
   if (profile?.role === "owner" || profile?.role === "administrator") availableTabs.add("marketing-pixels");
@@ -243,6 +277,7 @@ export default function Staff() {
     ] : [] },
     { label: "Governance", items: [
       ...(isEditorial ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
+      ...(isEditorial ? [staffNavItem("media-cleanup", "Media cleanup", Images)] : []),
       ...((profile.role === "owner" || profile.role === "administrator" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
       ...((profile.role === "owner" || profile.role === "administrator") ? [staffNavItem("marketing-pixels", "Marketing pixels", Target)] : []),
     ] },
@@ -256,6 +291,7 @@ export default function Staff() {
     if (canManageEnquiries) refreshes.push(enquiries.refetch());
     if (canManagePrivacy) refreshes.push(privacy.refetch());
     if (canReviewAccessoryLaunchNotifications) refreshes.push(accessoryLaunchNotifications.refetch());
+    if (canReviewAccessoryLaunchNotifications) refreshes.push(accessoryLaunchNotificationSummary.refetch());
     void Promise.all(refreshes);
   };
 
@@ -298,17 +334,40 @@ export default function Staff() {
             <button type="button" onClick={() => setMobileNavigationOpen(true)} className="inline-flex min-h-10 min-w-10 items-center justify-center border border-border lg:hidden" aria-label="Open staff navigation"><Menu size={18} /></button>
             <div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">{activeNavigation?.label ?? "Workspace"}</p><h1 className="mt-1 text-3xl soso-display">{activeNavigation?.label ?? "Overview"}</h1></div>
           </div>
-          {["overview", "orders", "analytics"].includes(activeTab) && <DateRangeControl range={range} onChange={setRange} />}
+          {["overview", "orders", "accessory-launch-notifications", "analytics"].includes(activeTab) && <DateRangeControl range={range} onChange={setRange} />}
         </header>
+        {staleCatalogueProducts.length > 0 && (
+          <aside role="alert" className="mt-6 border border-amber-300 bg-amber-50 p-4 text-amber-950">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 shrink-0" size={18} />
+              <div>
+                <p className="text-sm font-semibold">JusticeSure checkout mappings need attention</p>
+                <p className="mt-1 text-xs">Review and reconfirm {staleCatalogueProducts.length === 1 ? "this product" : "these products"} before saving or publishing:</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {staleCatalogueProducts.map((product) => (
+                    <a
+                      key={product.slug}
+                      href={`?platformSection=catalogue&product=${encodeURIComponent(product.slug)}#platform`}
+                      className="border border-amber-400 bg-white px-2 py-1 text-xs font-semibold underline underline-offset-2"
+                    >
+                      {product.name}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
         {activeTab === "overview" && <><section className="mt-6 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Activity className="mt-0.5 shrink-0 text-primary" size={18} /><p className="text-sm text-muted-foreground">{overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${formatDateSafe(overview.data.generatedAt, "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}</p></div><span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span></section><NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} /><RoleCapabilityBanner role={profile.role} /><Pulse overview={overview.data} loading={overview.isLoading} /></>}
         {activeTab === "orders" && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} readOnly={!canManageOrders} canManageMeasurements={canManageMeasurements} />}
         {activeTab === "enquiries" && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
         {activeTab === "privacy" && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
-        {activeTab === "accessory-launch-notifications" && <AccessoryLaunchNotificationsSection data={accessoryLaunchNotifications.data} loading={accessoryLaunchNotifications.isLoading} error={accessoryLaunchNotifications.isError} />}
+        {activeTab === "accessory-launch-notifications" && <AccessoryLaunchNotificationsSection range={range} data={accessoryLaunchNotifications.data} loading={accessoryLaunchNotifications.isLoading} error={accessoryLaunchNotifications.isError} summary={accessoryLaunchNotificationSummary.data} summaryLoading={accessoryLaunchNotificationSummary.isLoading} summaryError={accessoryLaunchNotificationSummary.isError} />}
         {activeTab === "journal" && <JournalManagementSection />}
         {activeTab === "platform" && <PlatformContentManagementSection />}
         {activeTab === "faq" && <FaqManagementSection />}
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
+        {activeTab === "media-cleanup" && <MediaCleanupSection />}
         {activeTab === "redirects" && <RedirectsManagementSection />}
         {activeTab === "marketing-pixels" && <MarketingPixelsSection />}
         {activeTab === "analytics" && (
@@ -323,6 +382,100 @@ export default function Staff() {
       </section>
     </div>
   </main>;
+}
+
+type ManagedMediaCleanupItem = {
+  path: string;
+  status: "queued" | "deferred" | "failed";
+  updatedAt: string;
+  reason: string | null;
+};
+
+type ManagedMediaCleanupSummary = {
+  deleted: number;
+  deferred: number;
+  failed: number;
+};
+
+function MediaCleanupSection() {
+  const [items, setItems] = useState<ManagedMediaCleanupItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [loadError, setLoadError] = useState("");
+
+  const load = useCallback(async () => {
+    setLoadError("");
+    try {
+      const result = await customFetch<ManagedMediaCleanupItem[]>("/api/storage/uploads/cleanup-pending", {
+        responseType: "json",
+      });
+      setItems(result);
+    } catch (error) {
+      setLoadError(errorMessage(error, "Pending media cleanup could not be loaded."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const interval = window.setInterval(() => { void load(); }, 45_000);
+    return () => window.clearInterval(interval);
+  }, [load]);
+
+  const retry = async () => {
+    setRetrying(true);
+    setNotice("");
+    try {
+      const result = await customFetch<ManagedMediaCleanupSummary>("/api/storage/uploads/cleanup-pending", {
+        method: "POST",
+        responseType: "json",
+      });
+      const outcomes = [
+        `${result.deleted} deleted`,
+        `${result.deferred} deferred`,
+        `${result.failed} failed`,
+      ];
+      setNotice(`Cleanup retry finished: ${outcomes.join(", ")}.`);
+      await load();
+    } catch (error) {
+      setNotice(errorMessage(error, "Pending media cleanup could not be retried."));
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  return <section className="mt-12 border-t border-border pt-10">
+    <SectionHeading icon={Images} title="Managed media cleanup" description="Review collection-cover uploads that could not yet be removed. Retries recheck current draft and published content before deleting anything." />
+    <div className="flex flex-col gap-3 border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-medium">{items.length} {items.length === 1 ? "upload needs" : "uploads need"} attention</p>
+        <p className="mt-1 text-xs text-muted-foreground">Deferred files are still referenced. Failed files could not be removed from managed storage.</p>
+      </div>
+      <button type="button" disabled={retrying || loading || items.length === 0} onClick={() => void retry()} className="inline-flex min-h-10 items-center justify-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary hover:bg-primary/5 disabled:opacity-50">
+        {retrying ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+        {retrying ? "Retrying…" : "Retry pending cleanup"}
+      </button>
+    </div>
+    {notice && <p role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
+    {loadError && <p role="alert" className="mt-4 border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</p>}
+    <div className="mt-4 border border-border bg-card">
+      {loading ? <LoadingRows /> : items.length === 0 ? <Empty label="No managed media cleanup is waiting." /> : <div className="divide-y divide-border">
+        {items.map((item) => <article key={item.path} className="p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="break-all font-mono text-xs text-foreground">{item.path}</p>
+              <p className="mt-2 text-xs text-muted-foreground">Latest update {formatDateSafe(item.updatedAt, "d MMM yyyy, HH:mm")}</p>
+              {item.status === "failed" && <p className="mt-2 text-sm text-muted-foreground">Managed storage deletion failed. Retry when the storage service is available.</p>}
+              {item.reason && <p className="mt-2 text-sm text-muted-foreground">{item.reason === "still_referenced" ? "Still referenced by current storefront content." : item.reason}</p>}
+            </div>
+            <span className={`h-fit border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${item.status === "failed" ? "border-red-500/30 text-red-600" : item.status === "deferred" ? "border-amber-500/40 text-amber-700" : "border-border text-muted-foreground"}`}>{item.status}</span>
+          </div>
+        </article>)}
+      </div>}
+    </div>
+  </section>;
 }
 
 function StaffAccessSection() {
@@ -369,20 +522,99 @@ function StaffAccessRow({ member, update, onReset }: { member: { id: string; ema
 }
 
 function AccessoryLaunchNotificationsSection({
+  range,
   data,
   loading,
   error,
+  summary,
+  summaryLoading,
+  summaryError,
 }: {
+  range: { from: string; to: string };
   data?: StaffAccessoryLaunchNotification[];
   loading: boolean;
   error: boolean;
+  summary?: StaffAccessoryLaunchNotificationSummary;
+  summaryLoading: boolean;
+  summaryError: boolean;
 }) {
+  const [exporting, setExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const downloadSummary = async () => {
+    setExporting(true);
+    setExportMessage("");
+    try {
+      const csv = await exportStaffAccessoryLaunchNotificationSummary(range);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `soso-accessory-demand-${range.from}-to-${range.to}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setExportMessage("Privacy-safe demand CSV downloaded.");
+    } catch (downloadError) {
+      setExportMessage(downloadError instanceof Error ? downloadError.message : "The demand CSV could not be downloaded.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return <section className="mt-12 border-t border-border pt-10">
     <SectionHeading
       icon={Bell}
       title="Accessory launch requests"
       description="Purpose-limited email notification requests from shoppers. These requests do not promise a launch date, price, or availability."
     />
+    <div className="mt-5 border border-border bg-card" data-testid="accessory-demand-summary">
+      <div className="flex flex-col gap-4 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em]">Demand summary</p>
+          <p className="mt-1 text-sm text-muted-foreground">Unique shoppers per product compared with the preceding equal-length period. The CSV contains selected-period aggregate counts and reporting dates only.</p>
+        </div>
+        <button type="button" onClick={() => void downloadSummary()} disabled={exporting || summaryLoading || summaryError} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 border border-primary px-4 text-[10px] font-semibold uppercase tracking-wider text-primary hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50">
+          {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+          {exporting ? "Preparing CSV" : "Download CSV"}
+        </button>
+      </div>
+      {exportMessage && <p role="status" className="border-b border-border px-5 py-3 text-xs text-muted-foreground">{exportMessage}</p>}
+      {summaryLoading ? <LoadingRows /> : summaryError ? (
+        <p role="alert" className="p-5 text-sm text-red-600">Accessory demand summary could not be loaded. Please try again.</p>
+      ) : !summary?.items.length ? <Empty label="No accessory demand in this date range or the preceding comparison period." /> : (
+        <>
+          <div data-testid="accessory-demand-comparison" className={`border-b p-4 text-sm ${summary.comparisonCoverage === "full" ? "border-border bg-muted/10 text-muted-foreground" : "border-amber-500/30 bg-amber-500/5 text-amber-800"}`}>
+            {summary.comparisonCoverage === "full"
+              ? <>Compared with {formatDateSafe(`${summary.comparisonFrom}T00:00:00Z`, "d MMM yyyy")} – {formatDateSafe(`${summary.comparisonTo}T00:00:00Z`, "d MMM yyyy")}.</>
+              : summary.comparisonCoverage === "partial"
+                ? <>Comparison is partial: recorded requests begin {formatDateSafe(`${summary.comparisonAvailableFrom}T00:00:00Z`, "d MMM yyyy")}, after this comparison period started.</>
+                : <>No recorded requests are available for {formatDateSafe(`${summary.comparisonFrom}T00:00:00Z`, "d MMM yyyy")} – {formatDateSafe(`${summary.comparisonTo}T00:00:00Z`, "d MMM yyyy")}; new demand is shown against zero.</>}
+          </div>
+          <div className="grid gap-3 border-b border-border bg-muted/20 p-5 sm:grid-cols-2">
+            <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Unique product requests</p><p className="mt-1 text-3xl soso-display">{summary.totalUniqueRequests}</p><p className="mt-1 text-xs text-muted-foreground">{summary.previousTotalUniqueRequests} in the preceding period</p></div>
+            <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Reporting period</p><p className="mt-1 font-medium">{formatDateSafe(`${summary.from}T00:00:00Z`, "d MMM yyyy")} – {formatDateSafe(`${summary.to}T00:00:00Z`, "d MMM yyyy")}</p></div>
+          </div>
+          <div className="divide-y divide-border">
+            {summary.items.map((item, index) => <div key={`${item.accessoryCategory}:${item.productSlug}`} data-testid="accessory-demand-row" className="grid gap-3 p-5 text-sm sm:grid-cols-[auto_1fr_1fr_auto_auto] sm:items-center">
+              <span className="text-xs font-semibold text-muted-foreground">#{index + 1}</span>
+              <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Product</p><p className="mt-1 font-medium">{item.productSlug}</p></div>
+              <div><p className="text-xs uppercase tracking-wider text-muted-foreground">Category</p><p className="mt-1">{item.accessoryCategory}</p></div>
+              <div className="justify-self-start border border-primary/25 bg-primary/5 px-3 py-2 text-right"><p className="text-2xl soso-display">{item.requestCount}</p><p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{item.requestCount === 1 ? "request" : "requests"}</p></div>
+              <div data-testid="accessory-demand-trend" className={`flex min-w-28 items-center gap-2 border px-3 py-2 text-xs font-semibold ${
+                item.trend === "growth" || item.trend === "new"
+                  ? "border-green-500/30 bg-green-500/5 text-green-700"
+                  : item.trend === "decline"
+                    ? "border-red-500/30 bg-red-500/5 text-red-700"
+                    : "border-border bg-muted/20 text-muted-foreground"
+              }`}>
+                {item.trend === "growth" || item.trend === "new" ? <TrendingUp size={15} /> : item.trend === "decline" ? <TrendingDown size={15} /> : <span aria-hidden="true">—</span>}
+                <span>{item.trend === "new" ? "New demand" : item.trend === "growth" ? `Up ${item.change}` : item.trend === "decline" ? `Down ${Math.abs(item.change)}` : "No change"}</span>
+                <span className="sr-only">Previous period: {item.previousRequestCount} requests.</span>
+              </div>
+            </div>)}
+          </div>
+        </>
+      )}
+    </div>
+    <h3 className="mt-8 text-xs font-semibold uppercase tracking-[0.16em]">Individual requests</h3>
     <div className="mt-5 border border-border bg-card">
       {loading ? <LoadingRows /> : error ? (
         <p role="alert" className="p-5 text-sm text-red-600">Accessory launch requests could not be loaded. Please try again.</p>
@@ -417,10 +649,15 @@ const platformSections: { id: PlatformSection; label: string }[] = [
 ];
 
 function PlatformContentManagementSection() {
+  const requestedSection = new URLSearchParams(window.location.search).get("platformSection");
+  const initialSection: PlatformSection = platformSections.some(({ id }) => id === requestedSection)
+    ? requestedSection as PlatformSection
+    : "complete";
+  const initialProductSlug = new URLSearchParams(window.location.search).get("product");
   const [row, setRow] = useState<PlatformContentRow | null>(null);
   const [content, setContent] = useState<PlatformContent | null>(null);
-  const [section, setSection] = useState<PlatformSection>("complete");
-  const sectionRef = useRef<PlatformSection>("complete");
+  const [section, setSection] = useState<PlatformSection>(initialSection);
+  const sectionRef = useRef<PlatformSection>(initialSection);
   const [json, setJson] = useState("{}");
   const [status, setStatus] = useState("Loading platform content…");
   const [saving, setSaving] = useState(false);
@@ -587,6 +824,7 @@ function PlatformContentManagementSection() {
         structuredEditor = <PlatformEditorCatalogue
           data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy" | "interfaceCopy">}
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+          initialProductSlug={initialProductSlug}
           onUploadMedia={async (file) => {
             const path = await uploadStaffMedia(file);
             setStatus("Catalogue asset uploaded and added to the draft. Save the draft to keep it.");

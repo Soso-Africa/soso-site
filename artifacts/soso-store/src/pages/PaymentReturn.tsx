@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { CheckCircle2, Clock3, ShieldAlert, AlertTriangle, Ruler, Info } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { clearCheckoutOperation, pendingPaymentAttempt } from "@/lib/commerce";
-import { naira } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
 import {
@@ -21,6 +20,14 @@ import type { PlatformContent } from "@/data/platformContent";
 
 const CM_BOUNDS = { height: [120, 230], chest: [50, 180], waist: [50, 180], hips: [50, 180], shoulder: [25, 70], sleeve: [35, 100], garmentLength: [40, 180] };
 const measurementFields = ["height", "chest", "waist", "hips", "shoulder", "sleeve", "garmentLength"] as const;
+
+function authoritativeMoney(kobo: number, currency = "NGN") {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(kobo / 100);
+  } catch {
+    return `${currency} ${(kobo / 100).toFixed(2)}`;
+  }
+}
 
 function interpolate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
@@ -103,7 +110,9 @@ export default function PaymentReturn() {
         </p>
 
         {status?.orderNumber && <p className="mt-5 text-sm text-foreground">{copy.orderReferenceLabel} <span className="font-semibold">{status.orderNumber}</span></p>}
-        {typeof status?.totalKobo === "number" && <p className="mt-2 text-sm text-[hsl(var(--secondary))]">{copy.authoritativeTotalLabel} {naira(status.totalKobo / 100)}</p>}
+        {typeof status?.totalKobo === "number" && <p className="mt-2 text-sm text-[hsl(var(--secondary))]">{copy.authoritativeTotalLabel} Canonical JusticeSure order total ({status.currency}, 2-decimal kobo): {authoritativeMoney(status.totalKobo, status.currency)}</p>}
+        {status?.provider && <p className="mt-2 text-xs uppercase tracking-[0.14em] text-[hsl(var(--secondary))]">Payment provider: {status.provider}</p>}
+        {status?.quoteDisplayCurrency && <p className="mt-2 text-xs text-[hsl(var(--secondary))]">Quote terms — display: {status.quoteDisplayCurrency} (exponent {status.quoteCurrencyMinorUnitExponents?.[status.quoteDisplayCurrency] ?? "—"}); charge: {status.quoteChargeCurrency} (exponent {status.quoteChargeCurrency ? status.quoteCurrencyMinorUnitExponents?.[status.quoteChargeCurrency] ?? "—" : "—"}); settlement: {status.quoteSettlementCurrency} (exponent {status.quoteSettlementCurrency ? status.quoteCurrencyMinorUnitExponents?.[status.quoteSettlementCurrency] ?? "—" : "—"}). These quote currencies are distinct from the canonical NGN order total above.</p>}
 
         {errorMessage && <p role="alert" className="mt-5 border border-destructive/30 bg-destructive/5 p-4 text-sm leading-relaxed text-destructive">{errorMessage} {copy.errorSuffix}</p>}
         {!paid && !cancelled && !errorMessage && <p className="mt-5 text-xs uppercase tracking-[0.18em] text-[hsl(var(--primary))]">{copy.pendingNotice}</p>}

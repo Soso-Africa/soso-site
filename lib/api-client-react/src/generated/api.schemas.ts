@@ -60,6 +60,33 @@ export interface FinalizeUploadResponse {
   objectPath: string;
 }
 
+export type ManagedMediaCleanupItemStatus = typeof ManagedMediaCleanupItemStatus[keyof typeof ManagedMediaCleanupItemStatus];
+
+
+export const ManagedMediaCleanupItemStatus = {
+  queued: 'queued',
+  deferred: 'deferred',
+  failed: 'failed',
+} as const;
+
+export interface ManagedMediaCleanupItem {
+  /** @pattern ^uploads/ */
+  path: string;
+  status: ManagedMediaCleanupItemStatus;
+  updatedAt: string;
+  /** @nullable */
+  reason?: string | null;
+}
+
+export interface ManagedMediaCleanupSummary {
+  /** @minimum 0 */
+  deleted: number;
+  /** @minimum 0 */
+  deferred: number;
+  /** @minimum 0 */
+  failed: number;
+}
+
 export type PlatformContentSite = { [key: string]: unknown };
 
 export type PlatformContentHomepage = { [key: string]: unknown };
@@ -512,6 +539,58 @@ export interface StaffAccessoryLaunchNotification {
   policyVersion: string;
   consentedAt: string;
   createdAt: string;
+}
+
+export type StaffAccessoryLaunchNotificationSummaryItemTrend = typeof StaffAccessoryLaunchNotificationSummaryItemTrend[keyof typeof StaffAccessoryLaunchNotificationSummaryItemTrend];
+
+
+export const StaffAccessoryLaunchNotificationSummaryItemTrend = {
+  new: 'new',
+  growth: 'growth',
+  decline: 'decline',
+  no_change: 'no_change',
+} as const;
+
+export interface StaffAccessoryLaunchNotificationSummaryItem {
+  accessoryCategory: string;
+  productSlug: string;
+  /** @minimum 0 */
+  requestCount: number;
+  /** @minimum 0 */
+  previousRequestCount: number;
+  change: number;
+  trend: StaffAccessoryLaunchNotificationSummaryItemTrend;
+}
+
+export type StaffAccessoryLaunchNotificationSummaryComparisonCoverage = typeof StaffAccessoryLaunchNotificationSummaryComparisonCoverage[keyof typeof StaffAccessoryLaunchNotificationSummaryComparisonCoverage];
+
+
+export const StaffAccessoryLaunchNotificationSummaryComparisonCoverage = {
+  full: 'full',
+  partial: 'partial',
+  empty: 'empty',
+} as const;
+
+export interface StaffAccessoryLaunchNotificationSummary {
+  /** @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ */
+  from: string;
+  /** @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ */
+  to: string;
+  /** @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ */
+  comparisonFrom: string;
+  /** @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ */
+  comparisonTo: string;
+  comparisonCoverage: StaffAccessoryLaunchNotificationSummaryComparisonCoverage;
+  /**
+     * @nullable
+     * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+     */
+  comparisonAvailableFrom: string | null;
+  /** @minimum 0 */
+  totalUniqueRequests: number;
+  /** @minimum 0 */
+  previousTotalUniqueRequests: number;
+  items: StaffAccessoryLaunchNotificationSummaryItem[];
 }
 
 export type PrivacyRequestInputRequestType = typeof PrivacyRequestInputRequestType[keyof typeof PrivacyRequestInputRequestType];
@@ -1459,6 +1538,28 @@ export interface CommerceFulfillmentInput {
   address?: string;
 }
 
+export type CommerceCheckoutInputPaymentProvider = typeof CommerceCheckoutInputPaymentProvider[keyof typeof CommerceCheckoutInputPaymentProvider];
+
+
+export const CommerceCheckoutInputPaymentProvider = {
+  paystack: 'paystack',
+  flutterwave: 'flutterwave',
+  stripe: 'stripe',
+  paypal: 'paypal',
+  hydrogen: 'hydrogen',
+} as const;
+
+export type CommerceCheckoutInputPaymentMethod = typeof CommerceCheckoutInputPaymentMethod[keyof typeof CommerceCheckoutInputPaymentMethod];
+
+
+export const CommerceCheckoutInputPaymentMethod = {
+  card: 'card',
+  bank_transfer: 'bank_transfer',
+  wallet: 'wallet',
+  paypal: 'paypal',
+  virtual_account: 'virtual_account',
+} as const;
+
 export interface CommerceCheckoutInput {
   /**
      * @minLength 8
@@ -1475,6 +1576,132 @@ export interface CommerceCheckoutInput {
   fulfillment: CommerceFulfillmentInput;
   /** @maxLength 1000 */
   notes?: string;
+  /**
+     * @minLength 36
+     * @maxLength 64
+     */
+  quoteId: string;
+  /** @pattern ^[A-Za-z]{3}$ */
+  displayCurrency: string;
+  paymentProvider: CommerceCheckoutInputPaymentProvider;
+  paymentMethod: CommerceCheckoutInputPaymentMethod;
+}
+
+export type CommerceQuoteInputPaymentProvider = typeof CommerceQuoteInputPaymentProvider[keyof typeof CommerceQuoteInputPaymentProvider];
+
+
+export const CommerceQuoteInputPaymentProvider = {
+  paystack: 'paystack',
+  flutterwave: 'flutterwave',
+  stripe: 'stripe',
+  paypal: 'paypal',
+  hydrogen: 'hydrogen',
+} as const;
+
+export type CommerceQuoteInputPaymentMethod = typeof CommerceQuoteInputPaymentMethod[keyof typeof CommerceQuoteInputPaymentMethod];
+
+
+export const CommerceQuoteInputPaymentMethod = {
+  card: 'card',
+  bank_transfer: 'bank_transfer',
+  wallet: 'wallet',
+  paypal: 'paypal',
+  virtual_account: 'virtual_account',
+} as const;
+
+export interface CommerceQuoteInput {
+  /**
+     * @minLength 8
+     * @maxLength 56
+     * @pattern ^[A-Za-z0-9_.:-]+$
+     */
+  checkoutOperationId: string;
+  customer: CommerceCustomerInput;
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
+  items: CommerceLineItemInput[];
+  fulfillment: CommerceFulfillmentInput;
+  /** @maxLength 1000 */
+  notes?: string;
+  /** @pattern ^[A-Za-z]{3}$ */
+  displayCurrency: string;
+  paymentProvider: CommerceQuoteInputPaymentProvider;
+  paymentMethod: CommerceQuoteInputPaymentMethod;
+}
+
+export type CommerceCanonicalCurrency = typeof CommerceCanonicalCurrency[keyof typeof CommerceCanonicalCurrency];
+
+
+export const CommerceCanonicalCurrency = {
+  NGN: 'NGN',
+} as const;
+
+export type CommerceQuoteAmounts = {[key: string]: string};
+
+export type CommerceQuoteCurrencyMinorUnitExponents = {[key: string]: number};
+
+export type CommerceQuotePaymentProvider = typeof CommerceQuotePaymentProvider[keyof typeof CommerceQuotePaymentProvider];
+
+
+export const CommerceQuotePaymentProvider = {
+  paystack: 'paystack',
+  flutterwave: 'flutterwave',
+  stripe: 'stripe',
+  paypal: 'paypal',
+  hydrogen: 'hydrogen',
+} as const;
+
+export type CommerceQuotePaymentMethod = typeof CommerceQuotePaymentMethod[keyof typeof CommerceQuotePaymentMethod];
+
+
+export const CommerceQuotePaymentMethod = {
+  card: 'card',
+  bank_transfer: 'bank_transfer',
+  wallet: 'wallet',
+  paypal: 'paypal',
+  virtual_account: 'virtual_account',
+} as const;
+
+export type CommerceQuotePayment = {
+  provider: CommerceQuotePaymentProvider;
+  method: CommerceQuotePaymentMethod;
+  /** @pattern ^[A-Z]{3}$ */
+  chargeCurrency: string;
+  /** @pattern ^[A-Z]{3}$ */
+  settlementCurrency: string;
+};
+
+export interface CommerceQuote {
+  /**
+     * @minLength 36
+     * @maxLength 64
+     */
+  id: string;
+  expiresAt: string;
+  currency: CommerceCanonicalCurrency;
+  /** @pattern ^[A-Z]{3}$ */
+  displayCurrency: string;
+  /** @pattern ^[A-Z]{3}$ */
+  chargeCurrency: string;
+  /** @pattern ^[A-Z]{3}$ */
+  settlementCurrency: string;
+  amounts: CommerceQuoteAmounts;
+  currencyMinorUnitExponents?: CommerceQuoteCurrencyMinorUnitExponents;
+  payment: CommerceQuotePayment;
+}
+
+export type CommerceDiscoveryCurrenciesItem = { [key: string]: unknown };
+
+export type CommerceDiscoveryPaymentMethods = { [key: string]: unknown };
+
+export type CommerceDiscoveryCorridorsItem = { [key: string]: unknown };
+
+export interface CommerceDiscovery {
+  currencies: CommerceDiscoveryCurrenciesItem[];
+  paymentMethods: CommerceDiscoveryPaymentMethods;
+  corridors: CommerceDiscoveryCorridorsItem[];
 }
 
 export interface CommercePaymentSession {
@@ -1510,14 +1737,12 @@ export type CommercePaymentStatusProvider = typeof CommercePaymentStatusProvider
 export const CommercePaymentStatusProvider = {
   paystack: 'paystack',
   flutterwave: 'flutterwave',
+  stripe: 'stripe',
+  paypal: 'paypal',
+  hydrogen: 'hydrogen',
 } as const;
 
-export type CommercePaymentStatusCurrency = typeof CommercePaymentStatusCurrency[keyof typeof CommercePaymentStatusCurrency];
-
-
-export const CommercePaymentStatusCurrency = {
-  NGN: 'NGN',
-} as const;
+export type CommercePaymentStatusQuoteCurrencyMinorUnitExponents = {[key: string]: number};
 
 export interface CommercePaymentStatus {
   /**
@@ -1533,9 +1758,19 @@ export interface CommercePaymentStatus {
   provider?: CommercePaymentStatusProvider;
   /** @minimum 0 */
   totalKobo?: number;
-  currency?: CommercePaymentStatusCurrency;
+  /** @pattern ^[A-Z]{3}$ */
+  currency?: string;
+  /** @pattern ^[A-Z]{3}$ */
+  quoteDisplayCurrency?: string;
+  /** @pattern ^[A-Z]{3}$ */
+  quoteChargeCurrency?: string;
+  /** @pattern ^[A-Z]{3}$ */
+  quoteSettlementCurrency?: string;
+  quoteCurrencyMinorUnitExponents?: CommercePaymentStatusQuoteCurrencyMinorUnitExponents;
   checkedAt: string;
 }
+
+export type CommerceCatalogVariantAttributes = {[key: string]: string | number | boolean};
 
 export interface CommerceCatalogVariant {
   /**
@@ -1545,9 +1780,18 @@ export interface CommerceCatalogVariant {
   id: string;
   /**
      * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * @minLength 1
      * @maxLength 160
      */
   label: string;
+  attributes: CommerceCatalogVariantAttributes;
+  /** @minimum 0 */
+  amountKobo: number;
+  inStock: boolean;
 }
 
 export interface CommerceCatalogProduct {
@@ -1567,7 +1811,6 @@ export interface CommerceCatalogProduct {
      */
   description: string | null;
   /**
-     * @minItems 1
      * @items.minLength 1
      * @items.maxLength 2048
      */
@@ -1580,6 +1823,88 @@ export interface CommerceCatalogProduct {
 
 export interface CommerceCatalog {
   products: CommerceCatalogProduct[];
+}
+
+export type CatalogueMappingProductInputFulfilmentState = typeof CatalogueMappingProductInputFulfilmentState[keyof typeof CatalogueMappingProductInputFulfilmentState];
+
+
+export const CatalogueMappingProductInputFulfilmentState = {
+  ready_now: 'ready_now',
+  made_immediately: 'made_immediately',
+  unavailable: 'unavailable',
+} as const;
+
+export type CatalogueMappingProductInputCommerceVariantIds = {[key: string]: string};
+
+export interface CatalogueMappingProductInput {
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  slug: string;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /** @minimum 1 */
+  price: number;
+  standardEligible: boolean;
+  customEligible: boolean;
+  /**
+     * @items.minLength 1
+     * @items.maxLength 40
+     */
+  standardSizes: string[];
+  fulfilmentState: CatalogueMappingProductInputFulfilmentState;
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  commerceProductId?: string;
+  commerceVariantIds?: CatalogueMappingProductInputCommerceVariantIds;
+}
+
+export interface CatalogueMappingPreviewInput {
+  /** @maxItems 1000 */
+  products: CatalogueMappingProductInput[];
+}
+
+export type CatalogueMappingSuggestionStatus = typeof CatalogueMappingSuggestionStatus[keyof typeof CatalogueMappingSuggestionStatus];
+
+
+export const CatalogueMappingSuggestionStatus = {
+  confident: 'confident',
+  needs_review: 'needs_review',
+  blocked: 'blocked',
+} as const;
+
+export type CatalogueMappingSuggestionVariantIds = {[key: string]: string};
+
+export type CatalogueMappingSuggestionChoiceLabels = {[key: string]: string};
+
+export interface CatalogueMappingSuggestion {
+  slug: string;
+  status: CatalogueMappingSuggestionStatus;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  confidence: number;
+  evidence: string[];
+  /** @pattern ^[0-9a-fA-F-]{36}$ */
+  productId?: string;
+  /** @pattern ^[0-9a-f]{64}$ */
+  productHash?: string;
+  /** @pattern ^[0-9a-f]{64}$ */
+  localHash?: string;
+  variantIds: CatalogueMappingSuggestionVariantIds;
+  choiceLabels: CatalogueMappingSuggestionChoiceLabels;
+  issues: string[];
+}
+
+export interface CatalogueMappingPreview {
+  /** @pattern ^[0-9a-f]{64}$ */
+  snapshotHash: string;
+  fetchedAt: string;
+  suggestions: CatalogueMappingSuggestion[];
 }
 
 export type CommerceLocationsLocationsItem = { [key: string]: unknown };
@@ -2109,6 +2434,17 @@ export type StaffDateFromParameter = string;
 
 export type StaffDateToParameter = string;
 
+export type GetCommerceDiscoveryParams = {
+/**
+ * @pattern ^[A-Za-z]{2}$
+ */
+country?: string;
+/**
+ * @pattern ^[A-Za-z]{3}$
+ */
+currency?: string;
+};
+
 export type ListStaffFaqHistoryParams = {
 /**
  * @pattern ^[0-9a-fA-F-]{36}$
@@ -2242,6 +2578,28 @@ export const GetStaffAnalyticsMetricsBrowser = {
   samsung_internet: 'samsung internet',
   unknown: 'unknown',
 } as const;
+
+export type GetStaffAccessoryLaunchNotificationSummaryParams = {
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+};
+
+export type ExportStaffAccessoryLaunchNotificationSummaryParams = {
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+from?: StaffDateFromParameter;
+/**
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}$
+ */
+to?: StaffDateToParameter;
+};
 
 export type ListStaffAuditEventsParams = {
 /**

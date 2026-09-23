@@ -1,6 +1,7 @@
 import { ArrowUp, ArrowDown, Plus, Trash2, Star, ImageUp, Loader2 } from "lucide-react";
 import type { CatalogProduct } from "../../../data/platformContent";
 import { useState } from "react";
+import { StaffImagePreview } from "./StaffImagePreview";
 
 type ProductImage = NonNullable<CatalogProduct["images"]>[0];
 
@@ -71,7 +72,14 @@ export function ImagesEditor({ product, onChange, onUploadMedia }: { product: Ca
         {images.map((img, index) => {
           const isPrimary = product.img === img.src && !!img.src;
           return (
-            <div key={index} className={`flex flex-col gap-4 border p-4 bg-background sm:flex-row ${isPrimary ? "border-primary/60" : "border-border"}`} data-testid={`product-image-${product.slug}-${index}`}>
+            <div key={index} className={`flex flex-col gap-4 border p-4 bg-background ${isPrimary ? "border-primary/60" : "border-border"}`} data-testid={`product-image-${product.slug}-${index}`}>
+              <StaffImagePreview
+                src={img.src}
+                alt={img.alt}
+                label={isPrimary ? "Primary product image preview" : `Product image ${index + 1} preview`}
+                testId={`preview-product-image-${product.slug}-${index}`}
+              />
+              <div className="flex flex-col gap-4 sm:flex-row">
               <div className="flex flex-1 flex-col gap-3">
                 <div className="flex items-end gap-3">
                   <label className="block flex-1">
@@ -207,6 +215,7 @@ export function ImagesEditor({ product, onChange, onUploadMedia }: { product: Ca
                 >
                   <Trash2 size={16} />
                 </button>
+              </div>
               </div>
             </div>
           );

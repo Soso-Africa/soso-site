@@ -50,6 +50,17 @@ export type CatalogProduct = {
   relatedProductSlugs?: string[];
   commerceProductId?: string;
   commerceVariantIds?: Record<string, string>;
+  commerceMappingConfirmation?: {
+    productHash: string;
+    localHash: string;
+    snapshotHash: string;
+    snapshotFetchedAt: string;
+    confirmedAt: string;
+    confidence: number;
+    source: "automatic" | "manual";
+    evidence: string[];
+    choiceLabels: Record<string, string>;
+  };
   colour: string;
   colourOptions: {
     id: string;
@@ -82,6 +93,18 @@ export type PlatformCollection = {
   department: ProductDepartment;
   h1: string;
   intro: string;
+  showCover: boolean;
+  cover?: {
+    src: string;
+    alt: string;
+    provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
+  };
+  mobileCover?: {
+    src: string;
+    alt: string;
+    provenance: { source: string; rights: string; credit?: string; sourceUrl?: string };
+  };
+  mobileCropPosition?: "left top" | "center top" | "right top" | "left center" | "center center" | "right center" | "left bottom" | "center bottom" | "right bottom";
   seo: SeoCopy;
 };
 export type FaqItem = { id: string; category: string; question: string; answer: string };

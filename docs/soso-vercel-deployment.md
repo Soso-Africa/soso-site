@@ -48,10 +48,10 @@ Vite values are embedded into the client bundle at build time. Change a `VITE_*`
 
 No Clerk, Replit authentication proxy, Replit storage value, or browser authentication key is required.
 
-Before Preview validation, apply the Drizzle schema to the exact PostgreSQL target configured in Vercel Preview. Run the migration from a private environment where that target `DATABASE_URL` is available:
+Before Preview validation, apply the content migration to the exact PostgreSQL target configured in Vercel Preview. This command applies the schema migrations and seeds the reviewed permanent legacy redirects without replacing merchant-edited rows. Run it from a private environment where that target `DATABASE_URL` is available:
 
 ```sh
-pnpm --filter @workspace/db run push
+pnpm --filter @workspace/db run migrate:soso-content
 ```
 
 Do not paste the connection string into chat, source control, or a `VITE_*` variable. A working `/api/faq` alongside a failing `/api/redirects` means the database is reachable but the redirect table or its permissions are missing; it is not a general database connectivity failure.
@@ -79,7 +79,7 @@ With these launch-only values unset, the storefront remains deliberately noindex
 1. Request `/api/healthz` and expect only `{"status":"ok"}`. Then request `/api/readyz` and expect `{"status":"ok","database":"ok"}`; this second check proves PostgreSQL connectivity.
 2. Open `/shop` directly in a new browser tab and confirm the storefront loads rather than returning a 404.
 3. Open `/staff` unauthenticated and confirm the SOSO staff sign-in boundary appears without staff data. Verify owner login, secure cookie persistence, logout, and role authorization.
-4. Request `/api/redirects?path=/shop` and expect `{"redirect":null}` before staff configure any redirects. A 500 requires the Preview database schema/permissions to be corrected before proceeding.
+4. Request `/api/redirects?path=/product/pants/` and confirm it returns a published `301` redirect record whose destination starts with `/shop?q=`. Then request `/product/pants/` without following redirects and confirm the HTTP response itself is `301` with the same internal `Location`. Also request the legacy `/shop/` URL without following redirects and require a `301` with `Location: /shop`; the slashless `/shop` destination must still load normally. A missing record means the content migration/seed was not run against this database; a 500 means the schema or permissions are incomplete.
 5. Confirm `/robots.txt` still disallows crawling and no XML sitemap is emitted while release switches remain off. Vercel’s SPA rewrite can return the noindex HTML shell for `/sitemap.xml`; confirm the response is not XML and contains no `<urlset>` sitemap.
 6. Confirm the build log reports both the Cloudinary production storage diagnostic and the non-Replit runtime scan as passed.
 7. Record the Vercel preview URL, deployment timestamp, tested routes, and database target in the release record. A successful deployment does not satisfy the separate JusticeSure, legal, SEO, roster, backup, or real-device launch gates.

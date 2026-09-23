@@ -7,12 +7,14 @@ import { auditLogsTable, db, faqItemsTable } from "@workspace/db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { requireStaffRoles } from "../middlewares/staff";
 import {
+  buildCatalogueMappingHistory,
   buildFaqCreateAuditMetadata,
   buildFaqDeleteAuditMetadata,
   buildFaqHistoryPage,
   buildFaqUpdateAuditMetadata,
   decodeFaqHistoryCursor,
   encodeFaqHistoryCursor,
+  findStaleCatalogueProducts,
   queryFaqHistoryEvents,
   default as staffContentRouter,
   preservesLegacySparseFeaturedProvenance,
@@ -30,8 +32,109 @@ import {
   reconcileLegacyPublishedFaqItems,
 } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
-import { validateProductMediaAssets } from "../lib/product-media-validation";
+import { validateCollectionMediaAssets, validateProductMediaAssets } from "../lib/product-media-validation";
 import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
+
+test("catalogue mapping history deduplicates saves and marks later fingerprint changes", () => {
+  const first = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const second = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const slug = first.products[0]!.slug;
+  const firstConfirmation = {
+    productHash: "a".repeat(64),
+    localHash: "b".repeat(64),
+    snapshotHash: "c".repeat(64),
+    snapshotFetchedAt: "2026-09-20T09:00:00.000Z",
+    confirmedAt: "2026-09-20T09:05:00.000Z",
+    confidence: 96,
+    source: "manual" as const,
+    evidence: ["Exact product and choices reviewed."],
+    choiceLabels: {},
+  };
+  first.products[0]!.commerceMappingConfirmation = firstConfirmation;
+  second.products[0]!.commerceMappingConfirmation = {
+    ...firstConfirmation,
+    productHash: "d".repeat(64),
+    confirmedAt: "2026-09-21T10:05:00.000Z",
+    confidence: 99,
+    source: "automatic",
+    evidence: ["Current JusticeSure product matched exactly."],
+  };
+  const history = buildCatalogueMappingHistory(slug, [
+    { id: "audit-1", actorClerkUserId: "staff-1", createdAt: new Date("2026-09-20T09:06:00.000Z"), metadata: { revisionId: "revision-1" } },
+    { id: "audit-duplicate", actorClerkUserId: "staff-2", createdAt: new Date("2026-09-20T09:07:00.000Z"), metadata: { revisionId: "revision-duplicate" } },
+    { id: "audit-2", actorClerkUserId: "staff-2", createdAt: new Date("2026-09-21T10:06:00.000Z"), metadata: { revisionId: "revision-2" } },
+  ], [
+    { id: "revision-1", snapshot: first },
+    { id: "revision-duplicate", snapshot: first },
+    { id: "revision-2", snapshot: second },
+  ], new Map([["staff-1", "editor@example.com"]]));
+
+  assert.equal(history.length, 2);
+  assert.equal(history[0]!.id, "audit-2");
+  assert.equal(history[0]!.justiceSureFingerprintChangedLater, false);
+  assert.equal(history[1]!.confirmedByEmail, "editor@example.com");
+  assert.equal(history[1]!.sosoFingerprintChangedLater, false);
+  assert.equal(history[1]!.justiceSureFingerprintChangedLater, true);
+  assert.deepEqual(history[1]!.evidence, firstConfirmation.evidence);
+});
+
+test("portal stale mapping summary clears after reconfirmation", () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const product = content.products[0]!;
+  const productId = randomUUID();
+  const choices = [...product.standardSizes, ...(product.customEligible ? ["Custom"] : [])];
+  const variantIds = Object.fromEntries(choices.map((choice) => [choice, randomUUID()]));
+  const variantId = variantIds[choices[0]!]!;
+  product.commerceProductId = productId;
+  product.commerceVariantIds = variantIds;
+  product.commerceMappingConfirmation = {
+    productHash: "a".repeat(64),
+    localHash: "b".repeat(64),
+    snapshotHash: "c".repeat(64),
+    snapshotFetchedAt: "2026-09-21T09:00:00.000Z",
+    confirmedAt: "2026-09-21T09:00:00.000Z",
+    confidence: 97,
+    source: "manual",
+    evidence: ["Reviewed exact product and variant identifiers."],
+    choiceLabels: Object.fromEntries(choices.map((choice) => [choice, choice])),
+  };
+  const invalidation = {
+    identifiers: [variantId],
+    occurredAt: new Date("2026-09-21T10:00:00.000Z"),
+  };
+
+  assert.deepEqual(findStaleCatalogueProducts(content, [invalidation]), [{
+    slug: product.slug,
+    name: product.name,
+  }]);
+
+  product.commerceMappingConfirmation.confirmedAt = "2026-09-21T11:00:00.000Z";
+  assert.deepEqual(findStaleCatalogueProducts(content, [invalidation]), []);
+});
+
+test("portal stale mapping summary ignores unrelated identifiers", () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const product = content.products[0]!;
+  product.commerceProductId = randomUUID();
+  const choices = [...product.standardSizes, ...(product.customEligible ? ["Custom"] : [])];
+  product.commerceVariantIds = Object.fromEntries(choices.map((choice) => [choice, randomUUID()]));
+  product.commerceMappingConfirmation = {
+    productHash: "a".repeat(64),
+    localHash: "b".repeat(64),
+    snapshotHash: "c".repeat(64),
+    snapshotFetchedAt: "2026-09-21T09:00:00.000Z",
+    confirmedAt: "2026-09-21T09:00:00.000Z",
+    confidence: 97,
+    source: "manual",
+    evidence: ["Reviewed exact product and variant identifiers."],
+    choiceLabels: Object.fromEntries(choices.map((choice) => [choice, choice])),
+  };
+
+  assert.deepEqual(findStaleCatalogueProducts(content, [{
+    identifiers: [randomUUID()],
+    occurredAt: new Date("2026-09-21T10:00:00.000Z"),
+  }]), []);
+});
 
 function validProductMediaInspection(path: string, size = 250_000) {
   const contentType = path.endsWith(".png")
@@ -70,6 +173,68 @@ test("colour option migration preserves merchant products and creates unique pal
   assert.equal(new Set(options.map(({ id }) => id)).size, options.length);
   assert.equal(new Set(options.map(({ label }) => label.toLowerCase())).size, options.length);
   assert.equal(new Set(options.map(({ hex }) => hex.toUpperCase())).size, options.length);
+});
+
+test("collection covers require complete governed metadata when enabled", () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const collection = content.collections[0]!;
+  collection.showCover = true;
+  assert.equal(PlatformContentSchema.safeParse(content).success, false);
+
+  collection.cover = {
+    src: "/api/storage/objects/uploads/kaftans-cover.webp",
+    alt: "Model wearing a black SOSO kaftan",
+    provenance: {
+      source: "SOSO Africa studio",
+      rights: "SOSO Africa owned photography approved for storefront use",
+    },
+  };
+  assert.equal(PlatformContentSchema.safeParse(content).success, true);
+});
+
+test("collection cover media must be a verified managed image", async () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.collections[0]!.showCover = true;
+  content.collections[0]!.cover = {
+    src: "/api/storage/objects/uploads/kaftans-cover.webp",
+    alt: "Model wearing a black SOSO kaftan",
+    provenance: {
+      source: "SOSO Africa studio",
+      rights: "SOSO Africa owned photography approved for storefront use",
+    },
+  };
+  content.collections[0]!.mobileCover = {
+    src: "/api/storage/objects/uploads/kaftans-cover-mobile.webp",
+    alt: "Close crop of a model wearing a black SOSO kaftan",
+    provenance: {
+      source: "SOSO Africa studio",
+      rights: "SOSO Africa owned photography approved for storefront use",
+    },
+  };
+  content.collections[0]!.mobileCropPosition = "center top";
+  assert.equal(PlatformContentSchema.safeParse(content).success, true);
+  assert.deepEqual(await validateCollectionMediaAssets(content, async (path) => validProductMediaInspection(path)), []);
+  const issues = await validateCollectionMediaAssets(content, async (path) => (
+    path.includes("mobile") ? null : validProductMediaInspection(path)
+  ));
+  assert.equal(issues[0]?.path.join("."), "collections.0.mobileCover.src");
+
+  content.collections[0]!.mobileCropPosition = "27% 15%" as "center top";
+  assert.equal(PlatformContentSchema.safeParse(content).success, false);
+});
+
+test("collection cover migration disables covers without overwriting authored cover data", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT) as Record<string, any>;
+  legacy.contentVersion = 20;
+  delete legacy.collections[0].showCover;
+  legacy.collections[0].cover = {
+    src: "/images/soso/vault-black.jpg",
+    alt: "Merchant-authored collection cover",
+    provenance: { source: "Merchant studio", rights: "Approved storefront use" },
+  };
+  const parsed = PlatformContentSchema.parse(mergePlatformContentDefaults(legacy));
+  assert.equal(parsed.collections[0]!.showCover, false);
+  assert.equal(parsed.collections[0]!.cover?.alt, "Merchant-authored collection cover");
 });
 
 test("material turn set migration preserves merchant content without inferring gallery pairs", () => {
@@ -1131,7 +1296,7 @@ test("material turn publication checks govern front and back images at their exa
 test("homepage merchandising image checks inspect unique configured images and report their fields", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   assert.deepEqual(await validateHomepageMerchandisingMediaAssets(content), []);
-  content.homepage.newArrival.editorial.imageUrl = "/images/soso/twopiece.jpg";
+  content.homepage.newArrival.editorial.imageUrl = "/images/soso/kaftan-white.jpg";
   content.homepage.fit.imageUrl = content.homepage.categories.items[0]!.imageUrl;
   const inspected: string[] = [];
   const validIssues = await validateHomepageMerchandisingMediaAssets(content, async (path) => {

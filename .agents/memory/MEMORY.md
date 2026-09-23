@@ -37,3 +37,7 @@
 - [Browse-only catalogue placeholders](browse-only-catalogue-placeholders.md) — unavailable planned products may be discoverable, but prices, offers, and purchase controls must stay hidden.
 - [Accessory item release gates](accessory-item-release-gates.md) — release accessories independently; approved state requires real content, governed media, fulfilment, stock, and exact commerce mappings.
 - [Purpose-limited launch interest](purpose-limited-launch-interest.md) — accessory alerts use explicit per-purpose consent independent of optional measurement consent and retain the wording version.
+- [Catalogue mapping authority](catalogue-mapping-authority.md) — confirm both SOSO and JusticeSure identity; revalidate both at publication and checkout, including test mode.
+- [Catalogue webhook invalidation](catalogue-webhook-invalidation.md) — invalidate only confirmed mappings named by newer, completed, idempotent catalogue webhook events.
+- [Storefront component test JSX](storefront-component-test-jsx.md) — Node-run TSX component tests need React in scope for production components compiled from preserved JSX.
+- [Managed media cleanup serialization](managed-media-cleanup-serialization.md) — queue cleanup with content saves and recheck all live snapshots under the same lock before deleting.

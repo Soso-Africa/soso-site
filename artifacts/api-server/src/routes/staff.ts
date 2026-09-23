@@ -34,6 +34,7 @@ import {
   UpdateStaffPrivacyRequestParams,
   UpdateStaffPrivacyRequestResponse,
   ListStaffAccessoryLaunchNotificationsResponse,
+  GetStaffAccessoryLaunchNotificationSummaryResponse,
   INVALID_STOREFRONT_PATH_PATTERN,
 } from "@workspace/api-zod";
 import {
@@ -753,6 +754,170 @@ router.get("/staff/accessory-launch-notifications", requireStaffRoles(...ACCESSO
     .orderBy(desc(accessoryLaunchNotificationsTable.createdAt))
     .limit(250);
   res.json(ListStaffAccessoryLaunchNotificationsResponse.parse(requests));
+});
+
+export function accessoryDemandTrend(requestCount: number, previousRequestCount: number) {
+  const change = requestCount - previousRequestCount;
+  if (previousRequestCount === 0 && requestCount > 0) return "new" as const;
+  if (change > 0) return "growth" as const;
+  if (change < 0) return "decline" as const;
+  return "no_change" as const;
+}
+
+export async function getAccessoryLaunchNotificationSummary(range: NonNullable<ReturnType<typeof resolveDateRange>>) {
+  const durationMs = range.end.getTime() - range.start.getTime() + 1;
+  const comparisonEnd = new Date(range.start.getTime() - 1);
+  const comparisonStart = new Date(comparisonEnd.getTime() - durationMs + 1);
+  const comparisonFrom = comparisonStart.toISOString().slice(0, 10);
+  const comparisonTo = comparisonEnd.toISOString().slice(0, 10);
+
+  const rows = await db
+    .select({
+      accessoryCategory: accessoryLaunchNotificationsTable.accessoryCategory,
+      productSlug: accessoryLaunchNotificationsTable.productSlug,
+      requestCount: sql<number>`count(distinct lower(${accessoryLaunchNotificationsTable.email})) filter (
+        where ${accessoryLaunchNotificationsTable.createdAt} >= ${range.start}
+          and ${accessoryLaunchNotificationsTable.createdAt} <= ${range.end}
+      )`,
+      previousRequestCount: sql<number>`count(distinct lower(${accessoryLaunchNotificationsTable.email})) filter (
+        where ${accessoryLaunchNotificationsTable.createdAt} >= ${comparisonStart}
+          and ${accessoryLaunchNotificationsTable.createdAt} <= ${comparisonEnd}
+      )`,
+    })
+    .from(accessoryLaunchNotificationsTable)
+    .where(and(
+      gte(accessoryLaunchNotificationsTable.createdAt, comparisonStart),
+      lte(accessoryLaunchNotificationsTable.createdAt, range.end),
+    ))
+    .groupBy(
+      accessoryLaunchNotificationsTable.accessoryCategory,
+      accessoryLaunchNotificationsTable.productSlug,
+    )
+    .orderBy(
+      desc(sql`count(distinct lower(${accessoryLaunchNotificationsTable.email})) filter (
+        where ${accessoryLaunchNotificationsTable.createdAt} >= ${range.start}
+          and ${accessoryLaunchNotificationsTable.createdAt} <= ${range.end}
+      )`),
+      accessoryLaunchNotificationsTable.accessoryCategory,
+      accessoryLaunchNotificationsTable.productSlug,
+    );
+
+  const [{ availableFrom }] = await db
+    .select({ availableFrom: sql<Date | null>`min(${accessoryLaunchNotificationsTable.createdAt})` })
+    .from(accessoryLaunchNotificationsTable);
+  const comparisonAvailableFrom = availableFrom
+    ? new Date(availableFrom).toISOString().slice(0, 10)
+    : null;
+  const comparisonCoverage = !comparisonAvailableFrom || comparisonAvailableFrom > comparisonTo
+    ? "empty" as const
+    : comparisonAvailableFrom > comparisonFrom
+      ? "partial" as const
+      : "full" as const;
+  const items = rows.map((row) => {
+    const requestCount = Number(row.requestCount);
+    const previousRequestCount = Number(row.previousRequestCount);
+    const change = requestCount - previousRequestCount;
+    const trend = accessoryDemandTrend(requestCount, previousRequestCount);
+    return {
+      accessoryCategory: row.accessoryCategory,
+      productSlug: row.productSlug,
+      requestCount,
+      previousRequestCount,
+      change,
+      trend,
+    };
+  });
+  return {
+    from: range.from,
+    to: range.to,
+    comparisonFrom,
+    comparisonTo,
+    comparisonCoverage,
+    comparisonAvailableFrom,
+    totalUniqueRequests: items.reduce((total, item) => total + item.requestCount, 0),
+    previousTotalUniqueRequests: items.reduce((total, item) => total + item.previousRequestCount, 0),
+    items,
+  };
+}
+
+function csvCell(value: string | number): string {
+  const raw = String(value);
+  const text = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll("\"", "\"\"")}"` : text;
+}
+
+export function buildAccessoryLaunchNotificationSummaryCsv(summary: {
+  from: string;
+  to: string;
+  items: Array<{
+    accessoryCategory: string;
+    productSlug: string;
+    requestCount: number;
+  }>;
+}): string {
+  const columns = [
+    "category",
+    "product_slug",
+    "deduplicated_request_count",
+    "reporting_from",
+    "reporting_to",
+  ];
+  const rows = summary.items.map((item) => [
+    item.accessoryCategory,
+    item.productSlug,
+    item.requestCount,
+    summary.from,
+    summary.to,
+  ].map(csvCell).join(","));
+  return [columns.join(","), ...rows].join("\r\n");
+}
+
+export function accessoryDemandExportAuditValues(actorClerkUserId: string, range: {
+  from: string;
+  to: string;
+}) {
+  return {
+    actorClerkUserId,
+    action: "staff.exported",
+    entityType: "staff_export",
+    entityId: null,
+    metadata: auditMetadata({
+      report: "accessory_demand",
+      from: range.from,
+      to: range.to,
+    }),
+  } as const;
+}
+
+router.get("/staff/accessory-launch-notifications/summary", requireStaffRoles(...ACCESSORY_LAUNCH_NOTIFICATION_STAFF_ROLES), async (req, res): Promise<void> => {
+  const range = resolveDateRange(req.query, 366);
+  if (!range) {
+    res.status(400).json({ error: "Use a valid from/to date range of up to 366 days (YYYY-MM-DD)" });
+    return;
+  }
+
+  res.json(GetStaffAccessoryLaunchNotificationSummaryResponse.parse(
+    await getAccessoryLaunchNotificationSummary(range),
+  ));
+});
+
+router.get("/staff/accessory-launch-notifications/summary/export", requireStaffRoles(...ACCESSORY_LAUNCH_NOTIFICATION_STAFF_ROLES), async (req, res): Promise<void> => {
+  const range = resolveDateRange(req.query, 366);
+  if (!range) {
+    res.status(400).json({ error: "Use a valid from/to date range of up to 366 days (YYYY-MM-DD)" });
+    return;
+  }
+
+  const filename = `soso-accessory-demand-${range.from}-to-${range.to}.csv`;
+  const summary = await getAccessoryLaunchNotificationSummary(range);
+  const csv = buildAccessoryLaunchNotificationSummaryCsv(summary);
+  await db.insert(auditLogsTable).values(
+    accessoryDemandExportAuditValues(req.staff!.clerkUserId, range),
+  );
+  res
+    .type("text/csv")
+    .setHeader("Content-Disposition", `attachment; filename="${filename}"`)
+    .send(csv);
 });
 
 router.patch("/staff/enquiries/:id", requireStaffRoles("owner", "operations", "stylist"), async (req, res): Promise<void> => {

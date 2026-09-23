@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -247,13 +248,24 @@ export const commerceCheckoutAttemptsTable = pgTable(
     customerPhone: text("customer_phone").notNull(),
     items: jsonb("items").notNull(),
     fulfillment: jsonb("fulfillment").notNull(),
+    quoteId: uuid("quote_id"),
+    quoteSnapshot: jsonb("quote_snapshot"),
+    displayCurrency: text("display_currency"),
+    paymentMethod: text("payment_method"),
+    notes: text("notes"),
+    orderRequestBody: jsonb("order_request_body"),
+    paymentSessionRequestBody: jsonb("payment_session_request_body"),
     orderIdempotencyKey: text("order_idempotency_key").notNull(),
     paymentIdempotencyKey: text("payment_idempotency_key").notNull(),
     justiceSureOrderId: text("justicesure_order_id"),
     localOrderId: uuid("local_order_id").references(() => ordersTable.id, { onDelete: "set null" }),
     provider: text("provider"),
     paymentReference: text("payment_reference"),
+    justiceSurePaymentAttemptId: text("justicesure_payment_attempt_id"),
+    justiceSurePaymentIntentId: text("justicesure_payment_intent_id"),
+    justiceSureOriginalCharge: jsonb("justicesure_original_charge"),
     checkoutUrl: text("checkout_url"),
+    paymentRecoveryCheckedAt: timestamp("payment_recovery_checked_at", { withTimezone: true }),
     status: commerceAttemptStatusEnum("status").notNull().default("starting"),
     lastErrorCode: text("last_error_code"),
     lastErrorMessage: text("last_error_message"),
@@ -264,6 +276,7 @@ export const commerceCheckoutAttemptsTable = pgTable(
     uniqueIndex("soso_commerce_attempt_order_key_idx").on(table.orderIdempotencyKey),
     uniqueIndex("soso_commerce_attempt_payment_key_idx").on(table.paymentIdempotencyKey),
     uniqueIndex("soso_commerce_attempt_justicesure_order_idx").on(table.justiceSureOrderId),
+    uniqueIndex("soso_commerce_attempt_justicesure_payment_attempt_idx").on(table.justiceSurePaymentAttemptId),
     index("soso_commerce_attempt_status_created_idx").on(table.status, table.createdAt),
   ],
 );
@@ -275,8 +288,11 @@ export const commerceWebhookEventsTable = pgTable(
     eventType: text("event_type").notNull(),
     apiVersion: text("api_version").notNull(),
     payloadHash: text("payload_hash").notNull(),
+    eventOccurredAt: timestamp("event_occurred_at", { withTimezone: true }),
+    catalogueIdentifiers: jsonb("catalogue_identifiers").$type<string[]>().notNull().default([]),
     status: commerceWebhookStatusEnum("status").notNull().default("processing"),
     processingStartedAt: timestamp("processing_started_at", { withTimezone: true }).notNull().defaultNow(),
+    leaseGeneration: integer("lease_generation").notNull().default(1),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -284,6 +300,7 @@ export const commerceWebhookEventsTable = pgTable(
   },
   (table) => [
     index("soso_commerce_webhook_status_updated_idx").on(table.status, table.updatedAt),
+    index("soso_commerce_webhook_catalogue_event_idx").on(table.eventType, table.eventOccurredAt),
   ],
 );
 
@@ -323,7 +340,12 @@ export const accessoryLaunchNotificationsTable = pgTable(
   },
   (table) => [
     uniqueIndex("soso_accessory_launch_notifications_identity_idx").on(table.email, table.productSlug, table.accessoryCategory),
-    index("soso_accessory_launch_notifications_created_idx").on(table.createdAt),
+    index("soso_accessory_launch_notifications_summary_idx").on(
+      table.createdAt,
+      table.accessoryCategory,
+      table.productSlug,
+      sql`lower(${table.email})`,
+    ),
   ],
 );
 

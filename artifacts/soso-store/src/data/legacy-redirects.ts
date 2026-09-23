@@ -6,6 +6,7 @@ export type LegacyRedirect = {
 
 /** Valuable live legacy URLs only. Obsolete WordPress utilities are intentionally absent. */
 export const legacyRedirects: LegacyRedirect[] = [
+  { fromPath: "/shop/", toPath: "/shop", statusCode: 301 },
   { fromPath: "/my-account/", toPath: "/sign-in", statusCode: 301 },
   { fromPath: "/checkout/", toPath: "/checkout", statusCode: 301 },
   { fromPath: "/cart/", toPath: "/?cart=open", statusCode: 301 },

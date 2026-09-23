@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import {
   commerceCheckoutAttemptsTable,
   commerceWebhookEventsTable,
@@ -16,9 +17,7 @@ import {
   GetCommercePaymentStatusParams,
   GetCommercePaymentStatusResponse,
   GetCustomerMeasurementsResponse,
-  InitiateCommerceCheckoutBody,
   InitiateCommerceCheckoutResponse,
-  ReceiveCommerceWebhookBody,
   ReceiveCommerceWebhookResponse,
   UpdateCustomerMeasurementBody,
   UpdateCustomerMeasurementParams,
@@ -33,6 +32,8 @@ import {
   type JusticeSureFulfillment,
   type JusticeSureLineItem,
   type JusticeSureOrder,
+  type JusticeSurePaymentMethod,
+  type JusticeSureProvider,
 } from "../lib/justicesureCommerce";
 import {
   CUSTOM_DISPATCH_GUIDANCE,
@@ -48,7 +49,6 @@ import { readPublishedPlatformContent } from "../lib/platform-content";
 const router: IRouter = Router();
 const OWNERSHIP_COOKIE = "soso_checkout_owner";
 const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
-const WEBHOOK_LEASE_MS = 5 * 60 * 1_000;
 const supportedWebhookEvents = new Set([
   "commerce.product.updated",
   "commerce.inventory.updated",
@@ -59,6 +59,16 @@ const supportedWebhookEvents = new Set([
   "commerce.order.refunded",
   "commerce.fulfilment.updated",
 ]);
+const webhookRequiredFields: Record<string, string[]> = {
+  "commerce.product.updated": ["productId", "updatedAt"],
+  "commerce.inventory.updated": ["updatedAt"],
+  "commerce.order.created": ["orderId", "orderNumber", "status", "paymentStatus", "totalKobo", "updatedAt"],
+  "commerce.order.updated": ["orderId", "orderNumber", "status", "paymentStatus", "updatedAt"],
+  "commerce.payment.updated": ["orderId", "orderNumber", "paymentStatus", "provider", "amountKobo", "updatedAt"],
+  "commerce.order.cancelled": ["orderId", "status", "paymentStatus", "updatedAt"],
+  "commerce.order.refunded": ["orderId", "orderNumber", "status", "paymentStatus", "refundedKobo", "isFullRefund", "updatedAt"],
+  "commerce.fulfilment.updated": ["orderId", "status", "updatedAt"],
+};
 
 type CheckoutItem = {
   productId: string;
@@ -79,6 +89,10 @@ type CheckoutBody = {
   customer: { name: string; email: string; phone: string };
   items: CheckoutItem[];
   fulfillment: { type: "pickup" | "delivery"; locationId?: string; address?: string };
+  quoteId?: string;
+  displayCurrency?: string;
+  paymentProvider?: JusticeSureProvider;
+  paymentMethod?: JusticeSurePaymentMethod;
   notes?: string;
 };
 
@@ -86,7 +100,8 @@ type WebhookEnvelope = {
   id: string;
   event: string;
   apiVersion: string;
-  data: { orderId?: string };
+  createdAt: string;
+  data: { orderId?: string; catalogueIdentifiers: string[] };
 };
 
 function hash(value: string | Buffer): string {
@@ -106,7 +121,7 @@ function readCookie(req: Request, name: string): string | undefined {
     ?.slice(prefix.length);
 }
 
-function hasOwnership(req: Request, attemptId: string, tokenHash: string): boolean {
+export function hasOwnership(req: Request, attemptId: string, tokenHash: string): boolean {
   const value = readCookie(req, OWNERSHIP_COOKIE);
   if (!value) return false;
   const [id, token] = value.split(".", 2);
@@ -136,6 +151,21 @@ function isUuid(value: string | undefined): value is string {
 
 function isRemoteOrderId(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 200;
+}
+
+export function shouldRecoverPaymentAttempt(
+  status: string,
+  provider: string | null,
+  remoteAttemptId: string | null,
+  checkedAt: Date | null,
+  now = Date.now(),
+): boolean {
+  if (status !== "starting" && status !== "payment_pending") return false;
+  if (!remoteAttemptId || !isUuid(remoteAttemptId)) return false;
+  // Test mode is advanced only by the authenticated simulator; provider
+  // verify/reconcile endpoints deliberately reject simulated attempts.
+  if (provider === "simulated") return false;
+  return !checkedAt || now - checkedAt.getTime() >= 10_000;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -188,23 +218,42 @@ function checkoutBody(value: unknown): CheckoutBody | null {
   const locationId = stringValue(fulfillment.locationId, 64);
   const address = stringValue(fulfillment.address, 1_000);
   if ((type === "pickup" && !isUuid(locationId)) || (type === "delivery" && !address)) return null;
+  const quoteId = stringValue(body.quoteId, 64);
+  const displayCurrency = stringValue(body.displayCurrency, 3)?.toUpperCase();
+  const paymentProvider = stringValue(body.paymentProvider, 20);
+  const paymentMethod = stringValue(body.paymentMethod, 20);
+  if ((quoteId !== undefined && !isUuid(quoteId))
+    || (displayCurrency !== undefined && !/^[A-Z]{3}$/.test(displayCurrency))
+    || (paymentProvider !== undefined && !["paystack", "flutterwave", "stripe", "paypal", "hydrogen"].includes(paymentProvider))
+    || (paymentMethod !== undefined && !["card", "bank_transfer", "wallet", "paypal", "virtual_account"].includes(paymentMethod))) return null;
   return {
     checkoutOperationId,
     customer: { name, email, phone },
     items,
     fulfillment: { type, locationId, address },
+    ...(quoteId ? { quoteId } : {}),
+    ...(displayCurrency ? { displayCurrency } : {}),
+    ...(paymentProvider ? { paymentProvider: paymentProvider as JusticeSureProvider } : {}),
+    ...(paymentMethod ? { paymentMethod: paymentMethod as JusticeSurePaymentMethod } : {}),
     notes: stringValue(body.notes, 1_000),
   };
 }
 
-function remoteStatus(order: JusticeSureOrder): "payment_pending" | "paid" | "cancelled" | "refunded" | "fulfilled" {
-  const paymentStatus = typeof order.payment.status === "string" ? order.payment.status.toLowerCase() : "";
-  const fulfillmentStatus = typeof order.fulfillment.status === "string" ? order.fulfillment.status.toLowerCase() : "";
+export function remoteStatus(order: JusticeSureOrder): "payment_pending" | "paid" | "cancelled" | "refunded" | "fulfilled" {
+  const paymentStatus = order.payment.status?.toLowerCase() ?? "";
+  const fulfillmentStatus = order.fulfillment.status.toLowerCase();
   const orderStatus = order.status.toLowerCase();
-  if (orderStatus.includes("refund") || paymentStatus.includes("refund")) return "refunded";
+  const isPaid = paymentStatus === "paid"
+    || paymentStatus === "successful"
+    || (order.amounts.paidKobo ?? 0) >= order.amounts.totalKobo;
+  // A partial refund is still a paid order. Only JusticeSure's amount
+  // projection can establish a complete refund; wording alone is ambiguous.
+  if ((orderStatus.includes("refund") || paymentStatus.includes("refund"))
+    && order.amounts.paidKobo > 0
+    && order.amounts.refundedKobo >= order.amounts.paidKobo) return "refunded";
   if (orderStatus.includes("cancel") || paymentStatus.includes("cancel")) return "cancelled";
-  if (fulfillmentStatus.includes("fulfill") || fulfillmentStatus.includes("deliver") || orderStatus.includes("complete")) return "fulfilled";
-  if (paymentStatus === "paid" || paymentStatus === "successful" || (order.amounts.paidKobo ?? 0) >= order.amounts.totalKobo) return "paid";
+  if (isPaid && (fulfillmentStatus.includes("fulfill") || fulfillmentStatus.includes("deliver") || orderStatus.includes("complete"))) return "fulfilled";
+  if (isPaid) return "paid";
   return "payment_pending";
 }
 
@@ -216,8 +265,84 @@ function toNaira(kobo: number): string {
   return (kobo / 100).toFixed(2);
 }
 
-async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promise<void> {
+export function checkoutRequestHash(body: CheckoutBody): string {
+  return hash(JSON.stringify({
+    customer: body.customer,
+    items: body.items.map(({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour }) =>
+      ({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour })),
+    fulfillment: body.fulfillment,
+    displayCurrency: body.displayCurrency,
+    paymentProvider: body.paymentProvider,
+    paymentMethod: body.paymentMethod,
+    notes: body.notes ?? "",
+  }));
+}
+
+function quoteResponse(snapshot: Record<string, unknown>) {
+  return {
+    id: snapshot.id, expiresAt: snapshot.expiresAt, currency: snapshot.currency,
+    displayCurrency: snapshot.displayCurrency, chargeCurrency: snapshot.chargeCurrency,
+    settlementCurrency: snapshot.settlementCurrency, amounts: snapshot.amounts, payment: snapshot.payment,
+    currencyMinorUnitExponents: snapshot.currencyMinorUnitExponents,
+  };
+}
+
+export function quoteMatchesRequestedCheckout(
+  quote: { lines?: unknown[]; fulfillment?: Record<string, unknown> },
+  items: JusticeSureLineItem[],
+  fulfillment: JusticeSureFulfillment,
+): boolean {
+  if (!Array.isArray(quote.lines) || quote.lines.length !== items.length || !quote.fulfillment) return false;
+  const sameLines = quote.lines.every((value, index) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const line = value as Record<string, unknown>;
+    const expected = items[index];
+    // QuoteLine does not expose CartLine.productId; JusticeSure identifies the
+    // resolved catalogue inventory row as inventoryItemId.
+    return line.inventoryItemId === expected.productId
+      && (line.variantId ?? undefined) === expected.variantId
+      && line.quantity === expected.quantity;
+  });
+  if (!sameLines) return false;
+  return quote.fulfillment.type === fulfillment.type
+    && (quote.fulfillment.locationId ?? undefined) === fulfillment.locationId
+    && (quote.fulfillment.address ?? undefined) === fulfillment.address;
+}
+
+export function sameImmutableQuote(
+  current: { id: string; expiresAt: string; currency: string; displayCurrency: string; chargeCurrency: string; settlementCurrency: string; amounts: Record<string, string>; fxSnapshotId: string | null; lines?: unknown[]; fulfillment?: Record<string, unknown> },
+  snapshot: Record<string, unknown>,
+): boolean {
+  return current.id === snapshot.id
+    && current.expiresAt === snapshot.expiresAt
+    && current.currency === snapshot.currency
+    && current.displayCurrency === snapshot.displayCurrency
+    && current.chargeCurrency === snapshot.chargeCurrency
+    && current.settlementCurrency === snapshot.settlementCurrency
+    && current.fxSnapshotId === snapshot.fxSnapshotId
+    && isDeepStrictEqual(current.amounts, snapshot.amounts)
+    && isDeepStrictEqual(current.lines, snapshot.lines)
+    && isDeepStrictEqual(current.fulfillment, snapshot.fulfillment);
+}
+
+async function syncLocalOrder(
+  attemptId: string,
+  order: JusticeSureOrder,
+  webhookFence?: { eventId: string; leaseGeneration: number },
+): Promise<void> {
   await db.transaction(async (tx) => {
+    if (webhookFence) {
+      // Lock the event row in the same transaction as every local effect, so
+      // a reclaim cannot interleave a stale worker's order projection.
+      const lease = await tx.execute(sql`
+        select event_id from soso_commerce_webhook_events
+        where event_id = ${webhookFence.eventId}
+          and status = 'processing'
+          and lease_generation = ${webhookFence.leaseGeneration}
+        for update
+      `);
+      if (!lease.rows.length) throw new Error("Webhook lease was fenced before local order effects.");
+    }
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`soso-checkout-sync:${attemptId}`}))`);
     const [attempt] = await tx.select().from(commerceCheckoutAttemptsTable)
       .where(eq(commerceCheckoutAttemptsTable.id, attemptId)).limit(1);
@@ -227,7 +352,7 @@ async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promi
     if (!localOrderId) {
       const items = attempt.items as CheckoutItem[];
       const [created] = await tx.insert(ordersTable).values({
-        orderNumber: order.number,
+        orderNumber: order.number ?? order.id,
         customerName: attempt.customerName,
         customerEmail: attempt.customerEmail,
         customerPhone: attempt.customerPhone,
@@ -303,6 +428,17 @@ async function syncLocalOrder(attemptId: string, order: JusticeSureOrder): Promi
       lastErrorCode: null,
       lastErrorMessage: null,
     }).where(eq(commerceCheckoutAttemptsTable.id, attemptId));
+    if (webhookFence) {
+      const completed = await tx.update(commerceWebhookEventsTable)
+        .set({ status: "completed", completedAt: sql`now()`, updatedAt: sql`now()`, lastError: null })
+        .where(and(
+          eq(commerceWebhookEventsTable.eventId, webhookFence.eventId),
+          eq(commerceWebhookEventsTable.status, "processing"),
+          eq(commerceWebhookEventsTable.leaseGeneration, webhookFence.leaseGeneration),
+        ))
+        .returning({ eventId: commerceWebhookEventsTable.eventId });
+      if (!completed.length) throw new Error("Webhook lease was fenced before completion.");
+    }
   });
 }
 
@@ -332,14 +468,20 @@ function measurementView(row: {
 }
 
 function publicStatus(order: JusticeSureOrder, attempt: typeof commerceCheckoutAttemptsTable.$inferSelect) {
+  const quote = attempt.quoteSnapshot as Record<string, unknown> | null;
   return GetCommercePaymentStatusResponse.parse({
     attemptId: attempt.id,
-    orderNumber: order.number,
+    ...(order.number ? { orderNumber: order.number } : {}),
     status: attemptStatus(order),
     paymentStatus: typeof order.payment.status === "string" ? order.payment.status : "pending",
-    ...(attempt.provider === "paystack" || attempt.provider === "flutterwave" ? { provider: attempt.provider } : {}),
+    ...(attempt.provider && ["paystack", "flutterwave", "stripe", "paypal", "hydrogen"].includes(attempt.provider)
+      ? { provider: attempt.provider as JusticeSureProvider } : {}),
     totalKobo: order.amounts.totalKobo,
     currency: order.currency,
+    ...(typeof quote?.displayCurrency === "string" ? { quoteDisplayCurrency: quote.displayCurrency } : {}),
+    ...(typeof quote?.chargeCurrency === "string" ? { quoteChargeCurrency: quote.chargeCurrency } : {}),
+    ...(typeof quote?.settlementCurrency === "string" ? { quoteSettlementCurrency: quote.settlementCurrency } : {}),
+    ...(quote?.currencyMinorUnitExponents && typeof quote.currencyMinorUnitExponents === "object" ? { quoteCurrencyMinorUnitExponents: quote.currencyMinorUnitExponents } : {}),
     checkedAt: new Date(),
   });
 }
@@ -355,6 +497,7 @@ function errorResponse(res: Response, error: unknown): void {
     res.status(status).json({
       error: status >= 500 ? "Secure payment could not be confirmed. No payment has been marked as successful." : error.message,
       code: error.code,
+      requestId: error.requestId,
       noPaymentTaken: status >= 500,
     });
     return;
@@ -380,6 +523,152 @@ router.get("/payment/locations", async (_req, res): Promise<void> => {
   }
 });
 
+router.get("/payment/discovery", async (req, res): Promise<void> => {
+  const country = stringValue(req.query.country, 2)?.toUpperCase();
+  const currency = stringValue(req.query.currency, 3)?.toUpperCase();
+  if ((country && !/^[A-Z]{2}$/.test(country)) || (currency && !/^[A-Z]{3}$/.test(currency))) {
+    res.status(400).json({ error: "Country and currency must use ISO codes." });
+    return;
+  }
+  try {
+    const client = new JusticeSureCommerceClient();
+    const [currencies, paymentMethods, corridors] = await Promise.all([
+      client.listCurrencies(), client.listPaymentMethods(country, currency), client.listFulfillmentCorridors(),
+    ]);
+    // Only public-safe readiness and corridor metadata is exposed.
+    res.json({ currencies, paymentMethods, corridors });
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
+router.post("/payment/quote", async (req, res): Promise<void> => {
+  const body = checkoutBody(req.body);
+  if (!body || !body.paymentProvider || !body.paymentMethod) {
+    res.status(400).json({ error: "Provide live items, fulfilment details, and a ready payment method to create a quote." });
+    return;
+  }
+  try {
+    const client = new JusticeSureCommerceClient();
+    const requestHash = checkoutRequestHash(body);
+    const orderIdempotencyKey = `order_${body.checkoutOperationId}`;
+    const paymentIdempotencyKey = `payment_${body.checkoutOperationId}`;
+    let [attempt] = await db.select().from(commerceCheckoutAttemptsTable)
+      .where(eq(commerceCheckoutAttemptsTable.orderIdempotencyKey, orderIdempotencyKey)).limit(1);
+    if (attempt && attempt.requestHash !== requestHash) {
+      res.status(409).json({ error: "This checkout operation belongs to different quote details. Edit the checkout and create a new quote." });
+      return;
+    }
+    if (attempt?.quoteSnapshot) {
+      const expiry = (attempt.quoteSnapshot as Record<string, unknown>).expiresAt;
+      if (typeof expiry !== "string" || !Number.isFinite(Date.parse(expiry)) || Date.parse(expiry) <= Date.now()) {
+        res.status(410).json({ error: "This immutable quote has expired. Create a new quote.", code: "QUOTE_EXPIRED_REQUOTE_REQUIRED" });
+        return;
+      }
+      res.json(quoteResponse(attempt.quoteSnapshot as Record<string, unknown>));
+      return;
+    }
+    if (!attempt) {
+      const catalog = await client.listProducts();
+      const storefront = await readPublishedPlatformContent();
+      const resolved = storefront
+        ? resolveAuthoritativeCheckoutItems(body.items, catalog, storefront.products)
+        : null;
+      if (!resolved) {
+        res.status(400).json({ error: "A selected product or size is no longer available for secure checkout." });
+        return;
+      }
+      const ownershipToken = randomOwnershipToken();
+      const items: JusticeSureLineItem[] = resolved.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
+      const fulfillment: JusticeSureFulfillment = {
+        type: body.fulfillment.type,
+        ...(body.fulfillment.locationId ? { locationId: body.fulfillment.locationId } : {}),
+        ...(body.fulfillment.address ? { address: body.fulfillment.address } : {}),
+      };
+      // Persist the exact request intent before the quote/network boundary.
+      const orderRequestBody = {
+        customer: body.customer, items, fulfillment, paymentMethod: body.paymentProvider,
+        displayCurrency: body.displayCurrency,
+        ...(body.notes === undefined ? {} : { notes: body.notes }),
+      };
+      try {
+        [attempt] = await db.insert(commerceCheckoutAttemptsTable).values({
+          ownershipTokenHash: hash(ownershipToken), requestHash,
+          customerName: body.customer.name, customerEmail: body.customer.email, customerPhone: body.customer.phone,
+          items: resolved, fulfillment: body.fulfillment, orderIdempotencyKey, paymentIdempotencyKey,
+          provider: body.paymentProvider, paymentMethod: body.paymentMethod, displayCurrency: body.displayCurrency,
+          notes: body.notes ?? null, orderRequestBody,
+        }).returning();
+        setOwnershipCookie(req, res, attempt.id, ownershipToken);
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        res.status(409).json({ error: "This checkout quote is already being prepared. Retry to recover it." });
+        return;
+      }
+    }
+    if (!attempt) throw new Error("Checkout quote operation was not persisted.");
+    const items: JusticeSureLineItem[] = (attempt.items as CheckoutItem[]).map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
+    const fulfillment: JusticeSureFulfillment = {
+      type: body.fulfillment.type, ...(body.fulfillment.locationId ? { locationId: body.fulfillment.locationId } : {}),
+      ...(body.fulfillment.address ? { address: body.fulfillment.address } : {}),
+    };
+    const quote = await client.createPriceQuote({
+      items, fulfillment, provider: body.paymentProvider, paymentMethod: body.paymentMethod,
+      ...(body.displayCurrency ? { displayCurrency: body.displayCurrency } : {}),
+    });
+    if (!quote.payment) throw new JusticeSureRequestError("JusticeSure did not return quote payment authority.", 502);
+    if (quote.payment.provider !== body.paymentProvider || quote.payment.method !== body.paymentMethod) {
+      throw new JusticeSureRequestError("JusticeSure returned quote payment authority different from the requested ready provider and method.", 502);
+    }
+    // Creation response deliberately omits line/fulfillment details. Retrieve
+    // the immutable quote and bind those authoritative facts before allowing
+    // confirmation.
+    const retrieved = await client.getPriceQuote(quote.id);
+    const currencyMetadata = await client.listCurrencies();
+    if (retrieved.expiresAt !== quote.expiresAt || retrieved.displayCurrency !== quote.displayCurrency
+      || retrieved.currency !== quote.currency || retrieved.chargeCurrency !== quote.chargeCurrency
+      || retrieved.settlementCurrency !== quote.settlementCurrency
+      || retrieved.fxSnapshotId !== quote.fxSnapshotId
+      || !isDeepStrictEqual(retrieved.amounts, quote.amounts)
+      || !quoteMatchesRequestedCheckout(retrieved, items, fulfillment)) {
+      throw new JusticeSureRequestError("JusticeSure returned inconsistent immutable quote details.", 502);
+    }
+    const quoteCurrencies = [quote.currency, quote.displayCurrency, quote.chargeCurrency, quote.settlementCurrency];
+    const currencyMinorUnitExponents = Object.fromEntries(quoteCurrencies.map((currency) => {
+      const metadata = currencyMetadata.find((item) => item.code === currency);
+      if (!metadata) throw new JusticeSureRequestError("JusticeSure did not provide currency exponent metadata for the quote.", 502);
+      return [currency, metadata.minorUnitExponent];
+    }));
+    const snapshot = {
+      ...quoteResponse({
+      id: quote.id, expiresAt: quote.expiresAt, currency: quote.currency, displayCurrency: quote.displayCurrency,
+      chargeCurrency: quote.chargeCurrency, settlementCurrency: quote.settlementCurrency, amounts: quote.amounts, fxSnapshotId: quote.fxSnapshotId, payment: quote.payment,
+      }),
+      // Internal durable comparison data; deliberately not part of the
+      // customer quote projection.
+      fxSnapshotId: quote.fxSnapshotId,
+      lines: retrieved.lines,
+      fulfillment: retrieved.fulfillment,
+      currencyMinorUnitExponents,
+    };
+    const orderRequestBody = {
+      customer: body.customer, items, fulfillment, paymentMethod: quote.payment.provider,
+      quoteId: quote.id, displayCurrency: quote.displayCurrency,
+      ...(body.notes === undefined ? {} : { notes: body.notes }),
+    };
+    await db.update(commerceCheckoutAttemptsTable).set({
+      quoteId: quote.id, quoteSnapshot: snapshot, provider: quote.payment.provider, paymentMethod: quote.payment.method,
+      displayCurrency: quote.displayCurrency, orderRequestBody,
+      // A payment operation is never reused across immutable quotes.
+      orderIdempotencyKey: `order_${body.checkoutOperationId}_${quote.id.slice(0, 8)}`,
+      paymentIdempotencyKey: `payment_${body.checkoutOperationId}_${quote.id.slice(0, 8)}`,
+    }).where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
+    res.status(201).json(snapshot);
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
+
 router.post("/payment/initiate", async (req, res): Promise<void> => {
   const config = justiceSureConfig();
   if (!isJusticeSureCommerceReady(config)) {
@@ -388,26 +677,17 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
     ));
     return;
   }
-  const contractBody = InitiateCommerceCheckoutBody.safeParse(req.body);
-  const body = contractBody.success ? checkoutBody(contractBody.data) : null;
-  if (!body) {
-    res.status(400).json({ error: "Provide a valid JusticeSure checkout request with live product IDs, fulfilment details, and contact information." });
+  const body = checkoutBody(req.body);
+  if (!body || !body.quoteId || !body.displayCurrency || !body.paymentProvider || !body.paymentMethod) {
+    res.status(400).json({ error: "Review a current immutable quote and choose a ready payment method before secure checkout." });
     return;
   }
 
-  const requestHash = hash(JSON.stringify({
-    customer: body.customer,
-    items: body.items.map(({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour }) =>
-      ({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour })),
-    fulfillment: body.fulfillment,
-    notes: body.notes ?? "",
-  }));
-  const orderIdempotencyKey = `order_${body.checkoutOperationId}`;
-  const paymentIdempotencyKey = `payment_${body.checkoutOperationId}`;
+  const requestHash = checkoutRequestHash(body);
   let [attempt] = await db
     .select()
     .from(commerceCheckoutAttemptsTable)
-    .where(eq(commerceCheckoutAttemptsTable.orderIdempotencyKey, orderIdempotencyKey))
+    .where(eq(commerceCheckoutAttemptsTable.quoteId, body.quoteId))
     .limit(1);
 
   if (attempt && attempt.requestHash !== requestHash) {
@@ -415,110 +695,75 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
     return;
   }
 
-  let concurrentCreate = false;
   if (!attempt) {
-    let authoritativeItems: CheckoutItem[];
-    try {
-      const catalog = await new JusticeSureCommerceClient(config).listProducts();
-      const storefront = await readPublishedPlatformContent();
-      if (!storefront) {
-        res.status(503).json({ error: "Published product options are unavailable. No payment has been taken.", noPaymentTaken: true });
-        return;
-      }
-      const resolved = resolveAuthoritativeCheckoutItems(body.items, catalog, storefront.products);
-      if (!resolved) {
-        res.status(400).json({ error: "A selected product or size is no longer available for secure checkout." });
-        return;
-      }
-      authoritativeItems = resolved;
-    } catch (error) {
-      errorResponse(res, error);
-      return;
-    }
-    const ownershipToken = randomOwnershipToken();
-    try {
-      [attempt] = await db
-        .insert(commerceCheckoutAttemptsTable)
-        .values({
-          ownershipTokenHash: hash(ownershipToken),
-          requestHash,
-          customerName: body.customer.name,
-          customerEmail: body.customer.email,
-          customerPhone: body.customer.phone,
-          items: authoritativeItems,
-          fulfillment: body.fulfillment,
-          orderIdempotencyKey,
-          paymentIdempotencyKey,
-        })
-        .returning();
-      setOwnershipCookie(req, res, attempt.id, ownershipToken);
-    } catch (error) {
-      if (!isUniqueViolation(error)) throw error;
-      concurrentCreate = true;
-      [attempt] = await db
-        .select()
-        .from(commerceCheckoutAttemptsTable)
-        .where(eq(commerceCheckoutAttemptsTable.orderIdempotencyKey, orderIdempotencyKey))
-        .limit(1);
-    }
-  }
-  if (!attempt) {
-    res.status(503).json({ error: "Checkout preparation did not complete. Please retry once.", noPaymentTaken: true });
+    res.status(409).json({ error: "Create and review a quote before starting payment." });
     return;
   }
   if (!hasOwnership(req, attempt.id, attempt.ownershipTokenHash)) {
-    if (concurrentCreate) {
-      res.status(409).json({ error: "This checkout is already being prepared. Please retry after the first request completes." });
-      return;
-    }
     res.status(403).json({ error: "This checkout attempt belongs to a different browser session." });
     return;
   }
+  if (attempt.quoteId !== body.quoteId || !attempt.quoteSnapshot || !attempt.orderRequestBody) {
+    res.status(409).json({ error: "This quote is no longer bound to the checkout details. Create a new quote." });
+    return;
+  }
 
-  if (attempt.checkoutUrl) {
+  if (attempt.checkoutUrl && !(attempt.provider === "simulated" && !attempt.justiceSurePaymentAttemptId)) {
     res.json(InitiateCommerceCheckoutResponse.parse({ attemptId: attempt.id, checkoutUrl: attempt.checkoutUrl }));
     return;
   }
 
   try {
     const client = new JusticeSureCommerceClient(config);
-    const persistedItems = attempt.items as CheckoutItem[];
-    const items: JusticeSureLineItem[] = persistedItems.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
-    const fulfillment: JusticeSureFulfillment = {
-      type: body.fulfillment.type,
-      ...(body.fulfillment.locationId ? { locationId: body.fulfillment.locationId } : {}),
-      ...(body.fulfillment.address ? { address: body.fulfillment.address } : {}),
+    const quoteSnapshot = attempt.quoteSnapshot as Record<string, unknown> & {
+      payment?: { provider?: JusticeSureProvider }; displayCurrency?: string;
     };
-    if (body.fulfillment.type === "delivery") {
-      const quote = await client.createDeliveryQuote(items, body.fulfillment.address!, body.fulfillment.locationId);
-      fulfillment.deliveryQuoteToken = quote.quoteToken;
+    if (!quoteSnapshot.payment?.provider || !quoteSnapshot.displayCurrency) {
+      throw new JusticeSureRequestError("The persisted quote is missing payment authority.", 502);
+    }
+    // Re-read the immutable quote before ordering; never recalculate its money locally.
+    const currentQuote = await client.getPriceQuote(body.quoteId);
+    if (!sameImmutableQuote(currentQuote, quoteSnapshot)) {
+      throw new JusticeSureRequestError("The immutable quote no longer matches this checkout. Create a new quote.", 409, "QUOTE_EXPIRED_REQUOTE_REQUIRED");
     }
     const order = attempt.justiceSureOrderId
       ? await client.getOrder(attempt.justiceSureOrderId)
-      : await client.createOrder({
-        customer: body.customer,
-        items,
-        fulfillment,
-        paymentMethod: config.paymentProvider!,
-        notes: body.notes,
+      : (await client.createOrder({
+        body: attempt.orderRequestBody as import("../lib/justicesureCommerce").JusticeSureOrderRequestBody,
         idempotencyKey: attempt.orderIdempotencyKey,
-      });
+      })).order;
     await db
       .update(commerceCheckoutAttemptsTable)
       .set({ justiceSureOrderId: order.id, status: attemptStatus(order) })
       .where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
+    const paymentSessionRequestBody = (attempt.paymentSessionRequestBody as import("../lib/justicesureCommerce").JusticeSurePaymentSessionRequestBody | null) ?? {
+      provider: quoteSnapshot.payment.provider,
+      email: attempt.customerEmail,
+      ...(quoteSnapshot.payment.provider === "flutterwave" ? { redirectUrl: config.paymentReturnUrl } : {}),
+    };
+    if (paymentSessionRequestBody.provider !== quoteSnapshot.payment.provider) {
+      throw new JusticeSureRequestError("The persisted payment-session body does not match immutable quote authority.", 409, "QUOTE_EXPIRED_REQUOTE_REQUIRED");
+    }
+    if (!attempt.paymentSessionRequestBody) {
+      await db.update(commerceCheckoutAttemptsTable).set({ paymentSessionRequestBody })
+        .where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
+    }
     const session = await client.createPaymentSession({
       orderId: order.id,
-      checkoutAttemptId: attempt.id,
-      provider: config.paymentProvider!,
-      email: body.customer.email,
+      body: paymentSessionRequestBody,
       idempotencyKey: attempt.paymentIdempotencyKey,
     });
+    if (session.provider !== quoteSnapshot.payment.provider && session.provider !== "simulated") {
+      throw new JusticeSureRequestError("JusticeSure returned a session that does not match the immutable quote provider.", 502);
+    }
     await db
       .update(commerceCheckoutAttemptsTable)
       .set({
         provider: session.provider,
         paymentReference: session.reference,
+        justiceSurePaymentAttemptId: session.attemptId ?? null,
+        justiceSurePaymentIntentId: session.paymentIntentId ?? null,
+        justiceSureOriginalCharge: session.originalCharge ?? null,
         checkoutUrl: session.checkoutUrl,
         status: attemptStatus(order),
       })
@@ -558,7 +803,25 @@ router.get("/payment/status/:attemptId", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const order = await new JusticeSureCommerceClient().getOrder(attempt.justiceSureOrderId);
+    const client = new JusticeSureCommerceClient();
+    const recoveryPending = attempt.status === "starting" || attempt.status === "payment_pending";
+    const remoteAttemptId = attempt.justiceSurePaymentAttemptId;
+    if (recoveryPending && attempt.provider === "simulated" && !remoteAttemptId) {
+      throw new JusticeSureRequestError("The Test payment attempt identifier is missing; payment status cannot be verified.", 502);
+    }
+    if (recoveryPending && remoteAttemptId && !isUuid(remoteAttemptId)) {
+      throw new JusticeSureRequestError("The persisted payment attempt identifier is invalid; payment status cannot be verified.", 502);
+    }
+    if (shouldRecoverPaymentAttempt(attempt.status, attempt.provider, remoteAttemptId, attempt.paymentRecoveryCheckedAt)) {
+      await db.update(commerceCheckoutAttemptsTable)
+        .set({ paymentRecoveryCheckedAt: new Date() })
+        .where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
+      const verified = await client.verifyPaymentAttempt(attempt.justiceSureOrderId, remoteAttemptId as string);
+      if (verified.status === "pending") {
+        await client.reconcilePaymentAttempt(attempt.justiceSureOrderId, remoteAttemptId as string);
+      }
+    }
+    const order = await client.getOrder(attempt.justiceSureOrderId);
     await syncLocalOrder(attempt.id, order);
     res.json(publicStatus(order, attempt));
   } catch (error) {
@@ -701,7 +964,7 @@ function validWebhook(req: Request): { envelope: WebhookEnvelope; rawBody: Buffe
   const eventId = header(req, "x-justicesure-event-id");
   const event = header(req, "x-justicesure-event");
   const signature = header(req, "x-justicesure-signature");
-  if (!rawBody || !config.webhookSecret || !timestamp || !eventId || !event || !signature || !/^sha256=[a-f0-9]{64}$/.test(signature)) return null;
+  if (!rawBody || !config.webhookSecret || !timestamp || !eventId || !event || !signature || !/^evt_[A-Za-z0-9_-]{24}$/.test(eventId) || !/^sha256=[a-f0-9]{64}$/.test(signature)) return null;
   const seconds = Number(timestamp);
   if (!Number.isInteger(seconds) || Math.abs(Date.now() - seconds * 1_000) > WEBHOOK_TOLERANCE_SECONDS * 1_000) return null;
   const expected = `sha256=${crypto.createHmac("sha256", config.webhookSecret).update(`${timestamp}.${eventId}.`).update(rawBody).digest("hex")}`;
@@ -709,15 +972,37 @@ function validWebhook(req: Request): { envelope: WebhookEnvelope; rawBody: Buffe
   const expectedBuffer = Buffer.from(expected);
   if (received.length !== expectedBuffer.length || !crypto.timingSafeEqual(received, expectedBuffer)) return null;
   try {
-    const parsed = ReceiveCommerceWebhookBody.safeParse(JSON.parse(rawBody.toString("utf8")));
-    if (!parsed.success || parsed.data.id !== eventId || parsed.data.event !== event || !supportedWebhookEvents.has(parsed.data.event)) return null;
-    const data = parsed.data.data ?? {};
+    const parsed = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object" || parsed.id !== eventId || parsed.event !== event
+      || !supportedWebhookEvents.has(event) || parsed.apiVersion !== "2025-01-01"
+      || typeof parsed.createdAt !== "string" || !Number.isFinite(Date.parse(parsed.createdAt))
+      || !parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return null;
+    const data = parsed.data as Record<string, unknown>;
+    const required = webhookRequiredFields[event] ?? [];
+    if (required.some((field) => !(field in data))
+      || (typeof data.orderId === "string" && !isUuid(data.orderId))
+      || (typeof data.productId === "string" && !isUuid(data.productId))
+      || (typeof data.variantId === "string" && !isUuid(data.variantId))
+      || (typeof data.inventoryItemId === "string" && !isUuid(data.inventoryItemId))
+      || (typeof data.updatedAt !== "string" && required.includes("updatedAt"))
+      || (typeof data.updatedAt === "string" && !Number.isFinite(Date.parse(data.updatedAt)))
+      || (typeof data.totalKobo !== "undefined" && (typeof data.totalKobo !== "number" || !Number.isSafeInteger(data.totalKobo) || data.totalKobo < 0))
+      || (typeof data.amountKobo !== "undefined" && (typeof data.amountKobo !== "number" || !Number.isSafeInteger(data.amountKobo) || data.amountKobo < 0))
+      || (typeof data.refundedKobo !== "undefined" && (typeof data.refundedKobo !== "number" || !Number.isSafeInteger(data.refundedKobo) || data.refundedKobo < 0))
+      || (typeof data.isFullRefund !== "undefined" && typeof data.isFullRefund !== "boolean")) return null;
     return {
       envelope: {
-        id: parsed.data.id,
-        event: parsed.data.event,
-        apiVersion: parsed.data.apiVersion,
-        data: { ...(typeof data.orderId === "string" ? { orderId: data.orderId } : {}) },
+        id: eventId,
+        event,
+        apiVersion: parsed.apiVersion,
+        createdAt: parsed.createdAt,
+        data: {
+          ...(typeof data.orderId === "string" ? { orderId: data.orderId } : {}),
+          catalogueIdentifiers: [...new Set(
+            [data.productId, data.variantId, data.inventoryItemId]
+              .filter((value): value is string => typeof value === "string"),
+          )],
+        },
       },
       rawBody,
     };
@@ -744,45 +1029,59 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
       eventType: envelope.event,
       apiVersion: envelope.apiVersion,
       payloadHash: hash(rawBody),
+      eventOccurredAt: new Date(envelope.createdAt),
+      catalogueIdentifiers: envelope.data.catalogueIdentifiers,
     })
     .onConflictDoNothing()
-    .returning();
+    .returning({ leaseGeneration: commerceWebhookEventsTable.leaseGeneration });
 
+  let claimedGeneration = inserted?.leaseGeneration;
   if (!inserted) {
     const [existing] = await db
       .select()
       .from(commerceWebhookEventsTable)
       .where(eq(commerceWebhookEventsTable.eventId, envelope.id))
       .limit(1);
-    if (existing?.status === "completed") {
-      res.status(200).json(ReceiveCommerceWebhookResponse.parse({ received: true, duplicate: true }));
+    if (!existing || existing.payloadHash !== hash(rawBody)) {
+      res.status(400).json({ error: "Webhook event ID was reused with a different payload." });
       return;
     }
-    if (existing && existing.updatedAt.getTime() > Date.now() - WEBHOOK_LEASE_MS) {
-      res.status(503).json({ error: "Webhook is still being processed; retry this delivery." });
+    if (existing.status === "completed") {
+      res.status(200).json(ReceiveCommerceWebhookResponse.parse({ received: true, duplicate: true }));
       return;
     }
     const [reclaimed] = await db
       .update(commerceWebhookEventsTable)
       .set({
         status: "processing",
-        processingStartedAt: new Date(),
+        processingStartedAt: sql`now()`,
+        updatedAt: sql`now()`,
+        leaseGeneration: sql`${commerceWebhookEventsTable.leaseGeneration} + 1`,
         lastError: null,
       })
       .where(and(
         eq(commerceWebhookEventsTable.eventId, envelope.id),
         ne(commerceWebhookEventsTable.status, "completed"),
-        lt(commerceWebhookEventsTable.updatedAt, new Date(Date.now() - WEBHOOK_LEASE_MS)),
+        or(
+          eq(commerceWebhookEventsTable.status, "failed"),
+          sql`${commerceWebhookEventsTable.updatedAt} < now() - interval '5 minutes'`,
+        ),
       ))
-      .returning({ eventId: commerceWebhookEventsTable.eventId });
+      .returning({ leaseGeneration: commerceWebhookEventsTable.leaseGeneration });
     if (!reclaimed) {
       res.status(503).json({ error: "Webhook lease could not be claimed; retry this delivery." });
       return;
     }
+    claimedGeneration = reclaimed.leaseGeneration;
   }
 
+  if (claimedGeneration === undefined) {
+    res.status(503).json({ error: "Webhook processing lease changed; retry this delivery." });
+    return;
+  }
   try {
     const orderId = envelope.data?.orderId;
+    let completedWithEffects = false;
     if (isRemoteOrderId(orderId)) {
       const [attempt] = await db
         .select()
@@ -791,19 +1090,40 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
         .limit(1);
       if (attempt) {
         const order = await new JusticeSureCommerceClient().getOrder(orderId);
-        await syncLocalOrder(attempt.id, order);
+        await syncLocalOrder(attempt.id, order, {
+          eventId: envelope.id,
+          leaseGeneration: claimedGeneration,
+        });
+        completedWithEffects = true;
       }
     }
-    await db
+    // syncLocalOrder completes the locked lease in its own effects transaction.
+    // Events without a local checkout still need an atomic fenced completion.
+    if (!completedWithEffects) {
+      const [completed] = await db
       .update(commerceWebhookEventsTable)
-      .set({ status: "completed", completedAt: new Date(), lastError: null })
-      .where(eq(commerceWebhookEventsTable.eventId, envelope.id));
+      .set({ status: "completed", completedAt: sql`now()`, updatedAt: sql`now()`, lastError: null })
+      .where(and(
+        eq(commerceWebhookEventsTable.eventId, envelope.id),
+        eq(commerceWebhookEventsTable.status, "processing"),
+        eq(commerceWebhookEventsTable.leaseGeneration, claimedGeneration),
+      ))
+      .returning({ eventId: commerceWebhookEventsTable.eventId });
+      if (!completed) {
+        res.status(503).json({ error: "Webhook processing lease changed; retry this delivery." });
+        return;
+      }
+    }
     res.status(200).json(ReceiveCommerceWebhookResponse.parse({ received: true }));
   } catch {
     await db
       .update(commerceWebhookEventsTable)
-      .set({ status: "failed", lastError: "Authoritative order refresh failed." })
-      .where(eq(commerceWebhookEventsTable.eventId, envelope.id));
+      .set({ status: "failed", updatedAt: sql`now()`, lastError: "Authoritative order refresh failed." })
+      .where(and(
+        eq(commerceWebhookEventsTable.eventId, envelope.id),
+        eq(commerceWebhookEventsTable.status, "processing"),
+        eq(commerceWebhookEventsTable.leaseGeneration, claimedGeneration),
+      ));
     res.status(503).json({ error: "Webhook processing did not complete; retry this delivery." });
   }
 });

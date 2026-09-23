@@ -23,6 +23,7 @@ export function handleUpdateDepartment(
     customEligible: department === "men" ? product.customEligible : false,
     sizes: department === "men" ? product.sizes : product.sizes.filter((size) => size.toLowerCase() !== "custom"),
     commerceVariantIds: Object.keys(commerceVariantIds).length > 0 ? commerceVariantIds : undefined,
+    commerceMappingConfirmation: leavingMenWithCustomData ? undefined : product.commerceMappingConfirmation,
   };
 }
 
@@ -53,7 +54,8 @@ export function handleToggleCustomEligible(
     ...product,
     customEligible: checked,
     sizes: Array.from(sizes),
-    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined
+    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    commerceMappingConfirmation: undefined,
   };
 }
 
@@ -83,7 +85,8 @@ export function handleToggleStandardEligible(
     standardEligible: checked,
     standardSizes: checked ? product.standardSizes : [],
     readyNowSizes: checked ? product.readyNowSizes : [],
-    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined
+    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    commerceMappingConfirmation: undefined,
   };
 }
 
@@ -147,7 +150,8 @@ export function handleUpdateAvailableSizes(
     sizes: finalSizes,
     standardSizes: newStandardSizes,
     readyNowSizes: newReadyNowSizes,
-    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined
+    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    commerceMappingConfirmation: removedSizes.length > 0 ? undefined : product.commerceMappingConfirmation,
   };
 }
 
@@ -180,6 +184,7 @@ export function handleUpdateStandardSizes(
     ...product,
     standardSizes: Array.from(stdSizes),
     readyNowSizes: newReadyNow,
-    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined
+    commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    commerceMappingConfirmation: undefined,
   };
 }

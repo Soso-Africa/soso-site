@@ -133,6 +133,10 @@ async function main(): Promise<void> {
       slug: safeSlug(product.slug),
       name: decodeHtml(product.name),
       img: managedPaths[0]!,
+      legacyMigration: {
+        sourceProductId: product.id,
+        sourceUrl: product.permalink || `${SOURCE_SITE}/product/${safeSlug(product.slug)}/`,
+      },
       images: managedPaths.map((src, imageIndex) => ({
         src,
         alt: decodeHtml(sourceProductImages[imageIndex]?.alt ?? "")
@@ -185,6 +189,7 @@ async function main(): Promise<void> {
     return {
       ...existing,
       img: current.img,
+      legacyMigration: current.legacyMigration,
       images: current.images,
       searchableTerms: [...new Set([...existing.searchableTerms, ...current.searchableTerms])],
     };

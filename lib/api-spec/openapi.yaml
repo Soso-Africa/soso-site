@@ -80,11 +80,46 @@ paths:
           description: Idempotency key conflicts with different checkout details
         "503":
           description: Payment is not available or cannot be confirmed
+  /payment/discovery:
+    get:
+      operationId: getCommerceDiscovery
+      tags: [storefront]
+      summary: Discover public-safe JusticeSure currencies, readiness, and corridors
+      parameters:
+        - in: query
+          name: country
+          schema: { type: string, pattern: "^[A-Za-z]{2}$" }
+        - in: query
+          name: currency
+          schema: { type: string, pattern: "^[A-Za-z]{3}$" }
+      responses:
+        "200":
+          description: Merchant-owned public capability projection
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommerceDiscovery" }
+  /payment/quote:
+    post:
+      operationId: createCommerceQuote
+      tags: [storefront]
+      summary: Create a customer-reviewable immutable JusticeSure quote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommerceQuoteInput" }
+      responses:
+        "201":
+          description: Immutable checkout quote
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommerceQuote" }
   /payment/status/{attemptId}:
     get:
       operationId: getCommercePaymentStatus
       tags: [storefront]
       summary: Read JusticeSure-verified status for a browser-owned checkout attempt
+      description: The browser supplies only SOSO's local attempt ID. SOSO recovers payment state server-side with the persisted JusticeSure order and payment-attempt identifiers, then projects the authoritative JusticeSure order status. Redirect parameters never establish payment.
       parameters:
         - in: path
           name: attemptId
@@ -322,7 +357,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/JournalPostSummary"
+                  $ref: "#/components/schemas/JournalPost"
   /journal/{slug}:
     get:
       operationId: getJournalPost
@@ -698,6 +733,52 @@ paths:
           description: Authentication required
         "403":
           description: Owner, administrator, or editor access required
+  /staff/accessory-launch-notifications/summary:
+    get:
+      operationId: getStaffAccessoryLaunchNotificationSummary
+      tags: [staff]
+      summary: Compare privacy-safe accessory launch demand by category and product
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: Deduplicated accessory demand counts for the selected date range
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffAccessoryLaunchNotificationSummary"
+        "400":
+          description: Invalid date range
+        "401":
+          description: Authentication required
+        "403":
+          description: Owner, administrator, or editor access required
+  /staff/accessory-launch-notifications/summary/export:
+    get:
+      operationId: exportStaffAccessoryLaunchNotificationSummary
+      tags: [staff]
+      summary: Download privacy-safe accessory launch demand as CSV
+      parameters:
+        - $ref: "#/components/parameters/StaffDateFrom"
+        - $ref: "#/components/parameters/StaffDateTo"
+      responses:
+        "200":
+          description: CSV containing deduplicated accessory demand counts and reporting dates only; a successful response records the staff actor, export type, and selected dates in the operational audit log
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+          content:
+            text/csv:
+              schema:
+                type: string
+        "400":
+          description: Invalid date range
+        "401":
+          description: Authentication required
+        "403":
+          description: Owner, administrator, or editor access required
   /staff/orders/{id}:
     patch:
       operationId: updateStaffOrder
@@ -1064,6 +1145,25 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PlatformContentRevision" }
+  /staff/commerce/catalogue-mapping/preview:
+    post:
+      operationId: previewStaffCatalogueMapping
+      tags: [staff]
+      summary: Match SOSO catalogue choices to a current JusticeSure catalogue snapshot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CatalogueMappingPreviewInput" }
+      responses:
+        "200":
+          description: Deterministic mapping suggestions and current snapshot identity
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CatalogueMappingPreview" }
+        "400": { description: "Invalid catalogue mapping input" }
+        "403": { description: "Owner, administrator, or editor access required" }
+        "503": { description: "JusticeSure catalogue is unavailable" }
   /marketing-pixels:
     get:
       operationId: getPublicMarketingPixels
@@ -1294,6 +1394,34 @@ paths:
         "400": { description: "Upload is missing or failed publishing checks" }
         "401": { description: "Staff authentication required" }
         "403": { description: "Editorial staff role required" }
+  /storage/uploads/cleanup-pending:
+    get:
+      operationId: listPendingMediaCleanup
+      tags: [storage]
+      summary: List managed storefront media waiting for cleanup
+      responses:
+        "200":
+          description: Latest pending cleanup state for each managed upload
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ManagedMediaCleanupItem" }
+        "401": { description: "Staff authentication required" }
+        "403": { description: "Editorial staff role required" }
+    post:
+      operationId: retryPendingMediaCleanup
+      tags: [storage]
+      summary: Retry all managed storefront media waiting for cleanup
+      responses:
+        "200":
+          description: Cleanup retry outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ManagedMediaCleanupSummary" }
+        "401": { description: "Staff authentication required" }
+        "403": { description: "Editorial staff role required" }
+        "500": { description: "Pending media cleanup could not be processed" }
   /storage/objects/{objectPath}:
     get:
       operationId: getStorageObject
@@ -1408,6 +1536,30 @@ components:
         objectPath:
           type: string
           pattern: "^/api/storage/objects/uploads/"
+    ManagedMediaCleanupItem:
+      type: object
+      additionalProperties: false
+      required: [path, status, updatedAt]
+      properties:
+        path:
+          type: string
+          pattern: "^uploads/"
+        status:
+          type: string
+          enum: [queued, deferred, failed]
+        updatedAt:
+          type: string
+          format: date-time
+        reason:
+          type: ["string", "null"]
+    ManagedMediaCleanupSummary:
+      type: object
+      additionalProperties: false
+      required: [deleted, deferred, failed]
+      properties:
+        deleted: { type: number, minimum: 0, multipleOf: 1 }
+        deferred: { type: number, minimum: 0, multipleOf: 1 }
+        failed: { type: number, minimum: 0, multipleOf: 1 }
     PlatformContent:
       type: object
       description: Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.
@@ -1712,6 +1864,40 @@ components:
         policyVersion: { type: string, minLength: 1, maxLength: 80 }
         consentedAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
+    StaffAccessoryLaunchNotificationSummaryItem:
+      type: object
+      additionalProperties: false
+      required: [accessoryCategory, productSlug, requestCount, previousRequestCount, change, trend]
+      properties:
+        accessoryCategory: { type: string }
+        productSlug: { type: string }
+        requestCount: { type: number, minimum: 0 }
+        previousRequestCount: { type: number, minimum: 0 }
+        change: { type: number }
+        trend:
+          type: string
+          enum: [new, growth, decline, no_change]
+    StaffAccessoryLaunchNotificationSummary:
+      type: object
+      additionalProperties: false
+      required: [from, to, comparisonFrom, comparisonTo, comparisonCoverage, comparisonAvailableFrom, totalUniqueRequests, previousTotalUniqueRequests, items]
+      properties:
+        from: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        to: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        comparisonFrom: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        comparisonTo: { type: string, pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        comparisonCoverage:
+          type: string
+          enum: [full, partial, empty]
+        comparisonAvailableFrom:
+          type: ["string", "null"]
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        totalUniqueRequests: { type: number, minimum: 0 }
+        previousTotalUniqueRequests: { type: number, minimum: 0 }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffAccessoryLaunchNotificationSummaryItem"
     PrivacyRequestInput:
       type: object
       required: [requestType, requesterEmail]
@@ -2183,7 +2369,7 @@ components:
         address: { type: string, minLength: 1, maxLength: 1000 }
     CommerceCheckoutInput:
       type: object
-      required: [checkoutOperationId, customer, items, fulfillment]
+      required: [checkoutOperationId, customer, items, fulfillment, quoteId, displayCurrency, paymentProvider, paymentMethod]
       properties:
         checkoutOperationId: { type: string, minLength: 8, maxLength: 56, pattern: "^[A-Za-z0-9_.:-]+$" }
         customer:
@@ -2197,6 +2383,56 @@ components:
         fulfillment:
           $ref: "#/components/schemas/CommerceFulfillmentInput"
         notes: { type: string, maxLength: 1000 }
+        quoteId: { type: string, minLength: 36, maxLength: 64 }
+        displayCurrency: { type: string, pattern: "^[A-Za-z]{3}$" }
+        paymentProvider: { type: string, enum: [paystack, flutterwave, stripe, paypal, hydrogen] }
+        paymentMethod: { type: string, enum: [card, bank_transfer, wallet, paypal, virtual_account] }
+    CommerceQuoteInput:
+      type: object
+      required: [checkoutOperationId, customer, items, fulfillment, displayCurrency, paymentProvider, paymentMethod]
+      properties:
+        checkoutOperationId: { type: string, minLength: 8, maxLength: 56, pattern: "^[A-Za-z0-9_.:-]+$" }
+        customer: { $ref: "#/components/schemas/CommerceCustomerInput" }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: "#/components/schemas/CommerceLineItemInput" }
+        fulfillment: { $ref: "#/components/schemas/CommerceFulfillmentInput" }
+        notes: { type: string, maxLength: 1000 }
+        displayCurrency: { type: string, pattern: "^[A-Za-z]{3}$" }
+        paymentProvider: { type: string, enum: [paystack, flutterwave, stripe, paypal, hydrogen] }
+        paymentMethod: { type: string, enum: [card, bank_transfer, wallet, paypal, virtual_account] }
+    CommerceCanonicalCurrency:
+      type: string
+      enum: [NGN]
+    CommerceQuote:
+      type: object
+      required: [id, expiresAt, currency, displayCurrency, chargeCurrency, settlementCurrency, amounts, payment]
+      properties:
+        id: { type: string, minLength: 36, maxLength: 64 }
+        expiresAt: { type: string, format: date-time }
+        currency: { $ref: "#/components/schemas/CommerceCanonicalCurrency" }
+        displayCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+        chargeCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+        settlementCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+        amounts: { type: object, additionalProperties: { type: string, pattern: "^-?\\d+$" } }
+        currencyMinorUnitExponents: { type: object, additionalProperties: { type: number, minimum: 0, maximum: 6 } }
+        payment:
+          type: object
+          required: [provider, method, chargeCurrency, settlementCurrency]
+          properties:
+            provider: { type: string, enum: [paystack, flutterwave, stripe, paypal, hydrogen] }
+            method: { type: string, enum: [card, bank_transfer, wallet, paypal, virtual_account] }
+            chargeCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+            settlementCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+    CommerceDiscovery:
+      type: object
+      required: [currencies, paymentMethods, corridors]
+      properties:
+        currencies: { type: array, items: { type: object, additionalProperties: true } }
+        paymentMethods: { type: object, additionalProperties: true }
+        corridors: { type: array, items: { type: object, additionalProperties: true } }
     CommercePaymentSession:
       type: object
       required: [attemptId, checkoutUrl]
@@ -2211,9 +2447,13 @@ components:
         orderNumber: { type: string, maxLength: 120 }
         status: { type: string, enum: [starting, payment_pending, paid, cancelled, refunded, fulfilled, failed] }
         paymentStatus: { type: string, maxLength: 100 }
-        provider: { type: string, enum: [paystack, flutterwave] }
+        provider: { type: string, enum: [paystack, flutterwave, stripe, paypal, hydrogen] }
         totalKobo: { type: number, minimum: 0 }
-        currency: { type: string, enum: [NGN] }
+        currency: { type: string, pattern: "^[A-Z]{3}$" }
+        quoteDisplayCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+        quoteChargeCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+        quoteSettlementCurrency: { type: string, pattern: "^[A-Z]{3}$" }
+        quoteCurrencyMinorUnitExponents: { type: object, additionalProperties: { type: number, minimum: 0, maximum: 6 } }
         checkedAt: { type: string, format: date-time }
     CommerceCatalog:
       type: object
@@ -2232,7 +2472,6 @@ components:
         description: { type: ["string", "null"], maxLength: 10000 }
         images:
           type: array
-          minItems: 1
           items: { type: string, minLength: 1, maxLength: 2048 }
         amountKobo: { type: number, minimum: 0 }
         inStock: { type: boolean }
@@ -2242,10 +2481,77 @@ components:
             $ref: "#/components/schemas/CommerceCatalogVariant"
     CommerceCatalogVariant:
       type: object
-      required: [id, label]
+      required: [id, name, label, attributes, amountKobo, inStock]
       properties:
         id: { type: string, minLength: 36, maxLength: 36 }
+        name: { type: string, minLength: 1, maxLength: 200 }
         label: { type: string, minLength: 1, maxLength: 160 }
+        attributes:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean]
+        amountKobo: { type: number, minimum: 0 }
+        inStock: { type: boolean }
+    CatalogueMappingProductInput:
+      type: object
+      additionalProperties: false
+      required: [slug, name, price, standardEligible, customEligible, standardSizes, fulfilmentState]
+      properties:
+        slug: { type: string, minLength: 1, maxLength: 160 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        price: { type: number, minimum: 1, multipleOf: 1 }
+        standardEligible: { type: boolean }
+        customEligible: { type: boolean }
+        standardSizes:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 40 }
+        fulfilmentState: { type: string, enum: [ready_now, made_immediately, unavailable] }
+        commerceProductId: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        commerceVariantIds:
+          type: object
+          additionalProperties: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+    CatalogueMappingPreviewInput:
+      type: object
+      additionalProperties: false
+      required: [products]
+      properties:
+        products:
+          type: array
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/CatalogueMappingProductInput" }
+    CatalogueMappingSuggestion:
+      type: object
+      additionalProperties: false
+      required: [slug, status, confidence, evidence, variantIds, choiceLabels, issues]
+      properties:
+        slug: { type: string }
+        status: { type: string, enum: [confident, needs_review, blocked] }
+        confidence: { type: number, minimum: 0, maximum: 100 }
+        evidence:
+          type: array
+          items: { type: string }
+        productId: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        productHash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        localHash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        variantIds:
+          type: object
+          additionalProperties: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
+        choiceLabels:
+          type: object
+          additionalProperties: { type: string }
+        issues:
+          type: array
+          items: { type: string }
+    CatalogueMappingPreview:
+      type: object
+      additionalProperties: false
+      required: [snapshotHash, fetchedAt, suggestions]
+      properties:
+        snapshotHash: { type: string, pattern: "^[0-9a-f]{64}$" }
+        fetchedAt: { type: string, format: date-time }
+        suggestions:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogueMappingSuggestion" }
     CommerceLocations:
       type: object
       required: [locations]
@@ -2594,4 +2900,3 @@ components:
           items:
             type: object
             additionalProperties: true
-

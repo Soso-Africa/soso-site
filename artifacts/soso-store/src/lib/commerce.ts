@@ -16,6 +16,10 @@ export type CheckoutRequest = {
     type: "delivery";
     address: string;
   };
+  quoteId: string;
+  displayCurrency: string;
+  paymentProvider: "paystack" | "flutterwave" | "stripe" | "paypal" | "hydrogen";
+  paymentMethod: "card" | "bank_transfer" | "wallet" | "paypal" | "virtual_account";
   notes?: string;
 };
 
@@ -24,10 +28,17 @@ export type CheckoutResult = {
   checkoutUrl: string;
 };
 
+export type CommerceDiscovery = {
+  currencies: Array<{ code: string; name: string; symbol: string; minorUnitExponent: number; displaySupported: boolean; chargeSupported: boolean; settlementSupported: boolean }>;
+  paymentMethods: { providers: Array<{ provider: CheckoutRequest["paymentProvider"]; eligible: boolean; methods: CheckoutRequest["paymentMethod"][]; chargeCurrencies: string[]; settlementCurrencies: string[]; reasonCode: string | null }>; country: string | null; currency: string | null };
+  corridors: Array<{ id: string; carrier: string; service: string; originCountry: string; destinationCountry: string; revision: number; importerOfRecord: string | null }>;
+};
 export interface CommerceGateway {
   readonly mode: CommerceMode;
   listProducts(): Promise<CatalogProduct[]>;
   getProduct(slug: string): Promise<CatalogProduct | undefined>;
+  discover(country?: string, currency?: string): Promise<CommerceDiscovery>;
+  createQuote(request: Omit<CheckoutRequest, "quoteId">): Promise<CommerceQuote>;
   createCheckoutSession(request: CheckoutRequest): Promise<CheckoutResult>;
 }
 
@@ -38,6 +49,12 @@ export class CommerceConfigurationError extends Error {
   }
 }
 
+export class CommerceRemoteError extends Error {
+  constructor(readonly code: string, readonly status: number) {
+    super(code);
+    this.name = "CommerceRemoteError";
+  }
+}
 type CommerceCatalogProjection = {
   id: string;
   name: string;
@@ -65,7 +82,6 @@ export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
     || !Array.isArray(images)
     || !images.every((image) => typeof image === "string")
     || !Array.isArray(variants)
-    || variants.length === 0
   ) {
     throw new CommerceConfigurationError("catalogue_incomplete");
   }
@@ -83,7 +99,9 @@ export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
     commerceVariantIds[label] = variant.id;
   }
   const slugBase = product.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "product";
-  const sizes = Object.keys(commerceVariantIds);
+  // JusticeSure permits products without variants. "Standard" is a local
+  // shopper choice only; no provider variant ID is invented or transmitted.
+  const sizes = variants.length === 0 ? ["Standard"] : Object.keys(commerceVariantIds);
   const standardSizes = sizes.filter((label) => label.toLocaleLowerCase() !== "custom");
   const customLabel = sizes.find((label) => label.toLocaleLowerCase() === "custom");
   return {
@@ -148,9 +166,34 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
   async getProduct(slug: string): Promise<CatalogProduct | undefined> {
     return (await this.catalogue()).find((product) => product.slug === slug);
   }
+  async discover(country?: string, currency?: string): Promise<CommerceDiscovery> {
+    const apiBase = runtimeEnv?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+    const query = new URLSearchParams();
+    if (country) query.set("country", country);
+    if (currency) query.set("currency", currency);
+    const response = await fetch(`${apiBase}/api/payment/discovery${query.size ? `?${query}` : ""}`, { credentials: "include" });
+    if (!response.ok) throw new CommerceConfigurationError("payment_discovery_unavailable");
+    return response.json() as Promise<CommerceDiscovery>;
+  }
+  async createQuote(request: Omit<CheckoutRequest, "quoteId">): Promise<CommerceQuote> {
+    if (request.items.some((item) => !item.commerceProductId)) throw new CommerceConfigurationError("catalogue_mapping_missing");
+    const apiBase = runtimeEnv?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+    const response = await fetch(`${apiBase}/api/payment/quote`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify(checkoutPayload(request)),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { code?: unknown } | null;
+      throw new CommerceRemoteError(
+        typeof payload?.code === "string" ? payload.code : "quote_unavailable",
+        response.status,
+      );
+    }
+    return response.json() as Promise<CommerceQuote>;
+  }
 
   async createCheckoutSession(request: CheckoutRequest): Promise<CheckoutResult> {
-    if (request.items.some((item) => !item.commerceProductId || !item.commerceVariantId)) {
+    if (request.items.some((item) => !item.commerceProductId)) {
       throw new CommerceConfigurationError(
         "catalogue_mapping_missing",
       );
@@ -161,12 +204,27 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({
-        checkoutOperationId: operationKey,
-        customer: request.customer,
-        fulfillment: request.fulfillment,
-        notes: request.notes,
-        items: request.items.map((item) => ({
+      body: JSON.stringify(checkoutPayload(request, operationKey)),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { code?: unknown } | null;
+      throw new CommerceRemoteError(typeof payload?.code === "string" ? payload.code : "checkout_unavailable", response.status);
+    }
+    return response.json() as Promise<CheckoutResult>;
+  }
+}
+
+function checkoutPayload(request: Omit<CheckoutRequest, "quoteId"> | CheckoutRequest, operationKey = checkoutOperationKey(request)): Record<string, unknown> {
+  return {
+    checkoutOperationId: operationKey,
+    customer: request.customer,
+    fulfillment: request.fulfillment,
+    ...(request.notes ? { notes: request.notes } : {}),
+    ...("quoteId" in request ? { quoteId: request.quoteId } : {}),
+    displayCurrency: request.displayCurrency,
+    paymentProvider: request.paymentProvider,
+    paymentMethod: request.paymentMethod,
+    items: request.items.map((item) => ({
           productId: item.commerceProductId,
           variantId: item.commerceVariantId,
           quantity: item.quantity,
@@ -177,29 +235,25 @@ export class JusticeSureHeadlessGateway implements CommerceGateway {
           selectedColourLabel: item.selectedColourLabel,
           selectedColourHex: item.selectedColourHex,
           customColour: item.customColour,
-        })),
-      }),
-    });
-    if (!response.ok) {
-      throw new CommerceConfigurationError(
-        "checkout_unavailable",
-      );
-    }
-    return response.json() as Promise<CheckoutResult>;
-  }
+    })),
+  };
 }
-
 const CHECKOUT_OPERATION_KEY = "soso-checkout-operation";
 const PAYMENT_ATTEMPT_KEY = "soso-payment-attempt";
 
-function checkoutOperationKey(request: CheckoutRequest): string {
+function checkoutOperationKey(request: Omit<CheckoutRequest, "quoteId"> | CheckoutRequest): string {
   const signature = JSON.stringify({
     items: request.items.map((item) => [
       item.commerceProductId, item.commerceVariantId, item.quantity,
       item.selectedColourId, item.selectedColourHex, item.customColour ?? "",
     ]),
-    email: request.customer.email.trim().toLowerCase(),
+    customer: [request.customer.name.trim(), request.customer.email.trim().toLowerCase(), request.customer.phone.trim()],
     fulfillment: request.fulfillment,
+    notes: request.notes ?? "",
+    displayCurrency: request.displayCurrency,
+    paymentProvider: request.paymentProvider,
+    paymentMethod: request.paymentMethod,
+    quoteId: "quoteId" in request ? request.quoteId : "",
   });
   try {
     const previous = JSON.parse(sessionStorage.getItem(CHECKOUT_OPERATION_KEY) ?? "null") as { signature?: string; id?: string } | null;
@@ -254,9 +308,22 @@ export const commerceGateway: CommerceGateway =
         async getProduct() {
           return undefined;
         },
+        async discover() {
+          throw new CommerceConfigurationError("commerce_disabled");
+        },
+        async createQuote() {
+          throw new CommerceConfigurationError("commerce_disabled");
+        },
         async createCheckoutSession() {
           throw new CommerceConfigurationError(
             "commerce_disabled",
           );
         },
       };
+
+export type CommerceQuote = {
+  id: string; expiresAt: string; currency: "NGN"; displayCurrency: string; chargeCurrency: string; settlementCurrency: string;
+  amounts: Record<string, string>;
+  currencyMinorUnitExponents?: Record<string, number>;
+  payment: { provider: CheckoutRequest["paymentProvider"]; method: CheckoutRequest["paymentMethod"]; chargeCurrency: string; settlementCurrency: string };
+};

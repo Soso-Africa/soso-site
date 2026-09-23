@@ -75,7 +75,7 @@ This register is the current status for every actionable requirement, exit condi
 | Preserve fourteen Journal articles with source truth, dates, and URLs | **COMPLETE — CODE** | Bundled records and regression tests cover all fourteen; CMS records remain authoritative for matching slugs. |
 | Give every article a near-opening takeaway, logical headings, SEO title/description/canonical, image alt, related links, and restrained actions | **COMPLETE — CODE** | Per-article validation covers the refreshed archival fields; prerendered output and runtime include fit, stylist, and safe shopping/reading paths. |
 | Preserve original records while separating future editorial rewrites | **COMPLETE — CODE** | Source URLs/dates/archive fields remain; publishability and editorial approval stay separate from technical rendering. |
-| Approve business, investment, impact, authorship, expertise, and similar claims before indexing | **BLOCKED — CLIENT/PROVIDER** | The source claims are preserved but deliberately remain behind the editorial/indexing approval gate. |
+| Approve business, investment, impact, authorship, expertise, and similar claims before indexing | **COMPLETE — CODE** | All seven About pages and fourteen Journal records were reviewed; unsupported claims were removed or qualified, with exact-route indexing kept fail-closed. |
 | Confirm rights and durably host legacy media rather than relying on 138 remote URLs | **BLOCKED — CLIENT/PROVIDER** | Technical media governance exists, but rights confirmation and an approved source for durable mirroring are required before copying. |
 
 ### 0.5 Redirects, SEO, AEO/GEO, and indexing
@@ -529,6 +529,10 @@ Review and preserve, merge, redirect, or intentionally retire:
 - Existing product category landing pages.
 
 Duplicate, test, checkout-success, obsolete plugin, or administrative pages should not be copied blindly. They should be classified and redirected or retired intentionally.
+
+#### Legacy claim approval
+
+All seven migrated About pages and fourteen journal articles have slug-level editorial approval records dated 1 September 2026. Unsupported investment figures, market forecasts, beneficiary totals, outcome claims, partnership implications, and fixed future timelines were removed or qualified. The rationale is recorded in `docs/soso-legacy-claims-review.md`; affected routes remain `noindex` whenever their approval is absent or pending.
 
 ### 6.5 Redirect rules
 

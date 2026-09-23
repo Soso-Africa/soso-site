@@ -24,7 +24,6 @@ export interface CommerceCatalogProduct {
      */
   description: string | null;
   /**
-     * @minItems 1
      * @items.minLength 1
      * @items.maxLength 2048
      */

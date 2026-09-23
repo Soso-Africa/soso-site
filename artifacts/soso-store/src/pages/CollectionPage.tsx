@@ -37,10 +37,34 @@ export default function CollectionPage({ slug }: { slug: string }) {
   } : null;
   return <div className="min-h-screen bg-background fade-in">
     <Seo title={meta.seo.title} description={meta.seo.description} path={`/collections/${meta.slug}`} structuredData={schema} noIndex={!catalogApproved} breadcrumbs={[{ name: meta.label, path: `/collections/${meta.slug}` }]} />
-    <header className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-14 text-center border-b border-border/50 mb-14">
-      <p className="text-xs uppercase tracking-[0.3em] text-primary mb-4">{meta.label}</p>
-      <h1 className="text-5xl md:text-6xl soso-display text-foreground mb-6 tracking-tight">{meta.h1}</h1>
-      <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">{meta.intro}</p>
+    <header className={`${meta.showCover && meta.cover ? "max-w-7xl" : "max-w-4xl"} mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-14 border-b border-border/50 mb-14`}>
+      {meta.showCover && meta.cover && (
+        <div className="mb-10 aspect-[16/7] min-h-[240px] overflow-hidden bg-muted sm:min-h-0">
+          {meta.mobileCover && (
+            <img
+              src={meta.mobileCover.src}
+              alt={meta.mobileCover.alt}
+              width={1600}
+              height={700}
+              className="h-full w-full object-cover object-[var(--mobile-position)] sm:hidden"
+              style={{ "--mobile-position": meta.mobileCropPosition ?? "center center" } as React.CSSProperties}
+            />
+          )}
+          <img
+            src={meta.cover.src}
+            alt={meta.cover.alt}
+            width={1600}
+            height={700}
+            className={`${meta.mobileCover ? "hidden sm:block" : "block"} h-full w-full object-cover object-[var(--mobile-position)] sm:object-center`}
+            style={{ "--mobile-position": meta.mobileCropPosition ?? "center center" } as React.CSSProperties}
+          />
+        </div>
+      )}
+      <div className="text-center">
+        <p className="text-xs uppercase tracking-[0.3em] text-primary mb-4">{meta.label}</p>
+        <h1 className="text-5xl md:text-6xl soso-display text-foreground mb-6 tracking-tight">{meta.h1}</h1>
+        <p className="text-muted-foreground max-w-xl mx-auto leading-relaxed">{meta.intro}</p>
+      </div>
     </header>
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
       {!pieces.length ? <p className="text-center py-24 text-muted-foreground uppercase tracking-widest text-sm">{platform.data.content.pages.shop.collectionEmptyMessage}</p> :

@@ -140,6 +140,7 @@ export function validateProduct(
 
   if (product.commerceVariantIds) {
     const allowedVariants = new Set([...standardSizes, ...(product.customEligible ? ["Custom"] : [])]);
+    const assignedVariantIds = new Set<string>();
     Object.entries(product.commerceVariantIds).forEach(([size, uuid]) => {
       if (!allowedVariants.has(size)) {
         errors.push(`Commerce variant is configured for an ineligible size: ${size}`);
@@ -147,6 +148,10 @@ export function validateProduct(
       if (!UUID_REGEX.test(uuid)) {
         errors.push(`Commerce variant ID for ${size} is not a valid UUID`);
       }
+      if (assignedVariantIds.has(uuid)) {
+        errors.push(`JusticeSure variant ${uuid} is assigned to more than one purchase choice`);
+      }
+      assignedVariantIds.add(uuid);
     });
   }
 
@@ -158,6 +163,9 @@ export function validateProduct(
     });
     if (product.customEligible && !product.commerceVariantIds?.Custom) {
       errors.push("Custom eligibility requires a Custom commerce variant");
+    }
+    if (product.commerceVariantIds && !product.commerceMappingConfirmation) {
+      errors.push("Confirm the current JusticeSure mapping before publication");
     }
   }
 

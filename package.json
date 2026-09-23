@@ -5,20 +5,24 @@
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "dev:prepare-shared": "tsc --build --force",
     "test": "pnpm --filter @workspace/api-server test && pnpm --filter @workspace/soso-store test",
     "test:migrations": "pnpm --filter @workspace/db run test:migrations",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "typecheck": "pnpm run verify:dev-shared-preparation && pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "validate:soso-client-review": "pnpm run typecheck:libs && pnpm --filter @workspace/soso-store run validate:client-review",
     "vercel:build": "pnpm run validate:soso-client-review && pnpm --filter @workspace/api-server run typecheck && pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/api-server run verify:cloudinary && pnpm --filter @workspace/soso-store run build && node scripts/verify-non-replit-runtime.mjs",
-    "verify:non-replit-runtime": "node scripts/verify-non-replit-runtime.mjs"
+    "verify:non-replit-runtime": "node scripts/verify-non-replit-runtime.mjs",
+    "verify:dev-shared-preparation": "node scripts/verify-dev-shared-preparation.mjs"
   },
   "private": true,
   "devDependencies": {
     "@playwright/test": "1.55.1",
+    "@types/react-test-renderer": "19.1.0",
     "pixelmatch": "7.1.0",
     "pngjs": "7.0.0",
     "prettier": "^3.9.6",
+    "react-test-renderer": "19.1.0",
     "typescript": "~5.9.3"
   },
   "dependencies": {

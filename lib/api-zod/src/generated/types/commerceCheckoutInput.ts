@@ -5,6 +5,8 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommerceCheckoutInputPaymentMethod } from './commerceCheckoutInputPaymentMethod';
+import type { CommerceCheckoutInputPaymentProvider } from './commerceCheckoutInputPaymentProvider';
 import type { CommerceCustomerInput } from './commerceCustomerInput';
 import type { CommerceFulfillmentInput } from './commerceFulfillmentInput';
 import type { CommerceLineItemInput } from './commerceLineItemInput';
@@ -25,4 +27,13 @@ export interface CommerceCheckoutInput {
   fulfillment: CommerceFulfillmentInput;
   /** @maxLength 1000 */
   notes?: string;
+  /**
+     * @minLength 36
+     * @maxLength 64
+     */
+  quoteId: string;
+  /** @pattern ^[A-Za-z]{3}$ */
+  displayCurrency: string;
+  paymentProvider: CommerceCheckoutInputPaymentProvider;
+  paymentMethod: CommerceCheckoutInputPaymentMethod;
 }

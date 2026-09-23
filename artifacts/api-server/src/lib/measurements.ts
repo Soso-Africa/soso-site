@@ -1,3 +1,5 @@
+import { catalogueProductHash, localMappingHash, variantMatchesChoice } from "./catalogue-mapping";
+
 export const CUSTOM_DISPATCH_GUIDANCE =
   "Dispatch within five days after measurements are confirmed. This is a dispatch estimate, not a delivery guarantee." as const;
 
@@ -28,6 +30,7 @@ export type CheckoutSelectionInput = {
   variantId?: string;
   quantity: number;
   displaySlug?: string;
+  selectedSize?: string;
   selectedColourId: string;
   selectedColourLabel?: string;
   selectedColourHex?: string;
@@ -39,11 +42,18 @@ export type AuthoritativeCatalogProduct = {
   name: string;
   amountKobo: number;
   inStock: boolean;
-  variants: Array<{ id: string; label: string }>;
+  variants: Array<{
+    id: string;
+    name: string;
+    label: string;
+    attributes: Record<string, string | number | boolean>;
+    amountKobo: number;
+    inStock: boolean;
+  }>;
 };
 
 export type AuthoritativeCheckoutItem = CheckoutSelectionInput & {
-  variantId: string;
+  variantId?: string;
   displayName: string;
   selectedSize: string;
   unitPriceKobo: number;
@@ -53,6 +63,13 @@ export type AuthoritativeStorefrontProduct = {
   slug: string;
   commerceProductId?: string;
   commerceVariantIds?: Record<string, string>;
+  name: string;
+  price: number;
+  standardEligible: boolean;
+  customEligible: boolean;
+  standardSizes: string[];
+  fulfilmentState: "ready_now" | "made_immediately" | "unavailable";
+  commerceMappingConfirmation?: { productHash: string; localHash: string; confidence: number };
   colourOptions: Array<{ id: string; label: string; hex: string }>;
   allowCustomColour: boolean;
 };
@@ -93,34 +110,59 @@ export function resolveAuthoritativeCheckoutItems(
   catalog: AuthoritativeCatalogProduct[],
   storefrontProducts?: AuthoritativeStorefrontProduct[],
 ): AuthoritativeCheckoutItem[] | null {
+  if (!storefrontProducts) return null;
   const resolved: AuthoritativeCheckoutItem[] = [];
   for (const item of items) {
     const product = catalog.find(({ id }) => id === item.productId);
-    const variant = product?.variants.find(({ id }) => id === item.variantId);
-    if (!product?.inStock || !variant || !Number.isInteger(product.amountKobo) || product.amountKobo < 0) {
+    const variant = item.variantId ? product?.variants.find(({ id }) => id === item.variantId) : undefined;
+    const variantless = Boolean(product && product.variants.length === 0 && !item.variantId);
+    if (!product?.inStock || (!variantless && (!variant || variant.inStock === false)) || !Number.isInteger(product.amountKobo) || product.amountKobo < 0) {
       return null;
     }
-    const label = variant.label.trim();
+    const label = variant?.label.trim() ?? "Standard";
     if (!label) return null;
     const storefrontProduct = storefrontProducts?.find(({ commerceProductId }) => commerceProductId === item.productId);
     if (storefrontProducts) {
-      const mappedVariantId = storefrontProduct?.commerceVariantIds?.[label.toLowerCase() === "custom" ? "Custom" : label];
+      const selectedChoice = item.selectedSize?.trim();
+      const mappedVariantId = selectedChoice ? storefrontProduct?.commerceVariantIds?.[selectedChoice] : undefined;
       const isCustom = item.selectedColourId === "custom";
       const selectedColour = storefrontProduct?.colourOptions.find(({ id }) => id === item.selectedColourId);
       const validColour = isCustom
         ? Boolean(storefrontProduct?.allowCustomColour && item.customColour?.trim())
         : Boolean(selectedColour && !item.customColour && selectedColour.label === item.selectedColourLabel
           && selectedColour.hex.toUpperCase() === item.selectedColourHex?.toUpperCase());
-      if (!storefrontProduct || mappedVariantId !== variant.id || !validColour) {
+      const confirmation = storefrontProduct?.commerceMappingConfirmation;
+      const currentLocalHash = storefrontProduct ? localMappingHash({
+        slug: storefrontProduct.slug,
+        name: storefrontProduct.name,
+        price: storefrontProduct.price,
+        eligibility: storefrontProduct.fulfilmentState === "unavailable"
+          ? "unavailable"
+          : { standard: storefrontProduct.standardEligible, custom: storefrontProduct.customEligible },
+        standardSizes: storefrontProduct.standardEligible ? storefrontProduct.standardSizes : [],
+        commerceProductId: storefrontProduct.commerceProductId,
+        commerceVariantIds: storefrontProduct.commerceVariantIds,
+      }) : "";
+      if (!storefrontProduct
+        || storefrontProduct.fulfilmentState === "unavailable"
+        || !selectedChoice
+        || !variant
+        || mappedVariantId !== variant?.id
+        || !variantMatchesChoice(variant, selectedChoice)
+        || !confirmation
+        || confirmation.confidence < 95
+        || confirmation.productHash !== catalogueProductHash(product)
+        || confirmation.localHash !== currentLocalHash
+        || !validColour) {
         return null;
       }
     }
     resolved.push({
       ...item,
       ...(storefrontProduct ? { displaySlug: storefrontProduct.slug } : {}),
-      variantId: variant.id,
+      ...(variant ? { variantId: variant.id } : {}),
       displayName: product.name,
-      selectedSize: label.toLowerCase() === "custom" ? "Custom" : label,
+      selectedSize: storefrontProduct ? item.selectedSize! : (label.toLowerCase() === "custom" ? "Custom" : label),
       unitPriceKobo: product.amountKobo,
     });
   }

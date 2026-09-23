@@ -48,3 +48,25 @@ packages = ["glib", "nspr", "nss", "dbus", "atk", "at-spi2-core", "cups", "xorg.
 [userenv.shared]
 JUSTICESURE_BASE_URL = "https://justicesure.ai"
 VITE_CLOUDINARY_UPLOAD_PRESET = "soso_media"
+
+[userenv.development]
+JUSTICESURE_COMMERCE_API_BASE_URL = "https://justicesure.ai/api/v1/commerce"
+JUSTICESURE_COMMERCE_RUNTIME_READY = "true"
+SOSO_PAYMENT_RETURN_URL = "https://shopsoso.co/checkout/return"
+VITE_COMMERCE_MODE = "justicesure-headless"
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 8081
+
+[[ports]]
+localPort = 8082
+externalPort = 80
+
+[[ports]]
+localPort = 24036
+externalPort = 3000
