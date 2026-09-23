@@ -9,8 +9,8 @@ const footerLinkClass = "py-1 text-[13px] text-secondary hover:text-foreground h
 
 function FooterLink({ href, label, className = footerLinkClass }: { href: string; label: string; className?: string }) {
   return href.startsWith("https://")
-    ? <a href={href} target="_blank" rel="noopener noreferrer" className={footerLinkClass}>{label}</a>
-    : <Link href={href} className={footerLinkClass}>{label}</Link>;
+    ? <a href={href} target="_blank" rel="noopener noreferrer" className={className}>{label}</a>
+    : <Link href={href} className={className}>{label}</Link>;
 }
 
 function FooterAccordion({ title, children }: { title: string; children: React.ReactNode }) {
@@ -140,6 +140,7 @@ export function Footer() {
               />
             ))}
             <button type="button" onClick={openPrivacyChoices} className="hover:text-foreground hover:underline underline-offset-4">{site.footer.cookieChoicesLabel}</button>
+            <Link href="/sign-in" className="hover:text-foreground hover:underline underline-offset-4" data-testid="link-footer-staff-login">Staff login</Link>
           </div>
         </div>
 

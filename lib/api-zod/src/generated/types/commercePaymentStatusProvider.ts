@@ -12,4 +12,7 @@ export type CommercePaymentStatusProvider = typeof CommercePaymentStatusProvider
 export const CommercePaymentStatusProvider = {
   paystack: 'paystack',
   flutterwave: 'flutterwave',
+  stripe: 'stripe',
+  paypal: 'paypal',
+  hydrogen: 'hydrogen',
 } as const;

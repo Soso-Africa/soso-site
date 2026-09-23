@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { usePlatformContent, type CatalogProduct, type PlatformContent } from "@/data/platformContent";
 import { buildProductStructuredData } from "@/lib/product-schema";
 import { absoluteUrl, indexingEnabled, siteUrl, socialImageUrl } from "@/lib/seo";
+import { seoExposure } from "@/lib/seo-exposure";
 
 type SeoProps = {
   title: string;
@@ -121,16 +122,17 @@ export function Seo({
 
   useEffect(() => {
     const pageIsIndexable = Boolean(siteUrl && indexingEnabled && !noIndex);
+    const exposure = seoExposure(pageIsIndexable);
     // The static response carries one route schema for crawlers. Hydration owns
     // schema state from this point onward, so remove it before client parity.
     document.getElementById("soso-server-schema")?.remove();
     document.title = title;
     setMeta('meta[name="description"]', description);
-    upsertMeta("name", "robots", pageIsIndexable ? "index, follow" : "noindex, follow");
+    upsertMeta("name", "robots", exposure.robots);
     upsertMeta("property", "og:title", title);
     upsertMeta("property", "og:description", description);
     upsertMeta("property", "og:type", type);
-    upsertMeta("property", "og:url", pageIsIndexable ? absoluteUrl(path) : null);
+    upsertMeta("property", "og:url", exposure.canonical ? absoluteUrl(path) : null);
     upsertMeta("property", "og:site_name", site?.name ?? null);
     upsertMeta("property", "og:locale", "en_NG");
     const imageUrl = article?.imageUrl || socialImageUrl() || null;
@@ -165,7 +167,7 @@ export function Seo({
 
     // Canonical
     document.head.querySelector('link[rel="canonical"]')?.remove();
-    if (pageIsIndexable) {
+    if (exposure.canonical) {
       const canonical = document.createElement("link");
       canonical.rel = "canonical";
       canonical.href = absoluteUrl(path);
@@ -174,12 +176,12 @@ export function Seo({
 
     // Page schema (product, article, or supplied)
     const productSchema =
-      product && site && pageIsIndexable
+      product && site && exposure.structuredData
         ? buildProductSchema(product, site, path)
         : null;
 
     const articleSchema =
-      type === "article" && article && site && pageIsIndexable
+      type === "article" && article && site && exposure.structuredData
         ? {
             "@context": "https://schema.org",
             "@type": "BlogPosting",
@@ -196,13 +198,13 @@ export function Seo({
           }
         : null;
 
-    injectSchema("soso-page-schema", pageIsIndexable ? structuredData ?? articleSchema ?? productSchema : null);
-    injectSchema("soso-organization-schema", site ? buildOrganizationSchema(site) : null);
-    injectSchema("soso-website-schema", site ? buildWebsiteSchema(site) : null);
+    injectSchema("soso-page-schema", exposure.structuredData ? structuredData ?? articleSchema ?? productSchema : null);
+    injectSchema("soso-organization-schema", exposure.structuredData && site ? buildOrganizationSchema(site) : null);
+    injectSchema("soso-website-schema", exposure.structuredData && site ? buildWebsiteSchema(site) : null);
 
     // Breadcrumb schema
     const breadcrumbSchema =
-      breadcrumbs && pageIsIndexable && site
+      breadcrumbs && exposure.structuredData && site
         ? {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",

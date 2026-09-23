@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 const labelClass = "block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground";

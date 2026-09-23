@@ -6,20 +6,16 @@ import { Loader2, ArrowRight } from 'lucide-react';
 import { Seo } from '@/components/Seo';
 import { journalApproved } from '@/lib/seo';
 import { PlatformContentState, usePlatformContent } from '@/data/platformContent';
-import { legacyJournalPosts } from '@/data/legacy-content';
+import { mergeApprovedJournalPosts } from '@/lib/legacy-journal-indexing';
 
 export default function Journal() {
-  const { data: posts, isLoading, isError } = useListJournalPosts();
+  const { data: posts, isLoading, isFetching, isSuccess, isError } = useListJournalPosts();
   const platform = usePlatformContent();
   const platformStateCopy = platform.data?.content.site.platformState;
   if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
   const copy = platform.data.content.pages.journal;
-  // The API remains authoritative when a migrated slug has been edited in the
-  // CMS. Bundled migration records ensure legacy articles cannot disappear
-  // during deployment or before the database import has completed.
-  const visiblePosts = Array.from(new Map(
-    [...legacyJournalPosts, ...(posts ?? [])].map((post) => [post.slug, post]),
-  ).values()).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  const visiblePosts = mergeApprovedJournalPosts(posts ?? [], isSuccess && !isFetching)
+    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
   return (
     <div className="min-h-screen bg-background fade-in">

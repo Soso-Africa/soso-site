@@ -1,11 +1,18 @@
-/**
- * Preserved first-party content from the live shopsoso.co WordPress REST API.
- * Audited against page-sitemap.xml and post-sitemap.xml on 2026-08-31.
- * Source URLs and media remain explicit for editorial verification.
- */
+import legacyInventory from "../../../../docs/soso-legacy-content-inventory.json";
+
 export type LegacyAboutPage = { slug: string; title: string; eyebrow: string; summary: string; body: string; sourceUrl: string; publishedAt: string; modifiedAt: string; mediaUrls: string[]; seoTitle: string; seoDescription: string; canonicalPath: string };
 export type LegacyJournalPost = { slug: string; title: string; excerpt: string; takeaway?: string; body: string; coverImageUrl: string | null; coverImageAlt: string; authorName: string; category: string; tags: string[]; readTimeMinutes: number; publishedAt: string; updatedAt: string; seoTitle: string; seoDescription: string; sourceUrl: string; canonicalPath: string; mediaUrls: string[]; relatedProductSlugs: string[]; relatedArticleSlugs: string[] };
 
+export type LegacyEditorialReview = {
+  slug: string;
+  contentType: "about" | "journal";
+  status: "approved" | "pending";
+  reviewedAt: string;
+  reviewer: "SOSO editorial migration review";
+  evidence: string[];
+  decisions: string[];
+  revision: string;
+};
 export const legacyAboutPages: LegacyAboutPage[] = [
   {
     "slug": "our-story",
@@ -119,6 +126,69 @@ export const legacyAboutPages: LegacyAboutPage[] = [
     "canonicalPath": "/about/partner-with-us"
   }
 ];
+
+const reviewedPartnerBody = `PARTNER WITH SOSO AFRICA
+
+## Explore a collaboration.
+
+SOSO Africa welcomes enquiries from organisations and individuals interested in corporate clothing, bulk apparel, creative services, training initiatives, distribution, or other commercial collaborations.
+
+Each proposal is assessed individually. Availability, scope, commercial terms, territories, and any regulatory requirements must be confirmed in a written agreement before either party makes a commitment.
+
+## Ways to start a conversation.
+
+- Corporate uniforms and bulk apparel
+- Branded garments and embroidery
+- Creative and production services
+- Training and community initiatives
+- Distribution and other commercial proposals
+
+This page is an invitation to enquire. It is not an investment offer, franchise offer, forecast, or promise of availability or returns.
+
+## Become a partner.
+
+Tell us about your organisation, the proposed collaboration, location, quantities or timeline, and the outcome you want to achieve. The SOSO Africa team will confirm whether the opportunity is a fit and outline any next steps.`;
+
+const aboutCopyReplacements: Record<string, Array<[string, string]>> = {
+  "our-story": [
+    ["Officially registered in August 2018, our experience and skills\ntrace back to a time years before that.", "The brand's archived account records a formal registration in August 2018 and describes tailoring work before that date."],
+    ["trained, mentored, and empowered dozens of\nstaff and external beneficiaries, many of whom have launched\ntheir own fashion brands.", "provided training and mentorship to staff and external beneficiaries. Individual outcomes are not stated here because the migrated archive did not include supporting records."],
+  ],
+  "the-client": [
+    ["We provide corporate uniforms and bulk apparel that ensure your\nworkforce represents your brand with dignity and style.", "Corporate uniforms, bulk apparel, branded garments, and embroidery are available for organisations, subject to a confirmed brief and written terms."],
+    ["to NGOs\nand empowerment agencies seeking to partner on youth training\ninitiatives.", "and enquiries from NGOs or agencies about possible youth-training initiatives."],
+  ],
+  "craftsmanship": [
+    ["We source only the best materials, selecting fabrics that breathe,\ndrape and endure, from the finest mills across the globe.", "We select materials for their intended drape, comfort, finish, and durability. Material origin and performance vary by garment and are confirmed in the relevant product details."],
+  ],
+  "legacy-vision": [
+    ["We release new collections in rhythm with the four seasons\nof the year, ensuring our clients are always at the forefront\nof global trends.", "Seasonal releases are an editorial ambition rather than a fixed release guarantee. Current collections and availability are shown in the store."],
+    ["Our annual fashion show is not just a runway event;\nit is a cultural moment.", "The archive describes a planned fashion showcase. Dates and event details are announced only when confirmed."],
+  ],
+  "soso-foundation": [
+    ["SOSO Africa has empowered dozens of young Nigerians,\nespecially those from underserved backgrounds, by\nproviding access to practical training, mentorship,\nand job opportunities in the fashion industry.", "The archived brand account describes practical training, mentorship, and job opportunities for young Nigerians. Participant totals and outcomes are omitted until programme records are approved for publication."],
+    ["High-performing students are offered employment within\nSOSO Africa or supported in launching their own fashion\nstartups.", "Employment or startup support may be considered for selected trainees, subject to programme availability and individual assessment."],
+    ["The company also provides starter kits — including\nsewing machines, fabrics, and tools — to select graduates\nto help them become economically self-reliant.", "The archive describes starter-kit support for selected graduates. Current availability and eligibility must be confirmed directly with the programme."],
+    ["SOSO Africa has supported students in low-income\ncommunities who were unable to afford examination fees,\nhelping remove a barrier between young people and\ntheir education.", "The archive records education-support activity, including examination-fee assistance. Beneficiary counts and current programme availability are not claimed on this page."],
+    ["Some of the students supported through education later\nenrolled in SOSO Africa's fashion training programmes.\n\nA number of them have gone on to start their own\nbusinesses, while others have joined the company's\nworkforce.", "The archive describes a pathway from education support to fashion training. Individual employment and business outcomes are omitted until supporting records are approved for publication."],
+  ],
+};
+
+legacyAboutPages.forEach((page) => {
+  if (page.slug === "partner-with-us") {
+    page.body = reviewedPartnerBody;
+    page.summary = "SOSO Africa welcomes enquiries about corporate clothing, creative services, training initiatives, distribution, and other commercial collaborations.";
+    page.seoDescription = page.summary;
+    return;
+  }
+  for (const [claim, reviewedCopy] of aboutCopyReplacements[page.slug] ?? []) {
+    page.body = page.body.replace(claim, reviewedCopy);
+  }
+  if (page.slug === "craftsmanship") {
+    page.summary = "We select materials for their intended drape, comfort, finish, and durability, with details confirmed for each garment.";
+    page.seoDescription = page.summary;
+  }
+});
 
 // This is the immutable WordPress import. Do not add presentation copy or
 // migration-only links here: it is the source-faithful archival record.
@@ -598,7 +668,9 @@ const journalRefresh: Record<string, { takeaway: string; coverImageAlt: string }
   "style-black-traditional-outfits-modern-occasions": { takeaway: "Black traditional outfits gain modern presence through proportion, texture, and purposeful accessories.", coverImageAlt: "Black traditional menswear styled for a modern occasion" },
 };
 
-export const legacyJournalPosts: LegacyJournalPost[] = legacyJournalSourcePosts.map((post, index) => {
+// Editorial refreshes remain internal until the source claims and every media
+// asset have passed the publication gate below.
+export const legacyJournalEditorialPosts: LegacyJournalPost[] = legacyJournalSourcePosts.map((post, index) => {
   const refresh = journalRefresh[post.slug];
   if (!refresh) throw new Error(`Missing editorial refresh for legacy journal article: ${post.slug}`);
   return {
@@ -615,5 +687,195 @@ export const legacyJournalPosts: LegacyJournalPost[] = legacyJournalSourcePosts.
   };
 });
 
-export const legacyAboutBySlug = new Map(legacyAboutPages.map((page) => [page.slug, page]));
-export const legacyJournalBySlug = new Map(legacyJournalPosts.map((post) => [post.slug, post]));
+type EditorialApprovalRecord = {
+  sourceUrl: string;
+  approvalStatus: string;
+  mediaUrls: string[];
+  mirroredMedia?: Array<{ sourceUrl: string; mirrorPath: string; sha256: string }>;
+};
+
+export function verifiedEditorialMedia(record: EditorialApprovalRecord): Map<string, string> | null {
+  if (record.approvalStatus !== "approved") return null;
+  if (record.mediaUrls.length === 0) return new Map();
+  const mirrors = new Map((record.mirroredMedia ?? []).map((item) => [item.sourceUrl, item]));
+  const valid = record.mediaUrls.every((sourceUrl) => {
+    const mirror = mirrors.get(sourceUrl);
+    return Boolean(
+      mirror
+      && /^\/api\/storage\/objects\/[A-Za-z0-9/_-]+\.(?:jpe?g|png|webp)$/i.test(mirror.mirrorPath)
+      && /^[a-f0-9]{64}$/.test(mirror.sha256),
+    );
+  });
+  return valid
+    ? new Map([...mirrors].map(([sourceUrl, mirror]) => [sourceUrl, mirror.mirrorPath]))
+    : null;
+}
+
+const approvalRecordFor = (sourceUrl: string) =>
+  (legacyInventory.items as EditorialApprovalRecord[]).find((item) => item.sourceUrl === sourceUrl);
+
+/** Only records with persisted approval and verified SOSO-owned media may reach public routes. */
+export const publishedLegacyAboutPages: LegacyAboutPage[] = legacyAboutPages.flatMap((page) => {
+  const record = approvalRecordFor(page.sourceUrl);
+  const mirrors = record ? verifiedEditorialMedia(record) : null;
+  if (!mirrors) return [];
+  const mediaUrls = page.mediaUrls.map((url) => mirrors.get(url)).filter((url): url is string => Boolean(url));
+  return mediaUrls.length === page.mediaUrls.length ? [{ ...page, mediaUrls }] : [];
+});
+
+export const publishedLegacyJournalPosts: LegacyJournalPost[] = legacyJournalEditorialPosts.flatMap((post) => {
+  const record = approvalRecordFor(post.sourceUrl);
+  const mirrors = record ? verifiedEditorialMedia(record) : null;
+  if (!mirrors) return [];
+  const mediaUrls = post.mediaUrls.map((url) => mirrors.get(url)).filter((url): url is string => Boolean(url));
+  const coverImageUrl = post.coverImageUrl ? mirrors.get(post.coverImageUrl) ?? null : null;
+  if (mediaUrls.length !== post.mediaUrls.length || (post.coverImageUrl && !coverImageUrl)) return [];
+  return [{ ...post, coverImageUrl, mediaUrls }];
+});
+
+// Backwards-compatible public collection; archival records remain in
+// legacyJournalSourcePosts and legacyJournalEditorialPosts.
+export const legacyJournalPosts = publishedLegacyJournalPosts;
+
+const aboutReviewDecisions: Record<string, string[]> = {
+  "our-story": ["Qualified the 2018 timeline as the archived brand account.", "Removed unverified beneficiary totals and business-launch outcomes."],
+  "the-architect-of-the-modern-man": ["Approved as brand positioning and design philosophy; no quantitative claim retained."],
+  "the-client": ["Qualified B2B services and training partnerships as availability- and agreement-dependent enquiries."],
+  "craftsmanship": ["Removed absolute material-quality and global-mill claims; retained bounded selection criteria."],
+  "legacy-vision": ["Marked geographic growth, seasonal releases, and showcases as ambitions or confirmation-dependent plans."],
+  "soso-foundation": ["Removed unverified totals and outcomes; qualified programme support and availability."],
+  "partner-with-us": ["Removed all uncited market-size statistics, projections, first-mover language, and investment/franchise solicitation.", "Replaced with a non-binding collaboration enquiry and explicit legal qualification."],
+};
+
+const approvedRevisions: Record<string, string> = {
+  "our-story": "cd1cab52a5c9a291",
+  "the-architect-of-the-modern-man": "3fc5decaa46718d9",
+  "the-client": "aa7958c69064a3ad",
+  "craftsmanship": "a8891dd2acb6e464",
+  "legacy-vision": "77ae43ad0a652ee7",
+  "soso-foundation": "cf41af2eccb50829",
+  "partner-with-us": "495bfc8eca0cfbd9",
+  "into-the-process-koles-collection": "5aa0d3ad9ce84882",
+  "abuja-man-koles-collection": "bdc05f00da22fb8c",
+  "modern-kaftan-styles-men-abuja": "44da843a435a2888",
+  "rise-abuja-gentleman-native-wear": "85ec75d79e2122ac",
+  "dashiki-modern-african-man": "6e80859e339699d6",
+  "abuja-man-redefining-native-wear": "71577b7f3bd2af7c",
+  "grey-italian-wool-kaftan": "61ffd0cb45fd8cf0",
+  "abuja-modern-menswear-hub": "c0e2fe07743c3a75",
+  "the-d-o-capsule": "ccb363d77b2659e5",
+  "spring-summer-african-modern-kaftan-collection": "b93d426fd9618139",
+  "modern-kaftans-beyond-traditional-wear": "f166ae6b4f5128b0",
+  "modern-mens-two-piece-sets": "43379d62a503db80",
+  "minimalist-african-luxury-fashion": "5c5d7d4a074ce622",
+  "style-black-traditional-outfits-modern-occasions": "2f4f321b9a2be63a",
+};
+export const legacyEditorialReviews: LegacyEditorialReview[] = [
+  ...legacyAboutPages.map((page) => ({
+    slug: page.slug,
+    contentType: "about" as const,
+    status: "approved" as const,
+    reviewedAt: "2026-09-01",
+    reviewer: "SOSO editorial migration review" as const,
+    evidence: [page.sourceUrl, "docs/soso-legacy-claims-review.md"],
+    decisions: aboutReviewDecisions[page.slug] ?? [],
+    revision: approvedRevisions[page.slug],
+  })),
+  ...legacyJournalEditorialPosts.map((post) => ({
+    slug: post.slug,
+    contentType: "journal" as const,
+    status: "approved" as const,
+    reviewedAt: "2026-09-01",
+    reviewer: "SOSO editorial migration review" as const,
+    evidence: [post.sourceUrl, "docs/soso-legacy-claims-review.md"],
+    decisions: ["Reviewed as first-party editorial and styling commentary.", "No investment statistic, market-size figure, partnership commitment, or guaranteed commercial outcome approved."],
+    revision: approvedRevisions[post.slug],
+  })),
+];
+
+export const legacyEditorialReviewBySlug = new Map(
+  legacyEditorialReviews.map((review) => [review.slug, review]),
+);
+
+export function isLegacyEditoriallyApproved(
+  item: ReviewableLegacyContent,
+  reviews: ReadonlyMap<string, LegacyEditorialReview> = legacyEditorialReviewBySlug,
+): boolean {
+  const review = reviews.get(item.slug);
+  const canonicalItem = legacyAboutPages.find(({ slug }) => slug === item.slug)
+    ?? legacyJournalEditorialPosts.find(({ slug }) => slug === item.slug);
+  if (!canonicalItem) return false;
+  const completeItem = { ...canonicalItem, ...item };
+  return review?.status === "approved"
+    && review.revision === legacyContentRevision(completeItem);
+}
+export const legacyJournalEditorialBySlug = new Map(
+  legacyJournalEditorialPosts.map((post) => [post.slug, post]),
+);
+export const legacyAboutBySlug = new Map(publishedLegacyAboutPages.map((page) => [page.slug, page]));
+export const legacyJournalBySlug = new Map(publishedLegacyJournalPosts.map((post) => [post.slug, post]));
+
+export type ReviewableLegacyContent = {
+  slug: string;
+  title: string;
+  body: string;
+  summary?: string | null;
+  excerpt?: string | null;
+  eyebrow?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  canonicalPath?: string | null;
+  sourceUrl?: string | null;
+  publishedAt?: string | Date | null;
+  modifiedAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+  mediaUrls?: string[] | null;
+  coverImageUrl?: string | null;
+  coverImageAlt?: string | null;
+  authorName?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
+  readTimeMinutes?: number | null;
+  relatedProductSlugs?: string[] | null;
+  relatedArticleSlugs?: string[] | null;
+};
+
+export function legacyContentRevision(item: ReviewableLegacyContent): string {
+  const canonicalDate = (value: string | Date | null | undefined) => {
+    if (value == null) return value;
+    if (value instanceof Date) return value.toISOString();
+    const hasNoZone = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?$/.test(value);
+    const parsed = new Date(hasNoZone ? `${value}Z` : value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+  };
+  const value = JSON.stringify({
+    slug: item.slug,
+    canonicalPath: item.canonicalPath,
+    sourceUrl: item.sourceUrl,
+    title: item.title,
+    eyebrow: item.eyebrow,
+    summary: item.summary,
+    excerpt: item.excerpt,
+    body: item.body,
+    seoTitle: item.seoTitle,
+    seoDescription: item.seoDescription,
+    publishedAt: canonicalDate(item.publishedAt),
+    modifiedAt: canonicalDate(item.modifiedAt),
+    updatedAt: canonicalDate(item.updatedAt),
+    mediaUrls: item.mediaUrls,
+    coverImageUrl: item.coverImageUrl,
+    coverImageAlt: item.coverImageAlt,
+    authorName: item.authorName,
+    category: item.category,
+    tags: item.tags,
+    readTimeMinutes: item.readTimeMinutes,
+    relatedProductSlugs: item.relatedProductSlugs,
+    relatedArticleSlugs: item.relatedArticleSlugs,
+  });
+  let hash = 14_695_981_039_346_656_037n;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= BigInt(value.charCodeAt(index));
+    hash = BigInt.asUintN(64, hash * 1_099_511_628_211n);
+  }
+  return hash.toString(16).padStart(16, "0");
+}

@@ -14,6 +14,7 @@ import {
 } from "@workspace/api-zod";
 import {
   auditLogsTable,
+  commerceWebhookEventsTable,
   db,
   faqItemsTable,
   journalPostRevisionsTable,
@@ -22,17 +23,33 @@ import {
   policyDocumentRevisionsTable,
   siteContentTable,
   siteContentRevisionsTable,
+  staffUsersTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { ensurePlatformContent, platformContentHash, PlatformContentSchema, type PlatformContent } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
 import { validateLegacyProductPublication } from "../lib/legacy-product-publication";
 import { validateAccessoryProductPublication } from "../lib/accessory-product-publication";
-import { validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
+import { validateCollectionMediaAssets, validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
+import { JusticeSureCommerceClient, JusticeSureRequestError } from "../lib/justicesureCommerce";
+import {
+  buildCatalogueSnapshot,
+  findWebhookStaleMappings,
+  suggestCatalogueMappings,
+  validateCatalogueMappings,
+  type CatalogueWebhookInvalidation,
+  type LocalCatalogueProduct,
+} from "../lib/catalogue-mapping";
+import {
+  PLATFORM_CONTENT_MEDIA_LOCK,
+  processPendingCollectionCoverCleanup,
+  queueCollectionCoverCleanup,
+  replacedCollectionCoverUploadPaths,
+} from "../lib/collection-cover-cleanup";
 
 const router: IRouter = Router();
 
@@ -117,6 +134,351 @@ router.post("/staff/content/site/publish", requireStaffRoles("owner", "administr
 });
 
 const platformRoles = requireStaffRoles("owner", "administrator", "editor");
+const catalogueSlug = z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(160);
+
+type MappingHistoryAudit = {
+  id: string;
+  actorClerkUserId: string;
+  createdAt: Date;
+  metadata: unknown;
+};
+
+type MappingHistoryRevision = {
+  id: string;
+  snapshot: unknown;
+};
+
+export type CatalogueMappingHistoryEntry = {
+  id: string;
+  confirmedAt: string;
+  confirmedByClerkUserId: string;
+  confirmedByEmail?: string;
+  confidence: number;
+  evidence: string[];
+  source: "automatic" | "manual";
+  sosoFingerprintChangedLater: boolean;
+  justiceSureFingerprintChangedLater: boolean;
+};
+
+const mappingHistorySnapshot = z.object({
+  products: z.array(z.object({
+    slug: z.string(),
+    commerceMappingConfirmation: z.object({
+      productHash: z.string(),
+      localHash: z.string(),
+      confirmedAt: z.string(),
+      confidence: z.number(),
+      source: z.enum(["automatic", "manual"]),
+      evidence: z.array(z.string()),
+    }).optional(),
+  }).passthrough()),
+}).passthrough();
+
+export function buildCatalogueMappingHistory(
+  slug: string,
+  audits: MappingHistoryAudit[],
+  revisions: MappingHistoryRevision[],
+  staffEmails: Map<string, string> = new Map(),
+): CatalogueMappingHistoryEntry[] {
+  const revisionById = new Map(revisions.map((revision) => [revision.id, revision.snapshot]));
+  const confirmations = audits
+    .flatMap((audit) => {
+      const metadata = audit.metadata && typeof audit.metadata === "object"
+        ? audit.metadata as Record<string, unknown>
+        : {};
+      const revisionId = typeof metadata.revisionId === "string" ? metadata.revisionId : null;
+      const parsed = mappingHistorySnapshot.safeParse(revisionId ? revisionById.get(revisionId) : undefined);
+      if (!parsed.success) return [];
+      const confirmation = parsed.data.products.find((product) => product.slug === slug)?.commerceMappingConfirmation;
+      if (!confirmation) return [];
+      return [{
+        audit,
+        confirmation,
+        key: `${confirmation.confirmedAt}:${confirmation.productHash}:${confirmation.localHash}`,
+      }];
+    })
+    .sort((left, right) => left.audit.createdAt.getTime() - right.audit.createdAt.getTime());
+
+  const unique = confirmations.filter((entry, index) =>
+    confirmations.findIndex((candidate) => candidate.key === entry.key) === index);
+
+  return unique.map(({ audit, confirmation }, index) => {
+    const later = unique.slice(index + 1);
+    return {
+      id: audit.id,
+      confirmedAt: confirmation.confirmedAt,
+      confirmedByClerkUserId: audit.actorClerkUserId,
+      ...(staffEmails.get(audit.actorClerkUserId)
+        ? { confirmedByEmail: staffEmails.get(audit.actorClerkUserId) }
+        : {}),
+      confidence: confirmation.confidence,
+      evidence: confirmation.evidence,
+      source: confirmation.source,
+      sosoFingerprintChangedLater: later.some(({ confirmation: candidate }) =>
+        candidate.localHash !== confirmation.localHash),
+      justiceSureFingerprintChangedLater: later.some(({ confirmation: candidate }) =>
+        candidate.productHash !== confirmation.productHash),
+    };
+  }).reverse();
+}
+
+const catalogueMappingProductInput = z.object({
+  slug: z.string().min(1).max(160),
+  name: z.string().min(1).max(200),
+  price: z.number().int().positive(),
+  standardEligible: z.boolean(),
+  customEligible: z.boolean(),
+  standardSizes: z.array(z.string().min(1).max(40)),
+  fulfilmentState: z.enum(["ready_now", "made_immediately", "unavailable"]),
+  commerceProductId: z.string().uuid().optional(),
+  commerceVariantIds: z.record(z.string(), z.string().uuid()).optional(),
+}).strict();
+
+const catalogueMappingConfirmationInput = z.object({
+  slug: z.string().min(1).max(160),
+  productId: z.string().uuid(),
+  variantIds: z.array(z.string().uuid()).max(100),
+  confirmedAt: z.string().datetime({ offset: true }),
+}).strict();
+
+type MappingProductSource = z.infer<typeof catalogueMappingProductInput> & {
+  commerceMappingConfirmation?: {
+    productHash: string;
+    localHash: string;
+    confidence: number;
+  };
+};
+
+function toLocalMappingProduct(product: MappingProductSource): LocalCatalogueProduct {
+  return {
+    slug: product.slug,
+    name: product.name,
+    price: product.price,
+    eligibility: product.fulfilmentState === "unavailable"
+      ? "unavailable"
+      : { standard: product.standardEligible, custom: product.customEligible },
+    standardSizes: product.standardEligible ? product.standardSizes : [],
+    commerceProductId: product.commerceProductId,
+    commerceVariantIds: product.commerceVariantIds,
+  };
+}
+
+async function validateCurrentCommerceMappings(
+  products: MappingProductSource[],
+  requireConfirmation: boolean,
+): Promise<string[]> {
+  const mapped = products.filter((product) => product.commerceProductId);
+  const missingIssues = requireConfirmation
+    ? products
+      .filter((product) => product.fulfilmentState !== "unavailable" && !product.commerceProductId)
+      .map((product) => `${product.slug}: available products require a confirmed JusticeSure product and variant mapping before publishing.`)
+    : [];
+  if (mapped.length === 0) return missingIssues;
+  const identifierOwners = new Map<string, string>();
+  const duplicateIssues: string[] = [];
+  for (const product of mapped) {
+    for (const identifier of [
+      product.commerceProductId!,
+      ...Object.values(product.commerceVariantIds ?? {}),
+    ]) {
+      const owner = identifierOwners.get(identifier);
+      if (owner && owner !== product.slug) {
+        duplicateIssues.push(`${product.slug}: JusticeSure identifier ${identifier} is already assigned to ${owner}.`);
+      } else {
+        identifierOwners.set(identifier, product.slug);
+      }
+    }
+  }
+  const catalogue = await new JusticeSureCommerceClient().listProducts();
+  const validation = validateCatalogueMappings(mapped.map(toLocalMappingProduct), catalogue);
+  const issues = [
+    ...missingIssues,
+    ...duplicateIssues,
+    ...validation.issues.map((issue) => `${issue.slug}: ${issue.message}`),
+  ];
+  for (const mapping of validation.mappings) {
+    if (mapping.status !== "matched") continue;
+    const product = mapped.find((candidate) => candidate.slug === mapping.slug);
+    const confirmation = product?.commerceMappingConfirmation;
+    if (confirmation && confirmation.productHash !== mapping.productHash) {
+      issues.push(`${mapping.slug}: JusticeSure product, variant, stock, price, or attributes changed after confirmation.`);
+    }
+    if (confirmation && confirmation.localHash !== mapping.localHash) {
+      issues.push(`${mapping.slug}: SOSO product identity, price, eligibility, choices, or selected identifiers changed after confirmation.`);
+    }
+    if (requireConfirmation && (!confirmation || confirmation.confidence < 95)) {
+      issues.push(`${mapping.slug}: confirm the current high-confidence JusticeSure mapping before publishing.`);
+    }
+  }
+  return issues;
+}
+
+router.post("/staff/commerce/catalogue-mapping/preview", platformRoles, async (req, res): Promise<void> => {
+  const parsed = z.object({ products: z.array(catalogueMappingProductInput).max(1000) }).strict().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Provide valid SOSO catalogue products.", issues: parsed.error.issues });
+    return;
+  }
+  try {
+    const catalogue = await new JusticeSureCommerceClient().listProducts();
+    const snapshot = buildCatalogueSnapshot(catalogue);
+    const suggestions = suggestCatalogueMappings(parsed.data.products.map(toLocalMappingProduct), catalogue, snapshot)
+      .map((mapping) => ({
+        slug: mapping.slug,
+        status: mapping.status === "matched" ? "confident" : mapping.status === "unsafe" ? "blocked" : "needs_review",
+        confidence: mapping.confidence,
+        evidence: mapping.evidence,
+        ...(mapping.productId ? { productId: mapping.productId } : {}),
+        ...(mapping.productHash ? { productHash: mapping.productHash } : {}),
+        ...(mapping.localHash ? { localHash: mapping.localHash } : {}),
+        variantIds: mapping.variantIds,
+        choiceLabels: mapping.choiceLabels,
+        issues: mapping.status === "matched" ? [] : mapping.evidence,
+      }));
+    res.json({ snapshotHash: snapshot.hash, fetchedAt: snapshot.fetchedAt, suggestions });
+  } catch (error) {
+    const message = error instanceof JusticeSureRequestError && error.status < 500
+      ? error.message
+      : "JusticeSure catalogue mapping is temporarily unavailable.";
+    res.status(503).json({ error: message });
+  }
+});
+
+router.post("/staff/commerce/catalogue-mapping/invalidations", platformRoles, async (req, res): Promise<void> => {
+  const parsed = z.object({
+    confirmations: z.array(catalogueMappingConfirmationInput).max(1000),
+  }).strict().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Provide valid confirmed JusticeSure mappings.", issues: parsed.error.issues });
+    return;
+  }
+  if (parsed.data.confirmations.length === 0) {
+    res.json({ staleSlugs: [] });
+    return;
+  }
+  const mappings = parsed.data.confirmations.map((confirmation) => ({
+    slug: confirmation.slug,
+    productId: confirmation.productId,
+    variantIds: confirmation.variantIds,
+    confirmedAt: new Date(confirmation.confirmedAt),
+  }));
+  const earliestConfirmation = new Date(Math.min(...mappings.map(({ confirmedAt }) => confirmedAt.getTime())));
+  const rows = await db.select({
+    identifiers: commerceWebhookEventsTable.catalogueIdentifiers,
+    occurredAt: commerceWebhookEventsTable.eventOccurredAt,
+  }).from(commerceWebhookEventsTable).where(and(
+    eq(commerceWebhookEventsTable.status, "completed"),
+    inArray(commerceWebhookEventsTable.eventType, ["commerce.product.updated", "commerce.inventory.updated"]),
+    gte(commerceWebhookEventsTable.eventOccurredAt, earliestConfirmation),
+  ));
+  const staleSlugs = findWebhookStaleMappings(
+    mappings,
+    rows.flatMap((row) => row.occurredAt && row.identifiers.length > 0
+      ? [{ identifiers: row.identifiers, occurredAt: row.occurredAt }]
+      : []),
+  );
+  res.json({ staleSlugs });
+});
+
+export function findStaleCatalogueProducts(
+  content: unknown,
+  invalidations: CatalogueWebhookInvalidation[],
+): Array<{ slug: string; name: string }> {
+  const parsed = PlatformContentSchema.safeParse(content);
+  if (!parsed.success) return [];
+  const confirmed = parsed.data.products.flatMap((product) =>
+    product.commerceProductId && product.commerceMappingConfirmation
+      ? [{
+        slug: product.slug,
+        productId: product.commerceProductId,
+        variantIds: Object.values(product.commerceVariantIds ?? {}),
+        confirmedAt: new Date(product.commerceMappingConfirmation.confirmedAt),
+      }]
+      : []);
+  const staleSlugs = new Set(findWebhookStaleMappings(confirmed, invalidations));
+  return parsed.data.products
+    .filter((product) => staleSlugs.has(product.slug))
+    .map((product) => ({ slug: product.slug, name: product.name }));
+}
+
+router.get("/staff/commerce/catalogue-mapping/stale", platformRoles, async (_req, res): Promise<void> => {
+  await ensurePlatformContent();
+  const [row] = await db.select({ draft: siteContentTable.draft })
+    .from(siteContentTable)
+    .where(eq(siteContentTable.key, "platform"))
+    .limit(1);
+  const parsed = PlatformContentSchema.safeParse(row?.draft);
+  if (!parsed.success) {
+    res.json({ products: [] });
+    return;
+  }
+  const confirmationDates = parsed.data.products.flatMap((product) =>
+    product.commerceProductId && product.commerceMappingConfirmation
+      ? [new Date(product.commerceMappingConfirmation.confirmedAt)]
+      : []);
+  if (confirmationDates.length === 0) {
+    res.json({ products: [] });
+    return;
+  }
+  const earliestConfirmation = new Date(Math.min(...confirmationDates.map((date) => date.getTime())));
+  const events = await db.select({
+    identifiers: commerceWebhookEventsTable.catalogueIdentifiers,
+    occurredAt: commerceWebhookEventsTable.eventOccurredAt,
+  }).from(commerceWebhookEventsTable).where(and(
+    eq(commerceWebhookEventsTable.status, "completed"),
+    inArray(commerceWebhookEventsTable.eventType, ["commerce.product.updated", "commerce.inventory.updated"]),
+    gte(commerceWebhookEventsTable.eventOccurredAt, earliestConfirmation),
+  ));
+  const invalidations = events.flatMap((event) =>
+    event.occurredAt && event.identifiers.length > 0
+      ? [{ identifiers: event.identifiers, occurredAt: event.occurredAt }]
+      : []);
+  res.json({ products: findStaleCatalogueProducts(parsed.data, invalidations) });
+});
+
+router.get("/staff/commerce/catalogue-mapping/:slug/history", platformRoles, async (req, res): Promise<void> => {
+  const parsedSlug = catalogueSlug.safeParse(req.params.slug);
+  if (!parsedSlug.success) {
+    res.status(400).json({ error: "Provide a valid catalogue product slug." });
+    return;
+  }
+  const audits = await db.select({
+    id: auditLogsTable.id,
+    actorClerkUserId: auditLogsTable.actorClerkUserId,
+    createdAt: auditLogsTable.createdAt,
+    metadata: auditLogsTable.metadata,
+  }).from(auditLogsTable).where(and(
+    eq(auditLogsTable.action, "platform_content.draft_saved"),
+    eq(auditLogsTable.entityType, "site_content"),
+    eq(auditLogsTable.entityId, "platform"),
+  )).orderBy(desc(auditLogsTable.createdAt)).limit(500);
+
+  const revisionIds = audits.flatMap(({ metadata }) => {
+    if (!metadata || typeof metadata !== "object") return [];
+    const revisionId = (metadata as Record<string, unknown>).revisionId;
+    return typeof revisionId === "string" ? [revisionId] : [];
+  });
+  const revisions = revisionIds.length > 0
+    ? await db.select({
+      id: siteContentRevisionsTable.id,
+      snapshot: siteContentRevisionsTable.snapshot,
+    }).from(siteContentRevisionsTable).where(inArray(siteContentRevisionsTable.id, revisionIds))
+    : [];
+  const actorIds = Array.from(new Set(audits.map(({ actorClerkUserId }) => actorClerkUserId)));
+  const staff = actorIds.length > 0
+    ? await db.select({
+      clerkUserId: staffUsersTable.clerkUserId,
+      email: staffUsersTable.email,
+    }).from(staffUsersTable).where(inArray(staffUsersTable.clerkUserId, actorIds))
+    : [];
+  const history = buildCatalogueMappingHistory(
+    parsedSlug.data,
+    audits,
+    revisions,
+    new Map(staff.map(({ clerkUserId, email }) => [clerkUserId, email])),
+  );
+  res.json({ history });
+});
 
 function expectedDraftDate(value: unknown): Date | null {
   if (typeof value !== "string") return null;
@@ -164,19 +526,41 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
     ...await validateHomepageHeroMediaAssets(parsed.data),
     ...await validateHomepageMerchandisingMediaAssets(parsed.data),
     ...await validateProductMediaAssets(parsed.data),
+    ...await validateCollectionMediaAssets(parsed.data),
   ];
   if (mediaIssues.length > 0) {
     res.status(400).json({ error: "Storefront media did not pass publishing checks", issues: mediaIssues });
     return;
   }
+  try {
+    const commerceIssues = await validateCurrentCommerceMappings(parsed.data.products, false);
+    if (commerceIssues.length > 0) {
+      res.status(400).json({ error: "JusticeSure mappings did not pass live draft checks", issues: commerceIssues });
+      return;
+    }
+  } catch {
+    res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. The draft was not saved." });
+    return;
+  }
   const now = new Date();
+  const replacedCoverPaths = replacedCollectionCoverUploadPaths(currentDraft.draft, parsed.data);
   const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const lockedMediaIssues = [
+      ...await validateHomepageHeroMediaAssets(parsed.data),
+      ...await validateHomepageMerchandisingMediaAssets(parsed.data),
+      ...await validateProductMediaAssets(parsed.data),
+      ...await validateCollectionMediaAssets(parsed.data),
+    ];
+    if (lockedMediaIssues.length > 0) {
+      return { kind: "media_invalid" as const, issues: lockedMediaIssues };
+    }
     const [updated] = await tx.update(siteContentTable).set({
       draft: parsed.data,
       draftUpdatedAt: now,
       updatedByClerkUserId: req.staff!.clerkUserId,
     }).where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).returning();
-    if (!updated) return null;
+    if (!updated) return { kind: "conflict" as const };
     const hash = platformContentHash(parsed.data);
     const [revision] = await tx.insert(siteContentRevisionsTable).values({
       contentKey: "platform", event: "draft_saved", snapshot: parsed.data,
@@ -184,12 +568,33 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
     }).returning({ id: siteContentRevisionsTable.id });
     await tx.insert(auditLogsTable).values({
       actorClerkUserId: req.staff!.clerkUserId, action: "platform_content.draft_saved",
-      entityType: "site_content", entityId: "platform", metadata: { contentHash: hash, revisionId: revision!.id },
+      entityType: "site_content", entityId: "platform", metadata: {
+        contentHash: hash,
+        revisionId: revision!.id,
+        confirmedCommerceMappings: parsed.data.products
+          .filter((product) => product.commerceMappingConfirmation)
+          .map((product) => ({
+            slug: product.slug,
+            productHash: product.commerceMappingConfirmation!.productHash,
+            confirmedAt: product.commerceMappingConfirmation!.confirmedAt,
+            confidence: product.commerceMappingConfirmation!.confidence,
+          })),
+      },
     });
-    return updated;
+    await queueCollectionCoverCleanup(tx, replacedCoverPaths, req.staff!.clerkUserId);
+    return { kind: "saved" as const, row: updated };
   });
-  if (!result) { res.status(409).json({ error: "Platform content changed while you were editing. Reload before saving." }); return; }
-  res.json(result);
+  if (result.kind === "conflict") { res.status(409).json({ error: "Platform content changed while you were editing. Reload before saving." }); return; }
+  if (result.kind === "media_invalid") {
+    res.status(400).json({ error: "Storefront media changed before the draft could be saved", issues: result.issues });
+    return;
+  }
+  try {
+    await processPendingCollectionCoverCleanup();
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to process queued collection cover cleanup");
+  }
+  res.json(result.row);
 });
 
 router.post("/staff/content/platform/publish", platformRoles, async (req, res): Promise<void> => {
@@ -224,12 +629,24 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     ...await validateHomepageHeroMediaAssets(candidateContent.data),
     ...await validateHomepageMerchandisingMediaAssets(candidateContent.data),
     ...await validateProductMediaAssets(candidateContent.data),
+    ...await validateCollectionMediaAssets(candidateContent.data),
   ];
   if (mediaIssues.length > 0) {
     res.status(400).json({ error: "Storefront media did not pass publishing checks", issues: mediaIssues });
     return;
   }
+  try {
+    const commerceIssues = await validateCurrentCommerceMappings(candidateContent.data.products, true);
+    if (commerceIssues.length > 0) {
+      res.status(400).json({ error: "JusticeSure mappings did not pass live publishing checks", issues: commerceIssues });
+      return;
+    }
+  } catch {
+    res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. Nothing was published." });
+    return;
+  }
   const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
     const [current] = await tx.select().from(siteContentTable)
       .where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).limit(1);
     if (!current) return { kind: "conflict" as const };
@@ -269,6 +686,11 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     res.status(400).json({ error: "Accessories did not pass publishing checks", issues: result.issues });
     return;
   }
+  try {
+    await processPendingCollectionCoverCleanup();
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to process queued collection cover cleanup after publishing");
+  }
   res.json(result.row);
 });
 
@@ -277,6 +699,7 @@ router.post("/staff/content/platform/unpublish", platformRoles, async (req, res)
   if (!expected) { res.status(400).json({ error: "expectedDraftUpdatedAt is required" }); return; }
   await ensurePlatformContent();
   const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
     const [updated] = await tx.update(siteContentTable).set({
       published: {}, publishedAt: null, publishedByClerkUserId: null,
     }).where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).returning();
@@ -292,6 +715,11 @@ router.post("/staff/content/platform/unpublish", platformRoles, async (req, res)
     return updated;
   });
   if (!result) { res.status(409).json({ error: "Platform content changed before it could be unpublished." }); return; }
+  try {
+    await processPendingCollectionCoverCleanup();
+  } catch (error) {
+    req.log.error({ err: error }, "Failed to process queued collection cover cleanup after unpublishing");
+  }
   res.json(result);
 });
 

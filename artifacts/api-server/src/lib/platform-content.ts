@@ -329,6 +329,17 @@ export const PlatformContentSchema = z.object({
     featured: z.boolean().optional(), relatedProductSlugs: z.array(slug).optional(),
     commerceProductId: z.string().uuid().optional(),
     commerceVariantIds: z.record(z.string(), z.string().uuid()).optional(),
+    commerceMappingConfirmation: z.object({
+      productHash: z.string().regex(/^[0-9a-f]{64}$/),
+      localHash: z.string().regex(/^[0-9a-f]{64}$/),
+      snapshotHash: z.string().regex(/^[0-9a-f]{64}$/),
+      snapshotFetchedAt: z.string().datetime(),
+      confirmedAt: z.string().datetime(),
+      confidence: z.number().int().min(0).max(100),
+      source: z.enum(["automatic", "manual"]),
+      evidence: z.array(z.string().min(1).max(240)).min(1).max(20),
+      choiceLabels: z.record(z.string(), z.string().min(1).max(120)),
+    }).strict().optional(),
   }).strict().superRefine((product, ctx) => {
     const reportDuplicates = (values: string[], path: string) => {
       const seen = new Set<string>();
@@ -436,6 +447,9 @@ export const PlatformContentSchema = z.object({
     if (product.commerceVariantIds && !product.commerceProductId) {
       ctx.addIssue({ code: "custom", message: "Commerce variants require a commerce product ID", path: ["commerceProductId"] });
     }
+    if (product.commerceMappingConfirmation && (!product.commerceProductId || !product.commerceVariantIds)) {
+      ctx.addIssue({ code: "custom", message: "A mapping confirmation requires complete commerce identifiers", path: ["commerceMappingConfirmation"] });
+    }
     if (product.commerceVariantIds) {
       const allowedVariants = new Set([...product.standardSizes, ...(product.customEligible ? ["Custom"] : [])]);
       Object.keys(product.commerceVariantIds).forEach((size) => {
@@ -455,7 +469,26 @@ export const PlatformContentSchema = z.object({
       }
     }
   })).min(1),
-  collections: z.array(z.object({ slug, label: copy, category: copy, department, h1: copy, intro: copy, seo }).strict()).min(1),
+  collections: z.array(z.object({
+    slug, label: copy, category: copy, department, h1: copy, intro: copy,
+    showCover: z.boolean(),
+    cover: image.optional(),
+    mobileCover: image.optional(),
+    mobileCropPosition: z.enum([
+      "left top", "center top", "right top",
+      "left center", "center center", "right center",
+      "left bottom", "center bottom", "right bottom",
+    ]).optional(),
+    seo,
+  }).strict().superRefine((collection, ctx) => {
+    if (collection.showCover && !collection.cover) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Collections configured to show a cover require an approved image, alt text, and provenance",
+        path: ["cover"],
+      });
+    }
+  })).min(1),
   sizeGuide: z.object({
     title: copy, intro: copy, columns: z.array(copy).min(1),
     rows: z.array(z.object({ size: z.string().min(1), values: z.array(copy).min(1) }).strict()).min(1),
@@ -917,6 +950,7 @@ const womenReadyToWearCollection: PlatformContent["collections"][number] = {
   department: "women",
   h1: "Women’s Ready-to-Wear",
   intro: "Considered silhouettes for women in Standard sizes, drawn from SOSO’s published ready-to-wear catalogue.",
+  showCover: false,
   seo: {
     title: "Women’s Ready-to-Wear | SOSO Africa",
     description: "Shop SOSO Africa women’s ready-to-wear in Standard sizes, including linen, silk, shirts, and refined two-piece sets.",
@@ -978,6 +1012,7 @@ const accessoriesCollection: PlatformContent["collections"][number] = {
   department: "accessories",
   h1: "SOSO Accessories",
   intro: "Preview the planned range of bags, key holders, cufflinks, and traditional caps. These placeholders are for discovery only and are not available to purchase.",
+  showCover: false,
   seo: {
     title: "Accessories Coming Soon | SOSO Africa",
     description: "Preview SOSO Africa’s planned accessories range. Placeholder listings are not yet available to purchase.",
@@ -990,7 +1025,7 @@ const accessoryCategoryCollections: PlatformContent["collections"] = [
   { ...accessoriesCollection, slug: "traditional-caps", label: "Traditional Caps", category: "Traditional Caps", h1: "Traditional Caps", intro: "Preview planned Igbo, Hausa, and Yoruba cap listings. These placeholders are not available to purchase.", seo: { title: "Traditional Caps Coming Soon | SOSO Africa", description: "Preview SOSO Africa’s planned Igbo, Hausa, and Yoruba traditional cap range." } },
 ];
 export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
-  contentVersion: 20,
+  contentVersion: 21,
   site: {
     name: "SOSO Africa", logoUrl: "/images/soso/logo.png", logoAlt: "SOSO Africa",
     announcement: "Ready now and made immediately · Dispatch within five days",
@@ -1237,12 +1272,12 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
     ...accessoryPlaceholderProducts,
   ],
   collections: [
-    { slug: "kaftans", label: "Kaftans", category: "Kaftans", department: "men", h1: "Kaftans", intro: "Considered kaftans for significant occasions and daily distinction. Each piece is made to order for the person who wears it.", seo: { title: "Bespoke Kaftans | SOSO Africa, Abuja", description: "Premium made-to-order kaftans from SOSO Africa. Contemporary silhouettes made for the individual in Abuja, Nigeria." } },
-    { slug: "agbadas", label: "Agbadas", category: "Agbadas", department: "men", h1: "Agbadas", intro: "Statement three-piece agbadas for ceremonies, celebrations, and moments that require presence.", seo: { title: "Bespoke Agbadas | SOSO Africa, Abuja", description: "Made-to-order agbadas from SOSO Africa, Abuja. Generous three-piece sets for grand occasions." } },
-    { slug: "dashikis", label: "Dashikis", category: "Dashikis", department: "men", h1: "Dashikis", intro: "Heritage craft in a contemporary silhouette — dashikis for celebration and the days in between.", seo: { title: "Modern Dashikis | SOSO Africa, Abuja", description: "Contemporary made-to-order dashikis from SOSO Africa." } },
-    { slug: "two-piece", label: "Two-Piece Sets", category: "Two-Piece", department: "men", h1: "Two-Piece Sets", intro: "Coordinated and effortless — two-piece sets that move between occasions.", seo: { title: "Two-Piece Sets | SOSO Africa, Abuja", description: "Coordinated two-piece sets from SOSO Africa, made to order in Abuja." } },
-    { slug: "shirts", label: "Shirts", category: "Shirts", department: "men", h1: "Shirts", intro: "Sharp, considered shirting for business settings and formal occasions.", seo: { title: "Premium Men's Shirts | SOSO Africa, Abuja", description: "Refined made-to-order shirts from SOSO Africa." } },
-    { slug: "new-arrivals", label: "New Arrivals", category: "New Arrivals", department: "men", h1: "New Arrivals", intro: "The latest SOSO pieces, with online purchase shown only where an authoritative checkout mapping is available.", seo: { title: "New Arrivals | SOSO Africa", description: "Discover the latest SOSO Africa pieces." } },
+    { slug: "kaftans", label: "Kaftans", category: "Kaftans", department: "men", h1: "Kaftans", intro: "Considered kaftans for significant occasions and daily distinction. Each piece is made to order for the person who wears it.", showCover: false, seo: { title: "Bespoke Kaftans | SOSO Africa, Abuja", description: "Premium made-to-order kaftans from SOSO Africa. Contemporary silhouettes made for the individual in Abuja, Nigeria." } },
+    { slug: "agbadas", label: "Agbadas", category: "Agbadas", department: "men", h1: "Agbadas", intro: "Statement three-piece agbadas for ceremonies, celebrations, and moments that require presence.", showCover: false, seo: { title: "Bespoke Agbadas | SOSO Africa, Abuja", description: "Made-to-order agbadas from SOSO Africa, Abuja. Generous three-piece sets for grand occasions." } },
+    { slug: "dashikis", label: "Dashikis", category: "Dashikis", department: "men", h1: "Dashikis", intro: "Heritage craft in a contemporary silhouette — dashikis for celebration and the days in between.", showCover: false, seo: { title: "Modern Dashikis | SOSO Africa, Abuja", description: "Contemporary made-to-order dashikis from SOSO Africa." } },
+    { slug: "two-piece", label: "Two-Piece Sets", category: "Two-Piece", department: "men", h1: "Two-Piece Sets", intro: "Coordinated and effortless — two-piece sets that move between occasions.", showCover: false, seo: { title: "Two-Piece Sets | SOSO Africa, Abuja", description: "Coordinated two-piece sets from SOSO Africa, made to order in Abuja." } },
+    { slug: "shirts", label: "Shirts", category: "Shirts", department: "men", h1: "Shirts", intro: "Sharp, considered shirting for business settings and formal occasions.", showCover: false, seo: { title: "Premium Men's Shirts | SOSO Africa, Abuja", description: "Refined made-to-order shirts from SOSO Africa." } },
+    { slug: "new-arrivals", label: "New Arrivals", category: "New Arrivals", department: "men", h1: "New Arrivals", intro: "The latest SOSO pieces, with online purchase shown only where an authoritative checkout mapping is available.", showCover: false, seo: { title: "New Arrivals | SOSO Africa", description: "Discover the latest SOSO Africa pieces." } },
     womenReadyToWearCollection,
     accessoriesCollection,
     ...accessoryCategoryCollections,
@@ -1848,7 +1883,7 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     const collections = (merged as { collections?: unknown }).collections;
     if (Array.isArray(collections)) {
       const upgradedCollections = collections.map((entry) =>
-        mergeMissing({ department: "men" }, entry));
+        mergeMissing({ department: "men", showCover: false }, entry));
       if (shouldApplyWomenLaunch) {
         const collectionSlugs = new Set(upgradedCollections.flatMap((entry) =>
           entry && typeof entry === "object" && !Array.isArray(entry) && typeof (entry as Record<string, unknown>).slug === "string"

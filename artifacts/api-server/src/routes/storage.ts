@@ -2,11 +2,17 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import {
   FinalizeStorageUploadBody,
   FinalizeStorageUploadResponse,
+  ListPendingMediaCleanupResponse,
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
+  RetryPendingMediaCleanupResponse,
 } from "@workspace/api-zod";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { CloudinaryStorageService, MediaNotFoundError } from "../lib/cloudinary-storage";
+import {
+  listPendingCollectionCoverCleanup,
+  processPendingCollectionCoverCleanup,
+} from "../lib/collection-cover-cleanup";
 import {
   detectMediaContentType,
   IMAGE_MEDIA_TYPES,
@@ -74,6 +80,20 @@ router.post(
   },
 );
 
+router.get(
+  "/storage/uploads/cleanup-pending",
+  requireStaff,
+  requireStaffRoles("owner", "administrator", "editor"),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      res.json(ListPendingMediaCleanupResponse.parse(await listPendingCollectionCoverCleanup()));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to list pending managed media cleanup");
+      res.status(500).json({ error: "Pending media cleanup could not be loaded" });
+    }
+  },
+);
+
 router.post(
   "/storage/uploads/finalize",
   requireStaff,
@@ -100,6 +120,20 @@ router.post(
         req.log.error({ err: error }, "Failed to finalize Cloudinary upload");
       }
       res.status(400).json({ error: "Uploaded media could not be verified" });
+    }
+  },
+);
+
+router.post(
+  "/storage/uploads/cleanup-pending",
+  requireStaff,
+  requireStaffRoles("owner", "administrator", "editor"),
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      res.json(RetryPendingMediaCleanupResponse.parse(await processPendingCollectionCoverCleanup(storage)));
+    } catch (error) {
+      req.log.error({ err: error }, "Failed to retry pending managed media cleanup");
+      res.status(500).json({ error: "Pending media cleanup could not be processed" });
     }
   },
 );

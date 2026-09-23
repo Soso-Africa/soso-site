@@ -29,13 +29,16 @@ export const getCommerceCatalogResponseProductsItemDescriptionMax = 10000;
 
 export const getCommerceCatalogResponseProductsItemImagesItemMax = 2048;
 
-
 export const getCommerceCatalogResponseProductsItemAmountKoboMin = 0;
 
 export const getCommerceCatalogResponseProductsItemVariantsItemIdMin = 36;
 export const getCommerceCatalogResponseProductsItemVariantsItemIdMax = 36;
 
+export const getCommerceCatalogResponseProductsItemVariantsItemNameMax = 200;
+
 export const getCommerceCatalogResponseProductsItemVariantsItemLabelMax = 160;
+
+export const getCommerceCatalogResponseProductsItemVariantsItemAmountKoboMin = 0;
 
 
 
@@ -44,12 +47,16 @@ export const GetCommerceCatalogResponse = zod.object({
   "id": zod.string().min(getCommerceCatalogResponseProductsItemIdMin).max(getCommerceCatalogResponseProductsItemIdMax),
   "name": zod.string().min(1).max(getCommerceCatalogResponseProductsItemNameMax),
   "description": zod.string().max(getCommerceCatalogResponseProductsItemDescriptionMax).nullable(),
-  "images": zod.array(zod.string().min(1).max(getCommerceCatalogResponseProductsItemImagesItemMax)).min(1),
+  "images": zod.array(zod.string().min(1).max(getCommerceCatalogResponseProductsItemImagesItemMax)),
   "amountKobo": zod.number().min(getCommerceCatalogResponseProductsItemAmountKoboMin),
   "inStock": zod.boolean(),
   "variants": zod.array(zod.object({
   "id": zod.string().min(getCommerceCatalogResponseProductsItemVariantsItemIdMin).max(getCommerceCatalogResponseProductsItemVariantsItemIdMax),
-  "label": zod.string().min(1).max(getCommerceCatalogResponseProductsItemVariantsItemLabelMax)
+  "name": zod.string().min(1).max(getCommerceCatalogResponseProductsItemVariantsItemNameMax),
+  "label": zod.string().min(1).max(getCommerceCatalogResponseProductsItemVariantsItemLabelMax),
+  "attributes": zod.record(zod.string(), zod.union([zod.string(),zod.number(),zod.boolean()])),
+  "amountKobo": zod.number().min(getCommerceCatalogResponseProductsItemVariantsItemAmountKoboMin),
+  "inStock": zod.boolean()
 }))
 }))
 })
@@ -111,6 +118,10 @@ export const initiateCommerceCheckoutBodyFulfillmentAddressMax = 1000;
 
 export const initiateCommerceCheckoutBodyNotesMax = 1000;
 
+export const initiateCommerceCheckoutBodyQuoteIdMin = 36;
+export const initiateCommerceCheckoutBodyQuoteIdMax = 64;
+
+export const initiateCommerceCheckoutBodyDisplayCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
 
 
 export const InitiateCommerceCheckoutBody = zod.object({
@@ -137,7 +148,11 @@ export const InitiateCommerceCheckoutBody = zod.object({
   "locationId": zod.string().min(initiateCommerceCheckoutBodyFulfillmentLocationIdMin).max(initiateCommerceCheckoutBodyFulfillmentLocationIdMax).optional(),
   "address": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentAddressMax).optional()
 }),
-  "notes": zod.string().max(initiateCommerceCheckoutBodyNotesMax).optional()
+  "notes": zod.string().max(initiateCommerceCheckoutBodyNotesMax).optional(),
+  "quoteId": zod.string().min(initiateCommerceCheckoutBodyQuoteIdMin).max(initiateCommerceCheckoutBodyQuoteIdMax),
+  "displayCurrency": zod.string().regex(initiateCommerceCheckoutBodyDisplayCurrencyRegExp),
+  "paymentProvider": zod.enum(['paystack', 'flutterwave', 'stripe', 'paypal', 'hydrogen']),
+  "paymentMethod": zod.enum(['card', 'bank_transfer', 'wallet', 'paypal', 'virtual_account'])
 })
 
 export const initiateCommerceCheckoutResponseAttemptIdMin = 36;
@@ -157,6 +172,139 @@ export const InitiateCommerceCheckoutResponse = zod.object({
 
 
 /**
+ * @summary Discover public-safe JusticeSure currencies, readiness, and corridors
+ */
+export const getCommerceDiscoveryQueryCountryRegExp = new RegExp('^[A-Za-z]{2}$');
+export const getCommerceDiscoveryQueryCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+
+
+export const GetCommerceDiscoveryQueryParams = zod.object({
+  "country": zod.coerce.string().regex(getCommerceDiscoveryQueryCountryRegExp).optional(),
+  "currency": zod.coerce.string().regex(getCommerceDiscoveryQueryCurrencyRegExp).optional()
+})
+
+export const GetCommerceDiscoveryResponse = zod.object({
+  "currencies": zod.array(zod.record(zod.string(), zod.unknown())),
+  "paymentMethods": zod.record(zod.string(), zod.unknown()),
+  "corridors": zod.array(zod.record(zod.string(), zod.unknown()))
+})
+
+
+/**
+ * @summary Create a customer-reviewable immutable JusticeSure quote
+ */
+export const createCommerceQuoteBodyCheckoutOperationIdMin = 8;
+export const createCommerceQuoteBodyCheckoutOperationIdMax = 56;
+
+
+export const createCommerceQuoteBodyCheckoutOperationIdRegExp = new RegExp('^[A-Za-z0-9_.:-]+$');
+export const createCommerceQuoteBodyCustomerNameMax = 160;
+
+export const createCommerceQuoteBodyCustomerEmailMin = 3;
+export const createCommerceQuoteBodyCustomerEmailMax = 320;
+
+export const createCommerceQuoteBodyCustomerPhoneMin = 3;
+export const createCommerceQuoteBodyCustomerPhoneMax = 80;
+
+export const createCommerceQuoteBodyItemsItemProductIdMin = 36;
+export const createCommerceQuoteBodyItemsItemProductIdMax = 64;
+
+export const createCommerceQuoteBodyItemsItemVariantIdMin = 36;
+export const createCommerceQuoteBodyItemsItemVariantIdMax = 64;
+
+export const createCommerceQuoteBodyItemsItemQuantityMax = 100;
+
+export const createCommerceQuoteBodyItemsItemDisplayNameMax = 200;
+
+export const createCommerceQuoteBodyItemsItemDisplaySlugMax = 160;
+
+export const createCommerceQuoteBodyItemsItemSelectedSizeMax = 80;
+
+export const createCommerceQuoteBodyItemsItemSelectedColourIdMax = 64;
+
+
+export const createCommerceQuoteBodyItemsItemSelectedColourIdRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+export const createCommerceQuoteBodyItemsItemSelectedColourLabelMax = 80;
+
+export const createCommerceQuoteBodyItemsItemSelectedColourHexRegExp = new RegExp('^#[0-9A-Fa-f]{6}$');
+export const createCommerceQuoteBodyItemsItemCustomColourMax = 200;
+
+export const createCommerceQuoteBodyItemsMax = 100;
+
+export const createCommerceQuoteBodyFulfillmentLocationIdMin = 36;
+export const createCommerceQuoteBodyFulfillmentLocationIdMax = 64;
+
+export const createCommerceQuoteBodyFulfillmentAddressMax = 1000;
+
+export const createCommerceQuoteBodyNotesMax = 1000;
+
+export const createCommerceQuoteBodyDisplayCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
+
+
+export const CreateCommerceQuoteBody = zod.object({
+  "checkoutOperationId": zod.string().min(createCommerceQuoteBodyCheckoutOperationIdMin).max(createCommerceQuoteBodyCheckoutOperationIdMax).regex(createCommerceQuoteBodyCheckoutOperationIdRegExp),
+  "customer": zod.object({
+  "name": zod.string().min(1).max(createCommerceQuoteBodyCustomerNameMax),
+  "email": zod.string().min(createCommerceQuoteBodyCustomerEmailMin).max(createCommerceQuoteBodyCustomerEmailMax),
+  "phone": zod.string().min(createCommerceQuoteBodyCustomerPhoneMin).max(createCommerceQuoteBodyCustomerPhoneMax)
+}),
+  "items": zod.array(zod.object({
+  "productId": zod.string().min(createCommerceQuoteBodyItemsItemProductIdMin).max(createCommerceQuoteBodyItemsItemProductIdMax),
+  "variantId": zod.string().min(createCommerceQuoteBodyItemsItemVariantIdMin).max(createCommerceQuoteBodyItemsItemVariantIdMax).optional(),
+  "quantity": zod.number().min(1).max(createCommerceQuoteBodyItemsItemQuantityMax),
+  "displayName": zod.string().max(createCommerceQuoteBodyItemsItemDisplayNameMax).optional(),
+  "displaySlug": zod.string().max(createCommerceQuoteBodyItemsItemDisplaySlugMax).optional(),
+  "selectedSize": zod.string().max(createCommerceQuoteBodyItemsItemSelectedSizeMax).optional(),
+  "selectedColourId": zod.string().min(1).max(createCommerceQuoteBodyItemsItemSelectedColourIdMax).regex(createCommerceQuoteBodyItemsItemSelectedColourIdRegExp),
+  "selectedColourLabel": zod.string().min(1).max(createCommerceQuoteBodyItemsItemSelectedColourLabelMax).optional(),
+  "selectedColourHex": zod.string().regex(createCommerceQuoteBodyItemsItemSelectedColourHexRegExp).optional(),
+  "customColour": zod.string().min(1).max(createCommerceQuoteBodyItemsItemCustomColourMax).optional()
+})).min(1).max(createCommerceQuoteBodyItemsMax),
+  "fulfillment": zod.object({
+  "type": zod.enum(['pickup', 'delivery']),
+  "locationId": zod.string().min(createCommerceQuoteBodyFulfillmentLocationIdMin).max(createCommerceQuoteBodyFulfillmentLocationIdMax).optional(),
+  "address": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentAddressMax).optional()
+}),
+  "notes": zod.string().max(createCommerceQuoteBodyNotesMax).optional(),
+  "displayCurrency": zod.string().regex(createCommerceQuoteBodyDisplayCurrencyRegExp),
+  "paymentProvider": zod.enum(['paystack', 'flutterwave', 'stripe', 'paypal', 'hydrogen']),
+  "paymentMethod": zod.enum(['card', 'bank_transfer', 'wallet', 'paypal', 'virtual_account'])
+})
+
+export const createCommerceQuoteResponseIdMin = 36;
+export const createCommerceQuoteResponseIdMax = 64;
+
+export const createCommerceQuoteResponseDisplayCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const createCommerceQuoteResponseChargeCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const createCommerceQuoteResponseSettlementCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const createCommerceQuoteResponseAmountsRegExpOne = new RegExp('^-?\\d+$');
+export const createCommerceQuoteResponseCurrencyMinorUnitExponentsMinOne = 0;
+export const createCommerceQuoteResponseCurrencyMinorUnitExponentsMaxOne = 6;
+
+export const createCommerceQuoteResponsePaymentChargeCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const createCommerceQuoteResponsePaymentSettlementCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+
+
+export const CreateCommerceQuoteResponse = zod.object({
+  "id": zod.string().min(createCommerceQuoteResponseIdMin).max(createCommerceQuoteResponseIdMax),
+  "expiresAt": zod.coerce.date(),
+  "currency": zod.enum(['NGN']),
+  "displayCurrency": zod.string().regex(createCommerceQuoteResponseDisplayCurrencyRegExp),
+  "chargeCurrency": zod.string().regex(createCommerceQuoteResponseChargeCurrencyRegExp),
+  "settlementCurrency": zod.string().regex(createCommerceQuoteResponseSettlementCurrencyRegExp),
+  "amounts": zod.record(zod.string(), zod.string().regex(createCommerceQuoteResponseAmountsRegExpOne)),
+  "currencyMinorUnitExponents": zod.record(zod.string(), zod.number().min(createCommerceQuoteResponseCurrencyMinorUnitExponentsMinOne).max(createCommerceQuoteResponseCurrencyMinorUnitExponentsMaxOne)).optional(),
+  "payment": zod.object({
+  "provider": zod.enum(['paystack', 'flutterwave', 'stripe', 'paypal', 'hydrogen']),
+  "method": zod.enum(['card', 'bank_transfer', 'wallet', 'paypal', 'virtual_account']),
+  "chargeCurrency": zod.string().regex(createCommerceQuoteResponsePaymentChargeCurrencyRegExp),
+  "settlementCurrency": zod.string().regex(createCommerceQuoteResponsePaymentSettlementCurrencyRegExp)
+})
+})
+
+
+/**
+ * The browser supplies only SOSO's local attempt ID. SOSO recovers payment state server-side with the persisted JusticeSure order and payment-attempt identifiers, then projects the authoritative JusticeSure order status. Redirect parameters never establish payment.
  * @summary Read JusticeSure-verified status for a browser-owned checkout attempt
  */
 export const getCommercePaymentStatusPathAttemptIdMin = 36;
@@ -177,6 +325,13 @@ export const getCommercePaymentStatusResponsePaymentStatusMax = 100;
 
 export const getCommercePaymentStatusResponseTotalKoboMin = 0;
 
+export const getCommercePaymentStatusResponseCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const getCommercePaymentStatusResponseQuoteDisplayCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const getCommercePaymentStatusResponseQuoteChargeCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const getCommercePaymentStatusResponseQuoteSettlementCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const getCommercePaymentStatusResponseQuoteCurrencyMinorUnitExponentsMinOne = 0;
+export const getCommercePaymentStatusResponseQuoteCurrencyMinorUnitExponentsMaxOne = 6;
+
 
 
 export const GetCommercePaymentStatusResponse = zod.object({
@@ -184,9 +339,13 @@ export const GetCommercePaymentStatusResponse = zod.object({
   "orderNumber": zod.string().max(getCommercePaymentStatusResponseOrderNumberMax).optional(),
   "status": zod.enum(['starting', 'payment_pending', 'paid', 'cancelled', 'refunded', 'fulfilled', 'failed']),
   "paymentStatus": zod.string().max(getCommercePaymentStatusResponsePaymentStatusMax),
-  "provider": zod.enum(['paystack', 'flutterwave']).optional(),
+  "provider": zod.enum(['paystack', 'flutterwave', 'stripe', 'paypal', 'hydrogen']).optional(),
   "totalKobo": zod.number().min(getCommercePaymentStatusResponseTotalKoboMin).optional(),
-  "currency": zod.enum(['NGN']).optional(),
+  "currency": zod.string().regex(getCommercePaymentStatusResponseCurrencyRegExp).optional(),
+  "quoteDisplayCurrency": zod.string().regex(getCommercePaymentStatusResponseQuoteDisplayCurrencyRegExp).optional(),
+  "quoteChargeCurrency": zod.string().regex(getCommercePaymentStatusResponseQuoteChargeCurrencyRegExp).optional(),
+  "quoteSettlementCurrency": zod.string().regex(getCommercePaymentStatusResponseQuoteSettlementCurrencyRegExp).optional(),
+  "quoteCurrencyMinorUnitExponents": zod.record(zod.string(), zod.number().min(getCommercePaymentStatusResponseQuoteCurrencyMinorUnitExponentsMinOne).max(getCommercePaymentStatusResponseQuoteCurrencyMinorUnitExponentsMaxOne)).optional(),
   "checkedAt": zod.coerce.date()
 })
 
@@ -601,7 +760,14 @@ export const ListJournalPostsResponseItem = zod.object({
   "tags": zod.array(zod.string()).nullish(),
   "readTimeMinutes": zod.number().nullish(),
   "publishedAt": zod.coerce.date()
-})
+}).and(zod.object({
+  "body": zod.string(),
+  "seoTitle": zod.string().nullish(),
+  "seoDescription": zod.string().nullish(),
+  "relatedProductSlugs": zod.array(zod.string()).nullish(),
+  "relatedArticleSlugs": zod.array(zod.string()).nullish(),
+  "updatedAt": zod.coerce.date()
+}))
 export const ListJournalPostsResponse = zod.array(ListJournalPostsResponseItem)
 
 
@@ -1425,6 +1591,68 @@ export const ListStaffAccessoryLaunchNotificationsResponseItem = zod.object({
   "createdAt": zod.coerce.date()
 })
 export const ListStaffAccessoryLaunchNotificationsResponse = zod.array(ListStaffAccessoryLaunchNotificationsResponseItem)
+
+
+/**
+ * @summary Compare privacy-safe accessory launch demand by category and product
+ */
+export const getStaffAccessoryLaunchNotificationSummaryQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAccessoryLaunchNotificationSummaryQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const GetStaffAccessoryLaunchNotificationSummaryQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getStaffAccessoryLaunchNotificationSummaryQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(getStaffAccessoryLaunchNotificationSummaryQueryToRegExp).optional()
+})
+
+export const getStaffAccessoryLaunchNotificationSummaryResponseFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAccessoryLaunchNotificationSummaryResponseToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAccessoryLaunchNotificationSummaryResponseComparisonFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAccessoryLaunchNotificationSummaryResponseComparisonToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAccessoryLaunchNotificationSummaryResponseComparisonAvailableFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const getStaffAccessoryLaunchNotificationSummaryResponseTotalUniqueRequestsMin = 0;
+
+export const getStaffAccessoryLaunchNotificationSummaryResponsePreviousTotalUniqueRequestsMin = 0;
+
+export const getStaffAccessoryLaunchNotificationSummaryResponseItemsItemRequestCountMin = 0;
+
+export const getStaffAccessoryLaunchNotificationSummaryResponseItemsItemPreviousRequestCountMin = 0;
+
+
+
+export const GetStaffAccessoryLaunchNotificationSummaryResponse = zod.object({
+  "from": zod.string().regex(getStaffAccessoryLaunchNotificationSummaryResponseFromRegExp),
+  "to": zod.string().regex(getStaffAccessoryLaunchNotificationSummaryResponseToRegExp),
+  "comparisonFrom": zod.string().regex(getStaffAccessoryLaunchNotificationSummaryResponseComparisonFromRegExp),
+  "comparisonTo": zod.string().regex(getStaffAccessoryLaunchNotificationSummaryResponseComparisonToRegExp),
+  "comparisonCoverage": zod.enum(['full', 'partial', 'empty']),
+  "comparisonAvailableFrom": zod.string().regex(getStaffAccessoryLaunchNotificationSummaryResponseComparisonAvailableFromRegExp).nullable(),
+  "totalUniqueRequests": zod.number().min(getStaffAccessoryLaunchNotificationSummaryResponseTotalUniqueRequestsMin),
+  "previousTotalUniqueRequests": zod.number().min(getStaffAccessoryLaunchNotificationSummaryResponsePreviousTotalUniqueRequestsMin),
+  "items": zod.array(zod.object({
+  "accessoryCategory": zod.string(),
+  "productSlug": zod.string(),
+  "requestCount": zod.number().min(getStaffAccessoryLaunchNotificationSummaryResponseItemsItemRequestCountMin),
+  "previousRequestCount": zod.number().min(getStaffAccessoryLaunchNotificationSummaryResponseItemsItemPreviousRequestCountMin),
+  "change": zod.number(),
+  "trend": zod.enum(['new', 'growth', 'decline', 'no_change'])
+}))
+})
+
+
+/**
+ * @summary Download privacy-safe accessory launch demand as CSV
+ */
+export const exportStaffAccessoryLaunchNotificationSummaryQueryFromRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+export const exportStaffAccessoryLaunchNotificationSummaryQueryToRegExp = new RegExp('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+
+
+export const ExportStaffAccessoryLaunchNotificationSummaryQueryParams = zod.object({
+  "from": zod.coerce.string().regex(exportStaffAccessoryLaunchNotificationSummaryQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(exportStaffAccessoryLaunchNotificationSummaryQueryToRegExp).optional()
+})
+
+export const ExportStaffAccessoryLaunchNotificationSummaryResponse = zod.unknown()
 
 
 /**
@@ -2258,6 +2486,65 @@ export const ListStaffPlatformContentRevisionsResponse = zod.array(ListStaffPlat
 
 
 /**
+ * @summary Match SOSO catalogue choices to a current JusticeSure catalogue snapshot
+ */
+export const previewStaffCatalogueMappingBodyProductsItemSlugMax = 160;
+
+export const previewStaffCatalogueMappingBodyProductsItemNameMax = 200;
+
+export const previewStaffCatalogueMappingBodyProductsItemPriceMultipleOf = 1;
+
+export const previewStaffCatalogueMappingBodyProductsItemStandardSizesItemMax = 40;
+
+export const previewStaffCatalogueMappingBodyProductsItemCommerceProductIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const previewStaffCatalogueMappingBodyProductsItemCommerceVariantIdsRegExpOne = new RegExp('^[0-9a-fA-F-]{36}$');
+export const previewStaffCatalogueMappingBodyProductsMax = 1000;
+
+
+
+export const PreviewStaffCatalogueMappingBody = zod.object({
+  "products": zod.array(zod.object({
+  "slug": zod.string().min(1).max(previewStaffCatalogueMappingBodyProductsItemSlugMax),
+  "name": zod.string().min(1).max(previewStaffCatalogueMappingBodyProductsItemNameMax),
+  "price": zod.number().min(1).multipleOf(previewStaffCatalogueMappingBodyProductsItemPriceMultipleOf),
+  "standardEligible": zod.boolean(),
+  "customEligible": zod.boolean(),
+  "standardSizes": zod.array(zod.string().min(1).max(previewStaffCatalogueMappingBodyProductsItemStandardSizesItemMax)),
+  "fulfilmentState": zod.enum(['ready_now', 'made_immediately', 'unavailable']),
+  "commerceProductId": zod.string().regex(previewStaffCatalogueMappingBodyProductsItemCommerceProductIdRegExp).optional(),
+  "commerceVariantIds": zod.record(zod.string(), zod.string().regex(previewStaffCatalogueMappingBodyProductsItemCommerceVariantIdsRegExpOne)).optional()
+})).max(previewStaffCatalogueMappingBodyProductsMax)
+})
+
+export const previewStaffCatalogueMappingResponseSnapshotHashRegExp = new RegExp('^[0-9a-f]{64}$');
+export const previewStaffCatalogueMappingResponseSuggestionsItemConfidenceMin = 0;
+export const previewStaffCatalogueMappingResponseSuggestionsItemConfidenceMax = 100;
+
+export const previewStaffCatalogueMappingResponseSuggestionsItemProductIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+export const previewStaffCatalogueMappingResponseSuggestionsItemProductHashRegExp = new RegExp('^[0-9a-f]{64}$');
+export const previewStaffCatalogueMappingResponseSuggestionsItemLocalHashRegExp = new RegExp('^[0-9a-f]{64}$');
+export const previewStaffCatalogueMappingResponseSuggestionsItemVariantIdsRegExpOne = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const PreviewStaffCatalogueMappingResponse = zod.object({
+  "snapshotHash": zod.string().regex(previewStaffCatalogueMappingResponseSnapshotHashRegExp),
+  "fetchedAt": zod.coerce.date(),
+  "suggestions": zod.array(zod.object({
+  "slug": zod.string(),
+  "status": zod.enum(['confident', 'needs_review', 'blocked']),
+  "confidence": zod.number().min(previewStaffCatalogueMappingResponseSuggestionsItemConfidenceMin).max(previewStaffCatalogueMappingResponseSuggestionsItemConfidenceMax),
+  "evidence": zod.array(zod.string()),
+  "productId": zod.string().regex(previewStaffCatalogueMappingResponseSuggestionsItemProductIdRegExp).optional(),
+  "productHash": zod.string().regex(previewStaffCatalogueMappingResponseSuggestionsItemProductHashRegExp).optional(),
+  "localHash": zod.string().regex(previewStaffCatalogueMappingResponseSuggestionsItemLocalHashRegExp).optional(),
+  "variantIds": zod.record(zod.string(), zod.string().regex(previewStaffCatalogueMappingResponseSuggestionsItemVariantIdsRegExpOne)),
+  "choiceLabels": zod.record(zod.string(), zod.string()),
+  "issues": zod.array(zod.string())
+}))
+})
+
+
+/**
  * @summary Get valid enabled public marketing pixel identifiers
  */
 export const getPublicMarketingPixelsResponseRevisionMin = 0;
@@ -2926,6 +3213,42 @@ export const finalizeStorageUploadResponseObjectPathRegExp = new RegExp('^/api/s
 
 export const FinalizeStorageUploadResponse = zod.object({
   "objectPath": zod.string().regex(finalizeStorageUploadResponseObjectPathRegExp)
+})
+
+
+/**
+ * @summary List managed storefront media waiting for cleanup
+ */
+export const listPendingMediaCleanupResponsePathRegExp = new RegExp('^uploads');
+
+
+export const ListPendingMediaCleanupResponseItem = zod.object({
+  "path": zod.string().regex(listPendingMediaCleanupResponsePathRegExp),
+  "status": zod.enum(['queued', 'deferred', 'failed']),
+  "updatedAt": zod.coerce.date(),
+  "reason": zod.string().nullish()
+})
+export const ListPendingMediaCleanupResponse = zod.array(ListPendingMediaCleanupResponseItem)
+
+
+/**
+ * @summary Retry all managed storefront media waiting for cleanup
+ */
+export const retryPendingMediaCleanupResponseDeletedMin = 0;
+export const retryPendingMediaCleanupResponseDeletedMultipleOf = 1;
+
+export const retryPendingMediaCleanupResponseDeferredMin = 0;
+export const retryPendingMediaCleanupResponseDeferredMultipleOf = 1;
+
+export const retryPendingMediaCleanupResponseFailedMin = 0;
+export const retryPendingMediaCleanupResponseFailedMultipleOf = 1;
+
+
+
+export const RetryPendingMediaCleanupResponse = zod.object({
+  "deleted": zod.number().min(retryPendingMediaCleanupResponseDeletedMin).multipleOf(retryPendingMediaCleanupResponseDeletedMultipleOf),
+  "deferred": zod.number().min(retryPendingMediaCleanupResponseDeferredMin).multipleOf(retryPendingMediaCleanupResponseDeferredMultipleOf),
+  "failed": zod.number().min(retryPendingMediaCleanupResponseFailedMin).multipleOf(retryPendingMediaCleanupResponseFailedMultipleOf)
 })
 
 

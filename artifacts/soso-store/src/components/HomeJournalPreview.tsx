@@ -2,14 +2,13 @@ import React from 'react';
 import { useListJournalPosts } from '@workspace/api-client-react';
 import { Link } from 'wouter';
 import { format } from 'date-fns';
-import { legacyJournalPosts } from '@/data/legacy-content';
+import { mergeApprovedJournalPosts } from '@/lib/legacy-journal-indexing';
 
 export function HomeJournalPreview() {
-  const { data: posts, isLoading } = useListJournalPosts();
+  const { data: posts, isFetching, isSuccess } = useListJournalPosts();
 
-  const visiblePosts = Array.from(new Map(
-    [...legacyJournalPosts, ...(posts ?? [])].map((post) => [post.slug, post]),
-  ).values()).sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  const visiblePosts = mergeApprovedJournalPosts(posts ?? [], isSuccess && !isFetching)
+    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
   if (visiblePosts.length === 0) return null;
 

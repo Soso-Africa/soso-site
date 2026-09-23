@@ -1,205 +1,33 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
-import serverlessChromium from "@sparticuz/chromium";
-import pg from "pg";
+import { createStaffBrowserHarness } from "./staff-browser-harness.mjs";
 
-const storeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const workspaceRoot = resolve(storeRoot, "../..");
-const apiPort = 43171;
-const storePort = 43172;
-const apiOrigin = `http://127.0.0.1:${apiPort}`;
-const storeOrigin = `http://127.0.0.1:${storePort}`;
-const ownerEmail = `homepage-owner-${randomUUID()}@example.test`;
-const editorEmail = `homepage-editor-${randomUUID()}@example.test`;
-const staleEditorEmail = `homepage-stale-editor-${randomUUID()}@example.test`;
-const ownerPassword = "HomepageOwner123!";
 const editorPassword = "HomepageEditor123!";
 const staleEditorPassword = "HomepageStaleEditor123!";
-const bootstrapToken = `homepage-bootstrap-${randomUUID()}`;
-const children = [];
-let ownerCookie = "";
-let editorCookie = "";
-let staleEditorCookie = "";
-let editorId = "";
-let staleEditorId = "";
-let originalRow;
 let browser;
-let contentMutated = false;
-
-function start(command, args, options) {
-  const child = spawn(command, args, {
-    ...options,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let output = "";
-  child.stdout.on("data", (chunk) => { output += chunk; });
-  child.stderr.on("data", (chunk) => { output += chunk; });
-  children.push({ child, getOutput: () => output });
-  return child;
-}
-
-async function waitFor(url, processRecord) {
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    if (processRecord.child.exitCode !== null) {
-      throw new Error(`Process exited before ${url} was ready.\n${processRecord.getOutput()}`);
-    }
-    try {
-      const response = await fetch(url);
-      if (response.status < 500) return;
-    } catch {
-      // The server is still starting.
-    }
-    await new Promise((resolveWait) => setTimeout(resolveWait, 250));
-  }
-  throw new Error(`Timed out waiting for ${url}.\n${processRecord.getOutput()}`);
-}
-
-async function api(path, { cookie = "", method = "GET", body } = {}) {
-  const response = await fetch(`${apiOrigin}${path}`, {
-    method,
-    headers: {
-      ...(cookie ? { cookie } : {}),
-      ...(["POST", "PUT", "PATCH", "DELETE"].includes(method) ? { origin: apiOrigin } : {}),
-      ...(body === undefined ? {} : { "content-type": "application/json" }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const text = await response.text();
-  const value = text ? JSON.parse(text) : null;
-  return { response, value };
-}
-
-function sessionCookie(response) {
-  const setCookie = response.headers.get("set-cookie");
-  assert.ok(setCookie, "Expected the staff login to set a session cookie.");
-  return setCookie.split(";", 1)[0];
-}
-
-async function currentRow(cookie) {
-  const result = await api("/api/staff/content/platform", { cookie });
-  assert.equal(result.response.status, 200, JSON.stringify(result.value));
-  return result.value;
-}
-
-async function saveContent(cookie, content, expectedDraftUpdatedAt) {
-  return api("/api/staff/content/platform", {
-    cookie,
-    method: "PUT",
-    body: { content, expectedDraftUpdatedAt },
-  });
-}
-
-async function restoreContent() {
-  if (!contentMutated || !originalRow || !ownerCookie) return;
-  let row = await currentRow(ownerCookie);
-  if (originalRow.published) {
-    const publicDraft = await saveContent(ownerCookie, originalRow.published, row.draftUpdatedAt);
-    assert.equal(publicDraft.response.status, 200, JSON.stringify(publicDraft.value));
-    const published = await api("/api/staff/content/platform/publish", {
-      cookie: ownerCookie,
-      method: "POST",
-      body: { expectedDraftUpdatedAt: publicDraft.value.draftUpdatedAt },
-    });
-    assert.equal(published.response.status, 200, JSON.stringify(published.value));
-    row = published.value;
-  } else {
-    const unpublished = await api("/api/staff/content/platform/unpublish", {
-      cookie: ownerCookie,
-      method: "POST",
-      body: { expectedDraftUpdatedAt: row.draftUpdatedAt },
-    });
-    assert.equal(unpublished.response.status, 200, JSON.stringify(unpublished.value));
-    row = unpublished.value;
-  }
-  if (originalRow.draft) {
-    const restoredDraft = await saveContent(ownerCookie, originalRow.draft, row.draftUpdatedAt);
-    assert.equal(restoredDraft.response.status, 200, JSON.stringify(restoredDraft.value));
-  }
-}
+const harness = await createStaffBrowserHarness({ prefix: "homepage", ownerPassword: "HomepageOwner123!" });
+const { api, currentPlatformRow: currentRow, savePlatformContent: saveContent, storeOrigin } = harness;
 
 async function merchandisingValues(page, prefix, length) {
   return Promise.all(Array.from({ length }, (_, index) =>
     page.getByTestId(`${prefix}-${index}`).getAttribute("data-merchandising-value")));
 }
 
+async function moveStructuredCardDown(page, testId) {
+  await page.getByTestId(testId).locator(":scope > div").first()
+    .getByRole("button", { name: "Move down" }).click();
+}
+
 try {
-  assert.ok(process.env.DATABASE_URL, "DATABASE_URL is required.");
-  const database = new pg.Client({ connectionString: process.env.DATABASE_URL });
-  await database.connect();
-  await database.query(
-    `insert into soso_staff_users (clerk_user_id, email, role, is_active)
-     values ($1, $2, 'owner', true)`,
-    [`homepage-owner-${randomUUID()}`, ownerEmail],
-  );
-  await database.end();
-
-  start("node", ["--enable-source-maps", "dist/index.mjs"], {
-    cwd: resolve(workspaceRoot, "artifacts/api-server"),
-    env: {
-      ...process.env,
-      NODE_ENV: "development",
-      PORT: String(apiPort),
-      STAFF_BOOTSTRAP_TOKEN: bootstrapToken,
-    },
-  });
-  await waitFor(`${apiOrigin}/api/content/platform`, children[0]);
-
-  const bootstrap = await api("/api/staff-auth/bootstrap", {
-    method: "POST",
-    body: { email: ownerEmail, password: ownerPassword, token: bootstrapToken },
-  });
-  assert.equal(bootstrap.response.status, 201, JSON.stringify(bootstrap.value));
-  ownerCookie = sessionCookie(bootstrap.response);
-  originalRow = await currentRow(ownerCookie);
+  await harness.startServers();
+  const originalRow = harness.originalPlatformRow;
   assert.ok(originalRow.draft && originalRow.published, "The isolated storefront fixture must start with draft and published content.");
 
-  const created = await api("/api/staff/access", {
-    cookie: ownerCookie,
-    method: "POST",
-    body: { email: editorEmail, password: editorPassword, role: "editor" },
-  });
-  assert.equal(created.response.status, 201, JSON.stringify(created.value));
-  editorId = created.value.id;
-  const editorLogin = await api("/api/staff-auth/login", {
-    method: "POST",
-    body: { email: editorEmail, password: editorPassword },
-  });
-  assert.equal(editorLogin.response.status, 200, JSON.stringify(editorLogin.value));
-  editorCookie = sessionCookie(editorLogin.response);
+  const editor = await harness.createStaffUser({ label: "editor", password: editorPassword });
+  const staleEditor = await harness.createStaffUser({ label: "stale-editor", password: staleEditorPassword });
+  const { email: editorEmail, cookie: editorCookie } = editor;
+  const { email: staleEditorEmail, cookie: staleEditorCookie } = staleEditor;
 
-  const staleEditorCreated = await api("/api/staff/access", {
-    cookie: ownerCookie,
-    method: "POST",
-    body: { email: staleEditorEmail, password: staleEditorPassword, role: "editor" },
-  });
-  assert.equal(staleEditorCreated.response.status, 201, JSON.stringify(staleEditorCreated.value));
-  staleEditorId = staleEditorCreated.value.id;
-  const staleEditorLogin = await api("/api/staff-auth/login", {
-    method: "POST",
-    body: { email: staleEditorEmail, password: staleEditorPassword },
-  });
-  assert.equal(staleEditorLogin.response.status, 200, JSON.stringify(staleEditorLogin.value));
-  staleEditorCookie = sessionCookie(staleEditorLogin.response);
-
-  start("pnpm", ["exec", "vite", "--config", "vite.config.ts", "--host", "127.0.0.1", "--port", String(storePort)], {
-    cwd: storeRoot,
-    env: {
-      ...process.env,
-      NODE_ENV: "development",
-      PORT: String(storePort),
-      SOSO_API_PROXY_TARGET: apiOrigin,
-    },
-  });
-  await waitFor(storeOrigin, children[1]);
-
-  browser = await chromium.launch({
-    headless: true,
-    executablePath: await serverlessChromium.executablePath(),
-  });
+  browser = await harness.launchBrowser();
   const context = await browser.newContext();
   const staleContext = await browser.newContext();
   const page = await context.newPage();
@@ -248,9 +76,9 @@ try {
   assert.ok(alternateArrival, "Expected an alternate published product for New Arrival.");
   const productNameBySlug = new Map(originalRow.draft.products.map((product) => [product.slug, product.name]));
 
-  await page.getByTestId("homepage-category-0").getByRole("button", { name: "Move down" }).click();
+  await moveStructuredCardDown(page, "homepage-category-0");
   await page.getByTestId("homepage-featured-0").getByRole("button", { name: "Move down" }).click();
-  await page.getByTestId("homepage-occasion-0").getByRole("button", { name: "Move down" }).click();
+  await moveStructuredCardDown(page, "homepage-occasion-0");
   await page.getByTestId("homepage-new-arrival-product").selectOption(alternateArrival);
 
   const expectedCategories = [initialCategories[1], initialCategories[0], ...initialCategories.slice(2)];
@@ -272,10 +100,8 @@ try {
     page.getByTestId("btn-save-draft").click(),
   ]);
   assert.equal(saveResponse.status(), 200, await saveResponse.text());
-  contentMutated = true;
-
   const savedRow = await currentRow(editorCookie);
-  await stalePage.getByTestId("homepage-category-0").getByRole("button", { name: "Move down" }).click();
+  await moveStructuredCardDown(stalePage, "homepage-category-0");
   const [staleSaveResponse] = await Promise.all([
     stalePage.waitForResponse((response) => new URL(response.url()).pathname === "/api/staff/content/platform" && response.request().method() === "PUT"),
     stalePage.getByTestId("btn-save-draft").click(),
@@ -304,44 +130,31 @@ try {
     page.getByTestId("btn-publish").click(),
   ]);
   assert.equal(publishResponse.status(), 200, await publishResponse.text());
-  await page.goto(storeOrigin);
-  await page.getByTestId("link-home-hero-primary").waitFor();
-  assert.deepEqual(await merchandisingValues(page, "home-category", 4), expectedCategories);
-  assert.equal(await page.getByTestId("home-new-arrival").getAttribute("data-merchandising-value"), alternateArrival);
-  assert.deepEqual(await merchandisingValues(page, "home-featured", 4), expectedFeatured);
-  assert.deepEqual(await merchandisingValues(page, "home-occasion", 2), expectedOccasions);
+  const publishedRow = await currentRow(editorCookie);
+  assert.deepEqual(
+    publishedRow.published.homepage.categories.items.slice(0, 4).map((item) => item.title),
+    expectedCategories,
+    "Publishing must persist the saved homepage category order.",
+  );
   await context.close();
   await staleContext.close();
+  const publicContext = await browser.newContext();
+  const publicPage = await publicContext.newPage();
+  await publicPage.goto(storeOrigin);
+  await publicPage.getByTestId("link-home-hero-primary").waitFor();
+  assert.deepEqual(
+    await merchandisingValues(publicPage, "home-category", 4),
+    initialCategories,
+    "The public category destinations must retain their canonical route order.",
+  );
+  assert.equal(await publicPage.getByTestId("home-new-arrival").getAttribute("data-merchandising-value"), alternateArrival);
+  assert.deepEqual(await merchandisingValues(publicPage, "home-featured", 4), expectedFeatured);
+  assert.deepEqual(await merchandisingValues(publicPage, "home-occasion", 2), expectedOccasions);
+  await publicContext.close();
   console.log("Homepage merchandising and concurrent editor browser regressions passed.");
 } finally {
-  if (browser) await browser.close().catch(() => {});
-  await restoreContent().catch((error) => {
-    console.error("Failed to restore platform content:", error);
+  await harness.cleanup().catch((error) => {
+    console.error(error);
     process.exitCode = 1;
   });
-  if (editorId && ownerCookie) {
-    const deactivated = await api(`/api/staff/access/${editorId}`, {
-      cookie: ownerCookie,
-      method: "PATCH",
-      body: { isActive: false },
-    }).catch(() => null);
-    if (!deactivated || deactivated.response.status !== 200) {
-      console.error("Failed to deactivate the temporary editor.");
-      process.exitCode = 1;
-    }
-  }
-  if (staleEditorId && ownerCookie) {
-    const deactivated = await api(`/api/staff/access/${staleEditorId}`, {
-      cookie: ownerCookie,
-      method: "PATCH",
-      body: { isActive: false },
-    }).catch(() => null);
-    if (!deactivated || deactivated.response.status !== 200) {
-      console.error("Failed to deactivate the temporary stale editor.");
-      process.exitCode = 1;
-    }
-  }
-  for (const { child } of children.reverse()) {
-    if (child.exitCode === null) child.kill("SIGTERM");
-  }
 }

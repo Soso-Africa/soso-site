@@ -1,6 +1,7 @@
 import { ArrowUp, ArrowDown, Plus, Trash2, ImageUp, Loader2, WandSparkles, Check, X, Undo2, RotateCcw, Eraser, Paintbrush } from "lucide-react";
 import type { CatalogProduct } from "../../../data/platformContent";
 import { useEffect, useRef, useState } from "react";
+import { StaffImagePreview } from "./StaffImagePreview";
 import {
   prepareGarmentMask,
   redrawGarmentMask,
@@ -419,6 +420,14 @@ export function ColourEditor({
                   />
                 </label>
               </div>
+              {colour.previewImageSrc && (
+                <StaffImagePreview
+                  src={colour.previewImageSrc}
+                  alt={`${colour.label || "Colour option"} product preview`}
+                  label="Colour-specific image preview"
+                  testId={`preview-colour-image-${product.slug}-${index}`}
+                />
+              )}
             </div>
 
             <div className="flex flex-row sm:flex-col gap-2 pt-5 sm:pt-0">
@@ -519,6 +528,14 @@ export function ColourEditor({
               />
             </label>
           </div>
+          {colourVisualizer?.baseImageSrc && (
+            <StaffImagePreview
+              src={colourVisualizer.baseImageSrc}
+              alt={`${product.name} colour visualizer base`}
+              label="Colour visualizer base preview"
+              testId={`preview-mask-base-${product.slug}`}
+            />
+          )}
 
           <div className="border border-border bg-muted/20 p-4 space-y-4">
             <div>

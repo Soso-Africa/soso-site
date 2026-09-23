@@ -2,9 +2,9 @@ import React from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { Seo } from "@/components/Seo";
-import { legacyAboutBySlug } from "@/data/legacy-content";
 import { journalBodyBlocks } from "@/lib/journal-body";
-import { absoluteUrl } from "@/lib/seo";
+import { absoluteUrl, indexingEnabled } from "@/lib/seo";
+import { isLegacyEditoriallyApproved, legacyAboutBySlug } from "@/data/legacy-content";
 
 /**
  * Complete legacy brand destinations. Register this component at
@@ -13,6 +13,7 @@ import { absoluteUrl } from "@/lib/seo";
 export default function LegacyAboutPage() {
   const { slug = "" } = useParams<{ slug: string }>();
   const page = legacyAboutBySlug.get(slug);
+  const editoriallyApproved = page ? isLegacyEditoriallyApproved(page) : false;
 
   if (!page) {
     return (
@@ -37,6 +38,7 @@ export default function LegacyAboutPage() {
         title={page.seoTitle}
         description={page.seoDescription}
         path={page.canonicalPath}
+        noIndex={!(indexingEnabled && editoriallyApproved)}
         breadcrumbs={[
           { name: "About SOSO Africa", path: "/about" },
           { name: page.title, path: page.canonicalPath },

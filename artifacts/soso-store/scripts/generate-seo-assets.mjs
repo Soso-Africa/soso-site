@@ -2,6 +2,12 @@ import { mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import {
+  isLegacyEditoriallyApproved,
+  legacyAboutPages,
+  legacyJournalBySlug,
+  legacyJournalPosts,
+} from "../src/data/legacy-content.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const out = process.env.SOSO_SEO_OUTPUT_DIR
@@ -41,43 +47,6 @@ const absolute = (path) => /^https:\/\//.test(path || "") ? path : `${siteUrl}${
 const safeSlug = (value) => typeof value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
 const iso = (value) => new Date(value || Date.now()).toISOString();
 const now = iso();
-
-// This data module deliberately contains JSON literals (rather than runtime-only
-// React data) so it is the shared archival source for the client and this Node
-// build step. Keep this small loader here instead of maintaining a second copy
-// of the imported WordPress content for prerendering.
-const legacySource = await readFile(resolve(root, "src/data/legacy-content.ts"), "utf8");
-function loadLegacyCollection(name) {
-  const match = legacySource.match(new RegExp(`export const ${name}[^=]*= (\\[[\\s\\S]*?\\n\\]);`));
-  if (!match) throw new Error(`Unable to load ${name} from the shared legacy content source.`);
-  const records = JSON.parse(match[1]);
-  if (!Array.isArray(records) || records.some((record) => !safeSlug(record.slug) || !record.canonicalPath)) {
-    throw new Error(`The shared ${name} source contains an invalid archival route.`);
-  }
-  if (new Set(records.map((record) => record.slug)).size !== records.length) {
-    throw new Error(`The shared ${name} source contains duplicate archival slugs.`);
-  }
-  return records;
-}
-function loadJournalRefresh() {
-  const match = legacySource.match(/const journalRefresh[^=]*= (\{[\s\S]*?\n\});/);
-  if (!match) throw new Error("Unable to load the legacy journal editorial refresh source.");
-  const serialized = match[1]
-    .replace(/([,{]\s*)(takeaway|coverImageAlt)\s*:/g, '$1"$2":')
-    .replace(/,\s*}$/, "\n}");
-  const refresh = JSON.parse(serialized);
-  if (!refresh || typeof refresh !== "object") throw new Error("The legacy journal editorial refresh source is invalid.");
-  return refresh;
-}
-const legacyAboutPages = loadLegacyCollection("legacyAboutPages");
-const legacyJournalPosts = loadLegacyCollection("legacyJournalSourcePosts");
-const legacyJournalRefresh = loadJournalRefresh();
-if (legacyAboutPages.length !== 7 || legacyJournalPosts.length !== 14) {
-  throw new Error("The shared legacy content source must retain all 7 About pages and 14 Journal posts.");
-}
-if (legacyJournalPosts.some(({ slug }) => !legacyJournalRefresh[slug]?.takeaway || !legacyJournalRefresh[slug]?.coverImageAlt)) {
-  throw new Error("Every legacy journal article requires an editorial takeaway and descriptive image alt text.");
-}
 
 await mkdir(out, { recursive: true });
 const robotsPath = resolve(out, "robots.txt");
@@ -131,6 +100,7 @@ await Promise.all(generated.map((file) => rm(resolve(out, file), { recursive: tr
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
 let platform = {};
 let articles = [];
+let databaseArticleSlugs = new Set();
 try {
   const [content, journal] = await Promise.all([
     pool.query("select published, published_at as \"publishedAt\" from soso_site_content where key = 'platform' and published_at is not null limit 1"),
@@ -142,7 +112,20 @@ try {
       from soso_journal_posts where status = 'published' and published_at is not null order by published_at desc`) : Promise.resolve({ rows: [] }),
   ]);
   platform = content.rows[0]?.published || {};
-  const cmsArticles = journal.rows.map((row) => ({
+  let journalRows = journal.rows;
+  const fixturePath = process.env.NODE_ENV === "test"
+    ? process.env.SOSO_SEO_JOURNAL_FIXTURE_PATH
+    : "";
+  if (fixturePath) {
+    const fixture = JSON.parse(await readFile(resolve(fixturePath), "utf8"));
+    if (!Array.isArray(fixture)) throw new Error("SOSO_SEO_JOURNAL_FIXTURE_PATH must contain a JSON array.");
+    journalRows = fixture;
+  }
+  databaseArticleSlugs = new Set(journalRows.map((row) => row.slug));
+  articles = journalRows.filter((row) => {
+    if (!legacyJournalBySlug.has(row.slug)) return true;
+    return isLegacyEditoriallyApproved(row);
+  }).map((row) => ({
     ...row,
     pageTitle: row.seoTitle || row.title,
     description: row.seoDescription || row.excerpt,
@@ -150,35 +133,19 @@ try {
     publishedAt: iso(row.publishedAt),
     updatedAt: iso(row.updatedAt),
   }));
-  // A reviewed CMS entry always wins over an archival record with the same
-  // public slug. This lets editors replace migration copy without duplicate
-  // pages, feed items, or sitemap URLs.
-  articles = journalApproved ? Array.from(new Map([
-    ...legacyJournalPosts.map((post) => {
-      const refresh = legacyJournalRefresh[post.slug];
-      const index = legacyJournalPosts.findIndex(({ slug }) => slug === post.slug);
-      const presentationBody = post.slug === "abuja-modern-menswear-hub"
-        ? `## A new era of kaftan style\n\n${post.body}`
-        : post.body;
-      return [post.slug, {
-      ...post,
-      ...refresh,
-      seoTitle: `${post.title.replace(/\.$/, "")} | SOSO Africa`,
-      seoDescription: refresh.takeaway,
-      coverImageAlt: refresh.coverImageAlt,
-      pageTitle: `${post.title.replace(/\.$/, "")} | SOSO Africa`,
-      description: refresh.takeaway,
-      body: presentationBody,
-      bodyText: stripMarkdown(presentationBody),
-      relatedArticleSlugs: [
-        legacyJournalPosts[index - 1]?.slug,
-        legacyJournalPosts[index + 1]?.slug,
-      ].filter(Boolean),
-      publishedAt: iso(post.publishedAt),
-      updatedAt: iso(post.updatedAt),
-    }]; }),
-    ...cmsArticles.map((post) => [post.slug, post]),
-  ]).values()) : [];
+  if (journalApproved) {
+    for (const post of legacyJournalPosts) {
+      if (databaseArticleSlugs.has(post.slug) || !isLegacyEditoriallyApproved(post)) continue;
+      articles.push({
+        ...post,
+        pageTitle: post.seoTitle || post.title,
+        description: post.seoDescription || post.excerpt,
+        bodyText: stripMarkdown(post.body),
+        publishedAt: iso(post.publishedAt),
+        updatedAt: iso(post.updatedAt),
+      });
+    }
+  }
 } finally { await pool.end(); }
 
 const products = catalogApproved && Array.isArray(platform.products) ? platform.products.filter((p) => safeSlug(p.slug) && p.name && p.description) : [];
@@ -186,6 +153,27 @@ const collections = catalogApproved && Array.isArray(platform.collections) ? pla
 const faq = policiesApproved && Array.isArray(platform.faq?.items) ? platform.faq.items : [];
 const policyLinks = policiesApproved ? (platform.site?.footer?.legalLinks || platform.footer?.legalLinks || []) : [];
 const policyPaths = [...new Set(["/policies", "/privacy", "/terms", "/delivery-returns", "/care", ...policyLinks.map((x) => x.href).filter((x) => /^\/policies\/[a-z0-9-]+$/.test(x || ""))])];
+const approvedAboutPages = legacyAboutPages
+  .filter((item) => isLegacyEditoriallyApproved(item))
+  .map((item) => ({
+    path: item.canonicalPath,
+    title: item.seoTitle,
+    description: item.seoDescription,
+    h1: item.title,
+    body: stripMarkdown(item.body),
+    bodyHtml: renderMarkdown(item.body),
+    lastmod: item.modifiedAt,
+    about: item,
+    schema: [{
+      "@context": "https://schema.org",
+      "@type": "AboutPage",
+      name: item.title,
+      description: item.seoDescription,
+      url: absolute(item.canonicalPath),
+      datePublished: iso(item.publishedAt),
+      dateModified: iso(item.modifiedAt),
+    }],
+  }));
 const staticPages = [
   { path: "/", title: "SOSO Africa | Premium Nigerian Menswear", description: "Discover premium Nigerian menswear from SOSO Africa.", h1: "SOSO Africa", body: "Discover considered Nigerian menswear, collections, and editorial stories." },
   ...(catalogApproved ? [{ path: "/shop", title: "Shop | SOSO Africa", description: "Browse SOSO Africa collections.", h1: "Shop SOSO Africa", body: "Browse the current SOSO Africa collection." }] : []),
@@ -196,15 +184,7 @@ const staticPages = [
   ] : []),
   ...(journalApproved && articles.length ? [{ path: "/journal", title: platform.journal?.seo?.title || "Journal | SOSO Africa", description: platform.journal?.seo?.description || "Stories from SOSO Africa.", h1: platform.journal?.heading || "The Journal", body: platform.journal?.intro || "Stories from SOSO Africa." }] : []),
 ];
-const legacyAboutRoutes = legacyAboutPages.map((about) => ({
-  path: about.canonicalPath,
-  title: about.seoTitle || `${about.title} | SOSO Africa`,
-  description: about.seoDescription || about.summary,
-  h1: about.title,
-  body: stripMarkdown(about.body),
-  lastmod: iso(about.modifiedAt),
-  about,
-}));
+const legacyAboutRoutes = approvedAboutPages;
 
 function links(items) { return `<nav aria-label="Related pages">${items.map((i) => `<a href="${escapeHtml(i.path)}">${escapeHtml(i.h1 || i.name || i.title)}</a>`).join(" · ")}</nav>`; }
 function safeInlineMarkdown(value) {
@@ -249,7 +229,7 @@ async function emit(path, html) {
 }
 const routes = staticPages.map((p) => ({ ...p, lastmod: now }));
 for (const item of staticPages) {
-  const schema = item.path === "/faq" ? [{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((x) => ({ "@type": "Question", name: x.question, acceptedAnswer: { "@type": "Answer", text: x.answer } })) }] : item.path === "/journal" ? [{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: articles.map((a, i) => ({ "@type": "ListItem", position: i + 1, url: absolute(`/journal/${a.slug}`), name: a.title })) }] : [];
+  const schema = item.schema ?? (item.path === "/faq" ? [{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((x) => ({ "@type": "Question", name: x.question, acceptedAnswer: { "@type": "Answer", text: x.answer } })) }] : item.path === "/journal" ? [{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: articles.map((a, i) => ({ "@type": "ListItem", position: i + 1, url: absolute(`/journal/${a.slug}`), name: a.title })) }] : []);
   await emit(item.path, page({ ...item, schema }));
 }
 for (const item of legacyAboutRoutes) {

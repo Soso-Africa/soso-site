@@ -242,3 +242,27 @@ export async function validateProductMediaAssets(
 
   return [...results.flat(), ...visualizerResults.flat()];
 }
+
+export async function validateCollectionMediaAssets(
+  content: PlatformContent,
+  inspect: ProductMediaInspector = inspectProductMedia,
+): Promise<ProductMediaValidationIssue[]> {
+  const issues: ProductMediaValidationIssue[] = [];
+  await Promise.all(content.collections.map(async (collection, collectionIndex) => {
+    if (!collection.showCover || !collection.cover) return;
+    await Promise.all(([
+      ["cover", collection.cover],
+      ["mobileCover", collection.mobileCover],
+    ] as const).map(async ([field, asset]) => {
+      if (!asset) return;
+      const issue = await validateManagedImageAsset(asset.src, inspect);
+      if (issue) {
+        issues.push({
+          path: ["collections", collectionIndex, field, "src"],
+          message: `Collection ${field === "mobileCover" ? "phone cover" : "cover"}: ${issue}`,
+        });
+      }
+    }));
+  }));
+  return issues.sort((a, b) => a.path.join(".").localeCompare(b.path.join(".")));
+}

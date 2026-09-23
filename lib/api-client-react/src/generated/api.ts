@@ -24,11 +24,16 @@ import type {
   Acknowledgement,
   AnalyticsEventInput,
   AnalyticsQualityReport,
+  CatalogueMappingPreview,
+  CatalogueMappingPreviewInput,
   CommerceCatalog,
   CommerceCheckoutInput,
+  CommerceDiscovery,
   CommerceLocations,
   CommercePaymentSession,
   CommercePaymentStatus,
+  CommerceQuote,
+  CommerceQuoteInput,
   CommerceWebhookInput,
   CommerceWebhookReceipt,
   ConsentInput,
@@ -39,24 +44,28 @@ import type {
   CustomerMeasurements,
   Enquiry,
   EnquiryInput,
+  ExportStaffAccessoryLaunchNotificationSummaryParams,
   FaqHistoryPage,
   FaqItem,
   FinalizeUploadRequest,
   FinalizeUploadResponse,
+  GetCommerceDiscoveryParams,
   GetRedirectParams,
   GetSiteContent200,
+  GetStaffAccessoryLaunchNotificationSummaryParams,
   GetStaffAnalyticsMetricsParams,
   GetStaffExportParams,
   GetStaffFunnelParams,
   GetStaffOverviewParams,
   HealthStatus,
   JournalPost,
-  JournalPostSummary,
   ListStaffAuditEventsParams,
   ListStaffFaqHistoryParams,
   ListStaffOrdersParams,
   ListStaffPolicyHistory200Item,
   ListStaffRedirectHistory200Item,
+  ManagedMediaCleanupItem,
+  ManagedMediaCleanupSummary,
   MarketingPixelSettingsRevision,
   MarketingPixelSettingsUpdate,
   PlatformContentPublication,
@@ -73,6 +82,7 @@ import type {
   StaffAccessMapping,
   StaffAccessUpdate,
   StaffAccessoryLaunchNotification,
+  StaffAccessoryLaunchNotificationSummary,
   StaffAnalyticsMetrics,
   StaffAuditEvent,
   StaffEnquiryUpdate,
@@ -435,6 +445,161 @@ export const useInitiateCommerceCheckout = <TError = ErrorType<void>,
       return useMutation(getInitiateCommerceCheckoutMutationOptions(options));
     }
 
+export const getGetCommerceDiscoveryUrl = (params?: GetCommerceDiscoveryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/payment/discovery?${stringifiedParams}` : `/api/payment/discovery`
+}
+
+/**
+ * @summary Discover public-safe JusticeSure currencies, readiness, and corridors
+ */
+export const getCommerceDiscovery = async (params?: GetCommerceDiscoveryParams, options?: Parameters<typeof customFetch>[1]): Promise<CommerceDiscovery> => {
+
+  return customFetch<CommerceDiscovery>(getGetCommerceDiscoveryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCommerceDiscoveryQueryKey = (params?: GetCommerceDiscoveryParams,) => {
+    return [
+    `/api/payment/discovery`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetCommerceDiscoveryQueryOptions = <TData = Awaited<ReturnType<typeof getCommerceDiscovery>>, TError = ErrorType<unknown>>(params?: GetCommerceDiscoveryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommerceDiscovery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCommerceDiscoveryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommerceDiscovery>>> = ({ signal }) => getCommerceDiscovery(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCommerceDiscovery>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCommerceDiscoveryQueryResult = NonNullable<Awaited<ReturnType<typeof getCommerceDiscovery>>>
+export type GetCommerceDiscoveryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Discover public-safe JusticeSure currencies, readiness, and corridors
+ */
+
+export function useGetCommerceDiscovery<TData = Awaited<ReturnType<typeof getCommerceDiscovery>>, TError = ErrorType<unknown>>(
+ params?: GetCommerceDiscoveryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCommerceDiscovery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCommerceDiscoveryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCommerceQuoteUrl = () => {
+
+
+
+
+  return `/api/payment/quote`
+}
+
+/**
+ * @summary Create a customer-reviewable immutable JusticeSure quote
+ */
+export const createCommerceQuote = async (commerceQuoteInput: CommerceQuoteInput, options?: Parameters<typeof customFetch>[1]): Promise<CommerceQuote> => {
+
+  return customFetch<CommerceQuote>(getCreateCommerceQuoteUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(commerceQuoteInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCommerceQuoteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommerceQuote>>, TError,{data: BodyType<CommerceQuoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCommerceQuote>>, TError,{data: BodyType<CommerceQuoteInput>}, TContext> => {
+
+const mutationKey = ['createCommerceQuote'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCommerceQuote>>, {data: BodyType<CommerceQuoteInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCommerceQuote(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCommerceQuoteMutationResult = NonNullable<Awaited<ReturnType<typeof createCommerceQuote>>>
+    export type CreateCommerceQuoteMutationBody = BodyType<CommerceQuoteInput>
+    export type CreateCommerceQuoteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a customer-reviewable immutable JusticeSure quote
+ */
+export const useCreateCommerceQuote = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCommerceQuote>>, TError,{data: BodyType<CommerceQuoteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCommerceQuote>>,
+        TError,
+        {data: BodyType<CommerceQuoteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCommerceQuoteMutationOptions(options));
+    }
+
 export const getGetCommercePaymentStatusUrl = (attemptId: string,) => {
 
 
@@ -444,6 +609,7 @@ export const getGetCommercePaymentStatusUrl = (attemptId: string,) => {
 }
 
 /**
+ * The browser supplies only SOSO's local attempt ID. SOSO recovers payment state server-side with the persisted JusticeSure order and payment-attempt identifiers, then projects the authoritative JusticeSure order status. Redirect parameters never establish payment.
  * @summary Read JusticeSure-verified status for a browser-owned checkout attempt
  */
 export const getCommercePaymentStatus = async (attemptId: string, options?: Parameters<typeof customFetch>[1]): Promise<CommercePaymentStatus> => {
@@ -1177,9 +1343,9 @@ export const getListJournalPostsUrl = () => {
 /**
  * @summary List published Journal articles
  */
-export const listJournalPosts = async ( options?: Parameters<typeof customFetch>[1]): Promise<JournalPostSummary[]> => {
+export const listJournalPosts = async ( options?: Parameters<typeof customFetch>[1]): Promise<JournalPost[]> => {
 
-  return customFetch<JournalPostSummary[]>(getListJournalPostsUrl(),
+  return customFetch<JournalPost[]>(getListJournalPostsUrl(),
   {
     ...options,
     method: 'GET'
@@ -2738,6 +2904,174 @@ export function useListStaffAccessoryLaunchNotifications<TData = Awaited<ReturnT
 
 
 
+export const getGetStaffAccessoryLaunchNotificationSummaryUrl = (params?: GetStaffAccessoryLaunchNotificationSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/accessory-launch-notifications/summary?${stringifiedParams}` : `/api/staff/accessory-launch-notifications/summary`
+}
+
+/**
+ * @summary Compare privacy-safe accessory launch demand by category and product
+ */
+export const getStaffAccessoryLaunchNotificationSummary = async (params?: GetStaffAccessoryLaunchNotificationSummaryParams, options?: Parameters<typeof customFetch>[1]): Promise<StaffAccessoryLaunchNotificationSummary> => {
+
+  return customFetch<StaffAccessoryLaunchNotificationSummary>(getGetStaffAccessoryLaunchNotificationSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffAccessoryLaunchNotificationSummaryQueryKey = (params?: GetStaffAccessoryLaunchNotificationSummaryParams,) => {
+    return [
+    `/api/staff/accessory-launch-notifications/summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetStaffAccessoryLaunchNotificationSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getStaffAccessoryLaunchNotificationSummary>>, TError = ErrorType<void>>(params?: GetStaffAccessoryLaunchNotificationSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffAccessoryLaunchNotificationSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffAccessoryLaunchNotificationSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffAccessoryLaunchNotificationSummary>>> = ({ signal }) => getStaffAccessoryLaunchNotificationSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffAccessoryLaunchNotificationSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffAccessoryLaunchNotificationSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffAccessoryLaunchNotificationSummary>>>
+export type GetStaffAccessoryLaunchNotificationSummaryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Compare privacy-safe accessory launch demand by category and product
+ */
+
+export function useGetStaffAccessoryLaunchNotificationSummary<TData = Awaited<ReturnType<typeof getStaffAccessoryLaunchNotificationSummary>>, TError = ErrorType<void>>(
+ params?: GetStaffAccessoryLaunchNotificationSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffAccessoryLaunchNotificationSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffAccessoryLaunchNotificationSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportStaffAccessoryLaunchNotificationSummaryUrl = (params?: ExportStaffAccessoryLaunchNotificationSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/accessory-launch-notifications/summary/export?${stringifiedParams}` : `/api/staff/accessory-launch-notifications/summary/export`
+}
+
+/**
+ * @summary Download privacy-safe accessory launch demand as CSV
+ */
+export const exportStaffAccessoryLaunchNotificationSummary = async (params?: ExportStaffAccessoryLaunchNotificationSummaryParams, options?: Parameters<typeof customFetch>[1]): Promise<string> => {
+
+  return customFetch<string>(getExportStaffAccessoryLaunchNotificationSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportStaffAccessoryLaunchNotificationSummaryQueryKey = (params?: ExportStaffAccessoryLaunchNotificationSummaryParams,) => {
+    return [
+    `/api/staff/accessory-launch-notifications/summary/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportStaffAccessoryLaunchNotificationSummaryQueryOptions = <TData = Awaited<ReturnType<typeof exportStaffAccessoryLaunchNotificationSummary>>, TError = ErrorType<void>>(params?: ExportStaffAccessoryLaunchNotificationSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportStaffAccessoryLaunchNotificationSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportStaffAccessoryLaunchNotificationSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportStaffAccessoryLaunchNotificationSummary>>> = ({ signal }) => exportStaffAccessoryLaunchNotificationSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportStaffAccessoryLaunchNotificationSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportStaffAccessoryLaunchNotificationSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof exportStaffAccessoryLaunchNotificationSummary>>>
+export type ExportStaffAccessoryLaunchNotificationSummaryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download privacy-safe accessory launch demand as CSV
+ */
+
+export function useExportStaffAccessoryLaunchNotificationSummary<TData = Awaited<ReturnType<typeof exportStaffAccessoryLaunchNotificationSummary>>, TError = ErrorType<void>>(
+ params?: ExportStaffAccessoryLaunchNotificationSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportStaffAccessoryLaunchNotificationSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportStaffAccessoryLaunchNotificationSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getUpdateStaffOrderUrl = (id: string,) => {
 
 
@@ -4155,6 +4489,77 @@ export function useListStaffPlatformContentRevisions<TData = Awaited<ReturnType<
 
 
 
+export const getPreviewStaffCatalogueMappingUrl = () => {
+
+
+
+
+  return `/api/staff/commerce/catalogue-mapping/preview`
+}
+
+/**
+ * @summary Match SOSO catalogue choices to a current JusticeSure catalogue snapshot
+ */
+export const previewStaffCatalogueMapping = async (catalogueMappingPreviewInput: CatalogueMappingPreviewInput, options?: Parameters<typeof customFetch>[1]): Promise<CatalogueMappingPreview> => {
+
+  return customFetch<CatalogueMappingPreview>(getPreviewStaffCatalogueMappingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(catalogueMappingPreviewInput)
+  }
+);}
+
+
+
+
+
+export const getPreviewStaffCatalogueMappingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewStaffCatalogueMapping>>, TError,{data: BodyType<CatalogueMappingPreviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewStaffCatalogueMapping>>, TError,{data: BodyType<CatalogueMappingPreviewInput>}, TContext> => {
+
+const mutationKey = ['previewStaffCatalogueMapping'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewStaffCatalogueMapping>>, {data: BodyType<CatalogueMappingPreviewInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewStaffCatalogueMapping(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewStaffCatalogueMappingMutationResult = NonNullable<Awaited<ReturnType<typeof previewStaffCatalogueMapping>>>
+    export type PreviewStaffCatalogueMappingMutationBody = BodyType<CatalogueMappingPreviewInput>
+    export type PreviewStaffCatalogueMappingMutationError = ErrorType<void>
+
+    /**
+ * @summary Match SOSO catalogue choices to a current JusticeSure catalogue snapshot
+ */
+export const usePreviewStaffCatalogueMapping = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewStaffCatalogueMapping>>, TError,{data: BodyType<CatalogueMappingPreviewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof previewStaffCatalogueMapping>>,
+        TError,
+        {data: BodyType<CatalogueMappingPreviewInput>},
+        TContext
+      > => {
+      return useMutation(getPreviewStaffCatalogueMappingMutationOptions(options));
+    }
+
 export const getGetPublicMarketingPixelsUrl = () => {
 
 
@@ -5477,6 +5882,154 @@ export const useFinalizeStorageUpload = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getFinalizeStorageUploadMutationOptions(options));
+    }
+
+export const getListPendingMediaCleanupUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/cleanup-pending`
+}
+
+/**
+ * @summary List managed storefront media waiting for cleanup
+ */
+export const listPendingMediaCleanup = async ( options?: Parameters<typeof customFetch>[1]): Promise<ManagedMediaCleanupItem[]> => {
+
+  return customFetch<ManagedMediaCleanupItem[]>(getListPendingMediaCleanupUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingMediaCleanupQueryKey = () => {
+    return [
+    `/api/storage/uploads/cleanup-pending`
+    ] as const;
+    }
+
+
+export const getListPendingMediaCleanupQueryOptions = <TData = Awaited<ReturnType<typeof listPendingMediaCleanup>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingMediaCleanup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingMediaCleanupQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingMediaCleanup>>> = ({ signal }) => listPendingMediaCleanup({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingMediaCleanup>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPendingMediaCleanupQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingMediaCleanup>>>
+export type ListPendingMediaCleanupQueryError = ErrorType<void>
+
+
+/**
+ * @summary List managed storefront media waiting for cleanup
+ */
+
+export function useListPendingMediaCleanup<TData = Awaited<ReturnType<typeof listPendingMediaCleanup>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingMediaCleanup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPendingMediaCleanupQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRetryPendingMediaCleanupUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/cleanup-pending`
+}
+
+/**
+ * @summary Retry all managed storefront media waiting for cleanup
+ */
+export const retryPendingMediaCleanup = async ( options?: Parameters<typeof customFetch>[1]): Promise<ManagedMediaCleanupSummary> => {
+
+  return customFetch<ManagedMediaCleanupSummary>(getRetryPendingMediaCleanupUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetryPendingMediaCleanupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryPendingMediaCleanup>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retryPendingMediaCleanup>>, TError,void, TContext> => {
+
+const mutationKey = ['retryPendingMediaCleanup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retryPendingMediaCleanup>>, void> = () => {
+
+
+          return  retryPendingMediaCleanup(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetryPendingMediaCleanupMutationResult = NonNullable<Awaited<ReturnType<typeof retryPendingMediaCleanup>>>
+
+    export type RetryPendingMediaCleanupMutationError = ErrorType<void>
+
+    /**
+ * @summary Retry all managed storefront media waiting for cleanup
+ */
+export const useRetryPendingMediaCleanup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retryPendingMediaCleanup>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof retryPendingMediaCleanup>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getRetryPendingMediaCleanupMutationOptions(options));
     }
 
 export const getGetStorageObjectUrl = (objectPath: string,) => {

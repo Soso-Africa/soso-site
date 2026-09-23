@@ -10,13 +10,16 @@ Sources: live `page-sitemap.xml`, `post-sitemap.xml`, and WordPress REST page/po
 - 7 About/brand destination pages preserved.
 - WordPress samples, duplicate shop tests, plugin/account utilities, wishlist and payment-success utility pages were not copied.
 - The machine-readable register, including dates, media, SEO metadata, status, and structured-data decisions, is `legacy-content-inventory.json`.
-- Migrated copy requires editorial approval before indexing; no claims have been expanded beyond the source.
+- All 21 migrated About pages and journal articles received a claim-class review on 1 September 2026. The decisions and evidence policy are recorded in `docs/soso-legacy-claims-review.md`.
+- Slug-level claim approval remains an indexing gate alongside media publication approval. A missing, pending, or changed claim revision keeps the affected route and its preview cards out of indexable surfaces.
+- The separate product register, `soso-legacy-product-inventory.json`, snapshots the 144 live product-sitemap URLs: one `/shop/` index plus 143 product pages, together with all 11 legacy product categories.
 
 ## Redirect register
 
 | Legacy URL | New route / decision | Status |
 |---|---|---|
 | https://shopsoso.co/ | / | 301-required |
+| https://shopsoso.co/shop/ | /shop | 301-required |
 | https://shopsoso.co/sample-page/ | Retire; no content copy | 410-retire |
 | https://shopsoso.co/my-account/ | /sign-in | 301-required |
 | https://shopsoso.co/privacy-policy-2/ | /privacy | 301-required |
@@ -64,8 +67,12 @@ Sources: live `page-sitemap.xml`, `post-sitemap.xml`, and WordPress REST page/po
 The local content module and routes are now integrated:
 
 - `/about/:slug` → `LegacyAboutPage`
-- Journal listing/detail merge `legacyJournalPosts` as the archival fallback while keeping a matching CMS record authoritative.
+- Journal listing/detail may consume only `legacyJournalPosts`: the published projection of approved records. Pending source and editorial records are never public fallbacks, while a matching CMS record remains authoritative.
+- Journal approval requires verified SOSO-owned media mirrors for every legacy asset, with a SHA-256 checksum for each mirror. Published projections use mirror URLs rather than WordPress source URLs.
+- Exact claim approval applies independently to detail metadata, listing and preview cards, related links, and crawler artifacts.
 
-The approved redirect rows are bundled, seeded idempotently into the redirect store, and served by the real HTTP 301 endpoint through the Vercel rewrite rules. Development HTTP checks verified representative About and `danshiki` redirects. Production population and a complete production-domain redirect crawl remain required after deployment; client routing alone is not treated as evidence.
+The approved redirect rows are bundled, seeded idempotently into the redirect store, and served by the real HTTP 301 endpoint through the Vercel rewrite rules. Vercel routes the legacy `/shop/` index and product, category, article, and page families through the API redirect endpoint so the browser receives a true HTTP 301; client routing is only a development fallback. Development HTTP checks verified representative About and `danshiki` redirects. Production population and a complete production-domain redirect crawl remain required after deployment; client routing alone is not treated as evidence.
 
-The remaining launch gates are external: editorial/legal approval of preserved claims, rights and durable hosting for remote legacy media, final live-sitemap reconciliation, approved production-domain cutover, and Search Console/indexing verification.
+Legacy catalogue imports may be saved only into the Staff draft. The platform publication endpoint identifies imported records from immutable source identity and the reviewed inventory, then rejects publication until business approval, verified SOSO-owned image mirrors, and an explicit browse or checkout review state are present. Browse-only approval still requires `unavailable` fulfilment and no Commerce IDs. Checkout approval additionally requires exact reviewed JusticeSure product and variant IDs, price, currency, availability, and end-to-end verification evidence.
+
+The remaining launch gates are external: rights and durable hosting for remote legacy media, final live-sitemap reconciliation, approved production-domain cutover, and Search Console/indexing verification.

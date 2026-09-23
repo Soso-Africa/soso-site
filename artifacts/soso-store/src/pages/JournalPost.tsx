@@ -12,8 +12,9 @@ import { journalApproved, indexingEnabled } from '@/lib/seo';
 import { journalBodyBlocks, journalInlineParts } from '@/lib/journal-body';
 import { rememberEditorialOrigin, trackStorefrontEvent } from '@/components/ConsentManager';
 import { PlatformContentState, usePlatformContent } from '@/data/platformContent';
-import { legacyJournalBySlug, legacyJournalPosts } from '@/data/legacy-content';
 import { StylistEnquiryDialog } from '@/components/StylistEnquiryDialog';
+import { legacyJournalBySlug, legacyJournalEditorialBySlug } from '@/data/legacy-content';
+import { isResolvedLegacyJournalIndexable, mergeApprovedJournalPosts } from '@/lib/legacy-journal-indexing';
 
 export function StructuredJournalBody({ body }: { body: string }) {
   const renderInline = (value: string) => journalInlineParts(value).map((part, index) =>
@@ -37,14 +38,13 @@ export default function JournalPost() {
   const params = useParams();
   const slug = params.slug || '';
   const legacyPost = legacyJournalBySlug.get(slug);
-  const { data: allPosts } = useListJournalPosts({
+  const reviewedLegacyPost = legacyJournalEditorialBySlug.get(slug);
+  const { data: allPosts, isFetching: isListFetching, isSuccess: isListSuccess } = useListJournalPosts({
     query: { queryKey: ["journal-list-for-related"] },
   });
-  const hasCmsPost = allPosts?.some((article) => article.slug === slug) ?? false;
-  const { data: apiPost, isLoading, isError, error: articleError } = useGetJournalPost(slug, {
+  const { data: apiPost, isLoading, isFetching, isError, error: articleError } = useGetJournalPost(slug, {
     query: {
       queryKey: getGetJournalPostQueryKey(slug),
-      enabled: !legacyPost || hasCmsPost,
     },
   });
   const post = apiPost ?? legacyPost;
@@ -96,15 +96,24 @@ export default function JournalPost() {
   // A CMS article with this slug is authoritative; archival takeaways apply
   // only while the preserved source is what is being rendered.
   const takeaway = (apiPost ? undefined : legacyPost?.takeaway) ?? post.excerpt;
-  const canIndex = journalApproved && indexingEnabled;
+  const legacyReview = reviewedLegacyPost
+    ? isResolvedLegacyJournalIndexable({
+      legacyPost: reviewedLegacyPost,
+      apiPost,
+      isLoading: isFetching,
+      isError,
+      errorStatus: (articleError as { status?: number } | null)?.status,
+    })
+    : undefined;
+  const canIndex = journalApproved
+    && indexingEnabled
+    && legacyReview !== false;
 
   const relatedProducts = (post.relatedProductSlugs ?? [])
     .map((s) => platform.data.content.products.find((p) => p.slug === s))
     .filter((product): product is NonNullable<typeof product> => Boolean(product));
 
-  const availableArticles = Array.from(new Map(
-    [...legacyJournalPosts, ...(allPosts ?? [])].map((article) => [article.slug, article]),
-  ).values());
+  const availableArticles = mergeApprovedJournalPosts(allPosts ?? [], isListSuccess && !isListFetching);
   const relatedArticles = availableArticles.filter((a) => post.relatedArticleSlugs?.includes(a.slug) && a.slug !== post.slug);
 
   return (

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommerceCatalogVariantAttributes } from './commerceCatalogVariantAttributes';
 
 export interface CommerceCatalogVariant {
   /**
@@ -14,7 +15,16 @@ export interface CommerceCatalogVariant {
   id: string;
   /**
      * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * @minLength 1
      * @maxLength 160
      */
   label: string;
+  attributes: CommerceCatalogVariantAttributes;
+  /** @minimum 0 */
+  amountKobo: number;
+  inStock: boolean;
 }

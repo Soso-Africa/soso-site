@@ -1,6 +1,7 @@
 import { ArrowUp, ArrowDown, Plus, Trash2, ImageUp, Loader2 } from "lucide-react";
 import type { CatalogProduct } from "../../../data/platformContent";
 import { useState } from "react";
+import { StaffImagePreview } from "./StaffImagePreview";
 
 type ProductImage = NonNullable<CatalogProduct["images"]>[0];
 type MaterialTurnSet = NonNullable<CatalogProduct["materialTurnSets"]>[0];
@@ -62,6 +63,12 @@ export function MaterialTurnSetsEditor({ product, onChange, onUploadMedia }: { p
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] font-bold uppercase tracking-wider text-foreground">{view} View</span>
         </div>
+        <StaffImagePreview
+          src={img.src}
+          alt={img.alt}
+          label={`${view} view preview`}
+          testId={`preview-material-${view}-${product.slug}-${index}`}
+        />
         
         <div className="flex items-end gap-3">
           <label className="block flex-1">
