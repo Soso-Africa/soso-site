@@ -2441,6 +2441,78 @@ export const PublishStaffPlatformContentResponse = zod.object({
 
 
 /**
+ * @summary Publish one complete, unavailable catalogue product without republishing unrelated products
+ */
+export const publishStaffPlatformProductPathSlugMax = 160;
+
+
+
+export const PublishStaffPlatformProductParams = zod.object({
+  "slug": zod.coerce.string().min(1).max(publishStaffPlatformProductPathSlugMax)
+})
+
+export const PublishStaffPlatformProductBody = zod.object({
+  "expectedDraftUpdatedAt": zod.coerce.date(),
+  "expectedPublishedAt": zod.coerce.date()
+})
+
+export const PublishStaffPlatformProductResponse = zod.object({
+  "key": zod.enum(['platform']),
+  "draft": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "published": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "updatedByClerkUserId": zod.string().nullish(),
+  "publishedByClerkUserId": zod.string().nullish()
+})
+
+
+/**
+ * @summary Remove one previously published, unavailable product that is absent from the saved draft
+ */
+export const unpublishStaffPlatformProductPathSlugMax = 160;
+
+
+
+export const UnpublishStaffPlatformProductParams = zod.object({
+  "slug": zod.coerce.string().min(1).max(unpublishStaffPlatformProductPathSlugMax)
+})
+
+export const UnpublishStaffPlatformProductBody = zod.object({
+  "expectedDraftUpdatedAt": zod.coerce.date(),
+  "expectedPublishedAt": zod.coerce.date()
+})
+
+export const UnpublishStaffPlatformProductResponse = zod.object({
+  "key": zod.enum(['platform']),
+  "draft": zod.object({
+  "site": zod.record(zod.string(), zod.unknown()),
+  "homepage": zod.record(zod.string(), zod.unknown()),
+  "pages": zod.record(zod.string(), zod.unknown()),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())),
+  "collections": zod.array(zod.record(zod.string(), zod.unknown())),
+  "sizeGuide": zod.record(zod.string(), zod.unknown()),
+  "productCopy": zod.record(zod.string(), zod.unknown()),
+  "supportCopy": zod.record(zod.string(), zod.unknown())
+}).describe('Complete validated platform document containing site globals, homepage and page copy, products, collections, size guide, product copy, and support copy.'),
+  "published": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullish(),
+  "updatedByClerkUserId": zod.string().nullish(),
+  "publishedByClerkUserId": zod.string().nullish()
+})
+
+
+/**
  * @summary Remove the public platform document without deleting its draft
  */
 export const UnpublishStaffPlatformContentBody = zod.object({
@@ -2476,7 +2548,7 @@ export const listStaffPlatformContentRevisionsResponseIdRegExp = new RegExp('^[0
 export const ListStaffPlatformContentRevisionsResponseItem = zod.object({
   "id": zod.string().regex(listStaffPlatformContentRevisionsResponseIdRegExp),
   "contentKey": zod.enum(['platform']),
-  "event": zod.enum(['draft_saved', 'published', 'unpublished']),
+  "event": zod.enum(['draft_saved', 'published', 'published_product', 'unpublished', 'unpublished_product']),
   "snapshot": zod.record(zod.string(), zod.unknown()).nullish(),
   "contentHash": zod.string(),
   "createdByClerkUserId": zod.string(),

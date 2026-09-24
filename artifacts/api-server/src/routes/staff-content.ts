@@ -33,6 +33,7 @@ import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-
 import { validateLegacyProductPublication } from "../lib/legacy-product-publication";
 import { validateAccessoryProductPublication } from "../lib/accessory-product-publication";
 import { validateCollectionMediaAssets, validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
+import { platformProductReferences } from "../lib/platform-product-references";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
 import { JusticeSureCommerceClient, JusticeSureRequestError } from "../lib/justicesureCommerce";
@@ -699,6 +700,166 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
   res.json(result.row);
 });
 
+router.post("/staff/content/platform/products/:slug/publish", platformRoles, async (req, res): Promise<void> => {
+  const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(160).safeParse(req.params.slug);
+  const expectedDraft = expectedDraftDate(req.body?.expectedDraftUpdatedAt);
+  const expectedPublished = expectedDraftDate(req.body?.expectedPublishedAt);
+  if (!slug.success || !expectedDraft || !expectedPublished) {
+    res.status(400).json({ error: "Provide a product slug and the current draft and published timestamps." });
+    return;
+  }
+  await ensurePlatformContent();
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const [row] = await tx.select().from(siteContentTable).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      eq(siteContentTable.publishedAt, expectedPublished),
+    )).limit(1);
+    if (!row) return { kind: "conflict" as const };
+    const draft = PlatformContentSchema.safeParse(row.draft);
+    const published = PlatformContentSchema.safeParse(row.published);
+    if (!draft.success || !published.success) {
+      return { kind: "invalid" as const, error: "The saved draft or published catalogue is invalid. Use the full publication workflow.", issues: !draft.success ? draft.error.issues : !published.success ? published.error.issues : [] };
+    }
+    const product = draft.data.products.find((item) => item.slug === slug.data);
+    if (!product) return { kind: "invalid" as const, error: "The product is not in the saved draft.", issues: [] };
+    const previous = published.data.products.find((item) => item.slug === slug.data);
+    if (product.releaseState !== "placeholder" || product.fulfilmentState !== "unavailable" ||
+        product.commerceProductId || product.commerceVariantIds || product.commerceMappingConfirmation ||
+        (previous && previous.fulfilmentState !== "unavailable")) {
+      return { kind: "invalid" as const, error: "Product-only publishing is for browse-only, unavailable products without a JusticeSure mapping. Available products require full catalogue publication and verified checkout mappings.", issues: [] };
+    }
+    const products = previous
+      ? published.data.products.map((item) => item.slug === slug.data ? product : item)
+      : [product, ...published.data.products];
+    const candidate = PlatformContentSchema.safeParse({ ...published.data, products });
+    if (!candidate.success) {
+      return { kind: "invalid" as const, error: "This product cannot be published without updating referenced catalogue content.", issues: candidate.error.issues };
+    }
+    const selectedContent = { ...candidate.data, products: [product] };
+    const unfinished = unfinishedProductImages(selectedContent);
+    if (unfinished.length) {
+      return { kind: "invalid" as const, error: "Finish this product’s images before publishing it.", issues: unfinished };
+    }
+    const legacyIssues = validateLegacyProductPublication(selectedContent);
+    if (legacyIssues.length) return { kind: "invalid" as const, error: "Legacy product approval is required.", issues: legacyIssues };
+    const accessoryIssues = validateAccessoryProductPublication(selectedContent);
+    if (accessoryIssues.length) return { kind: "invalid" as const, error: "Accessory publication checks failed.", issues: accessoryIssues };
+    const mediaIssues = await validateProductMediaAssets(selectedContent);
+    if (mediaIssues.length) return { kind: "invalid" as const, error: "This product’s media did not pass publication checks.", issues: mediaIssues };
+    const now = new Date();
+    const [updated] = await tx.update(siteContentTable).set({
+      published: candidate.data, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
+    }).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      eq(siteContentTable.publishedAt, expectedPublished),
+    )).returning();
+    if (!updated) return { kind: "conflict" as const };
+    const hash = platformContentHash(candidate.data);
+    const [revision] = await tx.insert(siteContentRevisionsTable).values({
+      contentKey: "platform", event: "published_product", snapshot: candidate.data,
+      contentHash: hash, createdByClerkUserId: req.staff!.clerkUserId,
+    }).returning({ id: siteContentRevisionsTable.id });
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId, action: "platform_content.product_published",
+      entityType: "site_content", entityId: "platform",
+      metadata: { slug: slug.data, contentHash: hash, revisionId: revision!.id, publishedAt: now.toISOString() },
+    });
+    return { kind: "published" as const, row: updated };
+  });
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: "The saved draft or published catalogue changed. Reload before publishing this product." });
+  } else if (result.kind === "invalid") {
+    res.status(400).json({ error: result.error, issues: result.issues });
+  } else {
+    res.json(result.row);
+  }
+});
+
+router.post("/staff/content/platform/products/:slug/unpublish", platformRoles, async (req, res): Promise<void> => {
+  const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(160).safeParse(req.params.slug);
+  const expectedDraft = expectedDraftDate(req.body?.expectedDraftUpdatedAt);
+  const expectedPublished = expectedDraftDate(req.body?.expectedPublishedAt);
+  if (!slug.success || !expectedDraft || !expectedPublished) {
+    res.status(400).json({ error: "Provide a product slug and the current draft and published timestamps." });
+    return;
+  }
+  await ensurePlatformContent();
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const [row] = await tx.select().from(siteContentTable).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      eq(siteContentTable.publishedAt, expectedPublished),
+    )).limit(1);
+    if (!row) return { kind: "conflict" as const };
+    const draft = PlatformContentSchema.safeParse(row.draft);
+    const published = PlatformContentSchema.safeParse(row.published);
+    if (!draft.success || !published.success) {
+      return { kind: "invalid" as const, error: "The saved draft or published catalogue is invalid. Use the full publication workflow.", issues: !draft.success ? draft.error.issues : !published.success ? published.error.issues : [] };
+    }
+    if (draft.data.products.some((product) => product.slug === slug.data)) {
+      return { kind: "invalid" as const, error: "Remove this product from the draft and save it before publishing its removal.", issues: [] };
+    }
+    const product = published.data.products.find((item) => item.slug === slug.data);
+    if (!product) return { kind: "invalid" as const, error: "This product is not currently published.", issues: [] };
+    if (product.fulfilmentState !== "unavailable" ||
+        product.commerceProductId || product.commerceVariantIds || product.commerceMappingConfirmation) {
+      return { kind: "invalid" as const, error: "Only unavailable products without JusticeSure mappings can be removed independently. Available or mapped products require full catalogue publication.", issues: [] };
+    }
+    const references = platformProductReferences(published.data, slug.data);
+    if (references.length) {
+      return { kind: "invalid" as const, error: "Remove public storefront references before unpublishing this product.", issues: references.map((path) => `${path} links to ${slug.data}`) };
+    }
+    const journal = await tx.select({
+      slug: journalPostsTable.slug, body: journalPostsTable.body,
+      relatedProductSlugs: journalPostsTable.relatedProductSlugs,
+    }).from(journalPostsTable).where(eq(journalPostsTable.status, "published"));
+    const journalReferences = journal.filter((post) =>
+      post.relatedProductSlugs?.includes(slug.data) || journalBodyProductSlugs(post.body).includes(slug.data))
+      .map((post) => `Journal “${post.slug}” links to ${slug.data}.`);
+    if (journalReferences.length) {
+      return { kind: "invalid" as const, error: "Remove published Journal references before unpublishing this product.", issues: journalReferences };
+    }
+    const candidate = PlatformContentSchema.safeParse({
+      ...published.data,
+      products: published.data.products.filter((item) => item.slug !== slug.data),
+    });
+    if (!candidate.success) {
+      return { kind: "invalid" as const, error: "The public catalogue needs other changes before this product can be removed.", issues: candidate.error.issues };
+    }
+    const now = new Date();
+    const [updated] = await tx.update(siteContentTable).set({
+      published: candidate.data, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
+    }).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      eq(siteContentTable.publishedAt, expectedPublished),
+    )).returning();
+    if (!updated) return { kind: "conflict" as const };
+    const hash = platformContentHash(candidate.data);
+    const [revision] = await tx.insert(siteContentRevisionsTable).values({
+      contentKey: "platform", event: "unpublished_product", snapshot: candidate.data,
+      contentHash: hash, createdByClerkUserId: req.staff!.clerkUserId,
+    }).returning({ id: siteContentRevisionsTable.id });
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId, action: "platform_content.product_unpublished",
+      entityType: "site_content", entityId: "platform",
+      metadata: { slug: slug.data, contentHash: hash, revisionId: revision!.id, publishedAt: now.toISOString() },
+    });
+    return { kind: "unpublished" as const, row: updated };
+  });
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: "The saved draft or published catalogue changed. Reload before unpublishing this product." });
+  } else if (result.kind === "invalid") {
+    res.status(400).json({ error: result.error, issues: result.issues });
+  } else {
+    res.json(result.row);
+  }
+});
+
 router.post("/staff/content/platform/unpublish", platformRoles, async (req, res): Promise<void> => {
   const expected = expectedDraftDate(req.body?.expectedDraftUpdatedAt);
   if (!expected) { res.status(400).json({ error: "expectedDraftUpdatedAt is required" }); return; }
@@ -901,6 +1062,29 @@ async function validateRelatedArticles(
   return null;
 }
 
+function journalBodyProductSlugs(body: string): string[] {
+  return [...body.matchAll(/\[[^\]\n]+\]\(\/product\/([a-z0-9]+(?:-[a-z0-9]+)*)\)/g)]
+    .map((match) => match[1]!);
+}
+
+async function validatePublishedJournalProducts(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  body: string,
+  relatedProductSlugs: string[] | null | undefined,
+  status: string,
+): Promise<string | null> {
+  if (status !== "published") return null;
+  const slugs = [...new Set([...(relatedProductSlugs ?? []), ...journalBodyProductSlugs(body)])];
+  if (!slugs.length) return null;
+  const [platform] = await tx.select({ published: siteContentTable.published })
+    .from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
+  const published = PlatformContentSchema.safeParse(platform?.published);
+  if (!published.success) return "The published catalogue is unavailable. Product links cannot be checked.";
+  const available = new Set(published.data.products.map((product) => product.slug));
+  const missing = slugs.filter((slug) => !available.has(slug));
+  return missing.length ? `Published Journal posts can only link to published products. Remove these missing product links: ${missing.join(", ")}.` : null;
+}
+
 router.get("/staff/journal", requireStaffRoles("owner", "administrator", "editor"), async (_req, res): Promise<void> => {
   const posts = await db
     .select()
@@ -928,6 +1112,7 @@ router.post(
       }
     }
     const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
       const relationError = await validateRelatedArticles(
         tx,
         parsed.data.slug,
@@ -935,6 +1120,10 @@ router.post(
         parsed.data.status,
       );
       if (relationError) return { kind: "relation_error" as const, message: relationError };
+      const productError = await validatePublishedJournalProducts(
+        tx, parsed.data.body, parsed.data.relatedProductSlugs, parsed.data.status,
+      );
+      if (productError) return { kind: "relation_error" as const, message: productError };
       const [created] = await tx.insert(journalPostsTable).values({
         ...parsed.data,
         publishedAt: parsed.data.status === "published" ? new Date() : null,
@@ -984,6 +1173,7 @@ router.patch(
     }
 
     const post = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
       const [current] = await tx
         .select()
         .from(journalPostsTable)
@@ -1008,6 +1198,13 @@ router.patch(
         nextStatus,
       );
       if (relationError) return { kind: "relation_error" as const, message: relationError };
+      const productError = await validatePublishedJournalProducts(
+        tx,
+        parsed.data.body ?? current.body,
+        parsed.data.relatedProductSlugs === undefined ? current.relatedProductSlugs : parsed.data.relatedProductSlugs,
+        nextStatus,
+      );
+      if (productError) return { kind: "relation_error" as const, message: productError };
       const [previousRevision] = await tx
         .select({ id: journalPostRevisionsTable.id })
         .from(journalPostRevisionsTable)

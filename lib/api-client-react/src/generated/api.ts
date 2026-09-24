@@ -71,6 +71,7 @@ import type {
   PlatformContentPublication,
   PlatformContentRevision,
   PlatformContentUpdate,
+  PlatformProductPublication,
   PolicyDocument,
   PolicySummary,
   PrivacyRequestAcknowledgement,
@@ -4339,6 +4340,150 @@ export const usePublishStaffPlatformContent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getPublishStaffPlatformContentMutationOptions(options));
+    }
+
+export const getPublishStaffPlatformProductUrl = (slug: string,) => {
+
+
+
+
+  return `/api/staff/content/platform/products/${slug}/publish`
+}
+
+/**
+ * @summary Publish one complete, unavailable catalogue product without republishing unrelated products
+ */
+export const publishStaffPlatformProduct = async (slug: string,
+    platformProductPublication: PlatformProductPublication, options?: Parameters<typeof customFetch>[1]): Promise<StaffPlatformContent> => {
+
+  return customFetch<StaffPlatformContent>(getPublishStaffPlatformProductUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(platformProductPublication)
+  }
+);}
+
+
+
+
+
+export const getPublishStaffPlatformProductMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffPlatformProduct>>, TError,{slug: string;data: BodyType<PlatformProductPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishStaffPlatformProduct>>, TError,{slug: string;data: BodyType<PlatformProductPublication>}, TContext> => {
+
+const mutationKey = ['publishStaffPlatformProduct'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishStaffPlatformProduct>>, {slug: string;data: BodyType<PlatformProductPublication>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  publishStaffPlatformProduct(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishStaffPlatformProductMutationResult = NonNullable<Awaited<ReturnType<typeof publishStaffPlatformProduct>>>
+    export type PublishStaffPlatformProductMutationBody = BodyType<PlatformProductPublication>
+    export type PublishStaffPlatformProductMutationError = ErrorType<void>
+
+    /**
+ * @summary Publish one complete, unavailable catalogue product without republishing unrelated products
+ */
+export const usePublishStaffPlatformProduct = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffPlatformProduct>>, TError,{slug: string;data: BodyType<PlatformProductPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof publishStaffPlatformProduct>>,
+        TError,
+        {slug: string;data: BodyType<PlatformProductPublication>},
+        TContext
+      > => {
+      return useMutation(getPublishStaffPlatformProductMutationOptions(options));
+    }
+
+export const getUnpublishStaffPlatformProductUrl = (slug: string,) => {
+
+
+
+
+  return `/api/staff/content/platform/products/${slug}/unpublish`
+}
+
+/**
+ * @summary Remove one previously published, unavailable product that is absent from the saved draft
+ */
+export const unpublishStaffPlatformProduct = async (slug: string,
+    platformProductPublication: PlatformProductPublication, options?: Parameters<typeof customFetch>[1]): Promise<StaffPlatformContent> => {
+
+  return customFetch<StaffPlatformContent>(getUnpublishStaffPlatformProductUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(platformProductPublication)
+  }
+);}
+
+
+
+
+
+export const getUnpublishStaffPlatformProductMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unpublishStaffPlatformProduct>>, TError,{slug: string;data: BodyType<PlatformProductPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unpublishStaffPlatformProduct>>, TError,{slug: string;data: BodyType<PlatformProductPublication>}, TContext> => {
+
+const mutationKey = ['unpublishStaffPlatformProduct'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unpublishStaffPlatformProduct>>, {slug: string;data: BodyType<PlatformProductPublication>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  unpublishStaffPlatformProduct(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnpublishStaffPlatformProductMutationResult = NonNullable<Awaited<ReturnType<typeof unpublishStaffPlatformProduct>>>
+    export type UnpublishStaffPlatformProductMutationBody = BodyType<PlatformProductPublication>
+    export type UnpublishStaffPlatformProductMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove one previously published, unavailable product that is absent from the saved draft
+ */
+export const useUnpublishStaffPlatformProduct = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unpublishStaffPlatformProduct>>, TError,{slug: string;data: BodyType<PlatformProductPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unpublishStaffPlatformProduct>>,
+        TError,
+        {slug: string;data: BodyType<PlatformProductPublication>},
+        TContext
+      > => {
+      return useMutation(getUnpublishStaffPlatformProductMutationOptions(options));
     }
 
 export const getUnpublishStaffPlatformContentUrl = () => {

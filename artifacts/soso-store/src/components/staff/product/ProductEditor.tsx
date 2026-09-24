@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, AlertCircle, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, AlertCircle, Loader2, Trash2, Globe } from "lucide-react";
 import type { CommerceCatalogProduct } from "@workspace/api-client-react";
 import type { CatalogProduct, PlatformCollection } from "../../../data/platformContent";
 import type { MappingSuggestion, MappingPreview } from "../PlatformEditorCatalogue";
@@ -37,6 +37,8 @@ export function ProductEditor({
   isExpanded,
   onToggle,
   onChange,
+  onDelete,
+  onPublish,
   onUploadMedia,
   commerceProducts,
   commerceStatus,
@@ -50,6 +52,8 @@ export function ProductEditor({
   isExpanded: boolean;
   onToggle: () => void;
   onChange: (product: CatalogProduct) => void;
+  onDelete: () => void;
+  onPublish: () => Promise<string>;
   onUploadMedia: (file: File) => Promise<string>;
   commerceProducts: CommerceCatalogProduct[];
   commerceStatus: "loading" | "ready" | "unavailable";
@@ -82,6 +86,18 @@ export function ProductEditor({
   const [mappingHistory, setMappingHistory] = useState<MappingHistoryEntry[] | null>(null);
   const [mappingHistoryLoading, setMappingHistoryLoading] = useState(false);
   const [mappingHistoryError, setMappingHistoryError] = useState("");
+  const [publishingProduct, setPublishingProduct] = useState(false);
+  const [productPublishMessage, setProductPublishMessage] = useState("");
+  const currentSlugRef = useRef(product.slug);
+  currentSlugRef.current = product.slug;
+
+  useEffect(() => {
+    setMappingHistoryOpen(false);
+    setMappingHistory(null);
+    setMappingHistoryLoading(false);
+    setMappingHistoryError("");
+    setProductPublishMessage("");
+  }, [product.slug]);
 
   const toggleMappingHistory = async () => {
     const nextOpen = !mappingHistoryOpen;
@@ -89,19 +105,23 @@ export function ProductEditor({
     if (!nextOpen || mappingHistory !== null || mappingHistoryLoading) return;
     setMappingHistoryLoading(true);
     setMappingHistoryError("");
+    const requestedSlug = product.slug;
     try {
-      const response = await fetch(`/api/staff/commerce/catalogue-mapping/${encodeURIComponent(product.slug)}/history`, {
+      const response = await fetch(`/api/staff/commerce/catalogue-mapping/${encodeURIComponent(requestedSlug)}/history`, {
         credentials: "include",
       });
       const result = await response.json() as { history?: MappingHistoryEntry[]; error?: string };
+      if (currentSlugRef.current !== requestedSlug) return;
       if (!response.ok || !Array.isArray(result.history)) {
         throw new Error(result.error || "Mapping history could not be loaded.");
       }
       setMappingHistory(result.history);
     } catch (error) {
-      setMappingHistoryError(error instanceof Error ? error.message : "Mapping history could not be loaded.");
+      if (currentSlugRef.current === requestedSlug) {
+        setMappingHistoryError(error instanceof Error ? error.message : "Mapping history could not be loaded.");
+      }
     } finally {
-      setMappingHistoryLoading(false);
+      if (currentSlugRef.current === requestedSlug) setMappingHistoryLoading(false);
     }
   };
 
@@ -902,6 +922,32 @@ export function ProductEditor({
             </div>
           </div>
           <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
+          {product.releaseState === "placeholder" && product.fulfilmentState === "unavailable" && !product.commerceProductId && (
+            <div className="border-t border-border pt-4">
+              <button type="button" disabled={publishingProduct} onClick={async () => {
+                const requestedSlug = product.slug;
+                setPublishingProduct(true);
+                setProductPublishMessage("");
+                try {
+                  const message = await onPublish();
+                  if (currentSlugRef.current === requestedSlug) setProductPublishMessage(message);
+                }
+                finally { setPublishingProduct(false); }
+              }} data-testid={`button-publish-catalogue-product-${product.slug}`}
+                className="inline-flex min-h-10 items-center gap-2 border border-primary px-3 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50">
+                <Globe size={14} /> {publishingProduct ? "Publishing…" : "Publish this browse-only product"}
+              </button>
+              <p className="mt-2 text-xs text-muted-foreground">Save draft first. All of this product’s images need a source, alt text and provenance. This publishes only this unavailable product, not the full catalogue or checkout settings.</p>
+              {productPublishMessage && <p role="status" className="mt-2 border border-primary/25 bg-primary/5 p-3 text-xs" data-testid={`product-publish-status-${product.slug}`}>{productPublishMessage}</p>}
+            </div>
+          )}
+          <div className="border-t border-border pt-4">
+            <button type="button" onClick={onDelete} data-testid={`button-delete-catalogue-product-${product.slug}`}
+              className="inline-flex min-h-10 items-center gap-2 border border-destructive/40 px-3 text-xs font-semibold text-destructive hover:bg-destructive/10">
+              <Trash2 size={14} /> Remove product from draft
+            </button>
+            <p className="mt-2 text-xs text-muted-foreground">Save the draft to keep this change. Publishing updates the storefront; this does not delete JusticeSure inventory or uploaded images.</p>
+          </div>
         </div>
       )}
     </div>

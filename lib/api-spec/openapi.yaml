@@ -1115,6 +1115,52 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/StaffPlatformContent" }
         "409": { description: "Draft was changed by another editor" }
+  /staff/content/platform/products/{slug}/publish:
+    post:
+      operationId: publishStaffPlatformProduct
+      tags: [staff]
+      summary: Publish one complete, unavailable catalogue product without republishing unrelated products
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 160 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformProductPublication" }
+      responses:
+        "200":
+          description: Updated platform content state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffPlatformContent" }
+        "400": { description: "Product media or document validation failed" }
+        "409": { description: "Draft or published content changed while editing" }
+  /staff/content/platform/products/{slug}/unpublish:
+    post:
+      operationId: unpublishStaffPlatformProduct
+      tags: [staff]
+      summary: Remove one previously published, unavailable product that is absent from the saved draft
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 160 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlatformProductPublication" }
+      responses:
+        "200":
+          description: Updated platform content state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffPlatformContent" }
+        "400": { description: "Product remains in draft, is available, or has public references" }
+        "409": { description: "Draft or published content changed while editing" }
   /staff/content/platform/unpublish:
     post:
       operationId: unpublishStaffPlatformContent
@@ -1604,13 +1650,20 @@ components:
       required: [expectedDraftUpdatedAt]
       properties:
         expectedDraftUpdatedAt: { type: string, format: date-time }
+    PlatformProductPublication:
+      type: object
+      additionalProperties: false
+      required: [expectedDraftUpdatedAt, expectedPublishedAt]
+      properties:
+        expectedDraftUpdatedAt: { type: string, format: date-time }
+        expectedPublishedAt: { type: string, format: date-time }
     PlatformContentRevision:
       type: object
       required: [id, contentKey, event, contentHash, createdByClerkUserId, createdAt]
       properties:
         id: { type: string, pattern: "^[0-9a-fA-F-]{36}$" }
         contentKey: { type: string, enum: [platform] }
-        event: { type: string, enum: [draft_saved, published, unpublished] }
+        event: { type: string, enum: [draft_saved, published, published_product, unpublished, unpublished_product] }
         snapshot: { type: ["object", "null"], additionalProperties: true }
         contentHash: { type: string }
         createdByClerkUserId: { type: string }

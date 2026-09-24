@@ -12,5 +12,7 @@ export type PlatformContentRevisionEvent = typeof PlatformContentRevisionEvent[k
 export const PlatformContentRevisionEvent = {
   draft_saved: 'draft_saved',
   published: 'published',
+  published_product: 'published_product',
   unpublished: 'unpublished',
+  unpublished_product: 'unpublished_product',
 } as const;
