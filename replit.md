@@ -4,6 +4,7 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Run & Operate
 
+- Production publishing for SOSO goes through GitHub and Vercel, not Replit publishing. Do not suggest the Replit Publish action for this project.
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm test` — API and storefront test suites
 - `pnpm run test:migrations` — targeted fresh, repeat, legacy, and rollback migration validation

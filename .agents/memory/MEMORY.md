@@ -41,3 +41,5 @@
 - [Catalogue webhook invalidation](catalogue-webhook-invalidation.md) — invalidate only confirmed mappings named by newer, completed, idempotent catalogue webhook events.
 - [Storefront component test JSX](storefront-component-test-jsx.md) — Node-run TSX component tests need React in scope for production components compiled from preserved JSX.
 - [Managed media cleanup serialization](managed-media-cleanup-serialization.md) — queue cleanup with content saves and recheck all live snapshots under the same lock before deleting.
+- [Catalogue draft media gate](catalogue-draft-media-gate.md) — let Staff save incomplete unavailable product media without weakening public publication checks.
+- [Inherited disabled state in browser tests](inherited-disabled-state.md) — test effective disabled state for controls inside a disabled fieldset, not the control's own disabled property.

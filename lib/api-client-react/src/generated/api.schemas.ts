@@ -153,6 +153,11 @@ export interface PlatformContentPublication {
   expectedDraftUpdatedAt: string;
 }
 
+export interface PlatformProductPublication {
+  expectedDraftUpdatedAt: string;
+  expectedPublishedAt: string;
+}
+
 export type PlatformContentRevisionContentKey = typeof PlatformContentRevisionContentKey[keyof typeof PlatformContentRevisionContentKey];
 
 
@@ -166,7 +171,9 @@ export type PlatformContentRevisionEvent = typeof PlatformContentRevisionEvent[k
 export const PlatformContentRevisionEvent = {
   draft_saved: 'draft_saved',
   published: 'published',
+  published_product: 'published_product',
   unpublished: 'unpublished',
+  unpublished_product: 'unpublished_product',
 } as const;
 
 /**

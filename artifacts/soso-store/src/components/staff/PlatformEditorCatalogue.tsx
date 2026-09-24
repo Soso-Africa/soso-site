@@ -72,11 +72,19 @@ export function PlatformEditorCatalogue({
   onChange,
   onUploadMedia,
   initialProductSlug,
+  onDeleteProduct,
+  onPublishProduct,
+  publishedProducts,
+  onPublishRemoval,
 }: {
   data: CatalogueData;
   onChange: (data: CatalogueData) => void;
   onUploadMedia: (file: File) => Promise<string>;
   initialProductSlug?: string | null;
+  onDeleteProduct: (slug: string) => string | null | undefined;
+  onPublishProduct: (slug: string) => Promise<string>;
+  publishedProducts: CatalogProduct[];
+  onPublishRemoval: (slug: string) => Promise<string | undefined>;
 }) {
   const [expandedProductIndex, setExpandedProductIndex] = useState<number | null>(() => {
     const index = initialProductSlug ? data.products.findIndex((product) => product.slug === initialProductSlug) : -1;
@@ -89,8 +97,13 @@ export function PlatformEditorCatalogue({
   const [requiredPreviewGeneration, setRequiredPreviewGeneration] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [removingPublicSlug, setRemovingPublicSlug] = useState<string | null>(null);
+  const [removalMessage, setRemovalMessage] = useState("");
   const [webhookStaleSlugs, setWebhookStaleSlugs] = useState<string[]>([]);
   const productsRef = useRef(data.products);
+  const editorKeysRef = useRef<{ slug: string; key: number }[]>([]);
+  const nextEditorKeyRef = useRef(0);
   const webhookStaleSlugsRef = useRef<string[]>([]);
   const analysisGenerationRef = useRef(0);
   productsRef.current = data.products;
@@ -312,6 +325,29 @@ export function PlatformEditorCatalogue({
     onChange({ ...data, products });
     setExpandedProductIndex(0);
   };
+  const deleteProduct = (slug: string) => {
+    const error = onDeleteProduct(slug);
+    setDeleteError(error ?? "");
+    if (error === null) setExpandedProductIndex(null);
+  };
+  const pendingPublicRemovals = publishedProducts.filter(
+    (product) => !data.products.some((draftProduct) => draftProduct.slug === product.slug),
+  );
+  // A slug is editable: using it as React's key remounts the input on every keystroke.
+  // Match existing products by slug across insertions/removals, then by position for a rename.
+  const previousEditorKeys = editorKeysRef.current;
+  const usedEditorKeys = new Set<number>();
+  const editorKeys = data.products.map((product, index) => {
+    const match = previousEditorKeys.find((entry) => entry.slug === product.slug && !usedEditorKeys.has(entry.key));
+    const previousAtIndex = previousEditorKeys[index];
+    const renamedAtIndex = previousEditorKeys.length === data.products.length &&
+      previousAtIndex && !data.products.some((item) => item.slug === previousAtIndex.slug) &&
+      !usedEditorKeys.has(previousAtIndex.key);
+    const key = match?.key ?? (renamedAtIndex ? previousAtIndex.key : nextEditorKeyRef.current++);
+    usedEditorKeys.add(key);
+    return { slug: product.slug, key };
+  });
+  editorKeysRef.current = editorKeys;
 
   return (
     <div className="mt-5 space-y-5">
@@ -411,19 +447,47 @@ export function PlatformEditorCatalogue({
             {analysisError}
           </p>
         )}
+        {deleteError && <p role="alert" className="mb-4 border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{deleteError}</p>}
+        {pendingPublicRemovals.length > 0 && (
+          <div className="mb-4 space-y-3 border border-amber-300 bg-amber-50 p-4" data-testid="pending-public-product-removals">
+            <p className="text-xs font-semibold text-amber-900">Removed from the editor, but still on the live storefront</p>
+            <p className="text-xs text-amber-900">Save the draft first. You can then publish the removal of an unavailable, unmapped product without changing the rest of the catalogue. Public references must be cleared first.</p>
+            {pendingPublicRemovals.map((product) => (
+              <div key={product.slug} className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-200 pt-3">
+                <span className="text-xs text-amber-950">{product.name} <span className="font-mono text-[10px]">({product.slug})</span></span>
+                {product.fulfilmentState === "unavailable" && !product.commerceProductId && !product.commerceVariantIds && !product.commerceMappingConfirmation
+                  ? <button type="button" disabled={removingPublicSlug !== null}
+                      data-testid={`button-publish-product-removal-${product.slug}`}
+                      onClick={async () => {
+                        setRemovingPublicSlug(product.slug);
+                        setRemovalMessage("");
+                        try { setRemovalMessage(await onPublishRemoval(product.slug) ?? ""); }
+                        finally { setRemovingPublicSlug(null); }
+                      }}
+                      className="min-h-10 border border-destructive/50 bg-background px-3 text-[10px] font-semibold uppercase tracking-wider text-destructive hover:bg-destructive/10 disabled:opacity-50">
+                      {removingPublicSlug === product.slug ? "Removing…" : "Publish removal"}
+                    </button>
+                  : <span className="text-xs text-amber-900">Available or mapped: use full catalogue publication after mapping review.</span>}
+              </div>
+            ))}
+            {removalMessage && <p role="status" data-testid="product-removal-status" className="border border-amber-300 bg-background p-3 text-xs text-amber-950">{removalMessage}</p>}
+          </div>
+        )}
 
         <div className="space-y-4">
         {data.products?.map((product, index) => {
           const suggestion = reviewedMappingPreview?.suggestions.find(s => s.slug === product.slug);
           return (
             <ProductEditor
-              key={product.slug || index}
+              key={editorKeys[index]!.key}
               product={product}
               allProducts={data.products}
               collections={data.collections}
               isExpanded={expandedProductIndex === index}
               onToggle={() => setExpandedProductIndex(expandedProductIndex === index ? null : index)}
               onChange={(updatedProduct) => updateProduct(index, updatedProduct)}
+              onDelete={() => deleteProduct(product.slug)}
+              onPublish={() => onPublishProduct(product.slug)}
               onUploadMedia={onUploadMedia}
               commerceProducts={commerceProducts}
               commerceStatus={commerceStatus}

@@ -135,6 +135,7 @@ export * from './platformContentSite';
 export * from './platformContentSizeGuide';
 export * from './platformContentSupportCopy';
 export * from './platformContentUpdate';
+export * from './platformProductPublication';
 export * from './policyDocument';
 export * from './policySection';
 export * from './policySummary';

@@ -1,6 +1,8 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
+import { productDeletionReferences } from "../components/staff/product/catalogue-delete";
+import { platformActionError } from "../components/staff/platform-action-error";
 import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
 import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
@@ -722,6 +724,76 @@ function PlatformContentManagementSection() {
   const parsedDocument = () => {
     return applyPlatformSection(content, section, JSON.parse(json) as unknown);
   };
+  const deleteCatalogueProduct = (slug: string): string | null | undefined => {
+    try {
+      const document = parsedDocument();
+      const product = document.products.find((item) => item.slug === slug);
+      if (!product) return "Product not found in the current draft.";
+      if (document.products.length === 1) return "The catalogue must keep at least one product. Add a replacement before deleting this one.";
+      const references = productDeletionReferences(document, slug);
+      if (references.length) {
+        return `Remove references to ${product.name} before deleting it: ${references.slice(0, 5).join(", ")}${references.length > 5 ? `, and ${references.length - 5} more` : ""}.`;
+      }
+      const wasPublished = row?.published?.products.some((item) => item.slug === slug);
+      if (!window.confirm(`Remove ${product.name} from this draft? Save draft to keep the deletion.${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
+      const updated = { ...document, products: document.products.filter((item) => item.slug !== slug) };
+      setJson(JSON.stringify(sectionValue(updated, "catalogue"), null, 2));
+      setStatus(`${product.name} removed from the editor. Save draft to keep the change${wasPublished ? ", then publish its removal to update the storefront." : "."}`);
+      return null;
+    } catch {
+      return "Fix the current catalogue JSON before deleting a product.";
+    }
+  };
+  const publishCatalogueProduct = async (slug: string): Promise<string> => {
+    try {
+      if (!row?.draftUpdatedAt || !row.publishedAt || JSON.stringify(parsedDocument()) !== JSON.stringify(row.draft)) {
+        return "Save your current draft before publishing this product. Product-only publishing uses the saved version.";
+      }
+      setSaving(true);
+      await customFetch(`/api/staff/content/platform/products/${encodeURIComponent(slug)}/publish`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedDraftUpdatedAt: row.draftUpdatedAt, expectedPublishedAt: row.publishedAt }),
+        responseType: "json",
+      });
+      await load();
+      setStatus(`${slug} published as browse-only. Other catalogue products and their checkout settings were unchanged.`);
+      return `${slug} is now published as browse-only. Other products were unchanged.`;
+    } catch (error) {
+      const message = platformActionError(error, "Product could not be published.");
+      setStatus(message);
+      return message;
+    } finally {
+      setSaving(false);
+    }
+  };
+  const publishCatalogueRemoval = async (slug: string): Promise<string | undefined> => {
+    try {
+      if (!row?.draftUpdatedAt || !row.publishedAt || JSON.stringify(parsedDocument()) !== JSON.stringify(row.draft) ||
+          row.draft?.products.some((item) => item.slug === slug)) {
+        return "Save the draft without this product before publishing its removal. Unsaved changes are not published.";
+      }
+      const product = row.published?.products.find((item) => item.slug === slug);
+      if (!product) return "This product is no longer published. Reload the catalogue.";
+      if (!window.confirm(`Remove ${product.name} from the live storefront now? This changes only this public product. JusticeSure inventory and uploaded media are not deleted; re-adding it publicly requires a new publication.`)) return undefined;
+      setSaving(true);
+      await customFetch(`/api/staff/content/platform/products/${encodeURIComponent(slug)}/unpublish`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedDraftUpdatedAt: row.draftUpdatedAt, expectedPublishedAt: row.publishedAt }),
+        responseType: "json",
+      });
+      await load();
+      setStatus(`${product.name} removed from the live storefront. Other products and their checkout settings were unchanged.`);
+      return `${product.name} is no longer public. Other products were unchanged.`;
+    } catch (error) {
+      const message = platformActionError(error, "Product could not be removed from the storefront.");
+      setStatus(message);
+      return message;
+    } finally {
+      setSaving(false);
+    }
+  };
   const save = async () => {
     if (!structuredEditorValid) {
       setStatus("Fix the highlighted fields before saving this draft.");
@@ -736,20 +808,27 @@ function PlatformContentManagementSection() {
         body: JSON.stringify({ content: document, expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }),
         responseType: "json",
       });
-      setContent(document); setRow(next); setStatus("Draft saved. It is not public until published."); void load();
+      setContent(document); setRow(next);
+      await load();
+      setStatus("Draft saved. It is not public until published.");
     } catch (error) {
-      const data = error && typeof error === "object" && "data" in error ? error.data : null;
-      const issues = data && typeof data === "object" && "issues" in data && Array.isArray(data.issues)
-        ? data.issues as { path?: (string | number)[]; message?: string }[]
-        : [];
-      const details = issues.slice(0, 5).map((issue) =>
-        `${issue.path?.join(".") || "Content"}: ${issue.message || "Invalid value"}`).join("; ");
       setStatus(error instanceof SyntaxError
         ? `Invalid JSON: ${error.message}`
-        : `${errorMessage(error, "Draft could not be saved.")}${details ? ` — ${details}` : ""}`);
+        : platformActionError(error, "Draft could not be saved."));
     } finally { setSaving(false); }
   };
   const action = async (kind: "publish" | "unpublish") => {
+    if (kind === "publish") {
+      try {
+        if (JSON.stringify(parsedDocument()) !== JSON.stringify(row?.draft)) {
+          setStatus("Save your current edits as a draft before publishing. Publishing uses the last saved draft, not unsaved changes.");
+          return;
+        }
+      } catch {
+        setStatus("Fix the current section before publishing.");
+        return;
+      }
+    }
     setSaving(true);
     try {
       if (kind === "publish") {
@@ -763,9 +842,9 @@ function PlatformContentManagementSection() {
           body: JSON.stringify({ expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }), responseType: "json",
         });
       }
-      setStatus(kind === "publish" ? "Draft published to the storefront." : "Platform content unpublished. The storefront now shows its safe unavailable state.");
       await load();
-    } catch (error) { setStatus(errorMessage(error, `Content could not be ${kind}ed.`)); }
+      setStatus(kind === "publish" ? "Draft published to the storefront." : "Platform content unpublished. The storefront now shows its safe unavailable state.");
+    } catch (error) { setStatus(platformActionError(error, `Content could not be ${kind}ed.`)); }
     finally { setSaving(false); }
   };
   const uploadMedia = async (file: File) => {
@@ -833,6 +912,10 @@ function PlatformContentManagementSection() {
           data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy" | "interfaceCopy">}
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
           initialProductSlug={initialProductSlug}
+          onDeleteProduct={deleteCatalogueProduct}
+          onPublishProduct={publishCatalogueProduct}
+          publishedProducts={row?.published?.products ?? []}
+          onPublishRemoval={publishCatalogueRemoval}
           onUploadMedia={async (file) => {
             const path = await uploadStaffMedia(file);
             setStatus("Catalogue asset uploaded and added to the draft. Save the draft to keep it.");
@@ -855,6 +938,7 @@ function PlatformContentManagementSection() {
       <div><a href="/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-primary underline underline-offset-4"><Eye size={14} /> Open storefront preview</a></div>
     </div>
     <div className="border border-border bg-card p-5">
+      <fieldset disabled={saving} className="contents">
       <div className="flex flex-wrap gap-2">{platformSections.map((item) => <button key={item.id} data-testid={`platform-section-${item.id}`} type="button" onClick={() => selectSection(item.id)} className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${section === item.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{item.label}</button>)}</div>
       {section === "site" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
         <p className="font-semibold text-primary">Site navigation and search checks</p>
@@ -931,6 +1015,8 @@ function PlatformContentManagementSection() {
         <button data-testid="btn-publish" type="button" disabled={saving || !row?.draft} onClick={() => void action("publish")} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish</button>
         <button data-testid="btn-unpublish" type="button" disabled={saving || !row?.published} onClick={() => void action("unpublish")} className="min-h-10 border border-border px-4 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Unpublish</button>
       </div>
+      </fieldset>
+      {section === "catalogue" && <p className="mt-2 text-xs text-muted-foreground">Publish applies to the entire saved catalogue. Every available product needs a current confirmed JusticeSure mapping; every published product needs complete approved images.</p>}
       {status && <p data-testid="status-message" role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm">{status}</p>}
     </div>
     <div className="mt-5 border border-border bg-card p-5"><h3 className="text-xs font-semibold uppercase tracking-wider">Recent revisions</h3>

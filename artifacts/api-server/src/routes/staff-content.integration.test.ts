@@ -8,6 +8,7 @@ import { PNG } from "pngjs";
 import {
   auditLogsTable,
   db,
+  journalPostsTable,
   siteContentTable,
   staffSessionsTable,
   staffUsersTable,
@@ -77,6 +78,176 @@ function pngBytes(red: number): Buffer {
   png.data.set([red, 30, 60, 255, red, 30, 60, 255]);
   return PNG.sync.write(png, { colorType: 6 });
 }
+
+test("Staff can publish only a complete browse-only product while preserving unrelated catalogue and checkout state", async () => {
+  const originalRows = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
+  const token = randomBytes(32).toString("hex");
+  const clerkUserId = `product-publish-check-${randomBytes(8).toString("hex")}`;
+  const journalSlug = `product-removal-reference-${randomBytes(4).toString("hex")}`;
+  let server: Server | undefined;
+  let staffUserId: string | undefined;
+  try {
+    const [staff] = await db.insert(staffUsersTable).values({
+      clerkUserId, email: `${clerkUserId}@example.com`, role: "owner", isActive: true,
+    }).returning({ id: staffUsersTable.id });
+    staffUserId = staff!.id;
+    await db.insert(staffSessionsTable).values({
+      staffUserId, tokenHash: createHash("sha256").update(token).digest("hex"),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const published = publishableContent();
+    const draft = structuredClone(published);
+    draft.products[0]!.fulfilmentState = "made_immediately";
+    draft.products[0]!.unavailableMessage = undefined;
+    const newProduct = { ...structuredClone(published.products[0]!), slug: "new-browse-only-test", name: "Browse-only test", releaseState: "placeholder" as const };
+    draft.products.unshift(newProduct);
+    const now = new Date();
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    await db.insert(siteContentTable).values({
+      key: "platform", draft, published, draftUpdatedAt: now, publishedAt: now,
+      updatedByClerkUserId: clerkUserId, publishedByClerkUserId: clerkUserId,
+    });
+    const running = await listen();
+    server = running.server;
+    const url = `/api/staff/content/platform/products/${newProduct.slug}/publish`;
+    const body = { expectedDraftUpdatedAt: now.toISOString(), expectedPublishedAt: now.toISOString() };
+
+    const publishedProduct = await request(running.baseUrl, url, token, { method: "POST", body });
+    assert.equal(publishedProduct.status, 200, JSON.stringify(publishedProduct.body));
+    assert.equal(publishedProduct.body.published.products[0].slug, newProduct.slug);
+    assert.deepEqual(publishedProduct.body.published.products.slice(1), JSON.parse(JSON.stringify(published.products)));
+    assert.deepEqual(publishedProduct.body.published.homepage, JSON.parse(JSON.stringify(published.homepage)));
+    assert.equal(publishedProduct.body.draft.products[1].fulfilmentState, "made_immediately");
+    const available = await request(running.baseUrl, `/api/staff/content/platform/products/${draft.products[1]!.slug}/publish`, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: publishedProduct.body.draftUpdatedAt, expectedPublishedAt: publishedProduct.body.publishedAt },
+    });
+    assert.equal(available.status, 400);
+    assert.match(available.body.error, /available products require full catalogue publication/i);
+    const stale = await request(running.baseUrl, url, token, { method: "POST", body });
+    assert.equal(stale.status, 409);
+
+    const incomplete = structuredClone(publishedProduct.body.draft) as PlatformContent;
+    incomplete.products[0]!.images[0]!.alt = "";
+    const savedIncomplete = await request(running.baseUrl, "/api/staff/content/platform", token, {
+      method: "PUT", body: { content: incomplete, expectedDraftUpdatedAt: publishedProduct.body.draftUpdatedAt },
+    });
+    assert.equal(savedIncomplete.status, 200, JSON.stringify(savedIncomplete.body));
+    const rejected = await request(running.baseUrl, url, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedIncomplete.body.draftUpdatedAt, expectedPublishedAt: publishedProduct.body.publishedAt },
+    });
+    assert.equal(rejected.status, 400);
+    assert.match(rejected.body.error, /images/i);
+    assert.ok(rejected.body.issues.some((issue: { message: string }) => issue.message.includes(newProduct.slug)));
+    const afterRejection = await request(running.baseUrl, "/api/staff/content/platform", token);
+    assert.equal(afterRejection.body.publishedAt, publishedProduct.body.publishedAt);
+    assert.equal(afterRejection.body.published.products[0].images[0].alt, newProduct.images[0]!.alt);
+
+    const removalUrl = `/api/staff/content/platform/products/${newProduct.slug}/unpublish`;
+    const stillInDraft = await request(running.baseUrl, removalUrl, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedIncomplete.body.draftUpdatedAt, expectedPublishedAt: publishedProduct.body.publishedAt },
+    });
+    assert.equal(stillInDraft.status, 400);
+    assert.match(stillInDraft.body.error, /remove this product from the draft/i);
+
+    const withoutProduct = structuredClone(savedIncomplete.body.draft) as PlatformContent;
+    withoutProduct.products = withoutProduct.products.filter((item) => item.slug !== newProduct.slug);
+    const savedRemoval = await request(running.baseUrl, "/api/staff/content/platform", token, {
+      method: "PUT",
+      body: { content: withoutProduct, expectedDraftUpdatedAt: savedIncomplete.body.draftUpdatedAt },
+    });
+    assert.equal(savedRemoval.status, 200, JSON.stringify(savedRemoval.body));
+
+    await db.insert(journalPostsTable).values({
+      slug: journalSlug, title: "Reference check", excerpt: "Reference check",
+      body: `See [this product](/product/${newProduct.slug}) for details.`,
+      authorName: "Staff", status: "published", publishedAt: new Date(),
+    });
+    const withJournalReference = await request(running.baseUrl, removalUrl, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedRemoval.body.draftUpdatedAt, expectedPublishedAt: savedRemoval.body.publishedAt },
+    });
+    assert.equal(withJournalReference.status, 400);
+    assert.match(JSON.stringify(withJournalReference.body), new RegExp(journalSlug));
+    await db.update(journalPostsTable).set({
+      body: "Reference check", relatedProductSlugs: [newProduct.slug],
+    }).where(eq(journalPostsTable.slug, journalSlug));
+    const withRelatedProduct = await request(running.baseUrl, removalUrl, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedRemoval.body.draftUpdatedAt, expectedPublishedAt: savedRemoval.body.publishedAt },
+    });
+    assert.equal(withRelatedProduct.status, 400);
+    assert.match(JSON.stringify(withRelatedProduct.body), new RegExp(journalSlug));
+    await db.delete(journalPostsTable).where(eq(journalPostsTable.slug, journalSlug));
+
+    const referencedPublic = structuredClone(savedRemoval.body.published) as PlatformContent;
+    referencedPublic.site.megaMenu[0]!.href = `/product/${newProduct.slug}`;
+    const referenceTimestamp = new Date(Date.parse(savedRemoval.body.publishedAt) + 1000);
+    await db.update(siteContentTable).set({ published: referencedPublic, publishedAt: referenceTimestamp })
+      .where(eq(siteContentTable.key, "platform"));
+    const withStorefrontReference = await request(running.baseUrl, removalUrl, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedRemoval.body.draftUpdatedAt, expectedPublishedAt: referenceTimestamp.toISOString() },
+    });
+    assert.equal(withStorefrontReference.status, 400);
+    assert.match(JSON.stringify(withStorefrontReference.body), /site\.megaMenu\[0\]\.href/);
+
+    const clearedTimestamp = new Date(referenceTimestamp.getTime() + 1000);
+    await db.update(siteContentTable).set({ published: savedRemoval.body.published, publishedAt: clearedTimestamp })
+      .where(eq(siteContentTable.key, "platform"));
+    const availablePublic = structuredClone(savedRemoval.body.published) as PlatformContent;
+    availablePublic.products[0]!.fulfilmentState = "made_immediately";
+    availablePublic.products[0]!.releaseState = "approved";
+    availablePublic.products[0]!.unavailableMessage = undefined;
+    const availableTimestamp = new Date(clearedTimestamp.getTime() + 1000);
+    await db.update(siteContentTable).set({ published: availablePublic, publishedAt: availableTimestamp })
+      .where(eq(siteContentTable.key, "platform"));
+    const availableRemoval = await request(running.baseUrl, removalUrl, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedRemoval.body.draftUpdatedAt, expectedPublishedAt: availableTimestamp.toISOString() },
+    });
+    assert.equal(availableRemoval.status, 400);
+    assert.match(availableRemoval.body.error, /only unavailable products/i);
+    const restoredTimestamp = new Date(availableTimestamp.getTime() + 1000);
+    await db.update(siteContentTable).set({ published: savedRemoval.body.published, publishedAt: restoredTimestamp })
+      .where(eq(siteContentTable.key, "platform"));
+    const removedPublic = await request(running.baseUrl, removalUrl, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedRemoval.body.draftUpdatedAt, expectedPublishedAt: restoredTimestamp.toISOString() },
+    });
+    assert.equal(removedPublic.status, 200, JSON.stringify(removedPublic.body));
+    assert.deepEqual(removedPublic.body.published.products, JSON.parse(JSON.stringify(published.products)));
+    assert.deepEqual(removedPublic.body.published.homepage, JSON.parse(JSON.stringify(published.homepage)));
+    assert.deepEqual(removedPublic.body.draft, savedRemoval.body.draft);
+    const staleRemoval = await request(running.baseUrl, removalUrl, token, {
+      method: "POST",
+      body: { expectedDraftUpdatedAt: savedRemoval.body.draftUpdatedAt, expectedPublishedAt: restoredTimestamp.toISOString() },
+    });
+    assert.equal(staleRemoval.status, 409);
+    const invalidJournal = await request(running.baseUrl, "/api/staff/journal", token, {
+      method: "POST",
+      body: {
+        slug: journalSlug, title: "Link to a removed product", excerpt: "Check the related product link",
+        body: `The catalogue link in this article points to a product that was removed: [browse now](/product/${newProduct.slug}). This article should not be published until the destination is restored.`,
+        authorName: "SOSO Staff", status: "published", relatedProductSlugs: [newProduct.slug],
+      },
+    });
+    assert.equal(invalidJournal.status, 400);
+    assert.match(invalidJournal.body.error, /published products/i);
+    const removalAudits = await db.select({ action: auditLogsTable.action }).from(auditLogsTable)
+      .where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    assert.equal(removalAudits.filter(({ action }) => action === "platform_content.product_unpublished").length, 1);
+  } finally {
+    if (server) { server.close(); await once(server, "close"); }
+    await db.delete(journalPostsTable).where(eq(journalPostsTable.slug, journalSlug));
+    if (staffUserId) await db.delete(staffUsersTable).where(eq(staffUsersTable.id, staffUserId));
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    if (originalRows[0]) await db.insert(siteContentTable).values(originalRows[0]);
+  }
+});
 
 test("staff collection cover upload, persistence, publishing, replacement and removal work through the API", async () => {
   const originalFetch = globalThis.fetch;

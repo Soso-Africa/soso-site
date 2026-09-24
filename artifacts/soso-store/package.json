@@ -13,13 +13,14 @@
     "test:garment-mask-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-garment-mask-browser.mjs",
     "test:accessory-demand-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-accessory-demand-browser.mjs",
     "test:catalogue-mapping-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-catalogue-mapping-browser.mjs",
+    "test:catalogue-actions-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-catalogue-actions-browser.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate:visual": "pnpm run build && node scripts/validate-storefront-visual-contract.mjs",
     "validate:typography": "node scripts/validate-typography.mjs",
     "validate:seo": "node scripts/validate-seo-production.mjs",
     "validate:performance": "node scripts/validate-performance.mjs",
     "validate:client-review": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && node scripts/validate-release.mjs",
-    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:homepage-merchandising && pnpm run test:garment-mask-browser && pnpm run test:accessory-demand-browser && pnpm run test:catalogue-mapping-browser && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
+    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:homepage-merchandising && pnpm run test:garment-mask-browser && pnpm run test:accessory-demand-browser && pnpm run test:catalogue-mapping-browser && pnpm run test:catalogue-actions-browser && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs"
   },
   "devDependencies": {
