@@ -161,6 +161,7 @@ export async function validateProductMediaAssets(
   };
   content.products.forEach((product, productIndex) => {
     product.images.forEach((image, imageIndex) => {
+      if (!image.src) return; // An unpublished, unavailable placeholder may have an unfinished image row.
       addAsset(image.src, {
         path: ["products", productIndex, "images", imageIndex, "src"], label: "Product",
       });

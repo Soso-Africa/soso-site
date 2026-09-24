@@ -27,7 +27,7 @@ import {
 } from "@workspace/db";
 import { and, asc, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
-import { ensurePlatformContent, platformContentHash, PlatformContentSchema, type PlatformContent } from "../lib/platform-content";
+import { ensurePlatformContent, platformContentHash, PlatformContentSchema, unfinishedProductImages, type PlatformContent } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
 import { validateLegacyProductPublication } from "../lib/legacy-product-publication";
@@ -607,6 +607,11 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
   const candidateContent = PlatformContentSchema.safeParse(candidate.draft);
   if (!candidateContent.success) {
     res.status(400).json({ error: "The current draft is invalid", issues: candidateContent.error.issues });
+    return;
+  }
+  const unfinishedImages = unfinishedProductImages(candidateContent.data);
+  if (unfinishedImages.length > 0) {
+    res.status(400).json({ error: "Finish product images before publishing", issues: unfinishedImages });
     return;
   }
   const legacyProductIssues = validateLegacyProductPublication(candidateContent.data);
