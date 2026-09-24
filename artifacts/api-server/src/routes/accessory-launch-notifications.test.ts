@@ -152,9 +152,9 @@ test("accessory demand CSV contains aggregate fields and reporting dates only", 
     from: "2026-09-01",
     to: "2026-09-14",
     items: [{
-      accessoryCategory: "=unsafe",
-      productSlug: "@unsafe",
-      requestCount: 1,
+      accessoryCategory: "Bags, Pouches",
+      productSlug: "woven-pouch",
+      requestCount: 3,
     }],
   });
 
@@ -182,6 +182,7 @@ test("accessory demand CSV neutralizes spreadsheet formulas", () => {
       requestCount: 1,
     }],
   });
+  assert.ok(csv.includes("'=unsafe,'@unsafe,1,2026-09-01,2026-09-14"));
 
   const audit = accessoryDemandExportAuditValues("staff_clerk_user", {
     from: "2026-09-01",

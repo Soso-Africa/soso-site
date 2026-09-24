@@ -83,6 +83,16 @@ const image = z.object({
   alt: z.string().min(1).max(300),
   provenance: imageProvenance,
 }).strict();
+// Unavailable placeholders can be saved while staff are still preparing their images.
+// Published content is checked separately and must always have complete media.
+const draftProductImage = image.extend({
+  src: z.union([z.literal(""), localPath]),
+  alt: z.string().max(300),
+  provenance: imageProvenance.extend({
+    source: z.string().max(300),
+    rights: z.string().max(500),
+  }),
+});
 const materialTurnSet = z.object({
   id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).min(1).max(64),
   label: z.string().trim().min(1).max(120),
@@ -292,7 +302,7 @@ export const PlatformContentSchema = z.object({
     notFound: z.object({ seo, title: copy, body: copy, cta: link }).strict(),
   }).strict(),
   products: z.array(z.object({
-    slug, name: copy, img: localPath, images: z.array(image).min(1),
+    slug, name: copy, img: z.union([z.literal(""), localPath]), images: z.array(draftProductImage),
     legacyMigration: z.object({
       sourceProductId: z.number().int().positive(),
       sourceUrl: z.string().url().refine((value) => {
@@ -341,6 +351,20 @@ export const PlatformContentSchema = z.object({
       choiceLabels: z.record(z.string(), z.string().min(1).max(120)),
     }).strict().optional(),
   }).strict().superRefine((product, ctx) => {
+    if (product.releaseState !== "placeholder" || product.fulfilmentState !== "unavailable") {
+      if (product.images.length === 0) {
+        ctx.addIssue({ code: "custom", message: "Available or approved products require at least one approved image", path: ["images"] });
+      }
+      if (!product.img) {
+        ctx.addIssue({ code: "custom", message: "Available or approved products require a primary image", path: ["img"] });
+      }
+      product.images.forEach((item, index) => {
+        const validated = image.safeParse(item);
+        if (!validated.success) {
+          ctx.addIssue({ code: "custom", message: "Approved images require a source, alt text, and provenance", path: ["images", index] });
+        }
+      });
+    }
     const reportDuplicates = (values: string[], path: string) => {
       const seen = new Set<string>();
       values.forEach((value, index) => {
@@ -570,13 +594,15 @@ export const PlatformContentSchema = z.object({
     if (!collectionCategories.has(`${product.department}\0${product.category}`)) {
       ctx.addIssue({ code: "custom", message: `Unknown ${product.department} product collection category: ${product.category}`, path: ["products", index, "category"] });
     }
-    if (!product.images.some((item) => item.src === product.img)) {
+    if (product.img && !product.images.some((item) => item.src === product.img)) {
       ctx.addIssue({ code: "custom", message: "Primary product image must be included in the approved images", path: ["products", index, "img"] });
     }
     const imageSources = new Set<string>();
     product.images.forEach((item, imageIndex) => {
-      if (imageSources.has(item.src)) ctx.addIssue({ code: "custom", message: `Duplicate approved product image: ${item.src}`, path: ["products", index, "images", imageIndex, "src"] });
-      imageSources.add(item.src);
+      if (item.src) {
+        if (imageSources.has(item.src)) ctx.addIssue({ code: "custom", message: `Duplicate approved product image: ${item.src}`, path: ["products", index, "images", imageIndex, "src"] });
+        imageSources.add(item.src);
+      }
     });
     const relationships = new Set<string>();
     product.relatedProductSlugs?.forEach((related, relatedIndex) => {
@@ -720,6 +746,24 @@ export const PlatformContentSchema = z.object({
 });
 
 export type PlatformContent = z.infer<typeof PlatformContentSchema>;
+
+export function unfinishedProductImages(content: PlatformContent): { path: (string | number)[]; message: string }[] {
+  return content.products.flatMap((product, index) => {
+    const issues: { path: (string | number)[]; message: string }[] = [];
+    if (!product.img || product.images.length === 0) {
+      issues.push({ path: ["products", index, "images"], message: `${product.slug}: add a primary image before publishing` });
+    }
+    product.images.forEach((item, imageIndex) => {
+      if (!item.src || !item.alt.trim() || !item.provenance.source.trim() || !item.provenance.rights.trim()) {
+        issues.push({
+          path: ["products", index, "images", imageIndex],
+          message: `${product.slug}: image ${imageIndex + 1} needs a source, alt text, and provenance before publishing`,
+        });
+      }
+    });
+    return issues;
+  });
+}
 
 const sizes = ["S", "M", "L", "XL", "XXL", "Custom"];
 const standardSizes = ["S", "M", "L", "XL", "XXL"];

@@ -308,9 +308,9 @@ export function PlatformEditorCatalogue({
   };
 
   const addProduct = () => {
-    const products = [...data.products, newProductDraft(data)];
+    const products = [newProductDraft(data), ...data.products];
     onChange({ ...data, products });
-    setExpandedProductIndex(products.length - 1);
+    setExpandedProductIndex(0);
   };
 
   return (

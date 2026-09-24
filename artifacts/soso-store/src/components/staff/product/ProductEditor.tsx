@@ -373,8 +373,6 @@ export function ProductEditor({
             </div>
           </div>
 
-          <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
-
           <MaterialTurnSetsEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
 
           <ColourEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
@@ -903,6 +901,7 @@ export function ProductEditor({
               </div>
             </div>
           </div>
+          <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
         </div>
       )}
     </div>

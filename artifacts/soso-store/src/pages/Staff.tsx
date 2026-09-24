@@ -738,7 +738,15 @@ function PlatformContentManagementSection() {
       });
       setContent(document); setRow(next); setStatus("Draft saved. It is not public until published."); void load();
     } catch (error) {
-      setStatus(error instanceof SyntaxError ? `Invalid JSON: ${error.message}` : errorMessage(error, "Draft could not be saved."));
+      const data = error && typeof error === "object" && "data" in error ? error.data : null;
+      const issues = data && typeof data === "object" && "issues" in data && Array.isArray(data.issues)
+        ? data.issues as { path?: (string | number)[]; message?: string }[]
+        : [];
+      const details = issues.slice(0, 5).map((issue) =>
+        `${issue.path?.join(".") || "Content"}: ${issue.message || "Invalid value"}`).join("; ");
+      setStatus(error instanceof SyntaxError
+        ? `Invalid JSON: ${error.message}`
+        : `${errorMessage(error, "Draft could not be saved.")}${details ? ` — ${details}` : ""}`);
     } finally { setSaving(false); }
   };
   const action = async (kind: "publish" | "unpublish") => {

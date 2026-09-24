@@ -28,6 +28,7 @@ import {
   mergePublishedPlatformContentDefaults,
   PlatformContentSchema,
   platformContentHash,
+  unfinishedProductImages,
   readLegacyPublishedFaqItems,
   reconcileLegacyPublishedFaqItems,
 } from "../lib/platform-content";
@@ -740,6 +741,40 @@ test("staff FAQ list is a database-backed read endpoint", () => {
 test("platform content validates the complete seeded document and hashes deterministically", () => {
   assert.equal(PlatformContentSchema.safeParse(DEFAULT_PLATFORM_CONTENT).success, true);
   assert.equal(platformContentHash(DEFAULT_PLATFORM_CONTENT), platformContentHash(structuredClone(DEFAULT_PLATFORM_CONTENT)));
+});
+
+test("unavailable catalogue placeholders save with unfinished images but cannot publish", () => {
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const placeholder: typeof content.products[number] = {
+    ...content.products[0]!,
+    slug: "unreleased-draft-item",
+    releaseState: "placeholder" as const,
+    fulfilmentState: "unavailable" as const,
+    standardEligible: false,
+    customEligible: false,
+    standardSizes: [],
+    sizes: ["One Size"],
+    readyNowSizes: [],
+    commerceProductId: undefined,
+    commerceVariantIds: undefined,
+    commerceMappingConfirmation: undefined,
+    unavailableMessage: "This product is being prepared for release.",
+    img: "",
+    images: [],
+  };
+  content.products.unshift(placeholder);
+  const parsed = PlatformContentSchema.safeParse(content);
+  assert.equal(parsed.success, true, JSON.stringify(parsed.error?.issues));
+  assert.ok(unfinishedProductImages(parsed.data!).some((issue) => issue.message.includes(placeholder.slug)));
+  placeholder.images.push({ src: "", alt: "", provenance: { source: "", rights: "" } });
+  const incomplete = PlatformContentSchema.safeParse(content);
+  assert.equal(incomplete.success, true, JSON.stringify(incomplete.error?.issues));
+  assert.ok(unfinishedProductImages(incomplete.data!).length > 0);
+  placeholder.releaseState = "approved";
+  assert.equal(PlatformContentSchema.safeParse(content).success, false);
+  placeholder.releaseState = "placeholder";
+  placeholder.fulfilmentState = "made_immediately";
+  assert.equal(PlatformContentSchema.safeParse(content).success, false);
 });
 
 test("homepage merchandising defaults are explicit and have exact ordered cardinalities", () => {
