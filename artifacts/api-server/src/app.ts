@@ -41,15 +41,30 @@ app.use(
   }),
 );
 app.use(cookieParser());
-app.use(express.json({
-  verify(req, _res, buffer) {
-    (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
-  },
-}));
+function preserveRawBody(req: express.Request, _res: express.Response, buffer: Buffer) {
+  (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+}
+
+// The Staff draft contains the whole catalogue, including media references.
+// Keep the larger allowance scoped to this save; other JSON routes retain their limit.
+app.put("/api/staff/content/platform", express.json({ limit: "1mb", verify: preserveRawBody }));
+app.use(express.json({ verify: preserveRawBody }));
 app.use(express.urlencoded({ extended: true }));
 app.use(loadStaffSession);
 app.use(requireSameOriginForWrites);
 
 app.use("/api", router);
+
+app.use((error: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (error && typeof error === "object" && "type" in error && error.type === "entity.too.large") {
+    res.status(413).json({
+      error: req.method === "PUT" && req.path === "/api/staff/content/platform"
+        ? "This draft exceeds the 1 MB save limit. Remove unusually large embedded content; uploaded photos do not need to be re-uploaded."
+        : "Request body is too large.",
+    });
+    return;
+  }
+  next(error);
+});
 
 export default app;
