@@ -45,8 +45,8 @@ function preserveRawBody(req: express.Request, _res: express.Response, buffer: B
   (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
 }
 
-// The Staff draft contains the whole catalogue, including media references.
-// Keep the larger allowance scoped to this save; other JSON routes retain their limit.
+// The complete-document escape hatch retains its bounded allowance.
+// Scoped section and product writes use the default smaller JSON budget.
 app.put("/api/staff/content/platform", express.json({ limit: "1mb", verify: preserveRawBody }));
 app.use(express.json({ verify: preserveRawBody }));
 app.use(express.urlencoded({ extended: true }));
@@ -59,8 +59,10 @@ app.use((error: unknown, req: express.Request, res: express.Response, next: expr
   if (error && typeof error === "object" && "type" in error && error.type === "entity.too.large") {
     res.status(413).json({
       error: req.method === "PUT" && req.path === "/api/staff/content/platform"
-        ? "This draft exceeds the 1 MB save limit. Remove unusually large embedded content; uploaded photos do not need to be re-uploaded."
-        : "Request body is too large.",
+        ? "This complete draft exceeds the 1 MB save limit. Save products or sections individually; uploaded photos do not need to be re-uploaded."
+        : req.path.startsWith("/api/staff/content/platform/")
+          ? "This section or product exceeds the request limit. Remove embedded content; uploaded photos do not need to be re-uploaded."
+          : "Request body is too large.",
     });
     return;
   }

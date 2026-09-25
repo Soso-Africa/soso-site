@@ -724,6 +724,31 @@ function PlatformContentManagementSection() {
   const parsedDocument = () => {
     return applyPlatformSection(content, section, JSON.parse(json) as unknown);
   };
+  const refreshRevisions = async () => {
+    setRevisions(await customFetch<PlatformRevision[]>("/api/staff/content/platform/revisions", { responseType: "json" }));
+  };
+  const saveProduct = async (slug: string): Promise<string> => {
+    if (!row?.draftUpdatedAt) return "Reload the saved draft before saving this product.";
+    if (!structuredEditorValid) return "Fix the highlighted fields before saving.";
+    try {
+      const product = parsedDocument().products.find((item) => item.slug === slug);
+      if (!product) return "Product not found in the editor.";
+      setSaving(true);
+      const next = await customFetch<PlatformContentRow>(`/api/staff/content/platform/products/${encodeURIComponent(slug)}/draft`, {
+        method: "PUT", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ product, expectedDraftUpdatedAt: row.draftUpdatedAt }), responseType: "json",
+      });
+      setRow(next);
+      await refreshRevisions();
+      const message = `${product.name} saved to the draft. Other unsaved edits remain in the editor.`;
+      setStatus(message);
+      return message;
+    } catch (error) {
+      const message = platformActionError(error, "Product could not be saved.");
+      setStatus(message);
+      return message;
+    } finally { setSaving(false); }
+  };
   const deleteCatalogueProduct = (slug: string): string | null | undefined => {
     try {
       const document = parsedDocument();
@@ -800,21 +825,79 @@ function PlatformContentManagementSection() {
       return;
     }
     setSaving(true);
+    let savedCount = 0;
     try {
       const document = parsedDocument();
-      const next = await customFetch<PlatformContentRow>("/api/staff/content/platform", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ content: document, expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }),
-        responseType: "json",
-      });
-      setContent(document); setRow(next);
+      if (!row?.draft || !row.draftUpdatedAt || section === "complete") {
+        const next = await customFetch<PlatformContentRow>("/api/staff/content/platform", {
+          method: "PUT", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ content: document, expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }),
+          responseType: "json",
+        });
+        setRow(next);
+      } else {
+        type Change = { method: "PATCH" | "PUT" | "DELETE"; path: string; value?: unknown; catalogue?: {
+          collections: PlatformContent["collections"];
+          upserts: Array<{ slug: string; product: PlatformContent["products"][number] }>;
+          deletions: string[];
+        } };
+        const changes: Change[] = [];
+        const previous = row.draft;
+        const productPath = (slug: string) => `/api/staff/content/platform/products/${encodeURIComponent(slug)}/draft`;
+        const oldProducts = new Map(previous.products.map((product) => [product.slug, product]));
+        const newProducts = new Map(document.products.map((product) => [product.slug, product]));
+        const upserts = document.products.filter((product) => JSON.stringify(oldProducts.get(product.slug)) !== JSON.stringify(product))
+          .map((product) => ({ slug: product.slug, product }));
+        const deletions = previous.products.filter((product) => !newProducts.has(product.slug)).map((product) => product.slug);
+        const collectionsChanged = JSON.stringify(previous.collections) !== JSON.stringify(document.collections);
+        const coupled = collectionsChanged && (upserts.length > 0 || deletions.length > 0);
+        const catalogueChange: Change = {
+          method: "PATCH", path: "/api/staff/content/platform/catalogue/draft",
+          catalogue: { collections: document.collections, upserts, deletions },
+        };
+        // New products may need their new collection before links in other
+        // sections are updated. Deletions instead need links removed first.
+        if (coupled && !deletions.length) changes.push(catalogueChange);
+        if (!coupled) {
+          for (const { slug, product } of upserts.filter(({ slug }) => !oldProducts.has(slug)))
+            changes.push({ method: "PUT", path: productPath(slug), value: product });
+        }
+        for (const key of ["site", "homepage", "pages", "collections", "sizeGuide", "productCopy", "supportCopy", "interfaceCopy"] as const) {
+          if (key === "collections" && coupled) continue;
+          if (JSON.stringify(previous[key]) !== JSON.stringify(document[key]))
+            changes.push({ method: "PATCH", path: `/api/staff/content/platform/sections/${key}`, value: document[key] });
+        }
+        if (coupled && deletions.length) changes.push(catalogueChange);
+        if (!coupled) {
+          for (const { slug, product } of upserts.filter(({ slug }) => oldProducts.has(slug)))
+            changes.push({ method: "PUT", path: productPath(slug), value: product });
+          for (const slug of deletions)
+            changes.push({ method: "DELETE", path: productPath(slug) });
+        }
+        let expected = row.draftUpdatedAt;
+        for (const change of changes) {
+          const next = await customFetch<PlatformContentRow>(change.path, {
+            method: change.method, headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              expectedDraftUpdatedAt: expected,
+              ...(change.catalogue ? change.catalogue
+                : change.method === "PATCH" ? { value: change.value }
+                : change.method === "PUT" ? { product: change.value } : {}),
+            }),
+            responseType: "json",
+          });
+          setRow(next);
+          expected = next.draftUpdatedAt!;
+          savedCount++;
+        }
+        if (!changes.length) { setStatus("No changes to save."); return; }
+      }
       await load();
       setStatus("Draft saved. It is not public until published.");
     } catch (error) {
-      setStatus(error instanceof SyntaxError
+      setStatus(`${savedCount ? `${savedCount} change${savedCount === 1 ? "" : "s"} saved; the remaining edits are still in the editor. ` : ""}${error instanceof SyntaxError
         ? `Invalid JSON: ${error.message}`
-        : platformActionError(error, "Draft could not be saved."));
+        : platformActionError(error, "Draft could not be saved.")}`);
     } finally { setSaving(false); }
   };
   const action = async (kind: "publish" | "unpublish") => {
@@ -913,6 +996,7 @@ function PlatformContentManagementSection() {
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
           initialProductSlug={initialProductSlug}
           onDeleteProduct={deleteCatalogueProduct}
+          onSaveProduct={saveProduct}
           onPublishProduct={publishCatalogueProduct}
           publishedProducts={row?.published?.products ?? []}
           onPublishRemoval={publishCatalogueRemoval}
