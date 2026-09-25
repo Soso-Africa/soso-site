@@ -73,6 +73,7 @@ export function PlatformEditorCatalogue({
   onUploadMedia,
   initialProductSlug,
   onDeleteProduct,
+  onSaveProduct,
   onPublishProduct,
   publishedProducts,
   onPublishRemoval,
@@ -82,6 +83,7 @@ export function PlatformEditorCatalogue({
   onUploadMedia: (file: File) => Promise<string>;
   initialProductSlug?: string | null;
   onDeleteProduct: (slug: string) => string | null | undefined;
+  onSaveProduct: (slug: string) => Promise<string>;
   onPublishProduct: (slug: string) => Promise<string>;
   publishedProducts: CatalogProduct[];
   onPublishRemoval: (slug: string) => Promise<string | undefined>;
@@ -487,6 +489,7 @@ export function PlatformEditorCatalogue({
               onToggle={() => setExpandedProductIndex(expandedProductIndex === index ? null : index)}
               onChange={(updatedProduct) => updateProduct(index, updatedProduct)}
               onDelete={() => deleteProduct(product.slug)}
+              onSave={() => onSaveProduct(product.slug)}
               onPublish={() => onPublishProduct(product.slug)}
               onUploadMedia={onUploadMedia}
               commerceProducts={commerceProducts}

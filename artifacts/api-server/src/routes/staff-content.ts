@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { createHash } from "node:crypto";
 import {
   CreateStaffJournalPostBody,
@@ -506,6 +506,164 @@ router.get("/staff/content/platform", platformRoles, async (_req, res): Promise<
   const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
   if (!row) { res.status(503).json({ error: "Platform content is unavailable" }); return; }
   res.json(row);
+});
+
+const editablePlatformSections = [
+  "site", "homepage", "pages", "collections", "sizeGuide", "productCopy", "supportCopy", "interfaceCopy",
+] as const;
+const editableSection = z.enum(editablePlatformSections);
+type EditableSection = typeof editablePlatformSections[number];
+type DraftChange =
+  | { kind: "section"; section: EditableSection; value: unknown }
+  | { kind: "product"; slug: string; value: unknown }
+  | { kind: "delete_product"; slug: string }
+  | { kind: "catalogue"; collections: unknown; upserts: { slug: string; product: unknown }[]; deletions: string[] };
+
+function mergeDraftChange(current: PlatformContent, change: DraftChange): unknown {
+  if (change.kind === "section") return { ...current, [change.section]: change.value };
+  if (change.kind === "catalogue") {
+    const products = current.products.filter((product) => !change.deletions.includes(product.slug));
+    for (const { slug, product } of change.upserts) {
+      if (!product || typeof product !== "object" || Array.isArray(product)
+          || (product as { slug?: unknown }).slug !== slug) return null;
+      const index = products.findIndex((existing) => existing.slug === slug);
+      if (index < 0) products.push(product as PlatformContent["products"][number]);
+      else products[index] = product as PlatformContent["products"][number];
+    }
+    return { ...current, collections: change.collections, products };
+  }
+  const products = [...current.products];
+  const index = products.findIndex((product) => product.slug === change.slug);
+  if (change.kind === "delete_product") {
+    if (index < 0) return null;
+    products.splice(index, 1);
+  } else {
+    if (!change.value || typeof change.value !== "object" || Array.isArray(change.value)
+        || (change.value as { slug?: unknown }).slug !== change.slug) return null;
+    if (index < 0) products.push(change.value as PlatformContent["products"][number]);
+    else products[index] = change.value as PlatformContent["products"][number];
+  }
+  return { ...current, products };
+}
+
+async function saveScopedDraft(req: Request, res: Response, change: DraftChange): Promise<void> {
+  const expected = expectedDraftDate(req.body?.expectedDraftUpdatedAt);
+  if (!expected) { res.status(400).json({ error: "expectedDraftUpdatedAt is required" }); return; }
+  await ensurePlatformContent();
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const [currentRow] = await tx.select().from(siteContentTable)
+      .where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).limit(1);
+    if (!currentRow) return { kind: "conflict" as const };
+    const current = PlatformContentSchema.safeParse(currentRow.draft);
+    if (!current.success) return { kind: "invalid" as const, error: "The saved draft is invalid. Restore it with the complete document editor.", issues: current.error.issues };
+    const candidate = mergeDraftChange(current.data, change);
+    if (!candidate) return { kind: "invalid" as const, error: "Product slug must match the URL and an existing product must be selected for deletion.", issues: [] };
+    const parsed = PlatformContentSchema.safeParse(candidate);
+    if (!parsed.success) return { kind: "invalid" as const, error: "The changed draft is invalid.", issues: parsed.error.issues };
+    if (!preservesLegacySparseFeaturedProvenance(currentRow.draft, parsed.data)) {
+      return { kind: "invalid" as const, error: "Legacy sparse featured compatibility can only be preserved from the current migrated draft.", issues: [] };
+    }
+    const selectedProducts = change.kind === "product" ? [change.slug]
+      : change.kind === "catalogue" ? change.upserts.map((item) => item.slug) : [];
+    const selected = { ...parsed.data, products: parsed.data.products.filter((product) => selectedProducts.includes(product.slug)) };
+    const mediaIssues = selectedProducts.length
+      ? (await validateProductMediaAssets(selected)).map((issue) => ({
+          ...issue,
+          path: issue.path[0] === "products"
+            ? ["products", parsed.data.products.findIndex((product) => product.slug === selected.products[Number(issue.path[1])]?.slug), ...issue.path.slice(2)]
+            : issue.path,
+        }))
+      : [];
+    if (change.kind === "catalogue" || (change.kind === "section" && change.section === "collections")) {
+      mediaIssues.push(...await validateCollectionMediaAssets(parsed.data));
+    }
+    if (change.kind === "section" && change.section === "homepage") {
+      mediaIssues.push(...await validateHomepageHeroMediaAssets(parsed.data), ...await validateHomepageMerchandisingMediaAssets(parsed.data));
+    }
+    if (mediaIssues.length) return { kind: "invalid" as const, error: "Storefront media did not pass draft checks", issues: mediaIssues };
+    if (selectedProducts.length) {
+      try {
+        const commerceIssues = await validateCurrentCommerceMappings(selected.products, false);
+        if (commerceIssues.length) return { kind: "invalid" as const, error: "JusticeSure mappings did not pass live draft checks", issues: commerceIssues };
+      } catch {
+        return { kind: "unavailable" as const };
+      }
+    }
+    const now = new Date(Math.max(Date.now(), expected.getTime() + 1));
+    const [updated] = await tx.update(siteContentTable).set({
+      draft: parsed.data, draftUpdatedAt: now, updatedByClerkUserId: req.staff!.clerkUserId,
+    }).where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).returning();
+    if (!updated) return { kind: "conflict" as const };
+    const hash = platformContentHash(parsed.data);
+    const [revision] = await tx.insert(siteContentRevisionsTable).values({
+      contentKey: "platform", event: "draft_saved", snapshot: parsed.data,
+      contentHash: hash, createdByClerkUserId: req.staff!.clerkUserId,
+    }).returning({ id: siteContentRevisionsTable.id });
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId, action: "platform_content.draft_saved",
+      entityType: "site_content", entityId: "platform",
+      metadata: {
+        contentHash: hash, revisionId: revision!.id,
+        scope: change.kind === "section" ? change.section : change.kind === "catalogue" ? "catalogue" : "product",
+        ...(change.kind === "product" || change.kind === "delete_product" ? { slug: change.slug } : {}),
+        confirmedCommerceMappings: parsed.data.products.filter((product) => product.commerceMappingConfirmation)
+          .map((product) => ({
+            slug: product.slug, productHash: product.commerceMappingConfirmation!.productHash,
+            confirmedAt: product.commerceMappingConfirmation!.confirmedAt,
+            confidence: product.commerceMappingConfirmation!.confidence,
+          })),
+      },
+    });
+    await queueCollectionCoverCleanup(tx, replacedCollectionCoverUploadPaths(currentRow.draft, parsed.data), req.staff!.clerkUserId);
+    return { kind: "saved" as const, row: updated };
+  });
+  if (result.kind === "conflict") { res.status(409).json({ error: "Platform content changed while you were editing. Reload before saving." }); return; }
+  if (result.kind === "invalid") { res.status(400).json({ error: result.error, issues: result.issues }); return; }
+  if (result.kind === "unavailable") { res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. The draft was not saved." }); return; }
+  try { await processPendingCollectionCoverCleanup(); }
+  catch (error) { req.log.error({ err: error }, "Failed to process queued collection cover cleanup"); }
+  res.json(result.row);
+}
+
+router.patch("/staff/content/platform/sections/:section", platformRoles, async (req, res): Promise<void> => {
+  const section = editableSection.safeParse(req.params.section);
+  if (!section.success || !req.body || !Object.prototype.hasOwnProperty.call(req.body, "value")) {
+    res.status(400).json({ error: "Provide an editable section and its value." }); return;
+  }
+  await saveScopedDraft(req, res, { kind: "section", section: section.data, value: req.body.value });
+});
+
+router.put("/staff/content/platform/products/:slug/draft", platformRoles, async (req, res): Promise<void> => {
+  const slug = catalogueSlug.safeParse(req.params.slug);
+  if (!slug.success || !req.body || !Object.prototype.hasOwnProperty.call(req.body, "product")) {
+    res.status(400).json({ error: "Provide a valid product slug and product." }); return;
+  }
+  await saveScopedDraft(req, res, { kind: "product", slug: slug.data, value: req.body.product });
+});
+
+router.delete("/staff/content/platform/products/:slug/draft", platformRoles, async (req, res): Promise<void> => {
+  const slug = catalogueSlug.safeParse(req.params.slug);
+  if (!slug.success) { res.status(400).json({ error: "Provide a valid product slug." }); return; }
+  await saveScopedDraft(req, res, { kind: "delete_product", slug: slug.data });
+});
+
+router.patch("/staff/content/platform/catalogue/draft", platformRoles, async (req, res): Promise<void> => {
+  const parsed = z.object({
+    expectedDraftUpdatedAt: z.string(),
+    collections: z.array(z.unknown()).min(1).max(1000),
+    upserts: z.array(z.object({ slug: catalogueSlug, product: z.unknown() }).strict()).max(1000),
+    deletions: z.array(catalogueSlug).max(1000),
+  }).strict().safeParse(req.body);
+  if (!parsed.success || (!parsed.data.upserts.length && !parsed.data.deletions.length)
+      || parsed.data.upserts.some((item) => !Object.prototype.hasOwnProperty.call(item, "product"))) {
+    res.status(400).json({ error: "Provide collections and changed products for a coupled catalogue save." }); return;
+  }
+  await saveScopedDraft(req, res, {
+    kind: "catalogue", collections: parsed.data.collections,
+    upserts: parsed.data.upserts.map((item) => ({ slug: item.slug, product: item.product })),
+    deletions: parsed.data.deletions,
+  });
 });
 
 router.put("/staff/content/platform", platformRoles, async (req, res): Promise<void> => {

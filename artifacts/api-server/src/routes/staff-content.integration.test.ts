@@ -10,6 +10,7 @@ import {
   db,
   journalPostsTable,
   siteContentTable,
+  siteContentRevisionsTable,
   staffSessionsTable,
   staffUsersTable,
 } from "@workspace/db";
@@ -78,6 +79,118 @@ function pngBytes(red: number): Buffer {
   png.data.set([red, 30, 60, 255, red, 30, 60, 255]);
   return PNG.sync.write(png, { colorType: 6 });
 }
+
+test("scoped saves accept a large catalogue, reject stale and unsafe writes, and roll back a failed revision", async () => {
+  const originalRows = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
+  const token = randomBytes(32).toString("hex");
+  const clerkUserId = `scoped-draft-check-${randomBytes(8).toString("hex")}`;
+  let server: Server | undefined;
+  let staffUserId: string | undefined;
+  try {
+    const [staff] = await db.insert(staffUsersTable).values({
+      clerkUserId, email: `${clerkUserId}@example.com`, role: "editor", isActive: true,
+    }).returning({ id: staffUsersTable.id });
+    staffUserId = staff!.id;
+    await db.insert(staffSessionsTable).values({
+      staffUserId, tokenHash: createHash("sha256").update(token).digest("hex"),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const initial = publishableContent();
+    const template = initial.products[0]!;
+    initial.products.push(...Array.from({ length: 125 }, (_, index) => ({
+      ...structuredClone(template),
+      slug: `large-catalogue-${index}`, name: `Piece ${index} ${"x".repeat(8_800)}`,
+    })));
+    assert.ok(Buffer.byteLength(JSON.stringify(initial)) > 1_048_576);
+    const now = new Date();
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    await db.insert(siteContentTable).values({ key: "platform", draft: initial, draftUpdatedAt: now, updatedByClerkUserId: clerkUserId });
+    const running = await listen();
+    server = running.server;
+    const productUrl = "/api/staff/content/platform/products/large-catalogue-0/draft";
+    const firstProduct = { ...initial.products.find((product) => product.slug === "large-catalogue-0")!, name: "Saved without sending the catalogue" };
+    const first = await request(running.baseUrl, productUrl, token, {
+      method: "PUT", body: { expectedDraftUpdatedAt: now.toISOString(), product: firstProduct },
+    });
+    assert.equal(first.status, 200, JSON.stringify(first.body).slice(0, 400));
+    assert.equal(first.body.draft.products.length, initial.products.length);
+    assert.equal(first.body.draft.products[1].name, initial.products[1]!.name);
+    const stale = await request(running.baseUrl, productUrl, token, {
+      method: "PUT", body: { expectedDraftUpdatedAt: now.toISOString(), product: firstProduct },
+    });
+    assert.equal(stale.status, 409);
+    const invalid = await request(running.baseUrl, productUrl, token, {
+      method: "PUT",
+      body: { expectedDraftUpdatedAt: first.body.draftUpdatedAt, product: { ...firstProduct, img: "/images/soso/missing-image.png", images: [{ src: "/images/soso/missing-image.png", alt: "Missing", provenance: { source: "Studio", rights: "Owned" } }] } },
+    });
+    assert.equal(invalid.status, 400);
+    assert.match(JSON.stringify(invalid.body), /verified bundled or SOSO Cloudinary asset/i);
+    const section = await request(running.baseUrl, "/api/staff/content/platform/sections/productCopy", token, {
+      method: "PATCH", body: { expectedDraftUpdatedAt: first.body.draftUpdatedAt, value: { ...initial.productCopy, title: "Unexpected field" } },
+    });
+    assert.equal(section.status, 400);
+    const validSection = await request(running.baseUrl, "/api/staff/content/platform/sections/interfaceCopy", token, {
+      method: "PATCH", body: { expectedDraftUpdatedAt: first.body.draftUpdatedAt, value: {
+        ...initial.interfaceCopy, navigation: { ...initial.interfaceCopy.navigation, shopAllLabel: "Browse every piece" },
+      } },
+    });
+    assert.equal(validSection.status, 200, JSON.stringify(validSection.body).slice(0, 400));
+    assert.equal(validSection.body.draft.products.find((product: { slug: string }) => product.slug === firstProduct.slug).name, firstProduct.name);
+    assert.equal(validSection.body.draft.interfaceCopy.navigation.shopAllLabel, "Browse every piece");
+    const newCollection = { ...structuredClone(initial.collections[0]!), slug: "new-category-collection", category: "New category" };
+    const newProduct = { ...firstProduct, slug: "first-new-category-product", category: "New category" };
+    const coupled = await request(running.baseUrl, "/api/staff/content/platform/catalogue/draft", token, {
+      method: "PATCH", body: {
+        expectedDraftUpdatedAt: validSection.body.draftUpdatedAt,
+        collections: [...initial.collections, newCollection],
+        upserts: [{ slug: newProduct.slug, product: newProduct }],
+        deletions: [],
+      },
+    });
+    assert.equal(coupled.status, 200, JSON.stringify(coupled.body).slice(0, 800));
+    assert.equal(coupled.body.draft.products.find((product: { slug: string }) => product.slug === newProduct.slug).category, newCollection.category);
+    const moved = await request(running.baseUrl, "/api/staff/content/platform/catalogue/draft", token, {
+      method: "PATCH", body: {
+        expectedDraftUpdatedAt: coupled.body.draftUpdatedAt,
+        collections: [...initial.collections, { ...newCollection, category: "Renamed category" }],
+        upserts: [{ slug: newProduct.slug, product: { ...newProduct, category: "Renamed category" } }],
+        deletions: [],
+      },
+    });
+    assert.equal(moved.status, 200, JSON.stringify(moved.body).slice(0, 800));
+
+    // Simulate an insert failure after the draft row update: the transaction
+    // must roll back the row as well as its revision and audit.
+    await db.execute(sql.raw(`CREATE FUNCTION fail_scoped_revision() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced revision failure'; END $$`));
+    await db.execute(sql.raw(`CREATE TRIGGER fail_scoped_revision_trigger BEFORE INSERT ON soso_site_content_revisions FOR EACH ROW EXECUTE FUNCTION fail_scoped_revision()`));
+    const failedProduct = { ...firstProduct, name: "Should never persist" };
+    const response = await fetch(`${running.baseUrl}${productUrl}`, {
+      method: "PUT",
+      headers: { cookie: `soso_staff_session=${token}`, origin: running.baseUrl, "content-type": "application/json" },
+      body: JSON.stringify({ expectedDraftUpdatedAt: moved.body.draftUpdatedAt, product: failedProduct }),
+    });
+    assert.equal(response.status, 500);
+    await db.execute(sql.raw("DROP TRIGGER fail_scoped_revision_trigger ON soso_site_content_revisions"));
+    await db.execute(sql.raw("DROP FUNCTION fail_scoped_revision()"));
+    const after = await request(running.baseUrl, "/api/staff/content/platform", token);
+    assert.equal(after.body.draftUpdatedAt, moved.body.draftUpdatedAt);
+    assert.equal(after.body.draft.products.find((product: { slug: string }) => product.slug === firstProduct.slug).name, firstProduct.name);
+    assert.equal(after.body.draft.interfaceCopy.navigation.shopAllLabel, "Browse every piece");
+    const revisions = await db.select().from(siteContentRevisionsTable)
+      .where(and(eq(siteContentRevisionsTable.contentKey, "platform"), eq(siteContentRevisionsTable.createdByClerkUserId, clerkUserId)));
+    assert.equal(revisions.length, 4);
+    const audits = await db.select().from(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    assert.equal(audits.filter((audit) => audit.action === "platform_content.draft_saved").length, 4);
+  } finally {
+    await db.execute(sql.raw("DROP TRIGGER IF EXISTS fail_scoped_revision_trigger ON soso_site_content_revisions"));
+    await db.execute(sql.raw("DROP FUNCTION IF EXISTS fail_scoped_revision()"));
+    if (server) { server.close(); await once(server, "close"); }
+    if (staffUserId) await db.delete(staffUsersTable).where(eq(staffUsersTable.id, staffUserId));
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    if (originalRows[0]) await db.insert(siteContentTable).values(originalRows[0]);
+  }
+});
 
 test("Staff can publish only a complete browse-only product while preserving unrelated catalogue and checkout state", async () => {
   const originalRows = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
@@ -404,9 +517,9 @@ test("staff collection cover upload, persistence, publishing, replacement and re
     const replacementPath = await upload("collection-cover-two.png");
     const replacementContent = structuredClone(published.body.draft) as PlatformContent;
     replacementContent.collections[0]!.cover!.src = replacementPath;
-    const replaced = await request(running.baseUrl, "/api/staff/content/platform", token, {
-      method: "PUT",
-      body: { content: replacementContent, expectedDraftUpdatedAt: published.body.draftUpdatedAt },
+    const replaced = await request(running.baseUrl, "/api/staff/content/platform/sections/collections", token, {
+      method: "PATCH",
+      body: { value: replacementContent.collections, expectedDraftUpdatedAt: published.body.draftUpdatedAt },
     });
     assert.equal(replaced.status, 200);
     const replacementReload = await request(running.baseUrl, "/api/staff/content/platform", token);
@@ -417,16 +530,16 @@ test("staff collection cover upload, persistence, publishing, replacement and re
     const removedContent = structuredClone(replacementReload.body.draft) as PlatformContent;
     removedContent.collections[0]!.showCover = false;
     delete removedContent.collections[0]!.cover;
-    const rejectedRemoval = await request(running.baseUrl, "/api/staff/content/platform", token, {
-      method: "PUT",
-      body: { content: removedContent, expectedDraftUpdatedAt: published.body.draftUpdatedAt },
+    const rejectedRemoval = await request(running.baseUrl, "/api/staff/content/platform/sections/collections", token, {
+      method: "PATCH",
+      body: { value: removedContent.collections, expectedDraftUpdatedAt: published.body.draftUpdatedAt },
     });
     assert.equal(rejectedRemoval.status, 409);
     assert.deepEqual(deletedUploads, []);
 
-    const removed = await request(running.baseUrl, "/api/staff/content/platform", token, {
-      method: "PUT",
-      body: { content: removedContent, expectedDraftUpdatedAt: replacementReload.body.draftUpdatedAt },
+    const removed = await request(running.baseUrl, "/api/staff/content/platform/sections/collections", token, {
+      method: "PATCH",
+      body: { value: removedContent.collections, expectedDraftUpdatedAt: replacementReload.body.draftUpdatedAt },
     });
     assert.equal(removed.status, 200);
     const removalReload = await request(running.baseUrl, "/api/staff/content/platform", token);

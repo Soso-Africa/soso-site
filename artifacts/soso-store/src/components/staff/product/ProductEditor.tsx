@@ -38,6 +38,7 @@ export function ProductEditor({
   onToggle,
   onChange,
   onDelete,
+  onSave,
   onPublish,
   onUploadMedia,
   commerceProducts,
@@ -53,6 +54,7 @@ export function ProductEditor({
   onToggle: () => void;
   onChange: (product: CatalogProduct) => void;
   onDelete: () => void;
+  onSave: () => Promise<string>;
   onPublish: () => Promise<string>;
   onUploadMedia: (file: File) => Promise<string>;
   commerceProducts: CommerceCatalogProduct[];
@@ -922,6 +924,13 @@ export function ProductEditor({
             </div>
           </div>
           <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
+          <div className="border-t border-border pt-4">
+            <button type="button" onClick={() => void onSave()} data-testid={`button-save-catalogue-product-${product.slug}`}
+              className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold text-primary-foreground">
+              Save this product only
+            </button>
+            <p className="mt-2 text-xs text-muted-foreground">Saves this product to the draft without sending the rest of the catalogue. Save other edits separately before publishing.</p>
+          </div>
           {product.releaseState === "placeholder" && product.fulfilmentState === "unavailable" && !product.commerceProductId && (
             <div className="border-t border-border pt-4">
               <button type="button" disabled={publishingProduct} onClick={async () => {
