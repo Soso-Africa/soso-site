@@ -60,7 +60,7 @@ import {
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
-import { newManagedStaffIdentity, setManagedStaffPassword } from "./staff-auth";
+import { hashManagedStaffPassword, newManagedStaffIdentity, setManagedStaffPassword } from "./staff-auth";
 import {
   CUSTOM_DISPATCH_GUIDANCE,
   staffMeasurementActionAllowed,
@@ -370,23 +370,33 @@ router.post("/staff/access", requireStaffRoles("owner"), async (req, res): Promi
   const email = normalizedEmail(req.body?.email);
   const password = req.body?.password;
   const role = req.body?.role;
-  if (!email || typeof password !== "string" || password.length < 12 || !["owner", "administrator", "operations", "stylist", "editor", "analyst"].includes(role)) {
+  if (!email || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    || typeof password !== "string" || password.length < 12 || password.length > 200
+    || !["owner", "administrator", "operations", "stylist", "editor", "analyst"].includes(role)) {
     res.status(400).json({ error: "Provide an email, a strong temporary password, and a valid SOSO role." });
     return;
   }
-  const [existing] = await db.select({ id: staffUsersTable.id }).from(staffUsersTable)
-    .where(eq(staffUsersTable.email, email)).limit(1);
-  if (existing) {
-    res.status(400).json({ error: "That email address already has staff access." });
-    return;
-  }
-  const [created] = await db.insert(staffUsersTable).values({ clerkUserId: newManagedStaffIdentity(), email, role: role as StaffUser["role"], isActive: true }).returning();
-  await setManagedStaffPassword(created!.id, password);
-  await db.insert(auditLogsTable).values({
-    actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.created", entityType: "staff_user", entityId: created!.id,
-    metadata: auditMetadata({ email, role }),
+  const passwordHash = await hashManagedStaffPassword(password);
+  const result = await withStaffAccessMutationLock(async (tx) => {
+    const [actor] = await tx.select({ role: staffUsersTable.role, isActive: staffUsersTable.isActive })
+      .from(staffUsersTable).where(eq(staffUsersTable.id, req.staff!.id)).limit(1);
+    if (!actor || actor.role !== "owner" || !actor.isActive) return { kind: "forbidden" as const };
+    const [existing] = await tx.select({ id: staffUsersTable.id }).from(staffUsersTable)
+      .where(eq(staffUsersTable.email, email)).limit(1);
+    if (existing) return { kind: "duplicate" as const };
+    const [created] = await tx.insert(staffUsersTable).values({
+      clerkUserId: newManagedStaffIdentity(), email, role: role as StaffUser["role"],
+      isActive: true, passwordHash, passwordChangedAt: new Date(),
+    }).returning();
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId, action: "staff_access.created", entityType: "staff_user", entityId: created!.id,
+      metadata: auditMetadata({ email, role }),
+    });
+    return { kind: "created" as const, staff: created! };
   });
-  res.status(201).json(CreateStaffAccessResponse.parse(created));
+  if (result.kind === "forbidden") { res.status(403).json({ error: "Owner access is no longer active." }); return; }
+  if (result.kind === "duplicate") { res.status(409).json({ error: "That email address already has staff access." }); return; }
+  res.status(201).json(CreateStaffAccessResponse.parse(result.staff));
 });
 
 router.post("/staff/access/:id/password", requireStaffRoles("owner"), async (req, res): Promise<void> => {
