@@ -1,4 +1,5 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
 import { productDeletionReferences } from "../components/staff/product/catalogue-delete";
@@ -360,7 +361,7 @@ export default function Staff() {
             </div>
           </aside>
         )}
-        {activeTab === "overview" && <><section className="mt-6 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Activity className="mt-0.5 shrink-0 text-primary" size={18} /><p className="text-sm text-muted-foreground">{overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${formatDateSafe(overview.data.generatedAt, "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}</p></div><span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span></section><NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} /><RoleCapabilityBanner role={profile.role} /><Pulse overview={overview.data} loading={overview.isLoading} /></>}
+        {activeTab === "overview" && <><section className="mt-6 flex flex-col gap-3 border border-border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-start gap-3"><Activity className="mt-0.5 shrink-0 text-primary" size={18} /><p className="text-sm text-muted-foreground">{overview.data ? `Showing ${overview.data.from} to ${overview.data.to}. Data refreshed ${formatDateSafe(overview.data.generatedAt, "HH:mm")}; operational figures refresh every ${overview.data.freshnessMinutes} minutes.` : "Loading the current operational view…"}</p></div><span className="text-xs uppercase tracking-widest text-muted-foreground">{format(new Date(), "EEEE, d MMMM")}</span></section>{profile.role === "owner" && <section className="mt-5 flex flex-wrap items-center justify-between gap-4 border border-primary/25 bg-primary/5 p-4"><div><p className="text-sm font-semibold">Need to give someone Staff access?</p><p className="mt-1 text-xs text-muted-foreground">Create their account and choose what they can manage.</p></div><button type="button" onClick={() => setActiveTab("staff")} className="inline-flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground"><Plus size={14} /> Add staff member</button></section>}<NotificationStrip notifications={notifications.data} loading={notifications.isLoading} onAcknowledged={() => void notifications.refetch()} /><RoleCapabilityBanner role={profile.role} /><Pulse overview={overview.data} loading={overview.isLoading} /></>}
         {activeTab === "orders" && <OrdersSection orders={orders.data} loading={orders.isLoading} canRefund={profile.role === "owner"} onChanged={refreshOperations} readOnly={!canManageOrders} canManageMeasurements={canManageMeasurements} />}
         {activeTab === "enquiries" && <EnquiriesSection enquiries={enquiries.data} loading={enquiries.isLoading} onChanged={refreshOperations} />}
         {activeTab === "privacy" && <PrivacySection role={profile.role} requests={privacy.data} loading={privacy.isLoading} onChanged={refreshOperations} />}
@@ -486,28 +487,34 @@ function StaffAccessSection() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"owner" | "administrator" | "operations" | "stylist" | "editor" | "analyst">("operations");
   const [notice, setNotice] = useState("");
+  const [noticeIsError, setNoticeIsError] = useState(false);
   const [saving, setSaving] = useState(false);
   const submit = async (event: FormEvent) => {
-    event.preventDefault(); setSaving(true);
+    event.preventDefault(); setSaving(true); setNotice("");
     try {
       await customFetch("/api/staff/access", { method: "POST", body: JSON.stringify({ email, password, role }), headers: { "content-type": "application/json" } });
-      setEmail(""); setPassword(""); setNotice("Staff account created. Share the temporary password securely."); void access.refetch();
-    } catch (error) { setNotice(errorMessage(error, "Staff access could not be added.")); } finally { setSaving(false); }
+      setEmail(""); setPassword(""); setNoticeIsError(false);
+      setNotice("Staff account created with the selected role. Share the temporary password securely; this portal does not email it.");
+      void access.refetch();
+    } catch (error) { setNoticeIsError(true); setNotice(errorMessage(error, "Staff account could not be created.")); }
+    finally { setSaving(false); }
   };
   const update = async (id: string, data: { role?: string; isActive?: boolean }) => {
-    try { await customFetch(`/api/staff/access/${id}`, { method: "PATCH", body: JSON.stringify(data), headers: { "content-type": "application/json" } }); setNotice("Staff access updated."); void access.refetch(); }
-    catch (error) { setNotice(errorMessage(error, "Staff access could not be updated.")); }
+    try { await customFetch(`/api/staff/access/${id}`, { method: "PATCH", body: JSON.stringify(data), headers: { "content-type": "application/json" } }); setNoticeIsError(false); setNotice("Staff access updated."); void access.refetch(); }
+    catch (error) { setNoticeIsError(true); setNotice(errorMessage(error, "Staff access could not be updated.")); }
   };
   return <section className="mt-12 border-t border-border pt-10">
-    <SectionHeading icon={Users} title="Staff access" description="Create SOSO-managed staff accounts, assign roles, reset passwords, and deactivate access. Every change is recorded." />
+    <SectionHeading icon={Users} title="Staff access" description="As the owner, create accounts for other team members and assign each a role. You can change or deactivate their access later." />
     <form onSubmit={submit} className="grid gap-3 border border-border bg-card p-5 md:grid-cols-[1fr_1fr_0.7fr_auto] md:items-end">
-      <InputLabel label="Email"><input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="staff-input mt-1" /></InputLabel>
-      <InputLabel label="Temporary password"><input required minLength={12} type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="staff-input mt-1" placeholder="12+ characters" /></InputLabel>
+      <InputLabel label="New staff email"><input required type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} className="staff-input mt-1" /></InputLabel>
+      <InputLabel label="Temporary password"><input required minLength={12} maxLength={200} type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className="staff-input mt-1" placeholder="At least 12 characters" /></InputLabel>
       <InputLabel label="Role"><select value={role} onChange={(e) => setRole(e.target.value as typeof role)} className="staff-input mt-1">{["owner", "administrator", "operations", "stylist", "editor", "analyst"].map((item) => <option key={item}>{item}</option>)}</select></InputLabel>
-      <button disabled={saving} className="inline-flex min-h-10 items-center justify-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Plus size={14} /> Add access</button>
+      <button disabled={saving} className="inline-flex min-h-10 items-center justify-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Plus size={14} /> {saving ? "Creating…" : "Create account"}</button>
     </form>
-    {notice && <p role="status" className="mt-3 border border-primary/25 bg-primary/5 p-3 text-sm">{notice}</p>}
-    <div className="mt-5 border border-border bg-card">{access.isLoading ? <LoadingRows /> : !access.data?.length ? <Empty label="No staff accounts yet." /> : <div className="divide-y divide-border">{access.data.map((member) => <StaffAccessRow key={member.id} member={member} update={update} onReset={() => void access.refetch()} />)}</div>}</div>
+    <p className="mt-3 text-xs text-muted-foreground">Team members sign in at <Link className="underline underline-offset-2" href="/sign-in">Staff sign in</Link> using this email and the temporary password. Only owners can create accounts; each role sees its own permitted tools.</p>
+    {notice && <p role={noticeIsError ? "alert" : "status"} className={`mt-3 border p-3 text-sm ${noticeIsError ? "border-destructive/30 bg-destructive/5 text-destructive" : "border-primary/25 bg-primary/5"}`}>{notice}</p>}
+    {access.isError && <p role="alert" className="mt-5 border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Staff accounts could not be loaded. <button type="button" className="underline" onClick={() => void access.refetch()}>Try again</button>.</p>}
+    <div className="mt-5 border border-border bg-card">{access.isLoading ? <LoadingRows /> : access.isError ? null : !access.data?.length ? <Empty label="No staff accounts yet." /> : <div className="divide-y divide-border">{access.data.map((member) => <StaffAccessRow key={member.id} member={member} update={update} onReset={() => void access.refetch()} />)}</div>}</div>
   </section>;
 }
 

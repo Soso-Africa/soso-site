@@ -68,6 +68,83 @@ test("staff auth rejects anonymous protected requests without account details", 
   }
 });
 
+test("an owner creates a staff account with a role that can sign in, while other roles cannot create accounts", async () => {
+  const suffix = randomBytes(8).toString("hex");
+  const ownerEmail = `access-owner-${suffix}@example.com`;
+  const operationsEmail = `access-operations-${suffix}@example.com`;
+  const newEmail = `access-stylist-${suffix}@example.com`;
+  const newPassword = "AtelierStylist2026!";
+  const ids: string[] = [];
+  let server: Server | undefined;
+
+  try {
+    const inserted = await db.insert(staffUsersTable).values([
+      { clerkUserId: `access-owner-${suffix}`, email: ownerEmail, role: "owner", isActive: true },
+      { clerkUserId: `access-operations-${suffix}`, email: operationsEmail, role: "operations", isActive: true },
+    ]).returning({ id: staffUsersTable.id });
+    ids.push(...inserted.map((staff) => staff.id));
+    await Promise.all(inserted.map((staff) => setManagedStaffPassword(staff.id, password)));
+    const running = await listen();
+    server = running.server;
+    const ownerLogin = await request(running.baseUrl, "/api/staff-auth/login", { method: "POST", body: { email: ownerEmail, password } });
+    const operationsLogin = await request(running.baseUrl, "/api/staff-auth/login", { method: "POST", body: { email: operationsEmail, password } });
+    assert.equal(ownerLogin.status, 200);
+    assert.equal(operationsLogin.status, 200);
+
+    const denied = await request(running.baseUrl, "/api/staff/access", {
+      method: "POST", cookie: operationsLogin.cookie, body: { email: newEmail, password: newPassword, role: "stylist" },
+    });
+    assert.equal(denied.status, 403);
+    assert.equal((await request(running.baseUrl, "/api/staff/access", { cookie: operationsLogin.cookie })).status, 403);
+
+    const created = await request(running.baseUrl, "/api/staff/access", {
+      method: "POST", cookie: ownerLogin.cookie,
+      body: { email: ` ${newEmail.toUpperCase()} `, password: newPassword, role: "stylist" },
+    });
+    assert.equal(created.status, 201);
+    const member = created.body as { id: string; email: string; role: string; isActive: boolean };
+    ids.push(member.id);
+    assert.equal(member.email, newEmail);
+    assert.equal(member.role, "stylist");
+    assert.equal(member.isActive, true);
+    assert.equal(JSON.stringify(created.body).includes("passwordHash"), false);
+    assert.equal((await request(running.baseUrl, "/api/staff/access", {
+      method: "POST", cookie: ownerLogin.cookie, body: { email: newEmail, password: newPassword, role: "analyst" },
+    })).status, 409);
+
+    const listed = await request(running.baseUrl, "/api/staff/access", { cookie: ownerLogin.cookie });
+    assert.equal(listed.status, 200);
+    assert.equal((listed.body as Array<{ id: string; role: string }>).find((staff) => staff.id === member.id)?.role, "stylist");
+    const newLogin = await request(running.baseUrl, "/api/staff-auth/login", {
+      method: "POST", body: { email: newEmail, password: newPassword },
+    });
+    assert.equal(newLogin.status, 200);
+    assert.equal((newLogin.body as { role: string }).role, "stylist");
+    assert.equal((await request(running.baseUrl, "/api/staff-auth/status", { cookie: newLogin.cookie })).status, 200);
+    const [audit] = await db.select().from(auditLogsTable).where(and(
+      eq(auditLogsTable.entityId, member.id),
+      eq(auditLogsTable.action, "staff_access.created"),
+    ));
+    assert.equal(audit?.action, "staff_access.created");
+
+    const disabled = await request(running.baseUrl, `/api/staff/access/${member.id}`, {
+      method: "PATCH", cookie: ownerLogin.cookie, body: { isActive: false },
+    });
+    assert.equal(disabled.status, 200);
+    assert.equal((await request(running.baseUrl, "/api/staff-auth/status", { cookie: newLogin.cookie })).status, 401);
+    assert.equal((await request(running.baseUrl, "/api/staff-auth/login", {
+      method: "POST", body: { email: newEmail, password: newPassword },
+    })).status, 401);
+  } finally {
+    if (server) { server.close(); await once(server, "close"); }
+    for (const id of ids.reverse()) {
+      await db.delete(staffSessionsTable).where(eq(staffSessionsTable.staffUserId, id));
+      await db.delete(auditLogsTable).where(eq(auditLogsTable.entityId, id));
+      await db.delete(staffUsersTable).where(eq(staffUsersTable.id, id));
+    }
+  }
+});
+
 test("staff login and logout cookies are secure in production", async () => {
   const email = `secure-cookie-test-${randomBytes(8).toString("hex")}@example.com`;
   const clerkUserId = `secure-cookie-test-${randomBytes(8).toString("hex")}`;

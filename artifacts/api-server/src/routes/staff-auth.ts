@@ -18,7 +18,7 @@ function validPassword(value: unknown): value is string {
   return typeof value === "string" && value.length <= 200 && passwordPattern.test(value);
 }
 
-async function hashPassword(password: string): Promise<string> {
+export async function hashManagedStaffPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const key = await scrypt(password, salt, 64) as Buffer;
   return `scrypt$${salt}$${key.toString("hex")}`;
@@ -114,7 +114,7 @@ router.post("/staff-auth/bootstrap", async (req, res): Promise<void> => {
     res.status(409).json({ error: "Initial owner setup is no longer available." });
     return;
   }
-  const passwordHash = await hashPassword(password);
+  const passwordHash = await hashManagedStaffPassword(password);
   const [bootstrappedOwner] = await db.update(staffUsersTable)
     .set({ passwordHash, passwordChangedAt: new Date() })
     .where(and(eq(staffUsersTable.id, owner.id), eq(staffUsersTable.role, "owner"), eq(staffUsersTable.isActive, true), isNull(staffUsersTable.passwordHash)))
@@ -129,7 +129,7 @@ router.post("/staff-auth/bootstrap", async (req, res): Promise<void> => {
 });
 
 export async function setManagedStaffPassword(staffUserId: string, password: string): Promise<void> {
-  const passwordHash = await hashPassword(password);
+  const passwordHash = await hashManagedStaffPassword(password);
   await db.update(staffUsersTable).set({ passwordHash, passwordChangedAt: new Date() }).where(eq(staffUsersTable.id, staffUserId));
   await db.update(staffSessionsTable).set({ revokedAt: new Date() }).where(and(eq(staffSessionsTable.staffUserId, staffUserId), isNull(staffSessionsTable.revokedAt), gt(staffSessionsTable.expiresAt, new Date())));
 }
