@@ -507,7 +507,7 @@ function errorResponse(res: Response, error: unknown): void {
 
 router.get("/payment/catalog", async (_req, res): Promise<void> => {
   try {
-    const client = new JusticeSureCommerceClient();
+    const client = new JusticeSureCommerceClient(undefined, true);
     res.json(GetCommerceCatalogResponse.parse({ products: await client.listProducts() }));
   } catch (error) {
     errorResponse(res, error);
@@ -516,7 +516,7 @@ router.get("/payment/catalog", async (_req, res): Promise<void> => {
 
 router.get("/payment/locations", async (_req, res): Promise<void> => {
   try {
-    const client = new JusticeSureCommerceClient();
+    const client = new JusticeSureCommerceClient(undefined, true);
     res.json(GetCommerceLocationsResponse.parse({ locations: await client.listLocations() }));
   } catch (error) {
     errorResponse(res, error);
@@ -531,7 +531,7 @@ router.get("/payment/discovery", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const client = new JusticeSureCommerceClient();
+    const client = new JusticeSureCommerceClient(undefined, true);
     const [currencies, paymentMethods, corridors] = await Promise.all([
       client.listCurrencies(), client.listPaymentMethods(country, currency), client.listFulfillmentCorridors(),
     ]);
@@ -1012,7 +1012,7 @@ function validWebhook(req: Request): { envelope: WebhookEnvelope; rawBody: Buffe
 }
 
 router.post("/payment/webhook", async (req, res): Promise<void> => {
-  if (!isJusticeSureCommerceReady() || !justiceSureConfig().webhookSecret) {
+  if (!justiceSureConfig().webhookSecret) {
     res.status(503).json({ error: "Webhook receiver is not configured." });
     return;
   }
@@ -1089,7 +1089,7 @@ router.post("/payment/webhook", async (req, res): Promise<void> => {
         .where(eq(commerceCheckoutAttemptsTable.justiceSureOrderId, orderId))
         .limit(1);
       if (attempt) {
-        const order = await new JusticeSureCommerceClient().getOrder(orderId);
+        const order = await new JusticeSureCommerceClient(undefined, true).getOrder(orderId);
         await syncLocalOrder(attempt.id, order, {
           eventId: envelope.id,
           leaseGeneration: claimedGeneration,

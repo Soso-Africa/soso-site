@@ -134,6 +134,9 @@ export function justiceSureConfig(): JusticeSureConfig {
 export function isJusticeSureCommerceReady(config = justiceSureConfig()): boolean {
   return Boolean(config.runtimeReady && config.baseUrl && /^jsk_.{8,}$/.test(config.apiKey ?? "") && config.webhookSecret && config.paymentReturnUrl);
 }
+export function isJusticeSureCommerceReadable(config = justiceSureConfig()): boolean {
+  return Boolean(config.baseUrl && /^jsk_.{8,}$/.test(config.apiKey ?? ""));
+}
 export function isJusticeSureTestMode(config = justiceSureConfig()): boolean {
   return process.env.NODE_ENV !== "production" && /^jsk_test_.{8,}$/.test(config.apiKey ?? "");
 }
@@ -254,10 +257,15 @@ function parseOrder(value: unknown): JusticeSureOrder {
 }
 
 export class JusticeSureCommerceClient {
-  constructor(private readonly config = justiceSureConfig()) {
-    if (!isJusticeSureCommerceReady(config)) throw new JusticeSureConfigurationError("Secure payment is not available while the JusticeSure v1 runtime and staging configuration are being verified. No payment has been taken.");
+  constructor(private readonly config = justiceSureConfig(), private readonly readOnly = false) {
+    if (!(readOnly ? isJusticeSureCommerceReadable(config) : isJusticeSureCommerceReady(config))) {
+      throw new JusticeSureConfigurationError("Secure payment is not available while the JusticeSure v1 runtime and staging configuration are being verified. No payment has been taken.");
+    }
   }
   private async request(path: string, options: RequestInit & { idempotencyKey?: string } = {}): Promise<{ body: unknown; headers: Headers; status: number }> {
+    if (this.readOnly && options.method && options.method.toUpperCase() !== "GET") {
+      throw new JusticeSureConfigurationError("Checkout writes require an explicitly activated JusticeSure runtime.");
+    }
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 10_000);
     try {
       const response = await fetch(`${this.config.baseUrl}${path}`, { ...options, headers: { Accept: "application/json", Authorization: `Bearer ${this.config.apiKey}`, ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}), ...options.headers }, signal: controller.signal });
