@@ -302,6 +302,16 @@ export class JusticeSureCommerceClient {
     }
   }
   async listLocations(): Promise<unknown[]> { const { body } = await this.request("/locations"); return responseList(body); }
+  async listStoreFulfillmentOptions(): Promise<Array<"pickup" | "delivery">> {
+    const { body } = await this.request("/store");
+    const store = data(body);
+    const fulfillment = object(store.fulfillment, "store fulfillment");
+    const options = fulfillment.options;
+    if (!Array.isArray(options) || !options.every((option) => option === "pickup" || option === "delivery")) {
+      throw new JusticeSureRequestError("JusticeSure returned invalid store fulfillment options.", 502);
+    }
+    return options as Array<"pickup" | "delivery">;
+  }
   async listCurrencies(): Promise<JusticeSureCurrency[]> {
     const { body } = await this.request("/currencies");
     return responseList(body).map((value) => { const row = object(value, "currency"); if (typeof row.displaySupported !== "boolean" || typeof row.chargeSupported !== "boolean" || typeof row.settlementSupported !== "boolean") throw new JusticeSureRequestError("JusticeSure returned invalid currency metadata.", 502); return { code: code(row.code, "currency code"), name: nonempty(row.name, "currency name"), symbol: nonempty(row.symbol, "currency symbol"), minorUnitExponent: integer(row.minorUnitExponent, "currency minor unit exponent"), displaySupported: row.displaySupported, chargeSupported: row.chargeSupported, settlementSupported: row.settlementSupported }; });

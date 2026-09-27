@@ -532,11 +532,11 @@ router.get("/payment/discovery", async (req, res): Promise<void> => {
   }
   try {
     const client = new JusticeSureCommerceClient(undefined, true);
-    const [currencies, paymentMethods, corridors] = await Promise.all([
-      client.listCurrencies(), client.listPaymentMethods(country, currency), client.listFulfillmentCorridors(),
+    const [currencies, paymentMethods, corridors, fulfillmentOptions] = await Promise.all([
+      client.listCurrencies(), client.listPaymentMethods(country, currency), client.listFulfillmentCorridors(), client.listStoreFulfillmentOptions(),
     ]);
     // Only public-safe readiness and corridor metadata is exposed.
-    res.json({ currencies, paymentMethods, corridors });
+    res.json({ currencies, paymentMethods, corridors, fulfillmentOptions });
   } catch (error) {
     errorResponse(res, error);
   }
@@ -550,6 +550,11 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
   }
   try {
     const client = new JusticeSureCommerceClient();
+    const availableFulfillment = await client.listStoreFulfillmentOptions();
+    if (!availableFulfillment.includes(body.fulfillment.type)) {
+      res.status(409).json({ error: "Selected fulfilment is not available from JusticeSure.", noPaymentTaken: true });
+      return;
+    }
     const requestHash = checkoutRequestHash(body);
     const orderIdempotencyKey = `order_${body.checkoutOperationId}`;
     const paymentIdempotencyKey = `payment_${body.checkoutOperationId}`;

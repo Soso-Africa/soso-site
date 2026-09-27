@@ -7,10 +7,12 @@
  */
 import type { CommerceDiscoveryCorridorsItem } from './commerceDiscoveryCorridorsItem';
 import type { CommerceDiscoveryCurrenciesItem } from './commerceDiscoveryCurrenciesItem';
+import type { CommerceDiscoveryFulfillmentOptionsItem } from './commerceDiscoveryFulfillmentOptionsItem';
 import type { CommerceDiscoveryPaymentMethods } from './commerceDiscoveryPaymentMethods';
 
 export interface CommerceDiscovery {
   currencies: CommerceDiscoveryCurrenciesItem[];
   paymentMethods: CommerceDiscoveryPaymentMethods;
   corridors: CommerceDiscoveryCorridorsItem[];
+  fulfillmentOptions: CommerceDiscoveryFulfillmentOptionsItem[];
 }

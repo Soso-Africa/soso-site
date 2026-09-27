@@ -186,7 +186,8 @@ export const GetCommerceDiscoveryQueryParams = zod.object({
 export const GetCommerceDiscoveryResponse = zod.object({
   "currencies": zod.array(zod.record(zod.string(), zod.unknown())),
   "paymentMethods": zod.record(zod.string(), zod.unknown()),
-  "corridors": zod.array(zod.record(zod.string(), zod.unknown()))
+  "corridors": zod.array(zod.record(zod.string(), zod.unknown())),
+  "fulfillmentOptions": zod.array(zod.enum(['pickup', 'delivery']))
 })
 
 

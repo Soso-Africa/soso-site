@@ -1705,10 +1705,19 @@ export type CommerceDiscoveryPaymentMethods = { [key: string]: unknown };
 
 export type CommerceDiscoveryCorridorsItem = { [key: string]: unknown };
 
+export type CommerceDiscoveryFulfillmentOptionsItem = typeof CommerceDiscoveryFulfillmentOptionsItem[keyof typeof CommerceDiscoveryFulfillmentOptionsItem];
+
+
+export const CommerceDiscoveryFulfillmentOptionsItem = {
+  pickup: 'pickup',
+  delivery: 'delivery',
+} as const;
+
 export interface CommerceDiscovery {
   currencies: CommerceDiscoveryCurrenciesItem[];
   paymentMethods: CommerceDiscoveryPaymentMethods;
   corridors: CommerceDiscoveryCorridorsItem[];
+  fulfillmentOptions: CommerceDiscoveryFulfillmentOptionsItem[];
 }
 
 export interface CommercePaymentSession {
