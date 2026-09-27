@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ChevronLeft, LockKeyhole, MessageCircle } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { useCart } from "@/context/CartContext";
-import { clearCheckoutOperation, commerceGateway, CommerceRemoteError, savePaymentAttempt, type CommerceDiscovery, type CommerceQuote } from "@/lib/commerce";
+import { clearCheckoutOperation, commerceGateway, CommerceRemoteError, savePaymentAttempt, type CommerceDiscovery, type CommerceQuote, type PickupLocation } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
@@ -26,12 +26,14 @@ export default function Checkout() {
   const [quote, setQuote] = useState<CommerceQuote | null>(null);
   const [provider, setProvider] = useState<CommerceDiscovery["paymentMethods"]["providers"][number]["provider"] | "">("");
   const [method, setMethod] = useState<CommerceDiscovery["paymentMethods"]["providers"][number]["methods"][number] | "">("");
-  const [currency, setCurrency] = useState("NGN");
+  const currency = "NGN";
+  const [locations, setLocations] = useState<PickupLocation[]>([]);
+  const [locationId, setLocationId] = useState("");
+  const [locationsUnavailable, setLocationsUnavailable] = useState(false);
   const [stylistOpen, setStylistOpen] = useState(false);
   const platform = usePlatformContent();
   const platformStateCopy = platform.data?.content.site.platformState;
-  if (!platform.data) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
-  const copy = platform.data.content.pages.checkout;
+  const copy = platform.data?.content.pages.checkout;
   const cartSignature = useMemo(() => JSON.stringify(items.map((item) => [
     item.commerceProductId, item.commerceVariantId, item.quantity, item.selectedColourId, item.selectedColourHex, item.customColour ?? "",
   ])), [items]);
@@ -40,21 +42,34 @@ export default function Checkout() {
     setState((current) => current === "reviewing" ? "ready" : current);
   }, [cartSignature]);
   const readyProviders = useMemo(
-    () => discovery?.paymentMethods.providers.filter((item) => item.eligible && item.chargeCurrencies.includes(currency)) ?? [],
+    () => discovery?.paymentMethods.providers.filter((item) => item.eligible && item.chargeCurrencies.includes(currency) && item.settlementCurrencies.includes(currency)) ?? [],
     [currency, discovery],
   );
   const selectedProvider = readyProviders.find((item) => item.provider === provider);
   useEffect(() => {
     let active = true;
-    commerceGateway.discover(undefined, currency).then((data) => {
+    commerceGateway.discover("NG", currency).then((data) => {
       if (!active) return;
       setDiscovery(data);
-      const selected = data.paymentMethods.providers.find((item) => item.eligible && item.chargeCurrencies.includes(currency));
+      const selected = data.paymentMethods.providers.find((item) => item.eligible && item.chargeCurrencies.includes(currency) && item.settlementCurrencies.includes(currency));
       setProvider(selected?.provider ?? "");
       setMethod(selected?.methods[0] ?? "");
     }).catch(() => { if (active) setDiscovery(null); });
     return () => { active = false; };
   }, [currency]);
+  useEffect(() => {
+    let active = true;
+    commerceGateway.listPickupLocations().then((next) => {
+      if (!active) return;
+      setLocations(next);
+      setLocationId((current) => next.some((location) => location.id === current) ? current : next[0]?.id ?? "");
+      setLocationsUnavailable(next.length === 0);
+    }).catch(() => {
+      if (active) { setLocations([]); setLocationId(""); setLocationsUnavailable(true); }
+    });
+    return () => { active = false; };
+  }, []);
+  if (!platform.data || !copy) return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platformStateCopy} />;
 
   const handleInvalid = (e: React.InvalidEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     trackStorefrontEvent("checkout_field_error", { fieldName: e.currentTarget.name });
@@ -68,6 +83,11 @@ export default function Checkout() {
 
   const startCheckout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!locationId || !locations.some((location) => location.id === locationId)) {
+      setState("payment-unavailable");
+      setMessage("Pickup is unavailable. No payment has been taken.");
+      return;
+    }
     if (quote && Date.now() >= Date.parse(quote.expiresAt)) {
       clearCheckoutOperation();
       setQuote(null);
@@ -101,8 +121,8 @@ export default function Checkout() {
             phone: String(form.get("phone") || ""),
             },
             fulfillment: {
-              type: "delivery",
-              address: String(form.get("address") || ""),
+              type: "pickup",
+              locationId,
           },
             notes: String(form.get("deliveryNote") || ""),
           items,
@@ -179,21 +199,24 @@ export default function Checkout() {
                   {copy.emailLabel}
                 <input required type="email" name="email" autoComplete="email" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
-               <label className="text-sm block">
-                 {copy.addressLabel}
-                <textarea required name="address" autoComplete="street-address" rows={3} onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
+              <label className="text-sm block">
+                Pickup location
+                <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateQuote(); }} disabled={!locations.length}
+                  className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground">
+                  {!locations.length && <option value="">No pickup location available</option>}
+                  {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}, {location.city}</option>)}
+                </select>
               </label>
+              {locationsUnavailable && <p role="alert" className="text-sm text-destructive">Pickup is unavailable. Checkout is paused; no payment has been taken.</p>}
               <label className="text-sm block">
                  {copy.notesLabel} <span className="opacity-60">({copy.optionalLabel})</span>
                 <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
-              <p className="text-xs leading-relaxed text-secondary">{copy.deliveryNote}</p>
+              <p className="text-xs leading-relaxed text-secondary">We will confirm collection details after payment. Delivery is not available at checkout.</p>
                <div className="grid sm:grid-cols-2 gap-5">
                  <label className="text-sm">
                    Currency
-                   <select value={currency} onChange={(event) => { setCurrency(event.target.value); setQuote(null); }} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground">
-                     {(discovery?.currencies.filter((item) => item.displaySupported) ?? [{ code: "NGN", name: "Nigerian naira" }]).map((item) => <option key={item.code} value={item.code}>{item.code} — {item.name}</option>)}
-                   </select>
+                   <span className="mt-2 block border border-border px-4 py-3.5">NGN — Nigerian naira</span>
                  </label>
                  <label className="text-sm">
                    Payment method
@@ -231,7 +254,7 @@ export default function Checkout() {
                    </div>
                 </div>
               )}
-               <button disabled={state === "processing" || !discovery || !readyProviders.length} className="w-full py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70 bg-foreground text-background transition-colors hover:opacity-90">
+               <button disabled={state === "processing" || !discovery || !readyProviders.length || !locationId || locationsUnavailable} className="w-full py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70 bg-foreground text-background transition-colors hover:opacity-90">
                 <LockKeyhole size={16} className="inline mr-2" />
                   {state === "processing" ? copy.processingLabel : state === "reviewing" ? "Confirm secure quote" : `${copy.paymentLabel} — ${naira(cartTotal)}`}
               </button>
