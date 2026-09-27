@@ -336,7 +336,7 @@ test("catalogue reads every page and projects current variant attributes, price,
         name: "Two-piece",
         description: null,
         images: [],
-        price: { amountKobo: 15_000_000 },
+        price: { amountKobo: 15_000_000, currency: "NGN" },
         availability: { inStock: true },
         variants: [{
           id: variantId,
@@ -350,7 +350,7 @@ test("catalogue reads every page and projects current variant attributes, price,
         name: "Variantless product",
         description: null,
         images: [],
-        price: { amountKobo: 10_000 },
+        price: { amountKobo: 10_000, currency: "NGN" },
         availability: { inStock: true },
         variants: [],
       }],
@@ -364,6 +364,7 @@ test("catalogue reads every page and projects current variant attributes, price,
     });
     const products = await client.listProducts();
     assert.equal(products.length, 2);
+    assert.equal(products[0]?.currency, "NGN");
     assert.deepEqual(products[1]?.variants[0], {
       id: variantId,
       name: "Size S",
@@ -396,6 +397,29 @@ test("production payment sessions reject malformed optional attempt IDs", async 
       body: { provider: "stripe" },
       idempotencyKey: "session_test",
     }), JusticeSureRequestError);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("catalogue rejects non-NGN currency before public projection", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    data: [{
+      id: "0efebec6-2687-4d2f-9350-f67282534d30", name: "Other currency",
+      description: null, images: [], price: { amountKobo: 10000, currency: "USD" },
+      availability: { inStock: true }, variants: [],
+    }],
+    meta: { limit: 100, offset: 0, total: 1, hasMore: false },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  try {
+    const client = new JusticeSureCommerceClient({
+      runtimeReady: true, baseUrl: "https://commerce.example", apiKey: "jsk_test_key_123",
+      webhookSecret: "secret", paymentReturnUrl: "https://soso.example/return",
+    });
+    await assert.rejects(() => client.listProducts(),
+      (error) => error instanceof JusticeSureRequestError && error.status === 502
+        && error.message === "JusticeSure returned an unsupported catalog currency.");
   } finally {
     globalThis.fetch = originalFetch;
   }

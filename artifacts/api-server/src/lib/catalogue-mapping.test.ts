@@ -27,7 +27,7 @@ const variants = (stock = true) => ["S", "M", "L", "XL", "XXL"].map((size, index
   id: `variant-${index}`, name: size, label: size, attributes: { size }, amountKobo: 125000, inStock: stock,
 }));
 const catalog: JusticeSureCatalogProduct[] = Array.from({ length: 20 }, (_, index) => ({
-  id: `product-${index}`, name: `Atelier Look ${index}`, description: null, images: [], amountKobo: 125000,
+  id: `product-${index}`, name: `Atelier Look ${index}`, description: null, images: [], currency: "NGN", amountKobo: 125000,
   inStock: true, variants: variants(),
 }));
 const locals: LocalCatalogueProduct[] = catalog.map((product) => ({

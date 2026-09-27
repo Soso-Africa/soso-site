@@ -1786,6 +1786,13 @@ export interface CommercePaymentStatus {
   checkedAt: string;
 }
 
+export type CommerceCatalogProductCurrency = typeof CommerceCatalogProductCurrency[keyof typeof CommerceCatalogProductCurrency];
+
+
+export const CommerceCatalogProductCurrency = {
+  NGN: 'NGN',
+} as const;
+
 export type CommerceCatalogVariantAttributes = {[key: string]: string | number | boolean};
 
 export interface CommerceCatalogVariant {
@@ -1831,6 +1838,7 @@ export interface CommerceCatalogProduct {
      * @items.maxLength 2048
      */
   images: string[];
+  currency: CommerceCatalogProductCurrency;
   /** @minimum 0 */
   amountKobo: number;
   inStock: boolean;
@@ -1929,6 +1937,13 @@ export interface CommerceLocations {
   locations: CommerceLocationsLocationsItem[];
 }
 
+export type CommerceWebhookInputApiVersion = typeof CommerceWebhookInputApiVersion[keyof typeof CommerceWebhookInputApiVersion];
+
+
+export const CommerceWebhookInputApiVersion = {
+  '2025-01-01': '2025-01-01',
+} as const;
+
 export type CommerceWebhookInputData = { [key: string]: unknown };
 
 export interface CommerceWebhookInput {
@@ -1942,11 +1957,7 @@ export interface CommerceWebhookInput {
      * @maxLength 100
      */
   event: string;
-  /**
-     * @minLength 1
-     * @maxLength 50
-     */
-  apiVersion: string;
+  apiVersion: CommerceWebhookInputApiVersion;
   data?: CommerceWebhookInputData;
 }
 
@@ -2653,4 +2664,3 @@ export const GetStaffExportReport = {
 export type ListStaffPolicyHistory200Item = { [key: string]: unknown };
 
 export type ListStaffRedirectHistory200Item = { [key: string]: unknown };
-

@@ -2521,7 +2521,7 @@ components:
             $ref: "#/components/schemas/CommerceCatalogProduct"
     CommerceCatalogProduct:
       type: object
-      required: [id, name, description, images, amountKobo, inStock, variants]
+      required: [id, name, description, images, currency, amountKobo, inStock, variants]
       properties:
         id: { type: string, minLength: 36, maxLength: 36 }
         name: { type: string, minLength: 1, maxLength: 200 }
@@ -2529,6 +2529,7 @@ components:
         images:
           type: array
           items: { type: string, minLength: 1, maxLength: 2048 }
+        currency: { type: string, enum: [NGN] }
         amountKobo: { type: number, minimum: 0 }
         inStock: { type: boolean }
         variants:
@@ -2621,7 +2622,7 @@ components:
       properties:
         id: { type: string, minLength: 1, maxLength: 200 }
         event: { type: string, minLength: 1, maxLength: 100 }
-        apiVersion: { type: string, minLength: 1, maxLength: 50 }
+        apiVersion: { type: string, enum: ["2025-01-01"] }
         data:
           type: object
           additionalProperties: true

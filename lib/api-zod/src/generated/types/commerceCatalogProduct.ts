@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommerceCatalogProductCurrency } from './commerceCatalogProductCurrency';
 import type { CommerceCatalogVariant } from './commerceCatalogVariant';
 
 export interface CommerceCatalogProduct {
@@ -28,6 +29,7 @@ export interface CommerceCatalogProduct {
      * @items.maxLength 2048
      */
   images: string[];
+  currency: CommerceCatalogProductCurrency;
   /** @minimum 0 */
   amountKobo: number;
   inStock: boolean;
