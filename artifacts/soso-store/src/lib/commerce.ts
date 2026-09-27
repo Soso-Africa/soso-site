@@ -13,6 +13,9 @@ export type CheckoutRequest = {
   };
   items: CartItem[];
   fulfillment: {
+    type: "pickup";
+    locationId: string;
+  } | {
     type: "delivery";
     address: string;
   };
@@ -37,6 +40,7 @@ export interface CommerceGateway {
   readonly mode: CommerceMode;
   listProducts(): Promise<CatalogProduct[]>;
   getProduct(slug: string): Promise<CatalogProduct | undefined>;
+  listPickupLocations(): Promise<PickupLocation[]>;
   discover(country?: string, currency?: string): Promise<CommerceDiscovery>;
   createQuote(request: Omit<CheckoutRequest, "quoteId">): Promise<CommerceQuote>;
   createCheckoutSession(request: CheckoutRequest): Promise<CheckoutResult>;
@@ -55,6 +59,34 @@ export class CommerceRemoteError extends Error {
     this.name = "CommerceRemoteError";
   }
 }
+export type PickupLocation = {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  country: string;
+};
+
+export function projectPickupLocations(value: unknown): PickupLocation[] {
+  const body = record(value);
+  if (!body || !Array.isArray(body.locations)) throw new CommerceConfigurationError("pickup_locations_invalid_response");
+  const ids = new Set<string>();
+  return body.locations
+    .filter((value) => record(value)?.type === "shop")
+    .map((value) => {
+      const location = record(value)!;
+      const fields = ["id", "name", "address", "city", "country"] as const;
+      if (fields.some((field) => typeof location[field] !== "string" || !(location[field] as string).trim())
+        || !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(location.id as string)) {
+        throw new CommerceConfigurationError("pickup_locations_invalid_location");
+      }
+      const projected = Object.fromEntries(fields.map((field) => [field, (location[field] as string).trim()])) as PickupLocation;
+      if (ids.has(projected.id)) throw new CommerceConfigurationError("pickup_locations_duplicate_id");
+      ids.add(projected.id);
+      return projected;
+    });
+}
+
 type CommerceCatalogProjection = {
   id: string;
   name: string;
@@ -145,6 +177,14 @@ export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
 
 export class JusticeSureHeadlessGateway implements CommerceGateway {
   readonly mode = "justicesure-headless" as const;
+
+  async listPickupLocations(): Promise<PickupLocation[]> {
+    const apiBase = runtimeEnv?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+    const response = await fetch(`${apiBase}/api/payment/locations`, { credentials: "include" });
+    if (!response.ok) throw new CommerceConfigurationError("pickup_locations_unavailable");
+    const payload: unknown = await response.json().catch(() => null);
+    return projectPickupLocations(payload);
+  }
 
   private async catalogue(): Promise<CatalogProduct[]> {
     const apiBase = runtimeEnv?.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -307,6 +347,9 @@ export const commerceGateway: CommerceGateway =
         },
         async getProduct() {
           return undefined;
+        },
+        async listPickupLocations() {
+          return [];
         },
         async discover() {
           throw new CommerceConfigurationError("commerce_disabled");

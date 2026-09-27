@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectCommerceCatalogProduct } from "./commerce";
+import { projectCommerceCatalogProduct, projectPickupLocations } from "./commerce";
 
 const productId = "0efebec6-2687-4d2f-9350-f67282534d30";
 const standardVariantId = "a725a2f5-5cdd-46e7-a36d-c0c5beef6a31";
@@ -58,4 +58,15 @@ test("commerce catalogue supports provider-authorized products without images or
   assert.deepEqual(product.standardSizes, ["Standard"]);
   assert.equal(product.standardEligible, true);
   assert.deepEqual(product.commerceVariantIds, {});
+});
+
+test("pickup presents only complete shops, without accepting warehouses as shopper locations", () => {
+  assert.deepEqual(projectPickupLocations({ locations: [
+    { id: productId, type: "warehouse", name: "Stock room", address: null, city: null, country: "Nigeria" },
+    { id: standardVariantId, type: "shop", name: "SOSO HQ", address: "37 Agadez Street", city: "Abuja", country: "Nigeria" },
+  ] }), [{ id: standardVariantId, name: "SOSO HQ", address: "37 Agadez Street", city: "Abuja", country: "Nigeria" }]);
+  assert.deepEqual(projectPickupLocations({ locations: [{ id: productId, type: "warehouse" }] }), []);
+  assert.throws(() => projectPickupLocations({ locations: [
+    { id: productId, type: "shop", name: "SOSO HQ", address: null, city: "Abuja", country: "Nigeria" },
+  ] }), /pickup_locations_invalid_location/);
 });
