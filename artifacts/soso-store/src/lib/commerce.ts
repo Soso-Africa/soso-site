@@ -93,6 +93,7 @@ type CommerceCatalogProjection = {
   name: string;
   description: string | null;
   images: string[];
+  currency: "NGN";
   amountKobo: number;
   inStock: boolean;
   variants: Array<{ id: string; label: string }>;
@@ -111,6 +112,7 @@ export function projectCommerceCatalogProduct(value: unknown): CatalogProduct {
     !product
     || typeof product.id !== "string"
     || typeof product.name !== "string"
+    || product.currency !== "NGN"
     || typeof price !== "number"
     || !Array.isArray(images)
     || !images.every((image) => typeof image === "string")

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommerceWebhookInputApiVersion } from './commerceWebhookInputApiVersion';
 import type { CommerceWebhookInputData } from './commerceWebhookInputData';
 
 export interface CommerceWebhookInput {
@@ -18,10 +19,6 @@ export interface CommerceWebhookInput {
      * @maxLength 100
      */
   event: string;
-  /**
-     * @minLength 1
-     * @maxLength 50
-     */
-  apiVersion: string;
+  apiVersion: CommerceWebhookInputApiVersion;
   data?: CommerceWebhookInputData;
 }

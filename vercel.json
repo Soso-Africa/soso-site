@@ -14,7 +14,7 @@
       "dest": "/api/handler?__soso_path=$1"
     },
     {
-      "src": "/webhook/commerce/?",
+      "src": "/webhook/commerce",
       "dest": "/api/handler?__soso_path=payment/webhook"
     },
     {

@@ -29,7 +29,7 @@ export type JusticeSureCatalogVariant = {
   inStock: boolean;
 };
 export type JusticeSureCatalogProduct = {
-  id: string; name: string; description: string | null; images: string[]; amountKobo: number;
+  id: string; name: string; description: string | null; images: string[]; currency: "NGN"; amountKobo: number;
   inStock: boolean; variants: JusticeSureCatalogVariant[];
 };
 export type JusticeSureCurrency = {
@@ -207,6 +207,7 @@ function idempotencyReplayed(headers: Headers, status: number, allowMissingTestR
 function parseCatalogProduct(value: unknown): JusticeSureCatalogProduct {
   const product = object(value, "catalog product");
   const price = object(product.price, "catalog price");
+  if (price.currency !== "NGN") throw new JusticeSureRequestError("JusticeSure returned an unsupported catalog currency.", 502);
   const availability = object(product.availability, "catalog availability");
   const variants = Array.isArray(product.variants) ? product.variants.map((entry, index) => {
     const variant = object(entry, "catalog variant");
@@ -239,7 +240,7 @@ function parseCatalogProduct(value: unknown): JusticeSureCatalogProduct {
   }) : (() => { throw new JusticeSureRequestError("JusticeSure returned invalid catalog variants.", 502); })();
   const images = Array.isArray(product.images) ? product.images.filter((image): image is string => typeof image === "string" && image.length > 0) : [];
   if (typeof availability.inStock !== "boolean") throw new JusticeSureRequestError("JusticeSure returned invalid catalog availability.", 502);
-  return { id: uuid(product.id, "catalog product id"), name: nonempty(product.name, "catalog product name"), description: optionalText(product.description), images, amountKobo: integer(price.amountKobo, "catalog price"), inStock: availability.inStock, variants };
+  return { id: uuid(product.id, "catalog product id"), name: nonempty(product.name, "catalog product name"), description: optionalText(product.description), images, currency: "NGN", amountKobo: integer(price.amountKobo, "catalog price"), inStock: availability.inStock, variants };
 }
 function parseOrder(value: unknown): JusticeSureOrder {
   const order = data(value); const amounts = object(order.amounts, "order amounts"); const payment = object(order.payment, "order payment");

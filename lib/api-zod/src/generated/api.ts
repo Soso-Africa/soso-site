@@ -48,6 +48,7 @@ export const GetCommerceCatalogResponse = zod.object({
   "name": zod.string().min(1).max(getCommerceCatalogResponseProductsItemNameMax),
   "description": zod.string().max(getCommerceCatalogResponseProductsItemDescriptionMax).nullable(),
   "images": zod.array(zod.string().min(1).max(getCommerceCatalogResponseProductsItemImagesItemMax)),
+  "currency": zod.enum(['NGN']),
   "amountKobo": zod.number().min(getCommerceCatalogResponseProductsItemAmountKoboMin),
   "inStock": zod.boolean(),
   "variants": zod.array(zod.object({
@@ -548,14 +549,12 @@ export const receiveCommerceWebhookBodyIdMax = 200;
 
 export const receiveCommerceWebhookBodyEventMax = 100;
 
-export const receiveCommerceWebhookBodyApiVersionMax = 50;
-
 
 
 export const ReceiveCommerceWebhookBody = zod.object({
   "id": zod.string().min(1).max(receiveCommerceWebhookBodyIdMax),
   "event": zod.string().min(1).max(receiveCommerceWebhookBodyEventMax),
-  "apiVersion": zod.string().min(1).max(receiveCommerceWebhookBodyApiVersionMax),
+  "apiVersion": zod.enum(['2025-01-01']),
   "data": zod.record(zod.string(), zod.unknown()).optional()
 })
 
