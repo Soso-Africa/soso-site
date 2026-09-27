@@ -2481,11 +2481,14 @@ components:
             settlementCurrency: { type: string, pattern: "^[A-Z]{3}$" }
     CommerceDiscovery:
       type: object
-      required: [currencies, paymentMethods, corridors]
+      required: [currencies, paymentMethods, corridors, fulfillmentOptions]
       properties:
         currencies: { type: array, items: { type: object, additionalProperties: true } }
         paymentMethods: { type: object, additionalProperties: true }
         corridors: { type: array, items: { type: object, additionalProperties: true } }
+        fulfillmentOptions:
+          type: array
+          items: { type: string, enum: [pickup, delivery] }
     CommercePaymentSession:
       type: object
       required: [attemptId, checkoutUrl]

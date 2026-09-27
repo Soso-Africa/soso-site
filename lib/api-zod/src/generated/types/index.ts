@@ -39,6 +39,7 @@ export * from './commerceCustomerInput';
 export * from './commerceDiscovery';
 export * from './commerceDiscoveryCorridorsItem';
 export * from './commerceDiscoveryCurrenciesItem';
+export * from './commerceDiscoveryFulfillmentOptionsItem';
 export * from './commerceDiscoveryPaymentMethods';
 export * from './commerceFulfillmentInput';
 export * from './commerceFulfillmentInputType';

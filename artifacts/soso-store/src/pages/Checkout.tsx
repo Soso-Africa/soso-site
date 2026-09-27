@@ -27,9 +27,9 @@ export default function Checkout() {
   const [provider, setProvider] = useState<CommerceDiscovery["paymentMethods"]["providers"][number]["provider"] | "">("");
   const [method, setMethod] = useState<CommerceDiscovery["paymentMethods"]["providers"][number]["methods"][number] | "">("");
   const currency = "NGN";
+  const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "delivery">("pickup");
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [locationId, setLocationId] = useState("");
-  const [locationsUnavailable, setLocationsUnavailable] = useState(false);
   const [stylistOpen, setStylistOpen] = useState(false);
   const platform = usePlatformContent();
   const platformStateCopy = platform.data?.content.site.platformState;
@@ -46,6 +46,9 @@ export default function Checkout() {
     [currency, discovery],
   );
   const selectedProvider = readyProviders.find((item) => item.provider === provider);
+  const canPickup = Boolean(discovery?.fulfillmentOptions?.includes("pickup") && locationId && locations.some((location) => location.id === locationId));
+  const canDeliver = Boolean(discovery?.fulfillmentOptions?.includes("delivery"));
+  const fulfillmentReady = fulfillmentType === "pickup" ? canPickup : canDeliver;
   useEffect(() => {
     let active = true;
     commerceGateway.discover("NG", currency).then((data) => {
@@ -63,9 +66,8 @@ export default function Checkout() {
       if (!active) return;
       setLocations(next);
       setLocationId((current) => next.some((location) => location.id === current) ? current : next[0]?.id ?? "");
-      setLocationsUnavailable(next.length === 0);
     }).catch(() => {
-      if (active) { setLocations([]); setLocationId(""); setLocationsUnavailable(true); }
+      if (active) { setLocations([]); setLocationId(""); }
     });
     return () => { active = false; };
   }, []);
@@ -83,9 +85,9 @@ export default function Checkout() {
 
   const startCheckout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!locationId || !locations.some((location) => location.id === locationId)) {
+    if (!fulfillmentReady) {
       setState("payment-unavailable");
-      setMessage("Pickup is unavailable. No payment has been taken.");
+      setMessage("Selected fulfilment is unavailable. No payment has been taken.");
       return;
     }
     if (quote && Date.now() >= Date.parse(quote.expiresAt)) {
@@ -120,10 +122,9 @@ export default function Checkout() {
             email: String(form.get("email") || ""),
             phone: String(form.get("phone") || ""),
             },
-            fulfillment: {
-              type: "pickup",
-              locationId,
-          },
+            fulfillment: fulfillmentType === "pickup"
+              ? { type: "pickup", locationId }
+              : { type: "delivery", address: String(form.get("address") || "").trim() },
             notes: String(form.get("deliveryNote") || ""),
           items,
           displayCurrency: currency,
@@ -199,20 +200,44 @@ export default function Checkout() {
                   {copy.emailLabel}
                 <input required type="email" name="email" autoComplete="email" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
-              <label className="text-sm block">
-                Pickup location
-                <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateQuote(); }} disabled={!locations.length}
-                  className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground">
-                  {!locations.length && <option value="">No pickup location available</option>}
-                  {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}, {location.city}</option>)}
-                </select>
-              </label>
-              {locationsUnavailable && <p role="alert" className="text-sm text-destructive">Pickup is unavailable. Checkout is paused; no payment has been taken.</p>}
+              <fieldset className="space-y-3 text-sm">
+                <legend>Fulfilment</legend>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="fulfillmentType" value="pickup" checked={fulfillmentType === "pickup"}
+                    disabled={!canPickup} onChange={() => { setFulfillmentType("pickup"); invalidateQuote(); }} />
+                  Collect from SOSO
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" name="fulfillmentType" value="delivery" checked={fulfillmentType === "delivery"}
+                    disabled={!canDeliver} onChange={() => { setFulfillmentType("delivery"); invalidateQuote(); }} />
+                  Delivery {canDeliver ? "" : "(not yet available)"}
+                </label>
+              </fieldset>
+              {fulfillmentType === "pickup" && (
+                <label className="text-sm block">
+                  Pickup location
+                  <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateQuote(); }} disabled={!canPickup}
+                    className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground">
+                    {!locations.length && <option value="">No pickup location available</option>}
+                    {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}, {location.city}</option>)}
+                  </select>
+                </label>
+              )}
+              {fulfillmentType === "delivery" && (
+                <label className="text-sm block">
+                  {copy.addressLabel}
+                  <textarea required name="address" autoComplete="street-address" rows={3} onInvalid={handleInvalid}
+                    className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
+                </label>
+              )}
+              {!canPickup && !canDeliver && <p role="alert" className="text-sm text-destructive">Fulfilment is unavailable. Checkout is paused; no payment has been taken.</p>}
               <label className="text-sm block">
                  {copy.notesLabel} <span className="opacity-60">({copy.optionalLabel})</span>
                 <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
-              <p className="text-xs leading-relaxed text-secondary">We will confirm collection details after payment. Delivery is not available at checkout.</p>
+              <p className="text-xs leading-relaxed text-secondary">
+                {fulfillmentType === "pickup" ? "We will confirm collection details after payment." : copy.deliveryNote}
+              </p>
                <div className="grid sm:grid-cols-2 gap-5">
                  <label className="text-sm">
                    Currency
@@ -254,7 +279,7 @@ export default function Checkout() {
                    </div>
                 </div>
               )}
-               <button disabled={state === "processing" || !discovery || !readyProviders.length || !locationId || locationsUnavailable} className="w-full py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70 bg-foreground text-background transition-colors hover:opacity-90">
+               <button disabled={state === "processing" || !discovery || !readyProviders.length || !fulfillmentReady} className="w-full py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70 bg-foreground text-background transition-colors hover:opacity-90">
                 <LockKeyhole size={16} className="inline mr-2" />
                   {state === "processing" ? copy.processingLabel : state === "reviewing" ? "Confirm secure quote" : `${copy.paymentLabel} — ${naira(cartTotal)}`}
               </button>

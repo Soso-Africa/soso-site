@@ -73,6 +73,26 @@ test("catalogue reads are available without opening checkout writes", async () =
   }
 });
 
+test("store fulfilment discovery reads merchant options and rejects malformed availability", async () => {
+  const client = new JusticeSureCommerceClient({
+    runtimeReady: false,
+    baseUrl: "https://commerce.example/api/v1/commerce",
+    apiKey: "jsk_test_key_123",
+  }, true);
+  const originalFetch = globalThis.fetch;
+  let options: unknown = ["pickup", "delivery"];
+  globalThis.fetch = async () => new Response(JSON.stringify({ data: { fulfillment: { options } } }), {
+    status: 200, headers: { "content-type": "application/json" },
+  });
+  try {
+    assert.deepEqual(await client.listStoreFulfillmentOptions(), ["pickup", "delivery"]);
+    options = ["pickup", "unsupported"];
+    await assert.rejects(() => client.listStoreFulfillmentOptions(), JusticeSureRequestError);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("JusticeSure activation rejects a non-HTTPS Commerce API configuration", () => {
   try {
     process.env.JUSTICESURE_COMMERCE_RUNTIME_READY = "true";

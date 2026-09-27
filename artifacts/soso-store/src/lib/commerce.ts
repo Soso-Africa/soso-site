@@ -35,6 +35,7 @@ export type CommerceDiscovery = {
   currencies: Array<{ code: string; name: string; symbol: string; minorUnitExponent: number; displaySupported: boolean; chargeSupported: boolean; settlementSupported: boolean }>;
   paymentMethods: { providers: Array<{ provider: CheckoutRequest["paymentProvider"]; eligible: boolean; methods: CheckoutRequest["paymentMethod"][]; chargeCurrencies: string[]; settlementCurrencies: string[]; reasonCode: string | null }>; country: string | null; currency: string | null };
   corridors: Array<{ id: string; carrier: string; service: string; originCountry: string; destinationCountry: string; revision: number; importerOfRecord: string | null }>;
+  fulfillmentOptions: Array<"pickup" | "delivery">;
 };
 export interface CommerceGateway {
   readonly mode: CommerceMode;
