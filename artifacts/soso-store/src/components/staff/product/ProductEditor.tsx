@@ -17,6 +17,7 @@ import { ImagesEditor } from "./ImagesEditor";
 import { MaterialTurnSetsEditor } from "./MaterialTurnSetsEditor";
 import { ColourEditor } from "./ColourEditor";
 import { canConfirmMapping, isConfirmedMappingCurrent } from "./mapping-staleness";
+import { CommerceSearchSelect } from "./CommerceSearchSelect";
 
 type MappingHistoryEntry = {
   id: string;
@@ -38,6 +39,7 @@ export function ProductEditor({
   onToggle,
   onChange,
   onDelete,
+  deleting = false,
   onSave,
   onPublish,
   onUploadMedia,
@@ -54,6 +56,7 @@ export function ProductEditor({
   onToggle: () => void;
   onChange: (product: CatalogProduct) => void;
   onDelete: () => void;
+  deleting?: boolean;
   onSave: () => Promise<string>;
   onPublish: () => Promise<string>;
   onUploadMedia: (file: File) => Promise<string>;
@@ -82,6 +85,25 @@ export function ProductEditor({
     ...(product.customEligible ? ["Custom"] : []),
   ];
   const mappedVariantCount = eligibleCommerceChoices.filter((choice) => product.commerceVariantIds?.[choice]).length;
+  const commerceProductOptions = commerceProducts.map((remote) => ({
+    id: remote.id,
+    label: `${remote.name} · NGN ${(remote.amountKobo / 100).toLocaleString()} · ${remote.inStock ? "In stock" : "Out of stock"} · ${remote.variants.length} variants`,
+  }));
+  const commerceVariantOptions = (mappedCommerceProduct?.variants ?? []).map((variant) => ({
+    id: variant.id,
+    label: `${variant.name} · ${Object.entries(variant.attributes).map(([name, value]) => `${name}: ${String(value)}`).join(", ") || variant.label} · NGN ${(variant.amountKobo / 100).toLocaleString()} · ${variant.inStock ? "In stock" : "Out of stock"}`,
+  }));
+  const updateVariantMapping = (choice: string, id: string) => {
+    if ((product.commerceVariantIds?.[choice] ?? "") === id) return;
+    const updatedVariants = { ...(product.commerceVariantIds || {}) };
+    if (id) updatedVariants[choice] = id;
+    else delete updatedVariants[choice];
+    onChange({
+      ...product,
+      commerceVariantIds: Object.keys(updatedVariants).length > 0 ? updatedVariants : undefined,
+      commerceMappingConfirmation: undefined,
+    });
+  };
   const confirmedCurrent = isConfirmedMappingCurrent(product, mappingSuggestion, isWebhookStale);
   const canConfirm = canConfirmMapping(product, mappingSuggestion, isWebhookStale);
   const [mappingHistoryOpen, setMappingHistoryOpen] = useState(false);
@@ -810,28 +832,23 @@ export function ProductEditor({
                     </div>
                   )}
 
-                  <label className="block">
-                    <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">JusticeSure Product</span>
-                    <select
-                      value={product.commerceProductId || ""}
-                      disabled={commerceStatus !== "ready"}
-                      onChange={(e) => onChange({
+                  <CommerceSearchSelect
+                    label="JusticeSure Product"
+                    value={product.commerceProductId ?? ""}
+                    options={commerceProductOptions}
+                    disabled={commerceStatus !== "ready"}
+                    placeholder={commerceStatus === "loading" ? "Loading JusticeSure products…" : commerceStatus === "unavailable" ? "JusticeSure catalogue unavailable" : "Search JusticeSure products"}
+                    testId={`input-product-commerce-id-${product.slug}`}
+                    onChange={(id) => {
+                      if (id === (product.commerceProductId ?? "")) return;
+                      onChange({
                         ...product,
-                        commerceProductId: e.target.value || undefined,
+                        commerceProductId: id || undefined,
                         commerceVariantIds: undefined,
                         commerceMappingConfirmation: undefined,
-                      })}
-                      className="staff-input text-xs"
-                      data-testid={`input-product-commerce-id-${product.slug}`}
-                    >
-                      <option value="">{commerceStatus === "loading" ? "Loading JusticeSure products…" : commerceStatus === "unavailable" ? "JusticeSure catalogue unavailable" : "Select an exact JusticeSure product"}</option>
-                      {commerceProducts.map((remote) => (
-                        <option key={remote.id} value={remote.id}>
-                          {remote.name} · NGN {(remote.amountKobo / 100).toLocaleString()} · {remote.inStock ? "In stock" : "Out of stock"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      });
+                    }}
+                  />
 
                   {mappedCommerceProduct && (
                     <div className="grid gap-2 border border-border bg-muted/20 p-3 text-[10px] sm:grid-cols-3">
@@ -850,55 +867,30 @@ export function ProductEditor({
 
                   <div className="space-y-2 mt-4">
                     {product.standardEligible && product.standardSizes?.map((size) => (
-                      <label key={size} className="flex flex-col gap-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Standard: {size}</span>
-                        <select
-                          value={product.commerceVariantIds?.[size] || ""}
-                          disabled={!mappedCommerceProduct || mappedCommerceProduct.variants.length === 0}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const updatedVariants = { ...(product.commerceVariantIds || {}) };
-                            if (val) updatedVariants[size] = val;
-                            else delete updatedVariants[size];
-                            onChange({ ...product, commerceVariantIds: Object.keys(updatedVariants).length > 0 ? updatedVariants : undefined, commerceMappingConfirmation: undefined });
-                          }}
-                          className="staff-input text-xs"
-                          data-testid={`input-product-variant-${product.slug}-${size}`}
-                        >
-                          <option value="">Select exact remote variant</option>
-                          {mappedCommerceProduct?.variants.map((variant) => (
-                            <option key={variant.id} value={variant.id}>
-                              {variant.name} · {Object.entries(variant.attributes).map(([name, value]) => `${name}: ${String(value)}`).join(", ") || variant.label} · NGN {(variant.amountKobo / 100).toLocaleString()} · {variant.inStock ? "In stock" : "Out of stock"}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <CommerceSearchSelect
+                        key={size}
+                        label={`Standard: ${size}`}
+                        value={product.commerceVariantIds?.[size] ?? ""}
+                        options={commerceVariantOptions}
+                        disabled={!mappedCommerceProduct || mappedCommerceProduct.variants.length === 0}
+                        placeholder="Search exact remote variant"
+                        testId={`input-product-variant-${product.slug}-${size}`}
+                        onChange={(id) => updateVariantMapping(size, id)}
+                      />
                     ))}
 
                     {product.customEligible && (
-                      <label className="flex flex-col gap-1 mt-3">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-primary">Custom Option</span>
-                        <select
-                          value={product.commerceVariantIds?.["Custom"] || ""}
+                      <div className="mt-3">
+                        <CommerceSearchSelect
+                          label="Custom Option"
+                          value={product.commerceVariantIds?.["Custom"] ?? ""}
+                          options={commerceVariantOptions}
                           disabled={!mappedCommerceProduct || mappedCommerceProduct.variants.length === 0}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const updatedVariants = { ...(product.commerceVariantIds || {}) };
-                            if (val) updatedVariants["Custom"] = val;
-                            else delete updatedVariants["Custom"];
-                            onChange({ ...product, commerceVariantIds: Object.keys(updatedVariants).length > 0 ? updatedVariants : undefined, commerceMappingConfirmation: undefined });
-                          }}
-                          className="staff-input text-xs"
-                          data-testid={`input-product-variant-${product.slug}-custom`}
-                        >
-                          <option value="">Select exact remote Custom variant</option>
-                          {mappedCommerceProduct?.variants.map((variant) => (
-                            <option key={variant.id} value={variant.id}>
-                              {variant.name} · {Object.entries(variant.attributes).map(([name, value]) => `${name}: ${String(value)}`).join(", ") || variant.label} · NGN {(variant.amountKobo / 100).toLocaleString()} · {variant.inStock ? "In stock" : "Out of stock"}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                          placeholder="Search exact remote Custom variant"
+                          testId={`input-product-variant-${product.slug}-custom`}
+                          onChange={(id) => updateVariantMapping("Custom", id)}
+                        />
+                      </div>
                     )}
 
                     {!product.standardEligible && !product.customEligible && (
@@ -951,11 +943,11 @@ export function ProductEditor({
             </div>
           )}
           <div className="border-t border-border pt-4">
-            <button type="button" onClick={onDelete} data-testid={`button-delete-catalogue-product-${product.slug}`}
-              className="inline-flex min-h-10 items-center gap-2 border border-destructive/40 px-3 text-xs font-semibold text-destructive hover:bg-destructive/10">
-              <Trash2 size={14} /> Remove product from draft
+            <button type="button" disabled={deleting} onClick={onDelete} data-testid={`button-delete-catalogue-product-${product.slug}`}
+              className="inline-flex min-h-10 items-center gap-2 border border-destructive/40 px-3 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50">
+              <Trash2 size={14} /> {deleting ? "Deleting draft…" : "Delete from draft"}
             </button>
-            <p className="mt-2 text-xs text-muted-foreground">Save the draft to keep this change. Publishing updates the storefront; this does not delete JusticeSure inventory or uploaded images.</p>
+            <p className="mt-2 text-xs text-muted-foreground">This deletes a saved draft product immediately after confirmation. If it was published, it remains live until you publish its removal. JusticeSure inventory and uploaded images are not deleted.</p>
           </div>
         </div>
       )}

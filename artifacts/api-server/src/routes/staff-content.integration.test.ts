@@ -104,7 +104,7 @@ test("scoped saves accept a large catalogue, reject stale and unsafe writes, and
     assert.ok(Buffer.byteLength(JSON.stringify(initial)) > 1_048_576);
     const now = new Date();
     await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
-    await db.insert(siteContentTable).values({ key: "platform", draft: initial, draftUpdatedAt: now, updatedByClerkUserId: clerkUserId });
+    await db.insert(siteContentTable).values({ key: "platform", draft: initial, draftUpdatedAt: now, published: initial, publishedAt: now, updatedByClerkUserId: clerkUserId });
     const running = await listen();
     server = running.server;
     const productUrl = "/api/staff/content/platform/products/large-catalogue-0/draft";
@@ -158,6 +158,17 @@ test("scoped saves accept a large catalogue, reject stale and unsafe writes, and
       },
     });
     assert.equal(moved.status, 200, JSON.stringify(moved.body).slice(0, 800));
+    const deleted = await request(running.baseUrl, productUrl, token, {
+      method: "DELETE", body: { expectedDraftUpdatedAt: moved.body.draftUpdatedAt },
+    });
+    assert.equal(deleted.status, 200, JSON.stringify(deleted.body).slice(0, 500));
+    assert.equal(deleted.body.draft.products.some((product: { slug: string }) => product.slug === firstProduct.slug), false);
+    assert.equal(deleted.body.draft.products.some((product: { slug: string }) => product.slug === newProduct.slug), true);
+    assert.equal(deleted.body.published.products.some((product: { slug: string }) => product.slug === firstProduct.slug), true);
+    const staleDelete = await request(running.baseUrl, productUrl, token, {
+      method: "DELETE", body: { expectedDraftUpdatedAt: moved.body.draftUpdatedAt },
+    });
+    assert.equal(staleDelete.status, 409);
 
     // Simulate an insert failure after the draft row update: the transaction
     // must roll back the row as well as its revision and audit.
@@ -167,20 +178,21 @@ test("scoped saves accept a large catalogue, reject stale and unsafe writes, and
     const response = await fetch(`${running.baseUrl}${productUrl}`, {
       method: "PUT",
       headers: { cookie: `soso_staff_session=${token}`, origin: running.baseUrl, "content-type": "application/json" },
-      body: JSON.stringify({ expectedDraftUpdatedAt: moved.body.draftUpdatedAt, product: failedProduct }),
+      body: JSON.stringify({ expectedDraftUpdatedAt: deleted.body.draftUpdatedAt, product: failedProduct }),
     });
     assert.equal(response.status, 500);
     await db.execute(sql.raw("DROP TRIGGER fail_scoped_revision_trigger ON soso_site_content_revisions"));
     await db.execute(sql.raw("DROP FUNCTION fail_scoped_revision()"));
     const after = await request(running.baseUrl, "/api/staff/content/platform", token);
-    assert.equal(after.body.draftUpdatedAt, moved.body.draftUpdatedAt);
-    assert.equal(after.body.draft.products.find((product: { slug: string }) => product.slug === firstProduct.slug).name, firstProduct.name);
+    assert.equal(after.body.draftUpdatedAt, deleted.body.draftUpdatedAt);
+    assert.equal(after.body.draft.products.some((product: { slug: string }) => product.slug === firstProduct.slug), false);
+    assert.equal(after.body.published.products.some((product: { slug: string }) => product.slug === firstProduct.slug), true);
     assert.equal(after.body.draft.interfaceCopy.navigation.shopAllLabel, "Browse every piece");
     const revisions = await db.select().from(siteContentRevisionsTable)
       .where(and(eq(siteContentRevisionsTable.contentKey, "platform"), eq(siteContentRevisionsTable.createdByClerkUserId, clerkUserId)));
-    assert.equal(revisions.length, 4);
+    assert.equal(revisions.length, 5);
     const audits = await db.select().from(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
-    assert.equal(audits.filter((audit) => audit.action === "platform_content.draft_saved").length, 4);
+    assert.equal(audits.filter((audit) => audit.action === "platform_content.draft_saved").length, 5);
   } finally {
     await db.execute(sql.raw("DROP TRIGGER IF EXISTS fail_scoped_revision_trigger ON soso_site_content_revisions"));
     await db.execute(sql.raw("DROP FUNCTION IF EXISTS fail_scoped_revision()"));

@@ -82,7 +82,7 @@ export function PlatformEditorCatalogue({
   onChange: (data: CatalogueData) => void;
   onUploadMedia: (file: File) => Promise<string>;
   initialProductSlug?: string | null;
-  onDeleteProduct: (slug: string) => string | null | undefined;
+  onDeleteProduct: (slug: string) => Promise<string | null | undefined>;
   onSaveProduct: (slug: string) => Promise<string>;
   onPublishProduct: (slug: string) => Promise<string>;
   publishedProducts: CatalogProduct[];
@@ -94,6 +94,7 @@ export function PlatformEditorCatalogue({
   });
   const [commerceProducts, setCommerceProducts] = useState<CommerceCatalogProduct[]>([]);
   const [commerceStatus, setCommerceStatus] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [deletingProductSlug, setDeletingProductSlug] = useState<string | null>(null);
   const [mappingPreview, setMappingPreview] = useState<MappingPreview | null>(null);
   const [mappingPreviewGeneration, setMappingPreviewGeneration] = useState(0);
   const [requiredPreviewGeneration, setRequiredPreviewGeneration] = useState(0);
@@ -327,10 +328,19 @@ export function PlatformEditorCatalogue({
     onChange({ ...data, products });
     setExpandedProductIndex(0);
   };
-  const deleteProduct = (slug: string) => {
-    const error = onDeleteProduct(slug);
-    setDeleteError(error ?? "");
-    if (error === null) setExpandedProductIndex(null);
+  const deleteProduct = async (slug: string) => {
+    if (deletingProductSlug) return;
+    setDeleteError("");
+    setDeletingProductSlug(slug);
+    try {
+      const error = await onDeleteProduct(slug);
+      setDeleteError(error ?? "");
+      if (error === null) setExpandedProductIndex(null);
+    } catch {
+      setDeleteError("Product deletion failed. Reload the catalogue and try again.");
+    } finally {
+      setDeletingProductSlug(null);
+    }
   };
   const pendingPublicRemovals = publishedProducts.filter(
     (product) => !data.products.some((draftProduct) => draftProduct.slug === product.slug),
@@ -452,8 +462,8 @@ export function PlatformEditorCatalogue({
         {deleteError && <p role="alert" className="mb-4 border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{deleteError}</p>}
         {pendingPublicRemovals.length > 0 && (
           <div className="mb-4 space-y-3 border border-amber-300 bg-amber-50 p-4" data-testid="pending-public-product-removals">
-            <p className="text-xs font-semibold text-amber-900">Removed from the editor, but still on the live storefront</p>
-            <p className="text-xs text-amber-900">Save the draft first. You can then publish the removal of an unavailable, unmapped product without changing the rest of the catalogue. Public references must be cleared first.</p>
+            <p className="text-xs font-semibold text-amber-900">Removed from the draft, but still on the live storefront</p>
+            <p className="text-xs text-amber-900">You can publish the removal of an unavailable, unmapped product without changing the rest of the catalogue. Save any other edits and clear public references first.</p>
             {pendingPublicRemovals.map((product) => (
               <div key={product.slug} className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-200 pt-3">
                 <span className="text-xs text-amber-950">{product.name} <span className="font-mono text-[10px]">({product.slug})</span></span>
@@ -488,7 +498,8 @@ export function PlatformEditorCatalogue({
               isExpanded={expandedProductIndex === index}
               onToggle={() => setExpandedProductIndex(expandedProductIndex === index ? null : index)}
               onChange={(updatedProduct) => updateProduct(index, updatedProduct)}
-              onDelete={() => deleteProduct(product.slug)}
+              onDelete={() => void deleteProduct(product.slug)}
+              deleting={deletingProductSlug === product.slug}
               onSave={() => onSaveProduct(product.slug)}
               onPublish={() => onPublishProduct(product.slug)}
               onUploadMedia={onUploadMedia}

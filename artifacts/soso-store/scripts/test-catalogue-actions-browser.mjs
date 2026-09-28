@@ -29,6 +29,7 @@ try {
   let savedPayload;
   let productPublishRequests = 0;
   let productRemovalRequests = 0;
+  const deletedSavedSlugs = [];
   let rejectRemoval = true;
   let releaseRemovalResponse;
   const removalResponseGate = new Promise((resolve) => { releaseRemovalResponse = resolve; });
@@ -74,6 +75,35 @@ try {
     }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(savedRow) });
   });
+  await page.route("**/api/staff/content/platform/products/*/draft", async (route) => {
+    const slug = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2));
+    if (route.request().method() === "PUT") {
+      const { product, expectedDraftUpdatedAt } = route.request().postDataJSON();
+      assert.equal(expectedDraftUpdatedAt, savedRow.draftUpdatedAt);
+      savedRow = {
+        ...savedRow,
+        draft: {
+          ...savedRow.draft,
+          products: savedRow.draft.products.some((item) => item.slug === slug)
+            ? savedRow.draft.products.map((item) => item.slug === slug ? product : item)
+            : [product, ...savedRow.draft.products],
+        },
+        draftUpdatedAt: new Date(Date.parse(savedRow.draftUpdatedAt) + 1000).toISOString(),
+      };
+      savedPayload = savedRow.draft;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(savedRow) });
+    }
+    if (route.request().method() !== "DELETE") return route.continue();
+    assert.equal(route.request().postDataJSON().expectedDraftUpdatedAt, savedRow.draftUpdatedAt);
+    assert.ok(savedRow.draft.products.some((product) => product.slug === slug), "Only saved draft products can reach the deletion API.");
+    deletedSavedSlugs.push(slug);
+    savedRow = {
+      ...savedRow,
+      draft: { ...savedRow.draft, products: savedRow.draft.products.filter((product) => product.slug !== slug) },
+      draftUpdatedAt: new Date(Date.parse(savedRow.draftUpdatedAt) + 1000).toISOString(),
+    };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(savedRow) });
+  });
 
   await page.goto(`${storeOrigin}/sign-in`);
   await page.getByLabel("Staff email").fill(email);
@@ -99,10 +129,8 @@ try {
   page.once("dialog", (dialog) => dialog.accept());
   await deleteButton.click();
   await added.waitFor({ state: "detached" });
-  await page.getByTestId("btn-save-draft").click();
-  await page.waitForFunction(() => document.querySelector('[data-testid="status-message"]')?.textContent?.includes("Draft saved"));
-  assert.ok(savedPayload);
-  assert.ok(!savedPayload.products.some((item) => item.slug === slug));
+  assert.deepEqual(deletedSavedSlugs, [], "Discarding a never-saved product must not call DELETE.");
+  assert.ok(!savedRow.draft.products.some((item) => item.slug === slug));
   assert.deepEqual(savedRow.published, initiallyPublished, "Deleting a draft product must not change published content.");
 
   await page.getByTestId("btn-publish").click();
@@ -133,16 +161,16 @@ try {
   await page.getByTestId(`catalogue-product-header-${publicRemovalFixture.slug}`).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByTestId(`button-delete-catalogue-product-${publicRemovalFixture.slug}`).click();
-  const publishRemoval = page.getByTestId(`button-publish-product-removal-${publicRemovalFixture.slug}`);
-  await publishRemoval.waitFor();
-  await publishRemoval.click();
-  await page.getByTestId("product-removal-status").getByText(/Save the draft without this product/).waitFor();
-  assert.equal(productRemovalRequests, 0);
-  await page.getByTestId("btn-save-draft").click();
-  await page.waitForFunction(() => document.querySelector('[data-testid="status-message"]')?.textContent?.includes("Draft saved"));
+  await page.waitForFunction(() => document.querySelector('[data-testid="status-message"]')?.textContent?.includes("deleted from the saved draft"));
+  assert.deepEqual(deletedSavedSlugs, [publicRemovalFixture.slug]);
   assert.ok(!savedRow.draft.products.some((item) => item.slug === publicRemovalFixture.slug));
   assert.ok(savedRow.published.products.some((item) => item.slug === publicRemovalFixture.slug));
-
+  await page.reload();
+  await page.getByRole("button", { name: "Platform content" }).click();
+  await page.getByTestId("platform-section-catalogue").click();
+  assert.equal(await page.getByTestId(`catalogue-product-${publicRemovalFixture.slug}`).count(), 0, "Deleted draft product must stay removed after reload.");
+  const publishRemoval = page.getByTestId(`button-publish-product-removal-${publicRemovalFixture.slug}`);
+  await publishRemoval.waitFor();
   page.once("dialog", (dialog) => dialog.dismiss());
   await publishRemoval.click();
   assert.equal(productRemovalRequests, 0, "A cancelled confirmation must not unpublish the product.");

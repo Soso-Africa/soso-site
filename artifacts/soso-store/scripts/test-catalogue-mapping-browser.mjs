@@ -23,10 +23,17 @@ try {
   const safeRemoteId = randomUUID();
   const reviewRemoteId = randomUUID();
   const blockedRemoteId = randomUUID();
+  const blockedVariantId = randomUUID();
+  const blockedSize = blockedProduct.sizes.find((size) => size.toLowerCase() !== "custom") ?? blockedProduct.sizes[0];
+  assert.ok(blockedSize);
+  blockedProduct.standardEligible = true;
+  blockedProduct.standardSizes = [blockedSize];
   const remoteProducts = [
     { id: safeRemoteId, name: safeProduct.name, amountKobo: safeProduct.price * 100, inStock: true, variants: [] },
     { id: reviewRemoteId, name: reviewProduct.name, amountKobo: reviewProduct.price * 100, inStock: true, variants: [] },
-    { id: blockedRemoteId, name: blockedProduct.name, amountKobo: blockedProduct.price * 100, inStock: false, variants: [] },
+    { id: blockedRemoteId, name: blockedProduct.name, amountKobo: blockedProduct.price * 100, inStock: false, variants: [
+      { id: blockedVariantId, name: `Size ${blockedSize}`, label: blockedSize, attributes: { size: blockedSize }, amountKobo: blockedProduct.price * 100, inStock: false },
+    ] },
   ];
   let savedRow = {
     ...originalRow,
@@ -99,6 +106,21 @@ try {
     }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(savedRow) });
   });
+  await page.route("**/api/staff/content/platform/products/*/draft", async (route) => {
+    if (route.request().method() !== "PUT") return route.continue();
+    const { product, expectedDraftUpdatedAt } = route.request().postDataJSON();
+    assert.equal(expectedDraftUpdatedAt, savedRow.draftUpdatedAt);
+    savedRow = {
+      ...savedRow,
+      draft: {
+        ...savedRow.draft,
+        products: savedRow.draft.products.map((item) => item.slug === product.slug ? product : item),
+      },
+      draftUpdatedAt: new Date(Date.parse(savedRow.draftUpdatedAt) + 1000).toISOString(),
+    };
+    lastSavedContent = savedRow.draft;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(savedRow) });
+  });
 
   await page.goto(`${storeOrigin}/sign-in`);
   await page.getByLabel("Staff email").fill(email);
@@ -122,7 +144,12 @@ try {
   await page.getByTestId("button-confirm-safe-matches").click();
   await page.getByTestId(`mapping-status-${safeProduct.slug}`).getByText("Confirmed current", { exact: true }).waitFor();
   await page.getByTestId("btn-save-draft").click();
-  await page.getByTestId("status-message").getByText("Draft saved. It is not public until published.", { exact: true }).waitFor();
+  try {
+    await page.getByTestId("status-message").getByText("Draft saved. It is not public until published.", { exact: true }).waitFor({ timeout: 10000 });
+  } catch (error) {
+    console.error("Mapping save status:", await page.getByTestId("status-message").textContent());
+    throw error;
+  }
 
   assert.ok(lastSavedContent, "The browser must submit the confirmed draft.");
   assert.equal(lastSavedContent.products[0].commerceProductId, safeRemoteId);
@@ -153,6 +180,25 @@ try {
   await page.getByRole("button", { name: "Re-analyze Catalogue" }).click();
   await page.getByTestId("catalogue-mapping-summary").getByText("Stale: 1", { exact: true }).waitFor();
   await page.getByTestId(`mapping-status-${safeProduct.slug}`).getByText("Confirmation stale", { exact: true }).waitFor();
+
+  await page.getByTestId(`catalogue-product-header-${blockedProduct.slug}`).click();
+  await page.getByTestId(`input-product-commerce-id-${blockedProduct.slug}`).click();
+  const productSearch = page.getByRole("combobox", { name: "Search justicesure product" });
+  await productSearch.fill(blockedRemoteId);
+  const productResults = page.locator("[cmdk-root]").filter({ has: productSearch }).locator("[cmdk-item]:visible");
+  await productResults.filter({ hasText: blockedProduct.name }).waitFor();
+  assert.equal(await productResults.count(), 1, "Searching by exact product ID must narrow the catalogue.");
+  await productResults.click();
+  assert.match(await page.getByTestId(`input-product-commerce-id-${blockedProduct.slug}`).textContent(), new RegExp(blockedProduct.name));
+  await page.getByTestId(`input-product-variant-${blockedProduct.slug}-${blockedSize}`).click();
+  const variantSearch = page.getByRole("combobox", { name: `Search standard: ${blockedSize.toLowerCase()}` });
+  await variantSearch.fill(blockedVariantId);
+  const variantResults = page.locator("[cmdk-root]").filter({ has: variantSearch }).locator("[cmdk-item]:visible");
+  await variantResults.filter({ hasText: `Size ${blockedSize}` }).waitFor();
+  assert.equal(await variantResults.count(), 1, "Searching by exact variant ID must narrow variants.");
+  await variantResults.click();
+  await page.getByText("Advanced mapping identifiers").last().click();
+  await page.getByText(`${blockedSize}: ${blockedVariantId}`, { exact: true }).waitFor();
 
   await context.close();
   console.log("Catalogue mapping Staff browser regressions passed.");
