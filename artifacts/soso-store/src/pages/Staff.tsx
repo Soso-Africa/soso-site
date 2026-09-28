@@ -756,9 +756,11 @@ function PlatformContentManagementSection() {
       return message;
     } finally { setSaving(false); }
   };
-  const deleteCatalogueProduct = (slug: string): string | null | undefined => {
+  const deleteCatalogueProduct = async (slug: string): Promise<string | null | undefined> => {
+    if (saving) return "Wait for the current save to finish before deleting a product.";
+    let document: PlatformContent;
     try {
-      const document = parsedDocument();
+      document = parsedDocument();
       const product = document.products.find((item) => item.slug === slug);
       if (!product) return "Product not found in the current draft.";
       if (document.products.length === 1) return "The catalogue must keep at least one product. Add a replacement before deleting this one.";
@@ -767,10 +769,35 @@ function PlatformContentManagementSection() {
         return `Remove references to ${product.name} before deleting it: ${references.slice(0, 5).join(", ")}${references.length > 5 ? `, and ${references.length - 5} more` : ""}.`;
       }
       const wasPublished = row?.published?.products.some((item) => item.slug === slug);
-      if (!window.confirm(`Remove ${product.name} from this draft? Save draft to keep the deletion.${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
+      const isSaved = row?.draft?.products.some((item) => item.slug === slug);
+      if (isSaved && JSON.stringify(document) !== JSON.stringify(row?.draft)) {
+        return "Save or discard other unsaved edits before deleting this product. Deletion must not discard your work.";
+      }
+      if (isSaved && !row?.draftUpdatedAt) return "Reload the saved draft before deleting this product.";
+      if (!window.confirm(`${isSaved ? "Delete" : "Discard unsaved"} ${product.name} from the draft now?${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
+      if (isSaved) {
+        setSaving(true);
+        try {
+          const next = await customFetch<PlatformContentRow>(`/api/staff/content/platform/products/${encodeURIComponent(slug)}/draft`, {
+            method: "DELETE", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ expectedDraftUpdatedAt: row!.draftUpdatedAt }), responseType: "json",
+          });
+          if (!next.draft) return "Product deletion returned no saved draft. Reload the catalogue to check its state.";
+          setRow(next);
+          setContent(next.draft);
+          setJson(JSON.stringify(sectionValue(next.draft, "catalogue"), null, 2));
+          try { await refreshRevisions(); }
+          catch { setStatus(`${product.name} deleted from the saved draft, but revision history could not refresh.`); return null; }
+          setStatus(`${product.name} deleted from the saved draft.${wasPublished ? " It remains on the live storefront until you publish its removal." : ""}`);
+          return null;
+        } catch (error) {
+          return platformActionError(error, "Product could not be deleted from the saved draft.");
+        } finally { setSaving(false); }
+      }
       const updated = { ...document, products: document.products.filter((item) => item.slug !== slug) };
+      setContent(updated);
       setJson(JSON.stringify(sectionValue(updated, "catalogue"), null, 2));
-      setStatus(`${product.name} removed from the editor. Save draft to keep the change${wasPublished ? ", then publish its removal to update the storefront." : "."}`);
+      setStatus(`${product.name} was never saved and has been removed from the editor.${wasPublished ? " The published product remains live." : ""}`);
       return null;
     } catch {
       return "Fix the current catalogue JSON before deleting a product.";
