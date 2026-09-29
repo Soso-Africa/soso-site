@@ -101,6 +101,7 @@ export function PlatformEditorCatalogue({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const [deleteErrorSlug, setDeleteErrorSlug] = useState<string | null>(null);
   const [removingPublicSlug, setRemovingPublicSlug] = useState<string | null>(null);
   const [removalMessage, setRemovalMessage] = useState("");
   const [webhookStaleSlugs, setWebhookStaleSlugs] = useState<string[]>([]);
@@ -331,6 +332,7 @@ export function PlatformEditorCatalogue({
   const deleteProduct = async (slug: string) => {
     if (deletingProductSlug) return;
     setDeleteError("");
+    setDeleteErrorSlug(slug);
     setDeletingProductSlug(slug);
     try {
       const error = await onDeleteProduct(slug);
@@ -459,7 +461,6 @@ export function PlatformEditorCatalogue({
             {analysisError}
           </p>
         )}
-        {deleteError && <p role="alert" className="mb-4 border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{deleteError}</p>}
         {pendingPublicRemovals.length > 0 && (
           <div className="mb-4 space-y-3 border border-amber-300 bg-amber-50 p-4" data-testid="pending-public-product-removals">
             <p className="text-xs font-semibold text-amber-900">Removed from the draft, but still on the live storefront</p>
@@ -500,6 +501,7 @@ export function PlatformEditorCatalogue({
               onChange={(updatedProduct) => updateProduct(index, updatedProduct)}
               onDelete={() => void deleteProduct(product.slug)}
               deleting={deletingProductSlug === product.slug}
+              deleteError={deleteErrorSlug === product.slug ? deleteError : ""}
               onSave={() => onSaveProduct(product.slug)}
               onPublish={() => onPublishProduct(product.slug)}
               onUploadMedia={onUploadMedia}

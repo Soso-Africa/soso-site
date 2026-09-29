@@ -765,16 +765,16 @@ function PlatformContentManagementSection() {
       if (!product) return "Product not found in the current draft.";
       if (document.products.length === 1) return "The catalogue must keep at least one product. Add a replacement before deleting this one.";
       const references = productDeletionReferences(document, slug);
-      if (references.length) {
-        return `Remove references to ${product.name} before deleting it: ${references.slice(0, 5).join(", ")}${references.length > 5 ? `, and ${references.length - 5} more` : ""}.`;
-      }
       const wasPublished = row?.published?.products.some((item) => item.slug === slug);
       const isSaved = row?.draft?.products.some((item) => item.slug === slug);
+      if (!isSaved && references.length) {
+        return `Remove references to ${product.name} before discarding the unsaved product: ${references.slice(0, 5).join(", ")}.`;
+      }
       if (isSaved && JSON.stringify(document) !== JSON.stringify(row?.draft)) {
         return "Save or discard other unsaved edits before deleting this product. Deletion must not discard your work.";
       }
       if (isSaved && !row?.draftUpdatedAt) return "Reload the saved draft before deleting this product.";
-      if (!window.confirm(`${isSaved ? "Delete" : "Discard unsaved"} ${product.name} from the draft now?${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
+      if (!window.confirm(`${isSaved ? "Delete" : "Discard unsaved"} ${product.name} from the draft now?${references.length ? ` ${references.length} draft reference${references.length === 1 ? "" : "s"} will also be removed or redirected to Shop.` : ""}${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
       if (isSaved) {
         setSaving(true);
         try {

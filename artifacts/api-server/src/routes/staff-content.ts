@@ -34,6 +34,7 @@ import { validateLegacyProductPublication } from "../lib/legacy-product-publicat
 import { validateAccessoryProductPublication } from "../lib/accessory-product-publication";
 import { validateCollectionMediaAssets, validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { platformProductReferences } from "../lib/platform-product-references";
+import { deleteDraftProduct } from "../lib/delete-draft-product";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
 import { JusticeSureCommerceClient, JusticeSureRequestError } from "../lib/justicesureCommerce";
@@ -521,6 +522,7 @@ type DraftChange =
 
 function mergeDraftChange(current: PlatformContent, change: DraftChange): unknown {
   if (change.kind === "section") return { ...current, [change.section]: change.value };
+  if (change.kind === "delete_product") return deleteDraftProduct(current, change.slug);
   if (change.kind === "catalogue") {
     const products = current.products.filter((product) => !change.deletions.includes(product.slug));
     for (const { slug, product } of change.upserts) {
@@ -534,15 +536,10 @@ function mergeDraftChange(current: PlatformContent, change: DraftChange): unknow
   }
   const products = [...current.products];
   const index = products.findIndex((product) => product.slug === change.slug);
-  if (change.kind === "delete_product") {
-    if (index < 0) return null;
-    products.splice(index, 1);
-  } else {
-    if (!change.value || typeof change.value !== "object" || Array.isArray(change.value)
-        || (change.value as { slug?: unknown }).slug !== change.slug) return null;
-    if (index < 0) products.push(change.value as PlatformContent["products"][number]);
-    else products[index] = change.value as PlatformContent["products"][number];
-  }
+  if (!change.value || typeof change.value !== "object" || Array.isArray(change.value)
+      || (change.value as { slug?: unknown }).slug !== change.slug) return null;
+  if (index < 0) products.push(change.value as PlatformContent["products"][number]);
+  else products[index] = change.value as PlatformContent["products"][number];
   return { ...current, products };
 }
 
@@ -561,7 +558,7 @@ async function saveScopedDraft(req: Request, res: Response, change: DraftChange)
     if (!candidate) return { kind: "invalid" as const, error: "Product slug must match the URL and an existing product must be selected for deletion.", issues: [] };
     const parsed = PlatformContentSchema.safeParse(candidate);
     if (!parsed.success) return { kind: "invalid" as const, error: "The changed draft is invalid.", issues: parsed.error.issues };
-    if (!preservesLegacySparseFeaturedProvenance(currentRow.draft, parsed.data)) {
+    if (change.kind !== "delete_product" && !preservesLegacySparseFeaturedProvenance(currentRow.draft, parsed.data)) {
       return { kind: "invalid" as const, error: "Legacy sparse featured compatibility can only be preserved from the current migrated draft.", issues: [] };
     }
     const selectedProducts = change.kind === "product" ? [change.slug]

@@ -40,6 +40,7 @@ export function ProductEditor({
   onChange,
   onDelete,
   deleting = false,
+  deleteError = "",
   onSave,
   onPublish,
   onUploadMedia,
@@ -57,6 +58,7 @@ export function ProductEditor({
   onChange: (product: CatalogProduct) => void;
   onDelete: () => void;
   deleting?: boolean;
+  deleteError?: string;
   onSave: () => Promise<string>;
   onPublish: () => Promise<string>;
   onUploadMedia: (file: File) => Promise<string>;
@@ -948,6 +950,7 @@ export function ProductEditor({
               <Trash2 size={14} /> {deleting ? "Deleting draft…" : "Delete from draft"}
             </button>
             <p className="mt-2 text-xs text-muted-foreground">This deletes a saved draft product immediately after confirmation. If it was published, it remains live until you publish its removal. JusticeSure inventory and uploaded images are not deleted.</p>
+            {deleteError && <p role="alert" className="mt-2 border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{deleteError}</p>}
           </div>
         </div>
       )}
