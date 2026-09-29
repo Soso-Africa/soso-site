@@ -101,6 +101,9 @@ test("scoped saves accept a large catalogue, reject stale and unsafe writes, and
       ...structuredClone(template),
       slug: `large-catalogue-${index}`, name: `Piece ${index} ${"x".repeat(8_800)}`,
     })));
+    initial.homepage.featured.productSlugs[0] = "large-catalogue-0";
+    initial.site.megaMenu[0]!.href = "/product/large-catalogue-0";
+    initial.products[1]!.relatedProductSlugs = ["large-catalogue-0"];
     assert.ok(Buffer.byteLength(JSON.stringify(initial)) > 1_048_576);
     const now = new Date();
     await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
@@ -164,7 +167,11 @@ test("scoped saves accept a large catalogue, reject stale and unsafe writes, and
     assert.equal(deleted.status, 200, JSON.stringify(deleted.body).slice(0, 500));
     assert.equal(deleted.body.draft.products.some((product: { slug: string }) => product.slug === firstProduct.slug), false);
     assert.equal(deleted.body.draft.products.some((product: { slug: string }) => product.slug === newProduct.slug), true);
+    assert.equal(deleted.body.draft.homepage.featured.productSlugs.includes(firstProduct.slug), false);
+    assert.equal(deleted.body.draft.site.megaMenu[0].href, "/shop");
+    assert.deepEqual(deleted.body.draft.products[1].relatedProductSlugs, []);
     assert.equal(deleted.body.published.products.some((product: { slug: string }) => product.slug === firstProduct.slug), true);
+    assert.equal(deleted.body.published.site.megaMenu[0].href, `/product/${firstProduct.slug}`);
     const staleDelete = await request(running.baseUrl, productUrl, token, {
       method: "DELETE", body: { expectedDraftUpdatedAt: moved.body.draftUpdatedAt },
     });

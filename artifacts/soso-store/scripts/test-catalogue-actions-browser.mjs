@@ -115,8 +115,11 @@ try {
 
   const referencedSlug = savedRow.draft.homepage.featured.productSlugs[0];
   await page.getByTestId(`catalogue-product-header-${referencedSlug}`).click();
+  page.once("dialog", (dialog) => {
+    assert.match(dialog.message(), /draft reference/);
+    dialog.dismiss();
+  });
   await page.getByTestId(`button-delete-catalogue-product-${referencedSlug}`).click();
-  await page.getByRole("alert").filter({ hasText: "Remove references" }).waitFor();
   assert.ok(await page.getByTestId(`catalogue-product-${referencedSlug}`).count());
 
   await page.getByTestId("button-add-catalogue-product").click();
