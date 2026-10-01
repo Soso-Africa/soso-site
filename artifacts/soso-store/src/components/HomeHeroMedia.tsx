@@ -55,6 +55,19 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
     setIsPlaying(false);
   }, [selected.videoUrl]);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !selected.motionAllowed) return;
+    // Set both properties before requesting playback. Safari may reject muted
+    // autoplay when only React's property update has happened.
+    video.muted = true;
+    video.defaultMuted = true;
+    void video.play().catch(() => {
+      // Autoplay can still be blocked by OS/browser policy; keep manual play.
+      if (videoRef.current === video) setIsPlaying(false);
+    });
+  }, [selected.videoUrl, selected.motionAllowed]);
+
   const videoEnabled = selected.motionAllowed && !failed && selected.videoUrl && selected.mimeType;
   const togglePlayback = async () => {
     const video = videoRef.current;

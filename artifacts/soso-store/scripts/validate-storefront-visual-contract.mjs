@@ -111,6 +111,49 @@ async function installDeterministicRoutes(page) {
   });
 }
 
+async function prepareFullPageImages(page) {
+  // Preserve scroll-triggered reveal styles: scrolling is only for image loading.
+  await page.evaluate(() => {
+    window.__visualRevealSnapshots = Array.from(document.querySelectorAll("[style]"))
+      .filter((element) => element.style.transition.includes("cubic-bezier(0.16"))
+      .map((element) => ({ element, style: element.getAttribute("style") }));
+  });
+  await page.evaluate(async () => {
+    const nextFrame = () => new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
+    const scrollStep = Math.max(1, Math.floor(window.innerHeight * 0.75));
+    for (let scrollY = 0; scrollY < document.documentElement.scrollHeight; scrollY += scrollStep) {
+      window.scrollTo(0, scrollY);
+      await nextFrame();
+      await nextFrame();
+    }
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    await nextFrame();
+    await nextFrame();
+  });
+  await page.waitForFunction(
+    () => Array.from(document.images).every((image) => !image.currentSrc || (image.complete && image.naturalWidth > 0)),
+    undefined,
+    { timeout: 30_000 },
+  );
+  await page.locator("img").evaluateAll(async (images) => {
+    // Hidden carousel slides may never get a selected source on mobile. Their
+    // decode promise would otherwise wait forever despite the readiness check.
+    await Promise.all(images.filter((image) => image.currentSrc).map((image) => image.decode()));
+  });
+  await page.evaluate(async () => {
+    const nextFrame = () => new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
+    window.scrollTo(0, 0);
+    await nextFrame();
+    await nextFrame();
+    await nextFrame();
+    for (const { element, style } of window.__visualRevealSnapshots ?? []) {
+      if (style === null) element.removeAttribute("style");
+      else element.setAttribute("style", style);
+    }
+    delete window.__visualRevealSnapshots;
+  });
+}
+
 async function preparePage(page, surface) {
   await page.addInitScript(() => {
     localStorage.clear();
@@ -134,6 +177,12 @@ async function preparePage(page, surface) {
     await document.fonts.ready;
     window.scrollTo(0, 0);
   });
+  assert.equal(
+    await page.evaluate(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches),
+    true,
+    "Visual captures must use the reduced-motion fixture.",
+  );
+  if (!surface.openCart) await prepareFullPageImages(page);
 }
 
 async function assertVisualSemantics(page, surface, viewportName) {

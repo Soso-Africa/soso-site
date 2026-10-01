@@ -4,47 +4,64 @@ import { trackStorefrontEvent } from "@/components/ConsentManager";
 
 export function CategoryFeature({
   categoryName, eyebrow, description, images, mobileImages, imageAlt, href, isEven, testId,
-  desktopCropPosition = "center", mobileCropPosition = "center", imageMode = "static", rotationMs = 5000, eager = false,
+  desktopCropPosition = "center", mobileCropPosition = "center", imageMode = "static", rotationMs = 5000,
 }: {
   categoryName: string; eyebrow: string; description: string; images: string[]; mobileImages?: string[];
   imageAlt: string; href: string; isEven: boolean; testId: string; desktopCropPosition?: string;
-  mobileCropPosition?: string; imageMode?: "static" | "crossfade"; rotationMs?: number; eager?: boolean;
+  mobileCropPosition?: string; imageMode?: "static" | "crossfade"; rotationMs?: number;
 }) {
   const safeImages = images.slice(0, 4).filter(Boolean);
+  const imageSignature = `${safeImages.join("|")}::${mobileImages?.join("|") ?? ""}`;
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [layersReady, setLayersReady] = useState(false);
+  const [loadedIndexes, setLoadedIndexes] = useState<number[]>([]);
   const [visible, setVisible] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
   const impressionSent = useRef(false);
   const rotating = imageMode === "crossfade" && safeImages.length > 1;
+  const allImagesLoaded = safeImages.every((_, index) => loadedIndexes.includes(index));
 
   useEffect(() => {
     const node = sectionRef.current;
     if (!node) return;
+    if (typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver(([entry]) => {
-      if (!entry?.isIntersecting) return;
-      setVisible(true);
-      if (!impressionSent.current) {
+      if (!entry) return;
+      setVisible(entry.isIntersecting && entry.intersectionRatio > 0);
+      if (entry.intersectionRatio >= 0.25 && !impressionSent.current) {
         impressionSent.current = true;
         trackStorefrontEvent("category_impression", { placement: "homepage_category", category: categoryName });
       }
-      observer.disconnect();
-    }, { threshold: 0.25 });
+    }, { threshold: [0, 0.25] });
     observer.observe(node);
     return () => observer.disconnect();
   }, [categoryName]);
 
   useEffect(() => {
     setCurrentIndex(0);
-  }, [safeImages.join("|")]);
+    setLayersReady(false);
+    setLoadedIndexes([]);
+  }, [imageSignature]);
 
   useEffect(() => {
-    if (!visible || safeImages.length < 2) return;
-    const next = safeImages[(currentIndex + 1) % safeImages.length];
-    if (next) { const preload = new Image(); preload.src = next; }
-  }, [currentIndex, safeImages, visible]);
+    if (!rotating) return;
+    const node = sectionRef.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setLayersReady(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return;
+      setLayersReady(true);
+      observer.disconnect();
+    }, { rootMargin: "300px 0px", threshold: 0 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [rotating, imageSignature]);
 
   useEffect(() => {
-    if (!visible || !rotating) return;
+    if (!visible || !rotating || !layersReady || !allImagesLoaded) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let timer: ReturnType<typeof setInterval> | undefined;
     const updateTimer = () => {
@@ -56,7 +73,7 @@ export function CategoryFeature({
     reducedMotion.addEventListener("change", updateTimer);
     updateTimer();
     return () => { if (timer) clearInterval(timer); document.removeEventListener("visibilitychange", updateTimer); reducedMotion.removeEventListener("change", updateTimer); };
-  }, [rotating, rotationMs, safeImages.length, visible]);
+  }, [allImagesLoaded, layersReady, rotating, rotationMs, safeImages.length, visible]);
 
   const sourceFor = (index: number) => mobileImages?.[index] || safeImages[index];
   const renderImage = (index: number) => {
@@ -76,7 +93,8 @@ export function CategoryFeature({
     >
       {sourceFor(index) !== safeImages[index] && <source media="(max-width: 767px)" srcSet={sourceFor(index)} />}
       <img src={safeImages[index]} alt={active ? imageAlt : ""} aria-hidden={!active || undefined} width={1200} height={1600}
-        loading={eager || index === 0 ? "eager" : "lazy"} fetchPriority={eager && index === 0 ? "high" : "auto"}
+        loading="lazy" decoding="async"
+        onLoad={() => setLoadedIndexes((loaded) => loaded.includes(index) ? loaded : [...loaded, index])}
         className="h-full w-full object-cover object-[var(--mobile-position)] md:object-[var(--desktop-position)]"
         style={{ "--desktop-position": desktopCropPosition, "--mobile-position": mobileCropPosition } as CSSProperties} />
     </picture>
@@ -87,7 +105,7 @@ export function CategoryFeature({
     <div className="mx-auto flex min-h-[70vh] flex-col md:flex-row">
       <Link href={href} aria-label={`Shop ${categoryName}`} onClick={() => trackStorefrontEvent("cta_clicked", { placement: "homepage_category", category: categoryName, action: "image_click" })}
         className={`relative block w-full aspect-[3/4] overflow-hidden md:w-1/2 md:aspect-auto ${isEven ? "md:order-2" : "md:order-1"}`}>
-        {safeImages.map((_, index) => renderImage(index))}
+        {(rotating && layersReady ? safeImages : safeImages.slice(0, 1)).map((_, index) => renderImage(index))}
       </Link>
       <div className={`flex w-full flex-col justify-center bg-muted/10 px-8 py-16 md:w-1/2 md:px-16 lg:px-24 ${isEven ? "md:order-1" : "md:order-2"}`}>
         <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.3em] text-secondary">{eyebrow}</p>

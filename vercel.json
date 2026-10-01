@@ -58,6 +58,20 @@
       "dest": "/api/handler?__soso_path=legacy-redirect&path=$1"
     },
     {
+      "src": "/(images|media)/(.*)",
+      "headers": {
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800"
+      },
+      "continue": true
+    },
+    {
+      "src": "/media/soso-craft-hero-(desktop|mobile)-v1\\.mp4$",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      },
+      "continue": true
+    },
+    {
       "handle": "filesystem"
     },
     {
