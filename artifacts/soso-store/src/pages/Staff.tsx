@@ -1,6 +1,8 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
+import { committedRowFor } from "../components/staff/platform-row";
+import type { SaveResult } from "../components/staff/product/product-state";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
 import { productDeletionReferences } from "../components/staff/product/catalogue-delete";
 import { platformActionError } from "../components/staff/platform-action-error";
@@ -734,12 +736,12 @@ function PlatformContentManagementSection() {
   const refreshRevisions = async () => {
     setRevisions(await customFetch<PlatformRevision[]>("/api/staff/content/platform/revisions", { responseType: "json" }));
   };
-  const saveProduct = async (slug: string): Promise<string> => {
-    if (!row?.draftUpdatedAt) return "Reload the saved draft before saving this product.";
-    if (!structuredEditorValid) return "Fix the highlighted fields before saving.";
+  const saveProduct = async (slug: string): Promise<SaveResult> => {
+    if (!row?.draftUpdatedAt) return { ok: false, message: "Reload the saved draft before saving this product." };
+    if (!structuredEditorValid) return { ok: false, message: "Fix the highlighted fields before saving." };
     try {
       const product = parsedDocument().products.find((item) => item.slug === slug);
-      if (!product) return "Product not found in the editor.";
+      if (!product) return { ok: false, message: "Product not found in the editor." };
       setSaving(true);
       const next = await customFetch<PlatformContentRow>(`/api/staff/content/platform/products/${encodeURIComponent(slug)}/draft`, {
         method: "PUT", headers: { "content-type": "application/json" },
@@ -749,11 +751,11 @@ function PlatformContentManagementSection() {
       await refreshRevisions();
       const message = `${product.name} changes saved to the unpublished draft only. Other unsaved edits remain in the editor; the storefront was not updated.`;
       setStatus(message);
-      return message;
+      return { ok: true, message };
     } catch (error) {
       const message = platformActionError(error, "Product could not be saved.");
       setStatus(message);
-      return message;
+      return { ok: false, message };
     } finally { setSaving(false); }
   };
   const deleteCatalogueProduct = async (slug: string): Promise<string | null | undefined> => {
@@ -948,18 +950,18 @@ function PlatformContentManagementSection() {
     }
     setSaving(true);
     try {
-      if (kind === "publish") {
-        await customFetch("/api/staff/content/platform/publish", {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }), responseType: "json",
-        });
+      const committed = await customFetch<PlatformContentRow>(`/api/staff/content/platform/${kind}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }), responseType: "json",
+      });
+      const applied = committedRowFor(committed, kind);
+      if (applied) {
+        // Paint the committed server row directly; editor text is untouched so unsaved edits are preserved.
+        setRow(applied);
+        void refreshRevisions().catch(() => undefined);
       } else {
-        await customFetch("/api/staff/content/platform/unpublish", {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ expectedDraftUpdatedAt: row?.draftUpdatedAt ?? null }), responseType: "json",
-        });
+        await load();
       }
-      await load();
       setStatus(kind === "publish" ? "Draft published to the storefront." : "Platform content unpublished. The storefront now shows its safe unavailable state.");
     } catch (error) { setStatus(platformActionError(error, `Content could not be ${kind}ed.`)); }
     finally { setSaving(false); }
@@ -1031,6 +1033,7 @@ function PlatformContentManagementSection() {
           initialProductSlug={initialProductSlug}
           onDeleteProduct={deleteCatalogueProduct}
           onSaveProduct={saveProduct}
+          savedProducts={row?.draft?.products ?? []}
           onPublishProduct={publishCatalogueProduct}
           publishedProducts={row?.published?.products ?? []}
           onPublishRemoval={publishCatalogueRemoval}
@@ -1128,7 +1131,7 @@ function PlatformContentManagementSection() {
         </label>
       )}
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div id="platform-publication-controls" tabIndex={-1} className="mt-5 flex flex-wrap items-center gap-3 scroll-mt-6">
         <button data-testid="btn-save-draft" type="button" disabled={saving || !structuredEditorValid} onClick={() => void save()} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
         <button data-testid="btn-publish" type="button" disabled={saving || !row?.draft} onClick={() => void action("publish")} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish</button>
         <button data-testid="btn-unpublish" type="button" disabled={saving || !row?.published} onClick={() => void action("unpublish")} className="min-h-10 border border-border px-4 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Unpublish</button>
