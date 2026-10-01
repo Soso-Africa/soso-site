@@ -678,6 +678,9 @@ export function ProductEditor({
                     <div>
                       <h6 className="text-[10px] font-semibold uppercase tracking-wider text-primary">JusticeSure Inventory Mapping</h6>
                       <p className="mt-1 text-[10px] text-muted-foreground">Mappings change SOSO references only; JusticeSure inventory is never edited here.</p>
+                      <p className="mt-2 text-[10px] text-muted-foreground">
+                        Selecting IDs—even 6 of 6—links variants but does not confirm a match. Review the analysis and use Apply Safe Match or Review and Reconfirm before saving. Existing links can save while JusticeSure is temporarily unavailable. Saving keeps changes in draft only; publish separately to activate.
+                      </p>
                     </div>
                     <span data-testid={`mapping-status-${product.slug}`} className={`border px-2 py-1 text-[9px] font-semibold uppercase tracking-wider ${
                       !product.commerceProductId
@@ -923,7 +926,7 @@ export function ProductEditor({
               className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold text-primary-foreground">
               Save this product only
             </button>
-            <p className="mt-2 text-xs text-muted-foreground">Saves this product to the draft without sending the rest of the catalogue. Save other edits separately before publishing.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Saves this product to the unpublished draft without sending the rest of the catalogue. Save other edits separately before publishing.</p>
           </div>
           {product.releaseState === "placeholder" && product.fulfilmentState === "unavailable" && !product.commerceProductId && (
             <div className="border-t border-border pt-4">

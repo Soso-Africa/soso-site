@@ -37,7 +37,11 @@ import { platformProductReferences } from "../lib/platform-product-references";
 import { deleteDraftProduct } from "../lib/delete-draft-product";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
-import { JusticeSureCommerceClient, JusticeSureRequestError } from "../lib/justicesureCommerce";
+import {
+  JusticeSureCommerceClient,
+  JusticeSureRequestError,
+  type JusticeSureCatalogProduct,
+} from "../lib/justicesureCommerce";
 import {
   buildCatalogueSnapshot,
   findWebhookStaleMappings,
@@ -265,9 +269,10 @@ function toLocalMappingProduct(product: MappingProductSource): LocalCataloguePro
   };
 }
 
-async function validateCurrentCommerceMappings(
+export async function validateCurrentCommerceMappings(
   products: MappingProductSource[],
   requireConfirmation: boolean,
+  listProducts: () => Promise<JusticeSureCatalogProduct[]> = () => new JusticeSureCommerceClient().listProducts(),
 ): Promise<string[]> {
   const mapped = products.filter((product) => product.commerceProductId);
   const missingIssues = requireConfirmation
@@ -291,7 +296,11 @@ async function validateCurrentCommerceMappings(
       }
     }
   }
-  const catalogue = await new JusticeSureCommerceClient().listProducts();
+  // Drafts must remain editable when JusticeSure is unavailable. The parsed
+  // platform schema and these local duplicate checks are sufficient until
+  // publication, which always performs a fresh live catalogue verification.
+  if (!requireConfirmation) return [...missingIssues, ...duplicateIssues];
+  const catalogue = await listProducts();
   const validation = validateCatalogueMappings(mapped.map(toLocalMappingProduct), catalogue);
   const issues = [
     ...missingIssues,

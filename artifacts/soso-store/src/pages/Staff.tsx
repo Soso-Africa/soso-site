@@ -747,7 +747,7 @@ function PlatformContentManagementSection() {
       });
       setRow(next);
       await refreshRevisions();
-      const message = `${product.name} saved to the draft. Other unsaved edits remain in the editor.`;
+      const message = `${product.name} changes saved to the unpublished draft only. Other unsaved edits remain in the editor; the storefront was not updated.`;
       setStatus(message);
       return message;
     } catch (error) {
