@@ -29,7 +29,14 @@ export function selectHeroMedia(
   const posterUrl = hero.mediaMode === "image"
     ? (environment.isMobile ? hero.mobileImageUrl : hero.imageUrl)
     : undefined;
-  const videoUrl = environment.isMobile ? hero.mobileVideoUrl : hero.videoUrl;
+  const configuredVideoUrl = environment.isMobile ? hero.mobileVideoUrl : hero.videoUrl;
+  // These are alternate encodings of the same approved bundled footage, not
+  // replacements for merchant uploads. Prefer fast-start H.264 for Safari and
+  // lower transfer cost, retaining WebM for browsers without MP4 support.
+  const bundledVideo = configuredVideoUrl?.match(/^(.*\/media\/soso-craft-hero-(?:desktop|mobile))\.webm$/);
+  const videoUrl = bundledVideo && canPlayType("video/mp4")
+    ? `${bundledVideo[1]}-v1.mp4`
+    : configuredVideoUrl;
   const mimeType = videoUrl ? videoMimeType(videoUrl) : null;
   const constrainedConnection = environment.effectiveType === "slow-2g"
     || environment.effectiveType === "2g";

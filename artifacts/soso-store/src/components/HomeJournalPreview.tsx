@@ -28,7 +28,7 @@ export function HomeJournalPreview() {
           <Link key={post.slug} href={`/journal/${post.slug}`} className="group flex flex-col gap-4">
              <div className="aspect-[4/3] overflow-hidden bg-muted/20 relative">
                 {post.coverImageUrl && (
-                  <img src={post.coverImageUrl} alt={post.title} className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" />
+                  <img src={post.coverImageUrl} alt={post.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" />
                 )}
              </div>
              <div>
