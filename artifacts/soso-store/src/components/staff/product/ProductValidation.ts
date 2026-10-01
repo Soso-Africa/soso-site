@@ -5,12 +5,36 @@ const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const LOCAL_PATH_REGEX = /^\/(?!\/)/;
 const ACCESSORY_PLACEHOLDER_SIGNAL = /coming soon|placeholder|planned soso accessor|to be confirmed/i;
 
+export type IssueGroup = "details" | "fulfilment" | "mapping" | "images";
+export type ProductIssue = { group: IssueGroup; message: string };
+
 export function validateProduct(
   product: CatalogProduct,
   allProducts: Pick<CatalogProduct, "slug">[],
   collectionCategories: string[] = []
 ): string[] {
-  const errors: string[] = [];
+  return collectProductIssues(product, allProducts, collectionCategories).map((issue) => issue.message);
+}
+
+/** Independent requirement groups so image/details/fulfilment readiness never depends on mapping state. */
+export function validateProductGroups(
+  product: CatalogProduct,
+  allProducts: Pick<CatalogProduct, "slug">[],
+  collectionCategories: string[] = []
+): Record<IssueGroup, string[]> {
+  const out: Record<IssueGroup, string[]> = { details: [], fulfilment: [], mapping: [], images: [] };
+  for (const issue of collectProductIssues(product, allProducts, collectionCategories)) out[issue.group].push(issue.message);
+  return out;
+}
+
+export function collectProductIssues(
+  product: CatalogProduct,
+  allProducts: Pick<CatalogProduct, "slug">[],
+  collectionCategories: string[] = []
+): ProductIssue[] {
+  const issues: ProductIssue[] = [];
+  let group: IssueGroup = "details";
+  const errors = { push: (message: string, g: IssueGroup = group) => { issues.push({ group: g, message }); } };
 
   // Base fields
   if (!product.slug) errors.push("Slug is required");
@@ -27,11 +51,12 @@ export function validateProduct(
   if (!product.colour) errors.push("Colour is required");
   if (!product.fabric) errors.push("Fabric is required");
   if (!product.fit) errors.push("Fit is required");
-  if (!product.dispatchMessage) errors.push("Dispatch message is required");
+  if (!product.dispatchMessage) errors.push("Dispatch message is required", "fulfilment");
   if (!["men", "women", "accessories"].includes(product.department)) errors.push("Department must be Men, Women, or Accessories");
   if (!["placeholder", "approved"].includes(product.releaseState)) errors.push("Release state is required");
   if (product.merchandising?.sortPriority == null) errors.push("Sort priority is required");
 
+  group = "fulfilment";
   // Arrays structure
   const sizes = product.sizes || [];
   const standardSizes = product.standardSizes || [];
@@ -104,8 +129,8 @@ export function validateProduct(
   }
 
   if (product.department === "accessories" && product.releaseState === "placeholder") {
-    if (product.fulfilmentState !== "unavailable") errors.push("Accessory placeholders must remain unavailable");
-    if (product.commerceProductId || product.commerceVariantIds) errors.push("Accessory placeholders cannot have commerce mappings");
+    if (product.fulfilmentState !== "unavailable") errors.push("Accessory placeholders must remain unavailable", "fulfilment");
+    if (product.commerceProductId || product.commerceVariantIds) errors.push("Accessory placeholders cannot have commerce mappings", "mapping");
   }
   if (product.department === "accessories" && product.releaseState === "approved") {
     const eligibleChoices = [
@@ -121,15 +146,16 @@ export function validateProduct(
       || ACCESSORY_PLACEHOLDER_SIGNAL.test(image.provenance?.source || "")
       || ACCESSORY_PLACEHOLDER_SIGNAL.test(image.provenance?.rights || "")
     ));
-    if (hasPlaceholderCopy || product.unavailableMessage) errors.push("Approved accessories must remove placeholder and coming-soon copy");
-    if (hasPlaceholderMedia) errors.push("Approved accessories must replace placeholder artwork with governed product photography");
-    if (product.fulfilmentState === "unavailable") errors.push("Approved accessories require an available fulfilment state");
-    if (!product.commerceProductId) errors.push("Approved accessories require a JusticeSure product mapping");
+    if (hasPlaceholderCopy || product.unavailableMessage) errors.push("Approved accessories must remove placeholder and coming-soon copy", "details");
+    if (hasPlaceholderMedia) errors.push("Approved accessories must replace placeholder artwork with governed product photography", "images");
+    if (product.fulfilmentState === "unavailable") errors.push("Approved accessories require an available fulfilment state", "fulfilment");
+    if (!product.commerceProductId) errors.push("Approved accessories require a JusticeSure product mapping", "mapping");
     if (eligibleChoices.length === 0 || eligibleChoices.some((choice) => !product.commerceVariantIds?.[choice])) {
-      errors.push("Approved accessories require a JusticeSure variant mapping for every eligible purchase choice");
+      errors.push("Approved accessories require a JusticeSure variant mapping for every eligible purchase choice", "mapping");
     }
   }
 
+  group = "mapping";
   // Commerce variants
   if (product.commerceVariantIds && Object.keys(product.commerceVariantIds).length > 0 && !product.commerceProductId) {
     errors.push("Commerce variants require a commerce product ID");
@@ -169,6 +195,7 @@ export function validateProduct(
     }
   }
 
+  group = "images";
   // Images
   const validateImage = (img: any, label: string) => {
     if (!img.src) errors.push(`${label} is missing a source path`);
@@ -247,6 +274,7 @@ export function validateProduct(
     });
   }
 
+  group = "details";
   // Related products
   if (product.relatedProductSlugs && product.relatedProductSlugs.length > 0) {
     const relatedSet = new Set<string>();
@@ -259,5 +287,5 @@ export function validateProduct(
     });
   }
 
-  return errors;
+  return issues;
 }

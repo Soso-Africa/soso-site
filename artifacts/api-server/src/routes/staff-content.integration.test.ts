@@ -42,7 +42,7 @@ async function request(
   baseUrl: string,
   path: string,
   token: string,
-  options: { method?: string; body?: unknown } = {},
+  options: { method?: string; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<ApiResponse> {
   const response = await fetch(`${baseUrl}${path}`, {
     method: options.method ?? "GET",
@@ -54,6 +54,7 @@ async function request(
       ...(options.body === undefined ? {} : { "content-type": "application/json" }),
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    signal: options.signal,
   });
   const text = await response.text();
   return { status: response.status, body: text ? JSON.parse(text) : undefined };
@@ -383,14 +384,25 @@ test("Staff can publish only a complete browse-only product while preserving unr
 
 test("staff collection cover upload, persistence, publishing, replacement and removal work through the API", async () => {
   const originalFetch = globalThis.fetch;
+  const originalCloudinaryEnv = new Map([
+    ["CLOUDINARY_CLOUD_NAME", process.env.CLOUDINARY_CLOUD_NAME],
+    ["CLOUDINARY_API_KEY", process.env.CLOUDINARY_API_KEY],
+    ["CLOUDINARY_API_SECRET", process.env.CLOUDINARY_API_SECRET],
+  ]);
   const originalPlatformRows = await db.select().from(siteContentTable)
     .where(eq(siteContentTable.key, "platform"));
+  process.env.CLOUDINARY_CLOUD_NAME = "cleanup-regression-test";
+  process.env.CLOUDINARY_API_KEY = "cleanup-regression-key";
+  process.env.CLOUDINARY_API_SECRET = "cleanup-regression-secret";
   const token = randomBytes(32).toString("hex");
   const clerkUserId = `collection-cover-check-${randomBytes(8).toString("hex")}`;
   let staffUserId: string | undefined;
   let server: Server | undefined;
   let currentUpload = pngBytes(180);
   const deletedUploads: string[] = [];
+  let stalledCleanupPublicId: string | undefined;
+  const stalledCleanupAttempts: string[] = [];
+  let releaseStalledCleanup: (() => void) | undefined;
   let watchedInspectionPath: string | undefined;
   let resolveWatchedInspection: (() => void) | undefined;
 
@@ -407,7 +419,16 @@ test("staff collection cover upload, persistence, publishing, replacement and re
     }
     if (url.includes("api.cloudinary.com") && url.endsWith("/image/destroy")) {
       const body = init?.body;
-      if (body instanceof FormData) deletedUploads.push(String(body.get("public_id")));
+      if (body instanceof FormData) {
+        const publicId = String(body.get("public_id"));
+        if (publicId === stalledCleanupPublicId) {
+          stalledCleanupAttempts.push(publicId);
+          return new Promise<Response>((resolve) => {
+            releaseStalledCleanup = () => resolve(Response.json({ result: "ok" }));
+          });
+        }
+        deletedUploads.push(publicId);
+      }
       return Response.json({ result: "ok" });
     }
     if (url.includes("res.cloudinary.com")) {
@@ -476,6 +497,18 @@ test("staff collection cover upload, persistence, publishing, replacement and re
       );
       assert.equal(finalized.status, 200);
       return finalized.body.objectPath;
+    };
+    const requestWithCleanupTimeout = async (
+      path: string,
+      options: { method: string; body: unknown },
+    ): Promise<ApiResponse> => {
+      const abort = new AbortController();
+      const timeout = setTimeout(() => abort.abort(), 5_000);
+      try {
+        return await request(running.baseUrl, path, token, { ...options, signal: abort.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
     };
 
     const firstPath = await upload("collection-cover-one.png");
@@ -564,19 +597,101 @@ test("staff collection cover upload, persistence, publishing, replacement and re
     const removalReload = await request(running.baseUrl, "/api/staff/content/platform", token);
     assert.equal(removalReload.body.draft.collections[0].showCover, false);
     assert.equal(removalReload.body.draft.collections[0].cover, undefined);
+    const replacementRelativePath = replacementPath.slice("/api/storage/objects/".length);
+    const queuedReplacementCleanup = await request(
+      running.baseUrl,
+      "/api/storage/uploads/cleanup-pending",
+      token,
+    );
+    assert.equal(queuedReplacementCleanup.status, 200);
+    assert.ok(queuedReplacementCleanup.body.some((item: { path: string; status: string }) =>
+      item.path === replacementRelativePath && item.status === "queued"));
+    assert.deepEqual(deletedUploads, []);
+    const retriedReplacementCleanup = await request(
+      running.baseUrl,
+      "/api/storage/uploads/cleanup-pending",
+      token,
+      { method: "POST" },
+    );
+    assert.equal(retriedReplacementCleanup.status, 200);
     assert.deepEqual(deletedUploads, [
-      `soso-store/${replacementPath.slice("/api/storage/objects/".length).replace(/\.[^.]+$/, "")}`,
+      `soso-store/${replacementRelativePath.replace(/\.[^.]+$/, "")}`,
     ]);
 
-    const removalPublished = await request(
-      running.baseUrl,
-      "/api/staff/content/platform/publish",
-      token,
-      { method: "POST", body: { expectedDraftUpdatedAt: removed.body.draftUpdatedAt } },
-    );
+    const firstPublicId = `soso-store/${firstPath.slice("/api/storage/objects/".length).replace(/\.[^.]+$/, "")}`;
+    stalledCleanupPublicId = firstPublicId;
+    const publishAbort = new AbortController();
+    const publishTimeout = setTimeout(() => publishAbort.abort(), 2_000);
+    let removalPublished: ApiResponse;
+    try {
+      removalPublished = await request(
+        running.baseUrl,
+        "/api/staff/content/platform/publish",
+        token,
+        { method: "POST", body: { expectedDraftUpdatedAt: removed.body.draftUpdatedAt }, signal: publishAbort.signal },
+      );
+    } finally {
+      clearTimeout(publishTimeout);
+    }
     assert.equal(removalPublished.status, 200);
+    assert.deepEqual(stalledCleanupAttempts, []);
+
+    const scopedCover = structuredClone(removalPublished.body.draft) as PlatformContent;
+    scopedCover.collections[0]!.showCover = true;
+    scopedCover.collections[0]!.cover = { ...firstContent.collections[0]!.cover!, src: firstPath };
+    const scopedCoverSave = await requestWithCleanupTimeout(
+      "/api/staff/content/platform/sections/collections",
+      {
+        method: "PATCH",
+        body: { value: scopedCover.collections, expectedDraftUpdatedAt: removalPublished.body.draftUpdatedAt },
+      },
+    );
+    assert.equal(scopedCoverSave.status, 200);
+    const scopedCoverRemoval = structuredClone(scopedCoverSave.body.draft) as PlatformContent;
+    scopedCoverRemoval.collections[0]!.showCover = false;
+    delete scopedCoverRemoval.collections[0]!.cover;
+    const scopedRemovalSave = await requestWithCleanupTimeout(
+      "/api/staff/content/platform/sections/collections",
+      {
+        method: "PATCH",
+        body: { value: scopedCoverRemoval.collections, expectedDraftUpdatedAt: scopedCoverSave.body.draftUpdatedAt },
+      },
+    );
+    assert.equal(scopedRemovalSave.status, 200);
+    assert.deepEqual(stalledCleanupAttempts, []);
+
+    const fullCover = structuredClone(scopedRemovalSave.body.draft) as PlatformContent;
+    fullCover.collections[0]!.showCover = true;
+    fullCover.collections[0]!.cover = { ...firstContent.collections[0]!.cover!, src: firstPath };
+    const fullCoverSave = await requestWithCleanupTimeout(
+      "/api/staff/content/platform",
+      {
+        method: "PUT",
+        body: { content: fullCover, expectedDraftUpdatedAt: scopedRemovalSave.body.draftUpdatedAt },
+      },
+    );
+    assert.equal(fullCoverSave.status, 200);
+    const fullCoverRemoval = structuredClone(fullCoverSave.body.draft) as PlatformContent;
+    fullCoverRemoval.collections[0]!.showCover = false;
+    delete fullCoverRemoval.collections[0]!.cover;
+    const fullRemovalSave = await requestWithCleanupTimeout(
+      "/api/staff/content/platform",
+      {
+        method: "PUT",
+        body: { content: fullCoverRemoval, expectedDraftUpdatedAt: fullCoverSave.body.draftUpdatedAt },
+      },
+    );
+    assert.equal(fullRemovalSave.status, 200);
+    assert.deepEqual(stalledCleanupAttempts, []);
+
+    const pendingCleanup = await request(running.baseUrl, "/api/storage/uploads/cleanup-pending", token);
+    assert.equal(pendingCleanup.status, 200);
+    assert.ok(pendingCleanup.body.some((item: { path: string }) => item.path === firstPath.slice("/api/storage/objects/".length)));
+    stalledCleanupPublicId = undefined;
+    const retriedCleanup = await request(running.baseUrl, "/api/storage/uploads/cleanup-pending", token, { method: "POST" });
+    assert.equal(retriedCleanup.status, 200);
     assert.deepEqual(new Set(deletedUploads), new Set([
-      `soso-store/${firstPath.slice("/api/storage/objects/".length).replace(/\.[^.]+$/, "")}`,
+      firstPublicId,
       `soso-store/${replacementPath.slice("/api/storage/objects/".length).replace(/\.[^.]+$/, "")}`,
     ]));
 
@@ -629,7 +744,7 @@ test("staff collection cover upload, persistence, publishing, replacement and re
 
     const inspected = new Promise<void>((resolve) => { resolveWatchedInspection = resolve; });
     watchedInspectionPath = raceRelativePath;
-    const reuseContent = structuredClone(removalPublished.body.draft) as PlatformContent;
+    const reuseContent = structuredClone(fullRemovalSave.body.draft) as PlatformContent;
     reuseContent.collections[0]!.showCover = true;
     reuseContent.collections[0]!.cover = {
       src: racePath,
@@ -641,7 +756,7 @@ test("staff collection cover upload, persistence, publishing, replacement and re
     };
     const reuseSave = request(running.baseUrl, "/api/staff/content/platform", token, {
       method: "PUT",
-      body: { content: reuseContent, expectedDraftUpdatedAt: removalPublished.body.draftUpdatedAt },
+      body: { content: reuseContent, expectedDraftUpdatedAt: fullRemovalSave.body.draftUpdatedAt },
     });
     await inspected;
     releaseLock();
@@ -654,7 +769,12 @@ test("staff collection cover upload, persistence, publishing, replacement and re
     const afterRejectedReuse = await request(running.baseUrl, "/api/staff/content/platform", token);
     assert.equal(afterRejectedReuse.body.draft.collections[0].cover, undefined);
   } finally {
+    releaseStalledCleanup?.();
     globalThis.fetch = originalFetch;
+    for (const [key, value] of originalCloudinaryEnv) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     if (server) {
       server.close();
       await once(server, "close");

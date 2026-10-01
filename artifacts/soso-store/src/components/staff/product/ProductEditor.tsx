@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight, AlertCircle, Loader2, Trash2, Globe } from "
 import type { CommerceCatalogProduct } from "@workspace/api-client-react";
 import type { CatalogProduct, PlatformCollection } from "../../../data/platformContent";
 import type { MappingSuggestion, MappingPreview } from "../PlatformEditorCatalogue";
-import { validateProduct } from "./ProductValidation";
+import { validateProduct, validateProductGroups } from "./ProductValidation";
 import {
   handleToggleCustomEligible,
   handleToggleStandardEligible,
@@ -18,6 +18,9 @@ import { MaterialTurnSetsEditor } from "./MaterialTurnSetsEditor";
 import { ColourEditor } from "./ColourEditor";
 import { canConfirmMapping, isConfirmedMappingCurrent } from "./mapping-staleness";
 import { CommerceSearchSelect } from "./CommerceSearchSelect";
+import { publicationLabel, publicationState, type SaveResult } from "./product-state";
+import { mappingInputFingerprint } from "./review-state";
+import { ProductStepNav, ReviewMappingAction, computeProductSteps } from "./ProductStepFlow";
 
 type MappingHistoryEntry = {
   id: string;
@@ -46,9 +49,14 @@ export function ProductEditor({
   onUploadMedia,
   commerceProducts,
   commerceStatus,
-  mappingSuggestion,
+  mappingSuggestion: reviewedSuggestion,
   mappingPreviewMeta,
   isWebhookStale = false,
+  savedProduct,
+  publishedProduct,
+  onReviewMapping,
+  isReviewingMapping = false,
+  reviewMappingError = "",
 }: {
   product: CatalogProduct;
   allProducts: CatalogProduct[];
@@ -59,7 +67,7 @@ export function ProductEditor({
   onDelete: () => void;
   deleting?: boolean;
   deleteError?: string;
-  onSave: () => Promise<string>;
+  onSave: () => Promise<SaveResult>;
   onPublish: () => Promise<string>;
   onUploadMedia: (file: File) => Promise<string>;
   commerceProducts: CommerceCatalogProduct[];
@@ -67,7 +75,14 @@ export function ProductEditor({
   mappingSuggestion?: MappingSuggestion;
   mappingPreviewMeta?: Pick<MappingPreview, "snapshotHash" | "fetchedAt">;
   isWebhookStale?: boolean;
+  savedProduct?: CatalogProduct;
+  publishedProduct?: CatalogProduct;
+  onReviewMapping?: () => void;
+  isReviewingMapping?: boolean;
+  reviewMappingError?: string;
 }) {
+  // Only an analysis produced from exactly the current editor inputs may drive confirmation.
+  const mappingSuggestion = reviewedSuggestion && reviewedSuggestion.inputFingerprint === mappingInputFingerprint(product) ? reviewedSuggestion : undefined;
   const categoryOptions = useMemo(
     () => Array.from(new Set(collections
       .filter((collection) => collection.department === product.department)
@@ -76,6 +91,10 @@ export function ProductEditor({
   );
   const validations = useMemo(
     () => validateProduct(product, allProducts, categoryOptions),
+    [allProducts, categoryOptions, product],
+  );
+  const groups = useMemo(
+    () => validateProductGroups(product, allProducts, categoryOptions),
     [allProducts, categoryOptions, product],
   );
   const mappedCommerceProduct = useMemo(
@@ -108,6 +127,32 @@ export function ProductEditor({
   };
   const confirmedCurrent = isConfirmedMappingCurrent(product, mappingSuggestion, isWebhookStale);
   const canConfirm = canConfirmMapping(product, mappingSuggestion, isWebhookStale);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+  const pubState = publicationState(product, savedProduct, publishedProduct);
+  const steps = computeProductSteps({
+    imageCount: product.images?.length ?? 0,
+    imageIssues: groups.images.length,
+    detailIssues: groups.details.length,
+    fulfilmentIssues: groups.fulfilment.length,
+    hasName: product.name.trim().length > 0,
+    priceOk: Number(product.price) > 0,
+    eligibleChoices: eligibleCommerceChoices.length,
+    standardSizesOk: !product.standardEligible || product.standardSizes.length > 0,
+    mappedChoices: mappedVariantCount,
+    hasProductMapping: Boolean(product.commerceProductId),
+    confirmedCurrent,
+    analysisStatus: mappingSuggestion?.status,
+    savedSinceEdit: pubState !== "unsaved",
+    publicationState: pubState,
+  });
+  const confirmBlockReason = !mappingSuggestion
+    ? "No current analysis for this product. Run Review Mapping first."
+    : confirmedCurrent ? ""
+    : mappingSuggestion.status === "blocked" ? `Blocked by the server analysis: ${mappingSuggestion.issues.join("; ") || "unsafe match"}. It cannot be confirmed.`
+    : mappingSuggestion.status === "needs_review" ? "Analysis confidence is not high enough for confirmation. Correct the selection and review again."
+    : !mappingPreviewMeta ? "The catalogue snapshot is unavailable or refreshing; confirmation stays disabled until it is current."
+    : "";
   const [mappingHistoryOpen, setMappingHistoryOpen] = useState(false);
   const [mappingHistory, setMappingHistory] = useState<MappingHistoryEntry[] | null>(null);
   const [mappingHistoryLoading, setMappingHistoryLoading] = useState(false);
@@ -152,6 +197,7 @@ export function ProductEditor({
   };
 
   const handleApplySuggestion = (suggestion: MappingSuggestion) => {
+    if (suggestion.inputFingerprint !== mappingInputFingerprint(product)) return;
     if (!mappingPreviewMeta || suggestion.status !== "confident" || !suggestion.productId || !suggestion.productHash || !suggestion.localHash) return;
     const alreadySelected = product.commerceProductId === suggestion.productId
       && Object.entries(suggestion.variantIds).every(([choice, variantId]) => product.commerceVariantIds?.[choice] === variantId);
@@ -211,8 +257,9 @@ export function ProductEditor({
 
       {isExpanded && (
         <div className="border-t border-border p-5 space-y-8 bg-muted/10">
+          <ProductStepNav slug={product.slug} steps={steps} />
 
-          <div className="space-y-4">
+          <div id={`step-${product.slug}-details`} tabIndex={-1} className="space-y-4">
             <h5 className="text-[10px] font-semibold uppercase tracking-wider text-primary border-b border-border pb-2">Core Details & Merchandising</h5>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-4">
@@ -511,7 +558,7 @@ export function ProductEditor({
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div id={`step-${product.slug}-fulfilment`} tabIndex={-1} className="space-y-4">
             <h5 className="text-[10px] font-semibold uppercase tracking-wider text-primary border-b border-border pb-2">Commerce, Eligibility & Fulfilment</h5>
 
             {validations.length > 0 && (
@@ -673,7 +720,7 @@ export function ProductEditor({
                   )}
                 </div>
 
-                <div className="border border-border bg-background p-4 space-y-4">
+                <div id={`step-${product.slug}-mapping`} tabIndex={-1} className="border border-border bg-background p-4 space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <h6 className="text-[10px] font-semibold uppercase tracking-wider text-primary">JusticeSure Inventory Mapping</h6>
@@ -909,6 +956,31 @@ export function ProductEditor({
                     </p>
                   )}
 
+                  <div id={`step-${product.slug}-review`} tabIndex={-1} className="space-y-3 border border-border bg-muted/10 p-3">
+                    <ReviewMappingAction
+                      slug={product.slug}
+                      onReview={() => onReviewMapping?.()}
+                      loading={isReviewingMapping}
+                      error={reviewMappingError}
+                      disabledReason={!onReviewMapping ? "Review is unavailable in this view." : !product.commerceProductId ? "Select a JusticeSure product first." : ""}
+                    />
+                    <div data-testid={`confirm-mapping-${product.slug}`}>
+                      {confirmedCurrent ? (
+                        <p role="status" className="text-[10px] font-semibold text-emerald-700">Confirmed against the current analysis. Save the draft to keep it.</p>
+                      ) : canConfirm && !confirmBlockReason && mappingSuggestion ? (
+                        <button type="button" onClick={() => handleApplySuggestion(mappingSuggestion)}
+                          data-testid={`button-confirm-mapping-${product.slug}`}
+                          className="min-h-11 bg-primary px-3 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary/90">
+                          {isWebhookStale ? "Review and Reconfirm" : "Confirm this mapping"}
+                        </button>
+                      ) : (
+                        <p role="status" className="border border-amber-300 bg-amber-50 p-2 text-[10px] text-amber-900" data-testid={`confirm-blocked-${product.slug}`}>
+                          Confirmation unavailable. {confirmBlockReason || "Only a high-confidence, current server analysis can be confirmed."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
                   <details className="border-t border-border pt-3">
                     <summary className="cursor-pointer text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">Advanced mapping identifiers</summary>
                     <p className="mt-2 break-all font-mono text-[10px] text-muted-foreground">Product: {product.commerceProductId || "Not mapped"}</p>
@@ -920,13 +992,42 @@ export function ProductEditor({
               </div>
             </div>
           </div>
-          <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
-          <div className="border-t border-border pt-4">
-            <button type="button" onClick={() => void onSave()} data-testid={`button-save-catalogue-product-${product.slug}`}
-              className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold text-primary-foreground">
-              Save this product only
+          <div id={`step-${product.slug}-images`} tabIndex={-1}>
+            <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
+          </div>
+          <div id={`step-${product.slug}-save`} tabIndex={-1} className="border-t border-border pt-4">
+            <button type="button" disabled={saving} onClick={async () => {
+              const slug = product.slug;
+              setSaving(true);
+              try {
+                const result = await onSave();
+                if (currentSlugRef.current === slug) setSaveMessage(result.message);
+              } catch (error) {
+                setSaveMessage(error instanceof Error && error.message ? error.message : "Save failed. Your edits are kept; try again.");
+              } finally { setSaving(false); }
+            }} data-testid={`button-save-catalogue-product-${product.slug}`}
+              className="inline-flex min-h-10 items-center gap-2 bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+              {saving ? "Saving…" : "Save this product only"}
             </button>
+            {saveMessage && <p role="status" data-testid={`save-message-${product.slug}`} className="mt-2 border border-border bg-background p-2 text-xs">{saveMessage}</p>}
             <p className="mt-2 text-xs text-muted-foreground">Saves this product to the unpublished draft without sending the rest of the catalogue. Save other edits separately before publishing.</p>
+          </div>
+          <div id={`step-${product.slug}-publish`} tabIndex={-1} className="border-t border-border pt-4" data-testid={`publish-readiness-${product.slug}`}>
+            <p className="text-xs font-semibold">Publication readiness: {steps[6]?.state === "done" ? "live and current" : steps[6]?.state === "next" ? "ready to publish" : "not ready"}</p>
+            <p className="mt-1 text-xs text-muted-foreground" data-testid={`publication-state-${product.slug}`}>{publicationLabel(pubState, Boolean(publishedProduct))}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {steps.slice(0, 6).filter((s) => s.state !== "done").map((s) => `${s.label}: ${s.detail}`).join(" | ") || "All 6 pre-publish steps are done. Publishing is a separate action and is never automatic."}
+            </p>
+            <button type="button" disabled={steps[6]?.state !== "next"}
+              data-testid={`button-go-publication-${product.slug}`}
+              onClick={() => {
+                const target = document.getElementById("platform-publication-controls");
+                target?.scrollIntoView({ block: "center", behavior: "smooth" });
+                target?.focus({ preventScroll: true });
+              }}
+              className="mt-2 inline-flex min-h-11 items-center border border-primary px-3 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50">
+              Go to publication controls
+            </button>
           </div>
           {product.releaseState === "placeholder" && product.fulfilmentState === "unavailable" && !product.commerceProductId && (
             <div className="border-t border-border pt-4">

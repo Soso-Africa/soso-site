@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { createHash } from "node:crypto";
 import {
+  GetCommerceCatalogResponse,
   CreateStaffJournalPostBody,
   CreateStaffJournalPostResponse,
   ListStaffJournalPostRevisionsParams,
@@ -39,6 +40,7 @@ import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
 import {
   JusticeSureCommerceClient,
+  JusticeSureConfigurationError,
   JusticeSureRequestError,
   type JusticeSureCatalogProduct,
 } from "../lib/justicesureCommerce";
@@ -269,10 +271,32 @@ function toLocalMappingProduct(product: MappingProductSource): LocalCataloguePro
   };
 }
 
+function commerceFailureCategory(error: unknown): "configuration" | "provider" | "internal" {
+  if (error instanceof JusticeSureConfigurationError) return "configuration";
+  if (error instanceof JusticeSureRequestError) return "provider";
+  return "internal";
+}
+
+function commerceUnavailable(
+  res: Response,
+  error: unknown,
+  stage: "staff_catalogue_read" | "preview_catalogue_read" | "draft_catalogue_check" | "publication_catalogue_read",
+  message: string,
+): void {
+  res.status(503).json({
+    error: message,
+    diagnostic: {
+      provider: "justicesure",
+      stage,
+      category: commerceFailureCategory(error),
+    },
+  });
+}
+
 export async function validateCurrentCommerceMappings(
   products: MappingProductSource[],
   requireConfirmation: boolean,
-  listProducts: () => Promise<JusticeSureCatalogProduct[]> = () => new JusticeSureCommerceClient().listProducts(),
+  listProducts: () => Promise<JusticeSureCatalogProduct[]> = () => new JusticeSureCommerceClient(undefined, true).listProducts(),
 ): Promise<string[]> {
   const mapped = products.filter((product) => product.commerceProductId);
   const missingIssues = requireConfirmation
@@ -324,6 +348,15 @@ export async function validateCurrentCommerceMappings(
   return issues;
 }
 
+router.get("/staff/commerce/catalogue", platformRoles, async (_req, res): Promise<void> => {
+  try {
+    const client = new JusticeSureCommerceClient(undefined, true);
+    res.json(GetCommerceCatalogResponse.parse({ products: await client.listProducts() }));
+  } catch (error) {
+    commerceUnavailable(res, error, "staff_catalogue_read", "JusticeSure catalogue is temporarily unavailable.");
+  }
+});
+
 router.post("/staff/commerce/catalogue-mapping/preview", platformRoles, async (req, res): Promise<void> => {
   const parsed = z.object({ products: z.array(catalogueMappingProductInput).max(1000) }).strict().safeParse(req.body);
   if (!parsed.success) {
@@ -331,7 +364,7 @@ router.post("/staff/commerce/catalogue-mapping/preview", platformRoles, async (r
     return;
   }
   try {
-    const catalogue = await new JusticeSureCommerceClient().listProducts();
+    const catalogue = await new JusticeSureCommerceClient(undefined, true).listProducts();
     const snapshot = buildCatalogueSnapshot(catalogue);
     const suggestions = suggestCatalogueMappings(parsed.data.products.map(toLocalMappingProduct), catalogue, snapshot)
       .map((mapping) => ({
@@ -348,10 +381,7 @@ router.post("/staff/commerce/catalogue-mapping/preview", platformRoles, async (r
       }));
     res.json({ snapshotHash: snapshot.hash, fetchedAt: snapshot.fetchedAt, suggestions });
   } catch (error) {
-    const message = error instanceof JusticeSureRequestError && error.status < 500
-      ? error.message
-      : "JusticeSure catalogue mapping is temporarily unavailable.";
-    res.status(503).json({ error: message });
+    commerceUnavailable(res, error, "preview_catalogue_read", "JusticeSure catalogue mapping is temporarily unavailable.");
   }
 });
 
@@ -552,6 +582,10 @@ function mergeDraftChange(current: PlatformContent, change: DraftChange): unknow
   return { ...current, products };
 }
 
+function acknowledgeCommittedPlatformDraft<Row>(res: Response, row: Row): void {
+  res.json(row);
+}
+
 async function saveScopedDraft(req: Request, res: Response, change: DraftChange): Promise<void> {
   const expected = expectedDraftDate(req.body?.expectedDraftUpdatedAt);
   if (!expected) { res.status(400).json({ error: "expectedDraftUpdatedAt is required" }); return; }
@@ -627,9 +661,7 @@ async function saveScopedDraft(req: Request, res: Response, change: DraftChange)
   if (result.kind === "conflict") { res.status(409).json({ error: "Platform content changed while you were editing. Reload before saving." }); return; }
   if (result.kind === "invalid") { res.status(400).json({ error: result.error, issues: result.issues }); return; }
   if (result.kind === "unavailable") { res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. The draft was not saved." }); return; }
-  try { await processPendingCollectionCoverCleanup(); }
-  catch (error) { req.log.error({ err: error }, "Failed to process queued collection cover cleanup"); }
-  res.json(result.row);
+  acknowledgeCommittedPlatformDraft(res, result.row);
 }
 
 router.patch("/staff/content/platform/sections/:section", platformRoles, async (req, res): Promise<void> => {
@@ -703,8 +735,8 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
       res.status(400).json({ error: "JusticeSure mappings did not pass live draft checks", issues: commerceIssues });
       return;
     }
-  } catch {
-    res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. The draft was not saved." });
+  } catch (error) {
+    commerceUnavailable(res, error, "draft_catalogue_check", "JusticeSure catalogue could not be revalidated. The draft was not saved.");
     return;
   }
   const now = new Date();
@@ -754,12 +786,7 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
     res.status(400).json({ error: "Storefront media changed before the draft could be saved", issues: result.issues });
     return;
   }
-  try {
-    await processPendingCollectionCoverCleanup();
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to process queued collection cover cleanup");
-  }
-  res.json(result.row);
+  acknowledgeCommittedPlatformDraft(res, result.row);
 });
 
 router.post("/staff/content/platform/publish", platformRoles, async (req, res): Promise<void> => {
@@ -811,8 +838,8 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
       res.status(400).json({ error: "JusticeSure mappings did not pass live publishing checks", issues: commerceIssues });
       return;
     }
-  } catch {
-    res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. Nothing was published." });
+  } catch (error) {
+    commerceUnavailable(res, error, "publication_catalogue_read", "JusticeSure catalogue could not be revalidated. Nothing was published.");
     return;
   }
   const result = await db.transaction(async (tx) => {
@@ -855,11 +882,6 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
   if (result.kind === "accessory_invalid") {
     res.status(400).json({ error: "Accessories did not pass publishing checks", issues: result.issues });
     return;
-  }
-  try {
-    await processPendingCollectionCoverCleanup();
-  } catch (error) {
-    req.log.error({ err: error }, "Failed to process queued collection cover cleanup after publishing");
   }
   res.json(result.row);
 });

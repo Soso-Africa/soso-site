@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import type { CommerceCatalogProduct } from "@workspace/api-client-react";
 import type { PlatformContent, CatalogProduct } from "../../data/platformContent";
+import type { SaveResult } from "./product/product-state";
 import { ProductEditor } from "./product/ProductEditor";
 import { PlatformEditorSupportInterface } from "./PlatformEditorRoutineCopy";
 import { CopyPanel, PlatformCopyFields } from "./PlatformCopyFields";
@@ -10,6 +11,10 @@ import {
   isConfirmedMappingCurrent,
   isMappingPreviewFreshForReview,
 } from "./product/mapping-staleness";
+import {
+  applyReviewFailure, applyReviewSuccess, mappingInputFingerprint, mergeWholeAnalysis,
+  shouldAcceptReview, suggestionIfCurrent, toMappingProduct,
+} from "./product/review-state";
 
 export type MappingSuggestion = {
   slug: string;
@@ -22,6 +27,8 @@ export type MappingSuggestion = {
   variantIds: Record<string, string>;
   choiceLabels: Record<string, string>;
   issues: string[];
+  /** Client-side: fingerprint of the exact mapping inputs this analysis was produced from. */
+  inputFingerprint?: string;
 };
 
 export type MappingPreview = {
@@ -74,6 +81,7 @@ export function PlatformEditorCatalogue({
   initialProductSlug,
   onDeleteProduct,
   onSaveProduct,
+  savedProducts,
   onPublishProduct,
   publishedProducts,
   onPublishRemoval,
@@ -83,7 +91,8 @@ export function PlatformEditorCatalogue({
   onUploadMedia: (file: File) => Promise<string>;
   initialProductSlug?: string | null;
   onDeleteProduct: (slug: string) => Promise<string | null | undefined>;
-  onSaveProduct: (slug: string) => Promise<string>;
+  onSaveProduct: (slug: string) => Promise<SaveResult>;
+  savedProducts: CatalogProduct[];
   onPublishProduct: (slug: string) => Promise<string>;
   publishedProducts: CatalogProduct[];
   onPublishRemoval: (slug: string) => Promise<string | undefined>;
@@ -100,6 +109,8 @@ export function PlatformEditorCatalogue({
   const [requiredPreviewGeneration, setRequiredPreviewGeneration] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState("");
+  const [reviewingSlugs, setReviewingSlugs] = useState<Record<string, number>>({});
+  const [reviewErrors, setReviewErrors] = useState<Record<string, string>>({});
   const [deleteError, setDeleteError] = useState("");
   const [deleteErrorSlug, setDeleteErrorSlug] = useState<string | null>(null);
   const [removingPublicSlug, setRemovingPublicSlug] = useState<string | null>(null);
@@ -110,11 +121,48 @@ export function PlatformEditorCatalogue({
   const nextEditorKeyRef = useRef(0);
   const webhookStaleSlugsRef = useRef<string[]>([]);
   const analysisGenerationRef = useRef(0);
+  const slugGenRef = useRef<Record<string, number>>({});
+  const lastFpRef = useRef<Record<string, string>>({});
+  const requiredGenRef = useRef(0);
+  const setPreviewSuggestions = (update: (prev: MappingSuggestion[]) => MappingSuggestion[], meta?: { snapshotHash: string; fetchedAt: string }) =>
+    setMappingPreview((prev) => {
+      const base = prev ?? (meta ? { ...meta, suggestions: [] } : null);
+      if (!base) return prev;
+      return { ...base, ...(meta ?? {}), suggestions: update(base.suggestions) };
+    });
   productsRef.current = data.products;
-  const reviewedMappingPreview = mappingPreview
-    && isMappingPreviewFreshForReview(mappingPreviewGeneration, requiredPreviewGeneration)
-    ? mappingPreview
-    : null;
+  requiredGenRef.current = requiredPreviewGeneration;
+  const reviewedMappingPreview = useMemo(() => {
+    if (!mappingPreview || !isMappingPreviewFreshForReview(mappingPreviewGeneration, requiredPreviewGeneration)) return null;
+    // Only analyses produced from exactly the current editor inputs are usable.
+    const suggestions = mappingPreview.suggestions.filter((s) => {
+      const product = data.products.find((p) => p.slug === s.slug);
+      return product ? Boolean(suggestionIfCurrent(s, product)) : false;
+    });
+    return { ...mappingPreview, suggestions };
+  }, [data.products, mappingPreview, mappingPreviewGeneration, requiredPreviewGeneration]);
+
+  // Any change to mapping inputs starts a new per-slug generation, invalidating in-flight reviews and old analysis.
+  useEffect(() => {
+    const changed: string[] = [];
+    for (const product of data.products) {
+      const fp = mappingInputFingerprint(product);
+      if (lastFpRef.current[product.slug] !== undefined && lastFpRef.current[product.slug] !== fp) {
+        slugGenRef.current[product.slug] = (slugGenRef.current[product.slug] ?? 0) + 1;
+        changed.push(product.slug);
+      }
+      lastFpRef.current[product.slug] = fp;
+    }
+    if (changed.length === 0) return;
+    setReviewingSlugs((c) => {
+      const next = { ...c };
+      for (const slug of changed) if (slug in next) {
+        delete next[slug];
+        setReviewErrors((e) => ({ ...e, [slug]: "Selections changed while the review was running, so the result was discarded. Review Mapping again." }));
+      }
+      return next;
+    });
+  }, [data.products]);
 
   useEffect(() => {
     if (!initialProductSlug) return;
@@ -128,7 +176,7 @@ export function PlatformEditorCatalogue({
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/payment/catalog", { credentials: "include", signal: controller.signal })
+    void fetch("/api/staff/commerce/catalogue", { credentials: "include", signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Commerce catalogue unavailable");
         const payload = await response.json() as { products?: CommerceCatalogProduct[] };
@@ -186,36 +234,83 @@ export function PlatformEditorCatalogue({
     return { mapped: mapped.length, verified: verified.length, total: data.products.length, analysis };
   }, [commerceProducts, data.products, reviewedMappingPreview, webhookStaleSlugs]);
 
+  const handleAnalyzeProduct = useCallback(async (slug: string) => {
+    const row = productsRef.current.find((p) => p.slug === slug);
+    if (!row) return;
+    const submittedFp = mappingInputFingerprint(row);
+    // Generation is bumped when the request STARTS, so any earlier in-flight response is stale.
+    const requestEpoch = requiredGenRef.current; // webhook invalidation epoch at launch
+    const requestGen = (slugGenRef.current[slug] = (slugGenRef.current[slug] ?? 0) + 1);
+    const stillCurrent = () => shouldAcceptReview({
+      submittedFp,
+      currentFp: (() => { const p = productsRef.current.find((x) => x.slug === slug); return p ? mappingInputFingerprint(p) : undefined; })(),
+      requestGen,
+      currentGen: slugGenRef.current[slug] ?? 0,
+      requestEpoch,
+      currentEpoch: requiredGenRef.current,
+    });
+    setReviewingSlugs((c) => ({ ...c, [slug]: requestGen }));
+    setReviewErrors((c) => ({ ...c, [slug]: "" }));
+    try {
+      const response = await fetch("/api/staff/commerce/catalogue-mapping/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ products: [toMappingProduct(row)] }),
+        credentials: "include",
+      });
+      let result = {} as Partial<MappingPreview> & { error?: string };
+      try { result = await response.json(); } catch { /* non-JSON body */ }
+      if (!response.ok) {
+        throw new Error(`${result.error || "The mapping service could not analyse this product"} (HTTP ${response.status}). ${response.status >= 500 ? "JusticeSure or the analysis service is unavailable; retry shortly." : "Check the selections and retry."}`);
+      }
+      if (!Array.isArray(result.suggestions) || !result.snapshotHash || !result.fetchedAt) throw new Error("The server returned an incomplete analysis. Retry.");
+      const incoming = result.suggestions.find((s) => s.slug === slug);
+      if (!incoming) throw new Error("The server returned no analysis for this product. Retry.");
+      if (!stillCurrent()) return; // newer request or edit owns this slug now
+      setPreviewSuggestions((prev) => applyReviewSuccess(prev, slug, incoming, submittedFp), { snapshotHash: result.snapshotHash, fetchedAt: result.fetchedAt });
+      setMappingPreviewGeneration((g) => Math.max(g, analysisGenerationRef.current, requestEpoch));
+    } catch (error) {
+      if (!stillCurrent()) return;
+      // A failed review must not leave an earlier analysis available for Confirm. Selections are untouched.
+      setPreviewSuggestions((prev) => applyReviewFailure(prev, slug));
+      setReviewErrors((c) => ({ ...c, [slug]: error instanceof Error ? error.message : "Mapping review failed. Retry." }));
+    } finally {
+      setReviewingSlugs((c) => {
+        if (c[slug] !== requestGen) return c;
+        const next = { ...c };
+        delete next[slug];
+        return next;
+      });
+    }
+  }, []);
+
   const handleAnalyze = useCallback(async () => {
     const generation = ++analysisGenerationRef.current;
     setIsAnalyzing(true);
     setAnalysisError("");
     try {
-      const payload = {
-        products: productsRef.current.map(p => ({
-          slug: p.slug,
-          name: p.name,
-          price: p.price,
-          standardEligible: p.standardEligible,
-          customEligible: p.customEligible,
-          standardSizes: p.standardSizes,
-          fulfilmentState: p.fulfilmentState,
-          commerceProductId: p.commerceProductId,
-          commerceVariantIds: p.commerceVariantIds
-        }))
-      };
-      
+      const rows = productsRef.current;
+      const submitted: Record<string, { fp: string; gen: number }> = {};
+      for (const p of rows) submitted[p.slug] = { fp: mappingInputFingerprint(p), gen: slugGenRef.current[p.slug] ?? 0 };
+      const payload = { products: rows.map(toMappingProduct) };
+
       const response = await fetch("/api/staff/commerce/catalogue-mapping/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
         credentials: "include"
       });
-      
+
       const result = await response.json() as MappingPreview & { error?: string };
       if (!response.ok) throw new Error(result.error || "Catalogue analysis failed.");
       if (generation !== analysisGenerationRef.current) return;
-      setMappingPreview(result);
+      const current: Record<string, { fp: string; gen: number }> = {};
+      for (const p of productsRef.current) current[p.slug] = { fp: mappingInputFingerprint(p), gen: slugGenRef.current[p.slug] ?? 0 };
+      setMappingPreview((prev) => ({
+        snapshotHash: result.snapshotHash,
+        fetchedAt: result.fetchedAt,
+        suggestions: mergeWholeAnalysis(prev?.suggestions ?? [], result.suggestions, submitted, current),
+      }));
       setMappingPreviewGeneration(generation);
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : "Catalogue analysis failed.");
@@ -261,6 +356,7 @@ export function PlatformEditorCatalogue({
         setWebhookStaleSlugs(result.staleSlugs);
         if (newlyStale) {
           const requiredGeneration = analysisGenerationRef.current + 1;
+          requiredGenRef.current = requiredGeneration;
           setRequiredPreviewGeneration(requiredGeneration);
           setMappingPreview(null);
           const firstAffectedIndex = productsRef.current.findIndex((product) => result.staleSlugs!.includes(product.slug));
@@ -509,6 +605,11 @@ export function PlatformEditorCatalogue({
               commerceStatus={commerceStatus}
               mappingSuggestion={suggestion}
               isWebhookStale={webhookStaleSlugs.includes(product.slug)}
+              savedProduct={savedProducts.find((item) => item.slug === product.slug)}
+              publishedProduct={publishedProducts.find((item) => item.slug === product.slug)}
+              onReviewMapping={() => void handleAnalyzeProduct(product.slug)}
+              isReviewingMapping={product.slug in reviewingSlugs}
+              reviewMappingError={reviewErrors[product.slug] ?? ""}
               mappingPreviewMeta={reviewedMappingPreview ? { snapshotHash: reviewedMappingPreview.snapshotHash, fetchedAt: reviewedMappingPreview.fetchedAt } : undefined}
             />
           );
