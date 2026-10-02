@@ -154,7 +154,7 @@ export function CatalogueBusinessApproval(props: Props) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-medium">{item.name} <span className="font-normal text-muted-foreground">({item.slug}) — {item.confirmed ? item.approved ? "Business-approved" : "Needs business approval" : "Excluded: mapping not confirmed"}</span></span>
             <div className="flex flex-wrap gap-3">
-              <a className="underline" href={`${import.meta.env.BASE_URL}staff/platform?platformSection=catalogue&product=${encodeURIComponent(item.slug)}`}>Edit / resolve this item</a>
+              <a className="underline" href={`${import.meta.env.BASE_URL}staff?platformSection=catalogue&product=${encodeURIComponent(item.slug)}#platform`}>Edit / resolve this item</a>
               {item.confirmed && !item.approved && <button type="button" disabled={disabled || !acknowledged} className="underline disabled:opacity-50" onClick={() => void approve([item.slug])}>Approve this item</button>}
             </div>
           </div>
