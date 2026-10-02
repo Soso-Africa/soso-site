@@ -54,8 +54,9 @@ export function CommerceActivationPanel({ role }: { role: string }) {
       setActivation(result);
       setNotice(`Online checkout ${result.enabled ? "enabled" : "paused"} successfully.`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Commerce activation could not be updated.");
+      const message = cause instanceof Error ? cause.message : "Commerce activation could not be updated.";
       await load();
+      setError(message);
     } finally {
       setSaving(false);
     }
