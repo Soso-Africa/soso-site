@@ -6,6 +6,7 @@ import type { SaveResult } from "../components/staff/product/product-state";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
 import { productDeletionReferences } from "../components/staff/product/catalogue-delete";
 import { platformActionError } from "../components/staff/platform-action-error";
+import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
 import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
 import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
@@ -1109,6 +1110,27 @@ function PlatformContentManagementSection() {
         </div>}
       </div>
 
+      {(section === "catalogue" || section === "complete") && <CatalogueBusinessApproval
+        draftUpdatedAt={row?.draftUpdatedAt ?? null}
+        publishedAt={row?.publishedAt ?? null}
+        busy={saving}
+        hasUnsavedChanges={(() => { try { return JSON.stringify(parsedDocument()) !== JSON.stringify(row?.draft); } catch { return true; } })()}
+        onPublished={(committed) => {
+          setRow(committed as PlatformContentRow);
+          setStatus("Confirmed catalogue published. Unrelated editorial drafts and checkout settings are unchanged.");
+          void refreshRevisions();
+        }}
+        onDraftSaved={(committed) => {
+          const next = committed as PlatformContentRow;
+          setRow(next);
+          if (next.draft) {
+            setContent(next.draft);
+            setJson(JSON.stringify(sectionValue(next.draft, section), null, 2));
+          }
+          setStatus("Availability updated in the saved draft. Business approval must be reviewed again before publishing.");
+          void refreshRevisions();
+        }}
+      />}
       {structuredEditor}
 
       {section !== "complete" ? (
