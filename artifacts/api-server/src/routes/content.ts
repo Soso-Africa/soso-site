@@ -27,6 +27,7 @@ import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/
 import { PlatformContentSchema } from "../lib/platform-content";
 import { publicCatalogueContent } from "../lib/public-catalogue-checkout";
 import { commerceActivationEnabled } from "../lib/commerce-activation";
+import { readPublicPlatformSnapshot } from "../lib/public-platform-cache";
 import { ACCESSORY_LAUNCH_NOTIFICATION_POLICY_VERSION, isPublishedUnavailableAccessory } from "../lib/accessory-launch-notifications";
 
 const router: IRouter = Router();
@@ -204,30 +205,28 @@ router.get("/journal", async (_req, res): Promise<void> => {
 });
 
 router.get("/content/site", async (_req, res): Promise<void> => {
-  const [row] = await db.select({ content: siteContentTable.published, publishedAt: siteContentTable.publishedAt })
-    .from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
-  if (!row || !row.publishedAt || Object.keys(row.content).length === 0) {
+  const snapshot = await readPublicPlatformSnapshot();
+  if (!snapshot) {
     res.status(404).json({ error: "Platform content is not published" });
     return;
   }
-  const parsed = PlatformContentSchema.safeParse(row.content);
-  if (!parsed.success) { res.status(500).json({ error: "Published platform content is invalid" }); return; }
-  res.json({ content: parsed.data.site });
+  res.set("Cache-Control", "no-store");
+  res.json({ content: snapshot.content.site });
 });
 
 router.get("/content/platform", async (_req, res): Promise<void> => {
-  const [row] = await db.select({ content: siteContentTable.published, publishedAt: siteContentTable.publishedAt })
-    .from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
-  if (!row || !row.publishedAt || Object.keys(row.content).length === 0) {
+  const snapshot = await readPublicPlatformSnapshot();
+  if (!snapshot) {
     res.status(404).json({ error: "Platform content is not published" });
     return;
   }
-  const parsed = PlatformContentSchema.safeParse(row.content);
-  if (!parsed.success) { res.status(500).json({ error: "Published platform content is invalid" }); return; }
   const checkoutEnabled = await commerceActivationEnabled();
+  // Do not CDN-cache the response: activation is checked live even when the
+  // large, version-verified editorial snapshot is reused in this process.
+  res.set("Cache-Control", "no-store");
   res.json({
-    content: publicCatalogueContent(parsed.data, checkoutEnabled),
-    publishedAt: row.publishedAt,
+    content: publicCatalogueContent(snapshot.content, checkoutEnabled),
+    publishedAt: snapshot.publishedAt,
     checkoutEnabled,
   });
 });
