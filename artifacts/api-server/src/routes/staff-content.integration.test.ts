@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { once } from "node:events";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -16,6 +16,7 @@ import {
 } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import app from "../app";
+import { platformProductReferences } from "../lib/platform-product-references";
 import {
   DEFAULT_PLATFORM_CONTENT,
   type PlatformContent,
@@ -25,6 +26,12 @@ import {
   processPendingCollectionCoverCleanup,
 } from "../lib/collection-cover-cleanup";
 import { sql } from "drizzle-orm";
+import {
+  CATALOGUE_BUSINESS_APPROVALS_KEY,
+  productBusinessFingerprint,
+  validBusinessApprovalSlugs,
+} from "../lib/catalogue-business-approvals";
+import { buildConfirmedCatalogueCandidate } from "./staff-content";
 
 type ApiResponse = {
   status: number;
@@ -785,5 +792,388 @@ test("staff collection cover upload, persistence, publishing, replacement and re
     await db.delete(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
     await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
     if (originalPlatformRows[0]) await db.insert(siteContentTable).values(originalPlatformRows[0]);
+  }
+});
+
+test("business approval is stale after a saved product edit and cannot be forged through platform PUT", async () => {
+  const originalPlatformRows = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
+  const originalApprovalRows = await db.select().from(siteContentTable)
+    .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+  const token = randomBytes(32).toString("hex");
+  const clerkUserId = `catalogue-approval-check-${randomBytes(8).toString("hex")}`;
+  let staffUserId: string | undefined;
+  let server: Server | undefined;
+  try {
+    const [staff] = await db.insert(staffUsersTable).values({
+      clerkUserId, email: `${clerkUserId}@example.com`, role: "owner", isActive: true,
+    }).returning({ id: staffUsersTable.id });
+    staffUserId = staff!.id;
+    await db.insert(staffSessionsTable).values({
+      staffUserId, tokenHash: createHash("sha256").update(token).digest("hex"),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const draft = publishableContent();
+    const product = draft.products[0]!;
+    const now = new Date();
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+    await db.insert(siteContentTable).values({
+      key: "platform", draft, published: draft, draftUpdatedAt: now, publishedAt: now,
+      updatedByClerkUserId: clerkUserId,
+    });
+    const fingerprint = productBusinessFingerprint(product);
+    const seededLedger = {
+      version: 1,
+      approvals: {
+        [product.slug]: {
+          fingerprint, actorClerkUserId: clerkUserId, approvedAt: now.toISOString(),
+        },
+      },
+    };
+    await db.insert(siteContentTable).values({
+      key: CATALOGUE_BUSINESS_APPROVALS_KEY, draft: seededLedger, published: {},
+      draftUpdatedAt: now, updatedByClerkUserId: clerkUserId,
+    });
+    assert.deepEqual([...validBusinessApprovalSlugs(draft, seededLedger)], [product.slug]);
+
+    const running = await listen();
+    server = running.server;
+    const edited = structuredClone(draft);
+    edited.products[0]!.name = "Edited after business approval";
+    const saved = await request(running.baseUrl, "/api/staff/content/platform", token, {
+      method: "PUT", body: { content: edited, expectedDraftUpdatedAt: now.toISOString() },
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body).slice(0, 400));
+    assert.deepEqual([...validBusinessApprovalSlugs(saved.body.draft, seededLedger)], []);
+
+    const forged = structuredClone(saved.body.draft) as PlatformContent;
+    (forged.products[0] as unknown as Record<string, unknown>).businessApproval = {
+      approved: true, actorClerkUserId: clerkUserId, approvedAt: now.toISOString(),
+    };
+    const rejectedForge = await request(running.baseUrl, "/api/staff/content/platform", token, {
+      method: "PUT", body: { content: forged, expectedDraftUpdatedAt: saved.body.draftUpdatedAt },
+    });
+    assert.equal(rejectedForge.status, 400);
+    const [storedLedger] = await db.select({ draft: siteContentTable.draft }).from(siteContentTable)
+      .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+    assert.deepEqual(storedLedger?.draft, seededLedger);
+  } finally {
+    if (server) { server.close(); await once(server, "close"); }
+    if (staffUserId) await db.delete(staffUsersTable).where(eq(staffUsersTable.id, staffUserId));
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    if (originalPlatformRows[0]) await db.insert(siteContentTable).values(originalPlatformRows[0]);
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+    if (originalApprovalRows[0]) await db.insert(siteContentTable).values(originalApprovalRows[0]);
+  }
+});
+
+test("owner business approval persists against a mapped saved snapshot and becomes stale after an edit", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalEnvironment = new Map([
+    ["JUSTICESURE_COMMERCE_API_BASE_URL", process.env.JUSTICESURE_COMMERCE_API_BASE_URL],
+    ["JUSTICESURE_COMMERCE_BASE_URL", process.env.JUSTICESURE_COMMERCE_BASE_URL],
+    ["JUSTICESURE_COMMERCE_TEST_API_KEY", process.env.JUSTICESURE_COMMERCE_TEST_API_KEY],
+  ]);
+  const originalPlatformRows = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
+  const originalApprovalRows = await db.select().from(siteContentTable)
+    .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+  process.env.JUSTICESURE_COMMERCE_API_BASE_URL = "https://commerce.test.invalid";
+  process.env.JUSTICESURE_COMMERCE_BASE_URL = "https://commerce.test.invalid";
+  process.env.JUSTICESURE_COMMERCE_TEST_API_KEY = "jsk_test_catalogue_approval";
+  const clerkUserId = `catalogue-approval-owner-${randomBytes(8).toString("hex")}`;
+  const token = randomBytes(32).toString("hex");
+  const parentId = randomUUID();
+  const variantIds = new Map<string, string>();
+  const draft = publishableContent();
+  const product = draft.products[0]!;
+  const choiceSizes = [
+    ...(product.standardEligible ? product.standardSizes : []),
+    ...(product.customEligible ? ["Custom"] : []),
+  ];
+  const variants = choiceSizes.map((size) => {
+    const id = randomUUID();
+    variantIds.set(size, id);
+    return {
+      id, name: size, attributes: { size }, price: { amountKobo: product.price * 100 },
+      availability: { inStock: true },
+    };
+  });
+  const catalogueProduct = {
+    id: parentId, name: product.name, description: null, images: [],
+    price: { currency: "NGN", amountKobo: product.price * 100 },
+    availability: { inStock: true }, variants,
+  };
+  globalThis.fetch = async (input, init): Promise<Response> => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.startsWith("http://127.0.0.1:")) return originalFetch(input, init);
+    if (url.startsWith("https://commerce.test.invalid/products")) {
+      return Response.json({ data: [catalogueProduct] });
+    }
+    return new Response(null, { status: 404 });
+  };
+  let staffUserId: string | undefined;
+  let server: Server | undefined;
+  try {
+    const [staff] = await db.insert(staffUsersTable).values({
+      clerkUserId, email: `${clerkUserId}@example.com`, role: "owner", isActive: true,
+    }).returning({ id: staffUsersTable.id });
+    staffUserId = staff!.id;
+    await db.insert(staffSessionsTable).values({
+      staffUserId, tokenHash: createHash("sha256").update(token).digest("hex"),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    product.commerceProductId = parentId;
+    const now = new Date();
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+    await db.insert(siteContentTable).values({
+      key: "platform", draft, published: draft, draftUpdatedAt: now, publishedAt: now,
+      updatedByClerkUserId: clerkUserId,
+    });
+    const running = await listen();
+    server = running.server;
+    const preview = await request(running.baseUrl, "/api/staff/commerce/catalogue-mapping/preview", token, {
+      method: "POST",
+      body: { products: [{
+        slug: product.slug, name: product.name, price: product.price,
+        standardEligible: product.standardEligible, customEligible: product.customEligible,
+        standardSizes: product.standardSizes, fulfilmentState: product.fulfilmentState,
+        commerceProductId: parentId,
+      }] },
+    });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    const suggestion = preview.body.suggestions[0];
+    product.commerceVariantIds = Object.fromEntries(Object.keys(suggestion.variantIds).map((key) => [
+      key, variantIds.get(key)!,
+    ]));
+    product.commerceMappingConfirmation = {
+      productHash: suggestion.productHash,
+      localHash: suggestion.localHash,
+      snapshotHash: preview.body.snapshotHash,
+      snapshotFetchedAt: preview.body.fetchedAt,
+      confirmedAt: now.toISOString(),
+      confidence: suggestion.confidence,
+      source: "manual",
+      evidence: suggestion.evidence,
+      choiceLabels: suggestion.choiceLabels,
+    };
+    const saved = await request(running.baseUrl, "/api/staff/content/platform", token, {
+      method: "PUT", body: { content: draft, expectedDraftUpdatedAt: now.toISOString() },
+    });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body).slice(0, 500));
+    const mismatchedSelection = await request(
+      running.baseUrl,
+      "/api/staff/content/platform/catalogue/publish-confirmed",
+      token,
+      {
+        method: "POST",
+        body: {
+          slugs: [draft.products[1]!.slug],
+          expectedDraftUpdatedAt: saved.body.draftUpdatedAt,
+          expectedPublishedAt: saved.body.publishedAt,
+        },
+      },
+    );
+    assert.equal(mismatchedSelection.status, 400);
+    assert.match(mismatchedSelection.body.error, /every saved confirmed non-accessory product exactly once/i);
+    const approved = await request(running.baseUrl, "/api/staff/content/platform/catalogue/approve", token, {
+      method: "POST",
+      body: { slugs: [product.slug], expectedDraftUpdatedAt: saved.body.draftUpdatedAt, acknowledged: true },
+    });
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    assert.deepEqual(approved.body.approvedSlugs, [product.slug]);
+    const readiness = await request(running.baseUrl, "/api/staff/content/platform/catalogue/readiness", token);
+    assert.equal(readiness.status, 200, JSON.stringify(readiness.body).slice(0, 500));
+    assert.equal(readiness.body.products.find((item: { slug: string }) => item.slug === product.slug).approved, true);
+
+    const changed = structuredClone(saved.body.draft) as PlatformContent;
+    changed.products[0]!.name = `${changed.products[0]!.name} revised`;
+    const edited = await request(running.baseUrl, "/api/staff/content/platform", token, {
+      method: "PUT", body: { content: changed, expectedDraftUpdatedAt: saved.body.draftUpdatedAt },
+    });
+    assert.equal(edited.status, 200);
+    const staleReadiness = await request(running.baseUrl, "/api/staff/content/platform/catalogue/readiness", token);
+    assert.equal(staleReadiness.status, 200);
+    assert.equal(staleReadiness.body.products.find((item: { slug: string }) => item.slug === product.slug).approved, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of originalEnvironment) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (server) { server.close(); await once(server, "close"); }
+    if (staffUserId) await db.delete(staffUsersTable).where(eq(staffUsersTable.id, staffUserId));
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    if (originalPlatformRows[0]) await db.insert(siteContentTable).values(originalPlatformRows[0]);
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+    if (originalApprovalRows[0]) await db.insert(siteContentTable).values(originalApprovalRows[0]);
+  }
+});
+
+test("availability control blocks upstream stock failures and confirms only the selected product on activation", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalEnvironment = new Map([
+    ["JUSTICESURE_COMMERCE_API_BASE_URL", process.env.JUSTICESURE_COMMERCE_API_BASE_URL],
+    ["JUSTICESURE_COMMERCE_BASE_URL", process.env.JUSTICESURE_COMMERCE_BASE_URL],
+    ["JUSTICESURE_COMMERCE_TEST_API_KEY", process.env.JUSTICESURE_COMMERCE_TEST_API_KEY],
+  ]);
+  const originalPlatformRows = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
+  process.env.JUSTICESURE_COMMERCE_API_BASE_URL = "https://commerce.test.invalid";
+  process.env.JUSTICESURE_COMMERCE_BASE_URL = "https://commerce.test.invalid";
+  process.env.JUSTICESURE_COMMERCE_TEST_API_KEY = "jsk_test_catalogue_availability";
+  const clerkUserId = `catalogue-availability-owner-${randomBytes(8).toString("hex")}`;
+  const token = randomBytes(32).toString("hex");
+  const parentId = randomUUID();
+  let providerInStock = false;
+  let catalogueFetches = 0;
+  const draft = publishableContent();
+  const product = draft.products[0]!;
+  const otherProductsBefore = JSON.parse(JSON.stringify(draft.products.slice(1)));
+  const variants = [
+    ...(product.standardEligible ? product.standardSizes : []),
+    ...(product.customEligible ? ["Custom"] : []),
+  ].map((size) => ({
+    id: randomUUID(),
+    name: size,
+    attributes: { size },
+    price: { amountKobo: product.price * 100 },
+    availability: { inStock: true },
+  }));
+  const variantIds = Object.fromEntries(variants.map((variant) => [
+    String(variant.attributes.size),
+    variant.id,
+  ]));
+  product.commerceProductId = parentId;
+  product.commerceVariantIds = variantIds;
+  const catalogueProduct = {
+    id: parentId,
+    name: product.name,
+    description: null,
+    images: [],
+    price: { currency: "NGN", amountKobo: product.price * 100 },
+    get availability() { return { inStock: providerInStock }; },
+    variants,
+  };
+  globalThis.fetch = async (input, init): Promise<Response> => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (url.startsWith("http://127.0.0.1:")) return originalFetch(input, init);
+    if (url.startsWith("https://commerce.test.invalid/products")) {
+      catalogueFetches += 1;
+      return Response.json({ data: [catalogueProduct] });
+    }
+    return new Response(null, { status: 404 });
+  };
+  let staffUserId: string | undefined;
+  let server: Server | undefined;
+  try {
+    const [staff] = await db.insert(staffUsersTable).values({
+      clerkUserId, email: `${clerkUserId}@example.com`, role: "owner", isActive: true,
+    }).returning({ id: staffUsersTable.id });
+    staffUserId = staff!.id;
+    await db.insert(staffSessionsTable).values({
+      staffUserId, tokenHash: createHash("sha256").update(token).digest("hex"),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const now = new Date();
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    await db.insert(siteContentTable).values({
+      key: "platform", draft, published: draft, draftUpdatedAt: now, publishedAt: now,
+      updatedByClerkUserId: clerkUserId,
+    });
+    const running = await listen();
+    server = running.server;
+    const path = `/api/staff/content/platform/products/${product.slug}/availability`;
+    const readiness = await request(running.baseUrl, "/api/staff/content/platform/catalogue/readiness", token);
+    assert.equal(readiness.status, 200);
+    const availability = readiness.body.products.find((entry: { slug: string }) => entry.slug === product.slug).availability;
+    assert.equal(availability.localState, "unavailable");
+    assert.equal(availability.providerStock, "out_of_stock");
+    assert.equal(availability.canMakeAvailable, false);
+    assert.ok(availability.reasons.some((reason: string) => reason.includes("Local fulfilment is unavailable")));
+    assert.ok(availability.reasons.some((reason: string) => reason.includes(`JusticeSure product ${parentId} is out of stock`)));
+    assert.equal(catalogueFetches, 1);
+    const body = {
+      expectedDraftUpdatedAt: now.toISOString(),
+      fulfilmentState: "made_immediately",
+      acknowledged: true,
+    };
+    const blocked = await request(running.baseUrl, path, token, { method: "POST", body });
+    assert.equal(blocked.status, 400, JSON.stringify(blocked.body));
+    assert.ok(blocked.body.issues.some((issue: string) => issue.includes(`JusticeSure product ${parentId} is out of stock`)));
+    const [unchanged] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    assert.equal((unchanged!.draft as PlatformContent).products[0]!.fulfilmentState, "unavailable");
+    assert.equal(unchanged!.draftUpdatedAt!.toISOString(), now.toISOString());
+
+    providerInStock = true;
+    const activated = await request(running.baseUrl, path, token, { method: "POST", body });
+    assert.equal(activated.status, 200, JSON.stringify(activated.body).slice(0, 1000));
+    const saved = activated.body.draft as PlatformContent;
+    assert.equal(saved.products[0]!.fulfilmentState, "made_immediately");
+    assert.equal(saved.products[0]!.unavailableMessage, undefined);
+    assert.equal(saved.products[0]!.commerceMappingConfirmation?.confidence! >= 95, true);
+    assert.equal(saved.products[0]!.commerceMappingConfirmation?.localHash.length, 64);
+    assert.deepEqual(saved.products.slice(1), otherProductsBefore);
+    assert.notEqual(activated.body.draftUpdatedAt, now.toISOString());
+    const revisions = await db.select().from(siteContentRevisionsTable)
+      .where(eq(siteContentRevisionsTable.createdByClerkUserId, clerkUserId));
+    assert.equal(revisions.length, 1);
+    const audits = await db.select().from(auditLogsTable)
+      .where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    assert.ok(audits.some((audit) => audit.action === "platform_content.product_availability_changed"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of originalEnvironment) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (server) { server.close(); await once(server, "close"); }
+    if (staffUserId) await db.delete(staffUsersTable).where(eq(staffUsersTable.id, staffUserId));
+    await db.delete(auditLogsTable).where(eq(auditLogsTable.actorClerkUserId, clerkUserId));
+    await db.delete(siteContentRevisionsTable).where(eq(siteContentRevisionsTable.createdByClerkUserId, clerkUserId));
+    await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
+    if (originalPlatformRows[0]) await db.insert(siteContentTable).values(originalPlatformRows[0]);
+  }
+});
+
+test("confirmed publication candidate prunes only omitted mega-menu product placements for an exact 42-product set", () => {
+  const published = publishableContent();
+  const publishedMen = published.site.megaMenu.find((group) => group.id === "men")!;
+  publishedMen.featuredProductSlugs = ["sovereign-agbada", "varen"];
+  published.site.megaMenu.find((group) => group.id === "accessories")!.visible = true;
+  const selected = published.products.filter((product) =>
+    product.department !== "accessories" && product.slug !== "varen");
+  while (selected.length < 42) {
+    const template = selected[0]!;
+    selected.push({
+      ...structuredClone(template),
+      slug: `confirmed-catalogue-test-${selected.length}`,
+      name: `Confirmed catalogue test ${selected.length}`,
+    });
+  }
+  if (selected.length > 42) selected.length = 42;
+  const { candidate, prunedReferences } = buildConfirmedCatalogueCandidate(published, selected);
+  assert.equal(candidate.products.length, 42);
+  assert.ok(prunedReferences.some((reference) =>
+    reference === "site.megaMenu[men].featuredProductSlugs removed omitted product varen"));
+  assert.ok(prunedReferences.some((reference) =>
+    reference === "site.megaMenu[accessories].featuredProductSlugs removed omitted product soso-bag-coming-soon"));
+  assert.ok(prunedReferences.some((reference) =>
+    reference === "site.megaMenu[accessories].featuredProductSlugs removed omitted product igbo-cap-coming-soon"));
+  assert.ok(prunedReferences.some((reference) =>
+    reference === "site.megaMenu[accessories].visible set false because the selected catalogue has no accessory products"));
+
+  const originalMen = published.site.megaMenu.find((group) => group.id === "men")!;
+  const candidateMen = candidate.site.megaMenu.find((group) => group.id === "men")!;
+  assert.equal(candidateMen.label, originalMen.label);
+  assert.equal(candidateMen.href, originalMen.href);
+  assert.deepEqual(candidateMen.columns, originalMen.columns);
+  assert.deepEqual(candidateMen.featuredProductSlugs, ["sovereign-agbada"]);
+  assert.equal(candidate.site.announcement, published.site.announcement);
+  assert.deepEqual(candidate.homepage, published.homepage);
+  assert.deepEqual(candidate.productCopy, published.productCopy);
+  for (const omitted of ["varen", "soso-bag-coming-soon", "igbo-cap-coming-soon"]) {
+    assert.ok(!platformProductReferences(candidate, omitted).some((path) => path.startsWith("site.megaMenu[")));
   }
 });

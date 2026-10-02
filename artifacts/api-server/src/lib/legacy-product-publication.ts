@@ -111,6 +111,7 @@ function checkoutVerificationIssues(
 export function validateLegacyProductPublication(
   content: PlatformContent,
   inventory: LegacyProductInventory = legacyProductInventory,
+  runtimeApprovedSlugs: ReadonlySet<string> = new Set(),
 ): LegacyProductPublicationIssue[] {
   const recordsById = new Map(inventory.products.map((record) => [record.legacyId, record]));
   const recordsBySlug = new Map(inventory.products.map((record) => [record.slug, record]));
@@ -142,6 +143,7 @@ export function validateLegacyProductPublication(
       });
       continue;
     }
+    if (runtimeApprovedSlugs.has(product.slug)) continue;
     if (record.approvalStatus !== "approved") {
       issues.push({
         productSlug: product.slug,

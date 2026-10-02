@@ -7,7 +7,9 @@ export function platformActionError(error: unknown, fallback: string): string {
   const details = issues.map((issue) => {
     if (typeof issue === "string") return issue;
     if (issue && typeof issue === "object" && "message" in issue && typeof issue.message === "string") {
-      const path = "path" in issue && Array.isArray(issue.path) ? issue.path.join(".") : "";
+      const path = "productSlug" in issue && typeof issue.productSlug === "string"
+        ? issue.productSlug
+        : "path" in issue && Array.isArray(issue.path) ? issue.path.join(".") : "";
       return `${path ? `${path}: ` : ""}${issue.message}`;
     }
     return "";

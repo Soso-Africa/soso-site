@@ -32,6 +32,13 @@ import { ensurePlatformContent, platformContentHash, PlatformContentSchema, unfi
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
 import { validateLegacyProductPublication } from "../lib/legacy-product-publication";
+import {
+  CATALOGUE_BUSINESS_APPROVALS_KEY,
+  confirmedNonAccessoryProducts,
+  parseCatalogueBusinessApprovalLedger,
+  productBusinessFingerprint,
+  validBusinessApprovalSlugs,
+} from "../lib/catalogue-business-approvals";
 import { validateAccessoryProductPublication } from "../lib/accessory-product-publication";
 import { validateCollectionMediaAssets, validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { platformProductReferences } from "../lib/platform-product-references";
@@ -297,6 +304,7 @@ export async function validateCurrentCommerceMappings(
   products: MappingProductSource[],
   requireConfirmation: boolean,
   listProducts: () => Promise<JusticeSureCatalogProduct[]> = () => new JusticeSureCommerceClient(undefined, true).listProducts(),
+  currentCatalogue?: JusticeSureCatalogProduct[],
 ): Promise<string[]> {
   const mapped = products.filter((product) => product.commerceProductId);
   const missingIssues = requireConfirmation
@@ -324,7 +332,7 @@ export async function validateCurrentCommerceMappings(
   // platform schema and these local duplicate checks are sufficient until
   // publication, which always performs a fresh live catalogue verification.
   if (!requireConfirmation) return [...missingIssues, ...duplicateIssues];
-  const catalogue = await listProducts();
+  const catalogue = currentCatalogue ?? await listProducts();
   const validation = validateCatalogueMappings(mapped.map(toLocalMappingProduct), catalogue);
   const issues = [
     ...missingIssues,
@@ -346,6 +354,116 @@ export async function validateCurrentCommerceMappings(
     }
   }
   return issues;
+}
+
+type ProductAvailability = {
+  localState: string;
+  providerStock: "in_stock" | "out_of_stock" | "unknown" | "not_mapped";
+  unavailableVariants: string[];
+  reasons: string[];
+  canMakeAvailable: boolean;
+  productId?: string;
+  variantIds: Record<string, string>;
+};
+
+function productAvailability(
+  content: PlatformContent,
+  product: PlatformContent["products"][number],
+  catalogue: JusticeSureCatalogProduct[] | null,
+  mappingIssues: string[],
+): ProductAvailability {
+  const reasons: string[] = [];
+  const unavailableVariants: string[] = [];
+  const variantIds = product.commerceVariantIds ?? {};
+  const productId = product.commerceProductId;
+  const expectedVariantKeys = [
+    ...(product.standardEligible ? product.standardSizes : []),
+    ...(product.customEligible ? ["Custom"] : []),
+  ];
+  const foundProduct = catalogue?.find((candidate) => candidate.id === productId);
+  let providerStock: ProductAvailability["providerStock"] = !productId
+    ? "not_mapped"
+    : catalogue && foundProduct
+      ? foundProduct.inStock ? "in_stock" : "out_of_stock"
+      : "unknown";
+
+  if (product.fulfilmentState === "unavailable") {
+    reasons.push("Local fulfilment is unavailable; this does not establish JusticeSure stock status.");
+  }
+  if (!productId) {
+    reasons.push("No JusticeSure product ID is mapped.");
+  } else if (!catalogue) {
+    reasons.push(`JusticeSure product ${productId} stock is unknown because the live catalogue could not be read.`);
+  } else if (!foundProduct) {
+    reasons.push(`Mapped JusticeSure product ${productId} was not found in the live catalogue.`);
+    providerStock = "unknown";
+  } else if (!foundProduct.inStock) {
+    reasons.push(`JusticeSure product ${productId} is out of stock.`);
+  }
+
+  for (const key of expectedVariantKeys) {
+    const variantId = variantIds[key];
+    if (!variantId) {
+      unavailableVariants.push(key);
+      reasons.push(`No JusticeSure variant ID is mapped for ${key}.`);
+      continue;
+    }
+    const variant = foundProduct?.variants.find((candidate) => candidate.id === variantId);
+    if (!catalogue || !foundProduct) {
+      unavailableVariants.push(key);
+      reasons.push(`JusticeSure variant ${variantId} (${key}) could not be checked against the live catalogue.`);
+    } else if (!variant) {
+      unavailableVariants.push(key);
+      reasons.push(`Mapped JusticeSure variant ${variantId} (${key}) was not found under product ${productId}.`);
+    } else if (!variant.inStock) {
+      unavailableVariants.push(key);
+      reasons.push(`JusticeSure variant ${variantId} (${key}) is out of stock.`);
+    }
+  }
+
+  const productMappingIssues = mappingIssues.filter((issue) => issue.startsWith(`${product.slug}:`));
+  reasons.push(...productMappingIssues);
+  const localCandidate = { ...product, fulfilmentState: "made_immediately" as const };
+  delete localCandidate.unavailableMessage;
+  const candidateContent = {
+    ...content,
+    products: content.products.map((candidate) => candidate.slug === product.slug ? localCandidate : candidate),
+  };
+  const schemaValid = PlatformContentSchema.safeParse(candidateContent).success;
+  if (!schemaValid) {
+    reasons.push("The saved product fields do not satisfy the platform schema for made-immediately fulfilment.");
+  }
+  const liveMapping = catalogue
+    ? validateCatalogueMappings([toLocalMappingProduct(localCandidate)], catalogue).mappings[0]
+    : undefined;
+  const canMakeAvailable = Boolean(
+    product.fulfilmentState === "unavailable"
+    && catalogue
+    && foundProduct?.inStock
+    && expectedVariantKeys.length > 0
+    && expectedVariantKeys.every((key) => variantIds[key]
+      && foundProduct.variants.some((variant) => variant.id === variantIds[key] && variant.inStock))
+    && liveMapping?.status === "matched"
+    && liveMapping.confidence >= 95
+    && liveMapping.productId === productId
+    && liveMapping.localHash
+    && schemaValid,
+  );
+  if (!canMakeAvailable && product.fulfilmentState === "unavailable" && foundProduct?.inStock
+      && unavailableVariants.length === 0 && liveMapping?.status !== "matched") {
+    reasons.push(...(liveMapping?.evidence ?? ["The saved product identifiers do not form a high-confidence JusticeSure mapping."]));
+  }
+  if (product.fulfilmentState !== "unavailable") reasons.push("This product is already locally available.");
+
+  return {
+    localState: product.fulfilmentState,
+    providerStock,
+    unavailableVariants: [...new Set(unavailableVariants)],
+    reasons: [...new Set(reasons)],
+    canMakeAvailable,
+    ...(productId ? { productId } : {}),
+    variantIds: { ...variantIds },
+  };
 }
 
 router.get("/staff/commerce/catalogue", platformRoles, async (_req, res): Promise<void> => {
@@ -541,12 +659,398 @@ export function preservesLegacySparseFeaturedProvenance(stored: unknown, incomin
     && currentInitial.every((slug, index) => slug === incomingInitial[index]);
 }
 
+export function buildConfirmedCatalogueCandidate(
+  published: PlatformContent,
+  selected: PlatformContent["products"],
+): { candidate: PlatformContent; prunedReferences: string[] } {
+  const selectedSlugs = new Set(selected.map((product) => product.slug));
+  const hasAccessories = selected.some((product) => product.department === "accessories");
+  const prunedReferences: string[] = [];
+  const megaMenu = published.site.megaMenu.map((group) => {
+    const featuredProductSlugs = group.featuredProductSlugs.filter((slug) => {
+      if (selectedSlugs.has(slug)) return true;
+      prunedReferences.push(`site.megaMenu[${group.id}].featuredProductSlugs removed omitted product ${slug}`);
+      return false;
+    });
+    const isAccessoriesGroup = group.department === "accessories" || group.id === "accessories";
+    const hideAccessories = isAccessoriesGroup && !hasAccessories && group.visible;
+    if (hideAccessories) {
+      prunedReferences.push(`site.megaMenu[${group.id}].visible set false because the selected catalogue has no accessory products`);
+    }
+    return {
+      ...group,
+      featuredProductSlugs,
+      ...(hideAccessories ? { visible: false } : {}),
+    };
+  });
+  return {
+    candidate: { ...published, site: { ...published.site, megaMenu }, products: selected },
+    prunedReferences,
+  };
+}
+
 router.get("/staff/content/platform", platformRoles, async (_req, res): Promise<void> => {
   await ensurePlatformContent();
   const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
   if (!row) { res.status(503).json({ error: "Platform content is unavailable" }); return; }
   res.json(row);
 });
+
+router.get("/staff/content/platform/catalogue/readiness", platformRoles, async (_req, res): Promise<void> => {
+  await ensurePlatformContent();
+  const [row] = await db.select().from(siteContentTable)
+    .where(eq(siteContentTable.key, "platform")).limit(1);
+  const parsed = PlatformContentSchema.safeParse(row?.draft);
+  if (!row || !parsed.success) {
+    res.status(409).json({ error: "The saved platform draft is unavailable or invalid." });
+    return;
+  }
+  const [approvalRow] = await db.select({ draft: siteContentTable.draft }).from(siteContentTable)
+    .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+  const approvedSlugs = validBusinessApprovalSlugs(parsed.data, approvalRow?.draft);
+  let mappingIssues: string[];
+  let catalogue: JusticeSureCatalogProduct[] | null = null;
+  try {
+    catalogue = await new JusticeSureCommerceClient(undefined, true).listProducts();
+    mappingIssues = await validateCurrentCommerceMappings(parsed.data.products, true, undefined, catalogue);
+  } catch {
+    catalogue = null;
+    mappingIssues = parsed.data.products.map((product) =>
+      `${product.slug}: current JusticeSure mapping could not be revalidated; retry before business approval or publication.`);
+  }
+  const unfinished = unfinishedProductImages(parsed.data);
+  const mediaIssues = await validateProductMediaAssets(parsed.data);
+  const legacyIssues = validateLegacyProductPublication(parsed.data, undefined, approvedSlugs);
+  const products = parsed.data.products.map((product, index) => {
+    const issues = [
+      ...(!approvedSlugs.has(product.slug) ? ["Business approval is required for this saved product snapshot."] : []),
+      ...legacyIssues.filter((issue) => issue.productSlug === product.slug).map((issue) => issue.message),
+      ...unfinished.filter((issue) => issue.path[1] === index).map((issue) => issue.message),
+      ...mediaIssues.filter((issue) => issue.path[1] === index).map((issue) => issue.message),
+      ...mappingIssues.filter((issue) => issue.startsWith(`${product.slug}:`)),
+      ...(product.releaseState === "placeholder"
+        ? ["This product remains a placeholder; approval will not change its release state or checkout availability."]
+        : []),
+    ];
+    return {
+      slug: product.slug,
+      name: product.name,
+      confirmed: Boolean(product.commerceMappingConfirmation)
+        && !mappingIssues.some((issue) => issue.startsWith(`${product.slug}:`)),
+      approved: approvedSlugs.has(product.slug),
+      issues: [...new Set(issues)],
+      availability: productAvailability(parsed.data, product, catalogue, mappingIssues),
+    };
+  });
+  res.json({
+    products,
+    draftUpdatedAt: row.draftUpdatedAt?.toISOString() ?? null,
+    publishedAt: row.publishedAt?.toISOString() ?? null,
+  });
+});
+
+router.post(
+  "/staff/content/platform/products/:slug/availability",
+  platformRoles,
+  async (req, res): Promise<void> => {
+    const parsedSlug = catalogueSlug.safeParse(req.params.slug);
+    const body = z.object({
+      expectedDraftUpdatedAt: z.string().datetime(),
+      fulfilmentState: z.literal("made_immediately"),
+      acknowledged: z.literal(true),
+    }).strict().safeParse(req.body);
+    if (!parsedSlug.success || !body.success) {
+      res.status(400).json({
+        error: "Provide a valid product slug, current draft timestamp, fulfilmentState: made_immediately, and acknowledged: true.",
+        ...(body.success ? {} : { issues: body.error.issues }),
+      });
+      return;
+    }
+
+    await ensurePlatformContent();
+    const expected = new Date(body.data.expectedDraftUpdatedAt);
+    let result: {
+      kind: "conflict" | "invalid" | "unavailable" | "saved";
+      error?: string;
+      issues?: unknown[];
+      row?: typeof siteContentTable.$inferSelect;
+    };
+    try {
+      result = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+        const [row] = await tx.select().from(siteContentTable).where(and(
+          eq(siteContentTable.key, "platform"),
+          eq(siteContentTable.draftUpdatedAt, expected),
+        )).limit(1);
+        if (!row) return { kind: "conflict" as const };
+        const content = PlatformContentSchema.safeParse(row.draft);
+        if (!content.success) {
+          return { kind: "invalid" as const, error: "The saved platform draft is invalid.", issues: content.error.issues };
+        }
+        const selected = content.data.products.find((product) => product.slug === parsedSlug.data);
+        if (!selected) return { kind: "invalid" as const, error: "The product is not in the saved platform draft.", issues: [] };
+        if (selected.department === "accessories") {
+          return { kind: "invalid" as const, error: "Accessory availability must use its separate approval workflow.", issues: [] };
+        }
+        if (selected.fulfilmentState !== "unavailable") {
+          return { kind: "invalid" as const, error: "The selected product is already locally available.", issues: [] };
+        }
+        if (!selected.commerceProductId) {
+          return { kind: "invalid" as const, error: "A mapped JusticeSure product ID is required before changing local availability.", issues: [] };
+        }
+
+        let catalogue: JusticeSureCatalogProduct[];
+        try {
+          catalogue = await new JusticeSureCommerceClient(undefined, true).listProducts();
+        } catch {
+          return { kind: "unavailable" as const };
+        }
+        const candidateProduct = { ...selected, fulfilmentState: body.data.fulfilmentState };
+        delete candidateProduct.unavailableMessage;
+        const expectedVariantKeys = [
+          ...(candidateProduct.standardEligible ? candidateProduct.standardSizes : []),
+          ...(candidateProduct.customEligible ? ["Custom"] : []),
+        ];
+        const productId = candidateProduct.commerceProductId;
+        const providerProduct = catalogue.find((product) => product.id === productId);
+        const stockIssues: string[] = [];
+        if (!providerProduct) {
+          stockIssues.push(`Mapped JusticeSure product ${productId} was not found in the fresh catalogue.`);
+        } else if (!providerProduct.inStock) {
+          stockIssues.push(`JusticeSure product ${productId} is out of stock; local availability was not changed.`);
+        }
+        if (expectedVariantKeys.length === 0) {
+          stockIssues.push("The saved product has no eligible Standard or Custom choices to activate.");
+        }
+        for (const key of expectedVariantKeys) {
+          const variantId = candidateProduct.commerceVariantIds?.[key];
+          if (!variantId) {
+            stockIssues.push(`No JusticeSure variant ID is mapped for ${key}.`);
+            continue;
+          }
+          const variant = providerProduct?.variants.find((entry) => entry.id === variantId);
+          if (!variant) {
+            stockIssues.push(`Mapped JusticeSure variant ${variantId} (${key}) was not found under product ${productId}.`);
+          } else if (!variant.inStock) {
+            stockIssues.push(`JusticeSure variant ${variantId} (${key}) is out of stock; local availability was not changed.`);
+          }
+        }
+        if (stockIssues.length) {
+          return { kind: "invalid" as const, error: "JusticeSure stock does not permit local availability.", issues: stockIssues };
+        }
+
+        const localMapping = toLocalMappingProduct(candidateProduct);
+        const validation = validateCatalogueMappings([localMapping], catalogue);
+        const mapping = validation.mappings[0];
+        if (validation.issues.length || !mapping || mapping.status !== "matched" || mapping.confidence < 95) {
+          return {
+            kind: "invalid" as const,
+            error: "The fresh JusticeSure product and variant mapping did not pass high-confidence validation.",
+            issues: validation.issues.map((issue) => `${issue.slug}: ${issue.message}`)
+              .concat(mapping?.evidence ?? []),
+          };
+        }
+        if (mapping.productId !== productId || expectedVariantKeys.some((key) =>
+          mapping.variantIds[key] !== candidateProduct.commerceVariantIds?.[key])) {
+          return {
+            kind: "invalid" as const,
+            error: "Fresh JusticeSure mapping does not match the saved product and variant IDs.",
+            issues: [
+              `Expected JusticeSure product ID ${productId}.`,
+              ...expectedVariantKeys.map((key) =>
+                `Expected JusticeSure variant ID ${candidateProduct.commerceVariantIds?.[key] ?? "missing"} for ${key}.`),
+            ],
+          };
+        }
+
+        candidateProduct.commerceMappingConfirmation = {
+          productHash: mapping.productHash!,
+          localHash: mapping.localHash!,
+          snapshotHash: validation.snapshot.hash,
+          snapshotFetchedAt: validation.snapshot.fetchedAt,
+          confirmedAt: new Date().toISOString(),
+          confidence: mapping.confidence,
+          source: "manual",
+          evidence: mapping.evidence,
+          choiceLabels: mapping.choiceLabels,
+        };
+        const candidateContent = {
+          ...content.data,
+          products: content.data.products.map((product) => product.slug === selected.slug ? candidateProduct : product),
+        };
+        const validatedContent = PlatformContentSchema.safeParse(candidateContent);
+        if (!validatedContent.success) {
+          return {
+            kind: "invalid" as const,
+            error: "The product fields do not satisfy platform validation for made-immediately fulfilment.",
+            issues: validatedContent.error.issues,
+          };
+        }
+        const selectedIndex = validatedContent.data.products.findIndex((product) => product.slug === selected.slug);
+        const selectedOnly = { ...validatedContent.data, products: [validatedContent.data.products[selectedIndex]!] };
+        const mediaIssues = [
+          ...unfinishedProductImages(validatedContent.data).filter((issue) => issue.path[1] === selectedIndex),
+          ...await validateProductMediaAssets(selectedOnly),
+        ];
+        if (mediaIssues.length) {
+          return {
+            kind: "invalid" as const,
+            error: "Product media must pass validation before local availability can change.",
+            issues: mediaIssues,
+          };
+        }
+
+        const now = new Date();
+        const [updated] = await tx.update(siteContentTable).set({
+          draft: validatedContent.data,
+          draftUpdatedAt: now,
+          updatedByClerkUserId: req.staff!.clerkUserId,
+        }).where(and(
+          eq(siteContentTable.key, "platform"),
+          eq(siteContentTable.draftUpdatedAt, expected),
+        )).returning();
+        if (!updated) return { kind: "conflict" as const };
+        const hash = platformContentHash(validatedContent.data);
+        const [revision] = await tx.insert(siteContentRevisionsTable).values({
+          contentKey: "platform",
+          event: "draft_saved",
+          snapshot: validatedContent.data,
+          contentHash: hash,
+          createdByClerkUserId: req.staff!.clerkUserId,
+        }).returning({ id: siteContentRevisionsTable.id });
+        await tx.insert(auditLogsTable).values({
+          actorClerkUserId: req.staff!.clerkUserId,
+          action: "platform_content.product_availability_changed",
+          entityType: "site_content",
+          entityId: "platform",
+          metadata: {
+            slug: selected.slug,
+            previousFulfilmentState: selected.fulfilmentState,
+            fulfilmentState: candidateProduct.fulfilmentState,
+            productId,
+            variantIds: candidateProduct.commerceVariantIds ?? {},
+            productHash: mapping.productHash,
+            localHash: mapping.localHash,
+            revisionId: revision!.id,
+            contentHash: hash,
+          },
+        });
+        return { kind: "saved" as const, row: updated };
+      });
+    } catch (error) {
+      commerceUnavailable(res, error, "draft_catalogue_check", "JusticeSure catalogue could not be revalidated. Availability was not changed.");
+      return;
+    }
+
+    if (result.kind === "conflict") {
+      res.status(409).json({ error: "The saved platform draft changed. Reload the product and retry." });
+    } else if (result.kind === "unavailable") {
+      commerceUnavailable(res, new Error("JusticeSure catalogue unavailable"), "draft_catalogue_check", "JusticeSure catalogue could not be revalidated. Availability was not changed.");
+    } else if (result.kind === "invalid") {
+      res.status(400).json({ error: result.error, issues: result.issues });
+    } else {
+      res.json(result.row);
+    }
+  },
+);
+
+router.post(
+  "/staff/content/platform/catalogue/approve",
+  requireStaffRoles("owner", "administrator"),
+  async (req, res): Promise<void> => {
+    const body = z.object({
+      slugs: z.array(catalogueSlug).min(1).max(1000),
+      expectedDraftUpdatedAt: z.string().datetime(),
+      acknowledged: z.literal(true),
+    }).strict().safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "Provide product slugs, the current draft timestamp, and acknowledged: true." });
+      return;
+    }
+    if (new Set(body.data.slugs).size !== body.data.slugs.length) {
+      res.status(400).json({ error: "Duplicate product slugs are not allowed." });
+      return;
+    }
+    const expected = new Date(body.data.expectedDraftUpdatedAt);
+    await ensurePlatformContent();
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+      const [row] = await tx.select().from(siteContentTable).where(and(
+        eq(siteContentTable.key, "platform"),
+        eq(siteContentTable.draftUpdatedAt, expected),
+      )).limit(1);
+      if (!row) return { kind: "conflict" as const };
+      const content = PlatformContentSchema.safeParse(row.draft);
+      if (!content.success) return { kind: "invalid" as const, error: "The saved draft is invalid.", issues: content.error.issues };
+      const selected = body.data.slugs.map((slug) => content.data.products.find((product) => product.slug === slug));
+      if (selected.some((product) => !product)) {
+        return { kind: "invalid" as const, error: "One or more selected products are not in the saved draft.", issues: [] };
+      }
+      const products = selected as PlatformContent["products"];
+      const selectedContent = { ...content.data, products };
+      const issues = [
+        ...unfinishedProductImages(selectedContent),
+        ...await validateProductMediaAssets(selectedContent),
+        ...validateAccessoryProductPublication(selectedContent),
+        ...validateLegacyProductPublication(selectedContent, undefined, new Set(products.map((product) => product.slug))),
+        ...products.filter((product) => !product.commerceMappingConfirmation)
+          .map((product) => ({ path: ["products", product.slug, "commerceMappingConfirmation"], message: `${product.slug}: confirm its current JusticeSure mapping before business approval.` })),
+      ];
+      if (issues.length) return { kind: "invalid" as const, error: "Selected products are not ready for business approval.", issues };
+      let commerceIssues: string[];
+      try {
+        commerceIssues = await validateCurrentCommerceMappings(products, true);
+      } catch {
+        return { kind: "unavailable" as const };
+      }
+      if (commerceIssues.length) {
+        return { kind: "invalid" as const, error: "JusticeSure mappings did not pass fresh approval checks.", issues: commerceIssues };
+      }
+      const [approvalRow] = await tx.select().from(siteContentTable)
+        .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+      const ledger = parseCatalogueBusinessApprovalLedger(approvalRow?.draft);
+      const approvedAt = new Date().toISOString();
+      for (const product of products) {
+        ledger.approvals[product.slug] = {
+          fingerprint: productBusinessFingerprint(product),
+          actorClerkUserId: req.staff!.clerkUserId,
+          approvedAt,
+        };
+      }
+      const [saved] = await tx.insert(siteContentTable).values({
+        key: CATALOGUE_BUSINESS_APPROVALS_KEY,
+        draft: ledger,
+        published: {},
+        draftUpdatedAt: new Date(),
+        updatedByClerkUserId: req.staff!.clerkUserId,
+      }).onConflictDoUpdate({
+        target: siteContentTable.key,
+        set: { draft: ledger, draftUpdatedAt: new Date(), updatedByClerkUserId: req.staff!.clerkUserId },
+      }).returning({ key: siteContentTable.key });
+      await tx.insert(auditLogsTable).values({
+        actorClerkUserId: req.staff!.clerkUserId,
+        action: "platform_content.catalogue_business_approved",
+        entityType: "site_content",
+        entityId: CATALOGUE_BUSINESS_APPROVALS_KEY,
+        metadata: {
+          slugs: products.map((product) => product.slug),
+          approvedAt,
+          fingerprints: Object.fromEntries(products.map((product) => [product.slug, productBusinessFingerprint(product)])),
+        },
+      });
+      return { kind: "approved" as const, approvedSlugs: products.map((product) => product.slug), key: saved!.key };
+    });
+    if (result.kind === "conflict") {
+      res.status(409).json({ error: "The saved draft changed before approval. Reload and review it again." });
+    } else if (result.kind === "invalid") {
+      res.status(400).json({ error: result.error, issues: result.issues });
+    } else if (result.kind === "unavailable") {
+      res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. No approval was saved." });
+    } else {
+      res.json({ approvedSlugs: result.approvedSlugs });
+    }
+  },
+);
 
 const editablePlatformSections = [
   "site", "homepage", "pages", "collections", "sizeGuide", "productCopy", "supportCopy", "interfaceCopy",
@@ -789,6 +1293,162 @@ router.put("/staff/content/platform", platformRoles, async (req, res): Promise<v
   acknowledgeCommittedPlatformDraft(res, result.row);
 });
 
+router.post("/staff/content/platform/catalogue/publish-confirmed", platformRoles, async (req, res): Promise<void> => {
+  const body = z.object({
+    slugs: z.array(catalogueSlug).min(1).max(1000),
+    expectedDraftUpdatedAt: z.string().datetime(),
+    expectedPublishedAt: z.string().datetime(),
+  }).strict().safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Provide product slugs and the current draft and published timestamps." });
+    return;
+  }
+  if (new Set(body.data.slugs).size !== body.data.slugs.length) {
+    res.status(400).json({ error: "Duplicate product slugs are not allowed." });
+    return;
+  }
+  const expectedDraft = new Date(body.data.expectedDraftUpdatedAt);
+  const expectedPublished = new Date(body.data.expectedPublishedAt);
+  await ensurePlatformContent();
+
+  const validateSavedSnapshot = async (
+    draftValue: unknown,
+    publishedValue: unknown,
+    ledgerValue: unknown,
+  ): Promise<{ candidate: PlatformContent; issues: unknown[]; prunedReferences: string[] } | { error: string; issues: unknown[] } | { unavailable: true }> => {
+    const draft = PlatformContentSchema.safeParse(draftValue);
+    const published = PlatformContentSchema.safeParse(publishedValue);
+    if (!draft.success) return { error: "The saved draft or published catalogue is invalid.", issues: draft.error.issues };
+    if (!published.success) return { error: "The saved draft or published catalogue is invalid.", issues: published.error.issues };
+    const confirmed = confirmedNonAccessoryProducts(draft.data);
+    const expectedSlugs = confirmed.map((product) => product.slug).sort();
+    const suppliedSlugs = [...body.data.slugs].sort();
+    if (expectedSlugs.length !== suppliedSlugs.length || expectedSlugs.some((slug, index) => slug !== suppliedSlugs[index])) {
+      return {
+        error: "Select every saved confirmed non-accessory product exactly once; no other products can be included.",
+        issues: [`Expected ${expectedSlugs.length} confirmed non-accessory products.`, ...expectedSlugs.map((slug) => `Required product: ${slug}`)],
+      };
+    }
+    const selected = confirmed;
+    const { candidate: candidateBase, prunedReferences } = buildConfirmedCatalogueCandidate(published.data, selected);
+    const references = [...new Set(published.data.products
+      .filter((product) => !expectedSlugs.includes(product.slug))
+      .flatMap((product) => platformProductReferences(candidateBase, product.slug)
+        .map((path) => `${path} references omitted product ${product.slug}`)))];
+    if (references.length) {
+      return { error: "Update public product references before releasing this exact catalogue.", issues: references };
+    }
+    const candidateResult = PlatformContentSchema.safeParse(candidateBase);
+    if (!candidateResult.success) {
+      return { error: "Published editorial content needs updates before the exact catalogue can be released.", issues: candidateResult.error.issues };
+    }
+    const candidate = candidateResult.data;
+    const selectedContent = { ...draft.data, products: selected };
+    const approvals = validBusinessApprovalSlugs(draft.data, ledgerValue);
+    const issues = [
+      ...selected.filter((product) => !approvals.has(product.slug))
+        .map((product) => `${product.slug}: explicit business approval is required for this exact product snapshot.`),
+      ...unfinishedProductImages(selectedContent),
+      ...await validateProductMediaAssets(selectedContent),
+      ...validateLegacyProductPublication(selectedContent, undefined, approvals),
+      ...validateAccessoryProductPublication(candidate),
+      ...await validateHomepageHeroMediaAssets(candidate),
+      ...await validateHomepageMerchandisingMediaAssets(candidate),
+      ...await validateProductMediaAssets(candidate),
+      ...await validateCollectionMediaAssets(candidate),
+    ];
+    if (issues.length) return { error: "Confirmed products did not pass catalogue publication checks.", issues };
+    try {
+      const commerceIssues = await validateCurrentCommerceMappings(selected, true);
+      if (commerceIssues.length) {
+        return { error: "JusticeSure mappings did not pass fresh publication checks.", issues: commerceIssues };
+      }
+    } catch {
+      return { unavailable: true };
+    }
+    return { candidate, issues: [], prunedReferences };
+  };
+
+  const [preflightRow] = await db.select().from(siteContentTable).where(and(
+    eq(siteContentTable.key, "platform"),
+    eq(siteContentTable.draftUpdatedAt, expectedDraft),
+    eq(siteContentTable.publishedAt, expectedPublished),
+  )).limit(1);
+  if (!preflightRow) {
+    res.status(409).json({ error: "Platform content changed before it could be published." });
+    return;
+  }
+  const [preflightLedger] = await db.select({ draft: siteContentTable.draft }).from(siteContentTable)
+    .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+  const preflight = await validateSavedSnapshot(preflightRow.draft, preflightRow.published, preflightLedger?.draft);
+  if ("unavailable" in preflight) {
+    commerceUnavailable(res, new Error("JusticeSure catalogue unavailable"), "publication_catalogue_read", "JusticeSure catalogue could not be revalidated. Nothing was published.");
+    return;
+  }
+  if ("error" in preflight) {
+    res.status(400).json({ error: preflight.error, issues: preflight.issues });
+    return;
+  }
+
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const [row] = await tx.select().from(siteContentTable).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      eq(siteContentTable.publishedAt, expectedPublished),
+    )).limit(1);
+    if (!row) return { kind: "conflict" as const };
+    const [ledgerRow] = await tx.select({ draft: siteContentTable.draft }).from(siteContentTable)
+      .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+    const checked = await validateSavedSnapshot(row.draft, row.published, ledgerRow?.draft);
+    if ("unavailable" in checked) return { kind: "unavailable" as const };
+    if ("error" in checked) return { kind: "invalid" as const, error: checked.error, issues: checked.issues };
+    const now = new Date();
+    const [updated] = await tx.update(siteContentTable).set({
+      published: checked.candidate,
+      publishedAt: now,
+      publishedByClerkUserId: req.staff!.clerkUserId,
+    }).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      eq(siteContentTable.publishedAt, expectedPublished),
+    )).returning();
+    if (!updated) return { kind: "conflict" as const };
+    const hash = platformContentHash(checked.candidate);
+    const [revision] = await tx.insert(siteContentRevisionsTable).values({
+      contentKey: "platform", event: "published_confirmed_catalogue",
+      snapshot: checked.candidate, contentHash: hash,
+      createdByClerkUserId: req.staff!.clerkUserId,
+    }).returning({ id: siteContentRevisionsTable.id });
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId,
+      action: "platform_content.confirmed_catalogue_published",
+      entityType: "site_content",
+      entityId: "platform",
+      metadata: {
+        slugs: checked.candidate.products.map((product) => product.slug),
+        contentHash: hash,
+        revisionId: revision!.id,
+        publishedAt: now.toISOString(),
+        prunedReferences: checked.prunedReferences,
+      },
+    });
+    return { kind: "published" as const, row: updated, prunedReferences: checked.prunedReferences };
+  });
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: "The saved draft, published catalogue, or approval snapshot changed before publication." });
+  } else if (result.kind === "invalid") {
+    res.status(400).json({ error: result.error, issues: result.issues });
+  } else if (result.kind === "unavailable") {
+    res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. Nothing was published." });
+  } else {
+    const publicationNote = result.prunedReferences.length
+      ? `Published the exact confirmed catalogue with these published mega-menu adjustments: ${result.prunedReferences.join("; ")}.`
+      : "Published the exact confirmed catalogue without pruning published mega-menu references.";
+    res.json({ ...result.row, publicationNote });
+  }
+});
+
 router.post("/staff/content/platform/publish", platformRoles, async (req, res): Promise<void> => {
   const expected = expectedDraftDate(req.body?.expectedDraftUpdatedAt);
   if (!expected) { res.status(400).json({ error: "expectedDraftUpdatedAt is required" }); return; }
@@ -806,7 +1466,10 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     res.status(400).json({ error: "Finish product images before publishing", issues: unfinishedImages });
     return;
   }
-  const legacyProductIssues = validateLegacyProductPublication(candidateContent.data);
+  const [preflightApprovalRow] = await db.select({ draft: siteContentTable.draft }).from(siteContentTable)
+    .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+  const preflightApprovals = validBusinessApprovalSlugs(candidateContent.data, preflightApprovalRow?.draft);
+  const legacyProductIssues = validateLegacyProductPublication(candidateContent.data, undefined, preflightApprovals);
   if (legacyProductIssues.length > 0) {
     res.status(400).json({
       error: "Legacy products did not pass publishing checks",
@@ -849,7 +1512,29 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     if (!current) return { kind: "conflict" as const };
     const parsed = PlatformContentSchema.safeParse(current.draft);
     if (!parsed.success) return { kind: "invalid" as const, issues: parsed.error.issues };
-    const legacyProductIssues = validateLegacyProductPublication(parsed.data);
+    const [approvalRow] = await tx.select({ draft: siteContentTable.draft }).from(siteContentTable)
+      .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+    const approvals = validBusinessApprovalSlugs(parsed.data, approvalRow?.draft);
+    const lockedUnfinished = unfinishedProductImages(parsed.data);
+    const lockedMedia = [
+      ...await validateHomepageHeroMediaAssets(parsed.data),
+      ...await validateHomepageMerchandisingMediaAssets(parsed.data),
+      ...await validateProductMediaAssets(parsed.data),
+      ...await validateCollectionMediaAssets(parsed.data),
+    ];
+    if (lockedUnfinished.length || lockedMedia.length) {
+      return { kind: "locked_media_invalid" as const, issues: [...lockedUnfinished, ...lockedMedia] };
+    }
+    let lockedCommerceIssues: string[];
+    try {
+      lockedCommerceIssues = await validateCurrentCommerceMappings(parsed.data.products, true);
+    } catch {
+      return { kind: "commerce_unavailable" as const };
+    }
+    if (lockedCommerceIssues.length) {
+      return { kind: "commerce_invalid" as const, issues: lockedCommerceIssues };
+    }
+    const legacyProductIssues = validateLegacyProductPublication(parsed.data, undefined, approvals);
     if (legacyProductIssues.length > 0) {
       return { kind: "legacy_invalid" as const, issues: legacyProductIssues };
     }
@@ -883,6 +1568,18 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     res.status(400).json({ error: "Accessories did not pass publishing checks", issues: result.issues });
     return;
   }
+  if (result.kind === "locked_media_invalid") {
+    res.status(400).json({ error: "Storefront media changed before publication.", issues: result.issues });
+    return;
+  }
+  if (result.kind === "commerce_invalid") {
+    res.status(400).json({ error: "JusticeSure mappings did not pass locked publication checks.", issues: result.issues });
+    return;
+  }
+  if (result.kind === "commerce_unavailable") {
+    res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. Nothing was published." });
+    return;
+  }
   res.json(result.row);
 });
 
@@ -895,6 +1592,35 @@ router.post("/staff/content/platform/products/:slug/publish", platformRoles, asy
     return;
   }
   await ensurePlatformContent();
+  const [preflight] = await db.select().from(siteContentTable).where(and(
+    eq(siteContentTable.key, "platform"),
+    eq(siteContentTable.draftUpdatedAt, expectedDraft),
+    eq(siteContentTable.publishedAt, expectedPublished),
+  )).limit(1);
+  if (!preflight) {
+    res.status(409).json({ error: "The saved draft or published catalogue changed. Reload before publishing this product." });
+    return;
+  }
+  const preflightDraft = PlatformContentSchema.safeParse(preflight.draft);
+  if (!preflightDraft.success) {
+    res.status(400).json({ error: "The saved draft is invalid.", issues: preflightDraft.error.issues });
+    return;
+  }
+  const preflightProduct = preflightDraft.data.products.find((item) => item.slug === slug.data);
+  if (preflightProduct) {
+    const [approvalRow] = await db.select({ draft: siteContentTable.draft }).from(siteContentTable)
+      .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+    const approvals = validBusinessApprovalSlugs(preflightDraft.data, approvalRow?.draft);
+    const legacyIssues = validateLegacyProductPublication(
+      { ...preflightDraft.data, products: [preflightProduct] },
+      undefined,
+      approvals,
+    );
+    if (legacyIssues.length) {
+      res.status(400).json({ error: "Legacy product approval is required.", issues: legacyIssues });
+      return;
+    }
+  }
   const result = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
     const [row] = await tx.select().from(siteContentTable).where(and(
@@ -928,7 +1654,10 @@ router.post("/staff/content/platform/products/:slug/publish", platformRoles, asy
     if (unfinished.length) {
       return { kind: "invalid" as const, error: "Finish this product’s images before publishing it.", issues: unfinished };
     }
-    const legacyIssues = validateLegacyProductPublication(selectedContent);
+    const [approvalRow] = await tx.select({ draft: siteContentTable.draft }).from(siteContentTable)
+      .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
+    const approvals = validBusinessApprovalSlugs(draft.data, approvalRow?.draft);
+    const legacyIssues = validateLegacyProductPublication(selectedContent, undefined, approvals);
     if (legacyIssues.length) return { kind: "invalid" as const, error: "Legacy product approval is required.", issues: legacyIssues };
     const accessoryIssues = validateAccessoryProductPublication(selectedContent);
     if (accessoryIssues.length) return { kind: "invalid" as const, error: "Accessory publication checks failed.", issues: accessoryIssues };

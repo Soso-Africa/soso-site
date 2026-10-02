@@ -32,6 +32,7 @@ test("publish errors show each JusticeSure rejection instead of only HTTP 400", 
   });
   assert.match(platformActionError(error, "Could not publish"), /shirt-one: confirm the current high-confidence/);
   assert.match(platformActionError({ data: { issues: [{ path: ["products", 0, "img"], message: "Missing image" }] } }, "Could not save"), /products\.0\.img: Missing image/);
+  assert.match(platformActionError({ data: { issues: [{ productSlug: "minimal-cocoa", message: "Business approval required" }] } }, "Could not publish"), /minimal-cocoa: Business approval required/);
   const manyIssues = Array.from({ length: 18 }, (_, index) => `product-${index}: needs a mapping`);
   assert.match(platformActionError({ data: { issues: manyIssues } }, "Could not publish"), /product-17: needs a mapping/);
 });
