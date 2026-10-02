@@ -26,6 +26,7 @@ import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { PlatformContentSchema } from "../lib/platform-content";
 import { publicCatalogueContent } from "../lib/public-catalogue-checkout";
+import { commerceActivationEnabled } from "../lib/commerce-activation";
 import { ACCESSORY_LAUNCH_NOTIFICATION_POLICY_VERSION, isPublishedUnavailableAccessory } from "../lib/accessory-launch-notifications";
 
 const router: IRouter = Router();
@@ -223,7 +224,12 @@ router.get("/content/platform", async (_req, res): Promise<void> => {
   }
   const parsed = PlatformContentSchema.safeParse(row.content);
   if (!parsed.success) { res.status(500).json({ error: "Published platform content is invalid" }); return; }
-  res.json({ content: publicCatalogueContent(parsed.data, process.env.JUSTICESURE_COMMERCE_RUNTIME_READY === "true"), publishedAt: row.publishedAt });
+  const checkoutEnabled = await commerceActivationEnabled();
+  res.json({
+    content: publicCatalogueContent(parsed.data, checkoutEnabled),
+    publishedAt: row.publishedAt,
+    checkoutEnabled,
+  });
 });
 
 router.get("/journal/:slug", async (req, res): Promise<void> => {

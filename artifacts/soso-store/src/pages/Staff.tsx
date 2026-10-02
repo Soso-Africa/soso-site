@@ -7,6 +7,7 @@ import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatal
 import { productDeletionReferences } from "../components/staff/product/catalogue-delete";
 import { platformActionError } from "../components/staff/platform-action-error";
 import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
+import { CommerceActivationPanel } from "../components/staff/CommerceActivationPanel";
 import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
 import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
@@ -79,6 +80,7 @@ import {
   Package,
   PenLine,
   Plus,
+  Power,
   Save,
   ShieldAlert,
   ShieldCheck,
@@ -177,7 +179,7 @@ function formatDateSafe(value: string | Date | null | undefined, pattern: string
   return Number.isNaN(date.getTime()) ? fallback : format(date, pattern);
 }
 
-type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "media-cleanup" | "redirects" | "marketing-pixels" | "analytics" | "staff";
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "media-cleanup" | "redirects" | "marketing-pixels" | "analytics" | "staff" | "commerce-activation";
 type StaffNavGroup = {
   label: string;
   items: { id: StaffTab; label: string; icon: React.ElementType }[];
@@ -243,6 +245,7 @@ export default function Staff() {
   }
   if (profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "operations") availableTabs.add("redirects");
   if (profile?.role === "owner" || profile?.role === "administrator") availableTabs.add("marketing-pixels");
+  if (profile) availableTabs.add("commerce-activation");
   if (canSeeAnalytics) availableTabs.add("analytics");
   if (profile?.role === "owner") availableTabs.add("staff");
 
@@ -282,6 +285,7 @@ export default function Staff() {
       staffNavItem("journal", "Journal", PenLine), staffNavItem("platform", "Platform content", Globe), staffNavItem("faq", "FAQs", FileText),
     ] : [] },
     { label: "Governance", items: [
+      staffNavItem("commerce-activation", "Checkout activation", Power),
       ...(isEditorial ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
       ...(isEditorial ? [staffNavItem("media-cleanup", "Media cleanup", Images)] : []),
       ...((profile.role === "owner" || profile.role === "administrator" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
@@ -371,6 +375,7 @@ export default function Staff() {
         {activeTab === "accessory-launch-notifications" && <AccessoryLaunchNotificationsSection range={range} data={accessoryLaunchNotifications.data} loading={accessoryLaunchNotifications.isLoading} error={accessoryLaunchNotifications.isError} summary={accessoryLaunchNotificationSummary.data} summaryLoading={accessoryLaunchNotificationSummary.isLoading} summaryError={accessoryLaunchNotificationSummary.isError} />}
         {activeTab === "journal" && <JournalManagementSection />}
         {activeTab === "platform" && <PlatformContentManagementSection />}
+        {activeTab === "commerce-activation" && <CommerceActivationPanel role={profile.role} />}
         {activeTab === "faq" && <FaqManagementSection />}
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
         {activeTab === "media-cleanup" && <MediaCleanupSection />}

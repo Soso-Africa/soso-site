@@ -287,6 +287,9 @@ export default function ProductDetail() {
   const purchaseChoices = mappedPurchaseChoices(product);
   const standardSizes = visibleStandardSizes(product);
   const hasMappedChoices = purchaseChoices.length > 0;
+  // Older platform responses do not expose the production commerce flag; preserve
+  // their existing behaviour while honoring the authoritative backend value.
+  const checkoutEnabled = platform.data?.checkoutEnabled !== false;
 
   const needSize = size === null;
   const needCustomColour = selectedColourId === "custom" && !customColour.trim();
@@ -294,7 +297,7 @@ export default function ProductDetail() {
   const isUnavailable = product.fulfilmentState === "unavailable";
 
   const handleAddToCart = () => {
-    if (needSize || needCustomColour || isUnavailable || !isPurchasable || !size) return;
+    if (needSize || needCustomColour || isUnavailable || !checkoutEnabled || !isPurchasable || !size) return;
     const variantId = product.commerceVariantIds?.[size];
 
     if (selectedColourId === "custom" && !customColour.trim()) return;
@@ -464,7 +467,7 @@ export default function ProductDetail() {
           {/* Colour / Sizing / Purchase Options */}
           {product.fulfilmentState !== "unavailable" && (
             <div className="mt-8 space-y-8">
-              {!hasMappedChoices && (
+              {!hasMappedChoices && checkoutEnabled && (
                 <p role="status" className="border border-black/10 p-4 text-sm opacity-75" data-testid="status-product-unmapped">
                   {productCopy.productUnmappedPurchaseMessage}
                 </p>
@@ -618,6 +621,9 @@ export default function ProductDetail() {
                 </div>
               )}
               {!product.customEligible && <p className="border border-black/10 p-4 text-sm opacity-65">{productCopy.customUnavailableMessage}</p>}
+              {!checkoutEnabled && <p role="status" className="border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" data-testid="status-online-purchase-paused">
+                Online purchase is currently paused. Your selected size remains available; please check back later or contact our team for help.
+              </p>}
             </div>
           )}
 
@@ -625,8 +631,8 @@ export default function ProductDetail() {
           <div className="mt-8 space-y-3">
             <button
               onClick={handleAddToCart}
-              disabled={needSize || needCustomColour || isUnavailable || !isPurchasable}
-              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 border ${!needSize && !needCustomColour && !isUnavailable && isPurchasable ? "hover:opacity-90 border-foreground bg-foreground text-background" : "cursor-not-allowed opacity-50 border-border bg-muted text-muted-foreground"}`}
+              disabled={needSize || needCustomColour || isUnavailable || !checkoutEnabled || !isPurchasable}
+              className={`w-full py-4 text-[13px] tracking-[0.25em] uppercase font-bold transition-all duration-300 border ${!needSize && !needCustomColour && !isUnavailable && checkoutEnabled && isPurchasable ? "hover:opacity-90 border-foreground bg-foreground text-background" : "cursor-not-allowed opacity-50 border-border bg-muted text-muted-foreground"}`}
               data-testid="button-add-to-cart"
             >
               {isUnavailable
@@ -635,7 +641,9 @@ export default function ProductDetail() {
                   ? productCopy.sizeRequiredLabel
                   : needCustomColour
                     ? "Enter Custom Colour"
-                    : !isPurchasable
+                    : !checkoutEnabled
+                      ? "Online purchase paused"
+                      : !isPurchasable
                       ? productCopy.unavailableInSizeLabel
                       : `${productCopy.addToBagLabel.replace(/bag/i, 'Cart')}${productCopy.addToBagPriceSeparator}${naira(product.price)}`}
             </button>
@@ -753,11 +761,11 @@ export default function ProductDetail() {
         </div>
         <button
           onClick={handleAddToCart}
-          disabled={needSize || needCustomColour || isUnavailable || !isPurchasable}
-          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all border ${needSize || needCustomColour || isUnavailable || !isPurchasable ? "opacity-50 cursor-not-allowed border-border bg-muted text-muted-foreground" : "border-foreground bg-foreground text-background"}`}
+          disabled={needSize || needCustomColour || isUnavailable || !checkoutEnabled || !isPurchasable}
+          className={`px-6 py-3 text-[12px] tracking-[0.2em] uppercase font-bold transition-all border ${needSize || needCustomColour || isUnavailable || !checkoutEnabled || !isPurchasable ? "opacity-50 cursor-not-allowed border-border bg-muted text-muted-foreground" : "border-foreground bg-foreground text-background"}`}
           data-testid="button-mobile-add-to-cart"
         >
-          {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : needCustomColour ? "Colour Required" : !isPurchasable ? productCopy.unavailableInSizeLabel : productCopy.addToBagLabel.replace(/bag/i, 'Cart')}
+          {isUnavailable ? productCopy.unavailableLabel : needSize ? productCopy.mobileSizeRequiredLabel : needCustomColour ? "Colour Required" : !checkoutEnabled ? "Online purchase paused" : !isPurchasable ? productCopy.unavailableInSizeLabel : productCopy.addToBagLabel.replace(/bag/i, 'Cart')}
         </button>
       </div>
 

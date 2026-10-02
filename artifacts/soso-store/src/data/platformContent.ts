@@ -319,7 +319,7 @@ export type PlatformContent = {
   };
 };
 
-export type PublishedPlatformContent = { content: PlatformContent; publishedAt: string };
+export type PublishedPlatformContent = { content: PlatformContent; publishedAt: string; checkoutEnabled?: boolean };
 
 export const platformContentQueryKey = ["platform-content"] as const;
 
