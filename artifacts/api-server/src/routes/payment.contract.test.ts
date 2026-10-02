@@ -12,7 +12,7 @@ import {
 } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import app from "../app";
-import { checkoutRequestHash, hasOwnership, quoteMatchesRequestedCheckout, remoteStatus, sameImmutableQuote, shouldRecoverPaymentAttempt } from "./payment";
+import { checkoutRequestHash, hasOwnership, paymentSessionRequestBodyForAttempt, quoteMatchesRequestedCheckout, remoteStatus, sameImmutableQuote, shouldRecoverPaymentAttempt } from "./payment";
 import type { JusticeSureOrder } from "../lib/justicesureCommerce";
 
 const checkout = {
@@ -84,6 +84,19 @@ test("live payment recovery requires a persisted UUID and is bounded to ten seco
   assert.equal(shouldRecoverPaymentAttempt("payment_pending", "paystack", null, null, now), false);
   assert.equal(shouldRecoverPaymentAttempt("payment_pending", "paystack", "not-a-uuid", null, now), false);
   assert.equal(shouldRecoverPaymentAttempt("payment_pending", "simulated", remoteAttemptId, null, now), false);
+});
+
+test("Paystack payment sessions use the approved callback URL and only repair explicitly rejected durable intent", () => {
+  const callbackUrl = "https://shopsoso.co/checkout/return";
+  assert.deepEqual(paymentSessionRequestBodyForAttempt(null, "paystack", "buyer@example.test", callbackUrl, null), {
+    provider: "paystack", email: "buyer@example.test", redirectUrl: callbackUrl,
+  });
+
+  const rejected = { provider: "paystack" as const, email: "buyer@example.test" };
+  assert.deepEqual(paymentSessionRequestBodyForAttempt(rejected, "paystack", "buyer@example.test", callbackUrl, "PLATFORM_CALLBACK_URL_REQUIRED"), {
+    ...rejected, redirectUrl: callbackUrl,
+  });
+  assert.equal(paymentSessionRequestBodyForAttempt(rejected, "paystack", "buyer@example.test", callbackUrl, "OTHER_ERROR"), rejected);
 });
 
 test("quote confirmation rejects changed line, fulfillment, expiry, and monetary authority", () => {

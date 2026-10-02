@@ -168,6 +168,29 @@ function isValidPickupLocation(locations: unknown[], locationId: string | undefi
   return validLocations.length === 1 && (validLocations[0] as Record<string, unknown>).id === locationId;
 }
 
+export function paymentSessionRequestBodyForAttempt(
+  stored: import("../lib/justicesureCommerce").JusticeSurePaymentSessionRequestBody | null,
+  provider: JusticeSureProvider,
+  email: string,
+  callbackUrl: string | undefined,
+  previousErrorCode: string | null,
+): import("../lib/justicesureCommerce").JusticeSurePaymentSessionRequestBody {
+  if (!stored) {
+    return {
+      provider,
+      email,
+      ...(callbackUrl ? { redirectUrl: callbackUrl } : {}),
+    };
+  }
+  // Only repair a previously rejected durable payload when JusticeSure
+  // explicitly said its required callback was missing. Other stored intent
+  // remains byte-for-byte stable for safe idempotent retries.
+  if (previousErrorCode === "PLATFORM_CALLBACK_URL_REQUIRED" && !stored.redirectUrl && callbackUrl) {
+    return { ...stored, redirectUrl: callbackUrl };
+  }
+  return stored;
+}
+
 export function shouldRecoverPaymentAttempt(
   status: string,
   provider: string | null,
@@ -812,15 +835,18 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
       .update(commerceCheckoutAttemptsTable)
       .set({ justiceSureOrderId: order.id, status: attemptStatus(order) })
       .where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
-    const paymentSessionRequestBody = (attempt.paymentSessionRequestBody as import("../lib/justicesureCommerce").JusticeSurePaymentSessionRequestBody | null) ?? {
-      provider: quoteSnapshot.payment.provider,
-      email: attempt.customerEmail,
-      ...(quoteSnapshot.payment.provider === "flutterwave" ? { redirectUrl: config.paymentReturnUrl } : {}),
-    };
+    const storedPaymentSessionRequestBody = attempt.paymentSessionRequestBody as import("../lib/justicesureCommerce").JusticeSurePaymentSessionRequestBody | null;
+    const paymentSessionRequestBody = paymentSessionRequestBodyForAttempt(
+      storedPaymentSessionRequestBody,
+      quoteSnapshot.payment.provider,
+      attempt.customerEmail,
+      config.paymentReturnUrl,
+      attempt.lastErrorCode,
+    );
     if (paymentSessionRequestBody.provider !== quoteSnapshot.payment.provider) {
       throw new JusticeSureRequestError("The persisted payment-session body does not match immutable quote authority.", 409, "QUOTE_EXPIRED_REQUOTE_REQUIRED");
     }
-    if (!attempt.paymentSessionRequestBody) {
+    if (!storedPaymentSessionRequestBody || paymentSessionRequestBody !== storedPaymentSessionRequestBody) {
       await db.update(commerceCheckoutAttemptsTable).set({ paymentSessionRequestBody })
         .where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
     }
