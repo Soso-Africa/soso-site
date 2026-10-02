@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode, useEffect, useState } from 'react';
+import { Suspense, type ReactNode, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -15,25 +15,26 @@ import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-reac
 import { customFetch } from '@workspace/api-client-react';
 import { usePlatformContent } from '@/data/platformContent';
 import { legacyRedirectByPath } from '@/data/legacy-redirects';
+import { lazyPage } from '@/lib/lazyPage';
 
 import Home from '@/pages/Home';
 
-const About = lazy(() => import('@/pages/About'));
-const Checkout = lazy(() => import('@/pages/Checkout'));
-const CollectionPage = lazy(() => import('@/pages/CollectionPage'));
-const FAQ = lazy(() => import('@/pages/FAQ'));
-const Journal = lazy(() => import('@/pages/Journal'));
-const JournalPost = lazy(() => import('@/pages/JournalPost'));
-const JournalPreview = lazy(() => import('@/pages/JournalPreview'));
-const LegacyAboutPage = lazy(() => import('@/pages/LegacyAboutPage'));
-const NotFound = lazy(() => import('@/pages/not-found'));
-const PaymentReturn = lazy(() => import('@/pages/PaymentReturn'));
-const Policy = lazy(() => import('@/pages/Policy'));
-const PolicyHub = lazy(() => import('@/pages/PolicyHub'));
-const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
-const Shop = lazy(() => import('@/pages/Shop'));
-const SignIn = lazy(() => import('@/pages/SignIn'));
-const Staff = lazy(() => import('@/pages/Staff'));
+const About = lazyPage(() => import('@/pages/About'));
+const Checkout = lazyPage(() => import('@/pages/Checkout'));
+const CollectionPage = lazyPage(() => import('@/pages/CollectionPage'));
+const FAQ = lazyPage(() => import('@/pages/FAQ'));
+const Journal = lazyPage(() => import('@/pages/Journal'));
+const JournalPost = lazyPage(() => import('@/pages/JournalPost'));
+const JournalPreview = lazyPage(() => import('@/pages/JournalPreview'));
+const LegacyAboutPage = lazyPage(() => import('@/pages/LegacyAboutPage'));
+const NotFound = lazyPage(() => import('@/pages/not-found'));
+const PaymentReturn = lazyPage(() => import('@/pages/PaymentReturn'));
+const Policy = lazyPage(() => import('@/pages/Policy'));
+const PolicyHub = lazyPage(() => import('@/pages/PolicyHub'));
+const ProductDetail = lazyPage(() => import('@/pages/ProductDetail'));
+const Shop = lazyPage(() => import('@/pages/Shop'));
+const SignIn = lazyPage(() => import('@/pages/SignIn'));
+const Staff = lazyPage(() => import('@/pages/Staff'));
 
 const queryClient = new QueryClient();
 
@@ -107,7 +108,8 @@ function ReturnsRedirect() {
 
 function RoutedErrorBoundary({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  return <ErrorBoundary resetKey={location}>{children}</ErrorBoundary>;
+  const recoveryHref = isPrivateStorefrontPath(location) ? undefined : "/shop";
+  return <ErrorBoundary resetKey={location} recoveryHref={recoveryHref}>{children}</ErrorBoundary>;
 }
 
 function App() {

@@ -351,7 +351,11 @@ export default function Shop() {
         </div>
       </div>
 
-      {filteredProducts.length === 0 ? <div className="border border-border bg-muted/20 py-24 text-center">
+      {filteredProducts.length === 0 && activeDepartment === "accessories" && !hasRefinements ? <div className="border border-border bg-muted/20 py-24 text-center" data-testid="accessories-coming-soon">
+        <p role="status" className="soso-display text-3xl text-foreground">Accessories are coming soon</p>
+        <p className="mx-auto mt-4 max-w-md text-sm text-secondary">We are finishing this department. Browse the rest of the SOSO collection in the meantime.</p>
+        <button type="button" onClick={() => updateParams({ department: "men" })} className="mt-6 border border-foreground px-6 py-3 text-[11px] uppercase tracking-widest text-foreground hover:bg-foreground hover:text-background">Shop Men</button>
+      </div> : filteredProducts.length === 0 ? <div className="border border-border bg-muted/20 py-24 text-center">
         <p role="status" className="text-sm uppercase tracking-widest text-secondary" data-testid="text-empty-message">
           {hasRefinements ? copy.noSearchResultsMessage : copy.emptyMessage}
         </p>

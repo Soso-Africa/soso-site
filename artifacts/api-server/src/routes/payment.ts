@@ -45,6 +45,7 @@ import {
   validateMeasurementValues,
 } from "../lib/measurements";
 import { readPublishedPlatformContent } from "../lib/platform-content";
+import { commerceActivationEnabled, isNigerianCountry, matchesPlatformPrice } from "../lib/commerce-activation";
 
 const router: IRouter = Router();
 const OWNERSHIP_COOKIE = "soso_checkout_owner";
@@ -151,6 +152,20 @@ function isUuid(value: string | undefined): value is string {
 
 function isRemoteOrderId(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 200;
+}
+
+function isValidPickupLocation(locations: unknown[], locationId: string | undefined): boolean {
+  if (!locationId) return false;
+  const validLocations = locations.filter((value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const location = value as Record<string, unknown>;
+    return location.type === "shop"
+      && typeof location.name === "string" && Boolean(location.name.trim())
+      && typeof location.address === "string" && Boolean(location.address.trim())
+      && typeof location.city === "string" && Boolean(location.city.trim())
+      && isNigerianCountry(location.country);
+  });
+  return validLocations.length === 1 && (validLocations[0] as Record<string, unknown>).id === locationId;
 }
 
 export function shouldRecoverPaymentAttempt(
@@ -536,7 +551,12 @@ router.get("/payment/discovery", async (req, res): Promise<void> => {
       client.listCurrencies(), client.listPaymentMethods(country, currency), client.listFulfillmentCorridors(), client.listStoreFulfillmentOptions(),
     ]);
     // Only public-safe readiness and corridor metadata is exposed.
-    res.json({ currencies, paymentMethods, corridors, fulfillmentOptions });
+    res.json({
+      currencies,
+      paymentMethods,
+      corridors,
+      fulfillmentOptions: fulfillmentOptions.includes("pickup") ? ["pickup"] : [],
+    });
   } catch (error) {
     errorResponse(res, error);
   }
@@ -549,12 +569,6 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
     return;
   }
   try {
-    const client = new JusticeSureCommerceClient();
-    const availableFulfillment = await client.listStoreFulfillmentOptions();
-    if (!availableFulfillment.includes(body.fulfillment.type)) {
-      res.status(409).json({ error: "Selected fulfilment is not available from JusticeSure.", noPaymentTaken: true });
-      return;
-    }
     const requestHash = checkoutRequestHash(body);
     const orderIdempotencyKey = `order_${body.checkoutOperationId}`;
     const paymentIdempotencyKey = `payment_${body.checkoutOperationId}`;
@@ -573,6 +587,27 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
       res.json(quoteResponse(attempt.quoteSnapshot as Record<string, unknown>));
       return;
     }
+    if (!(await commerceActivationEnabled())) {
+      res.status(409).json({ error: "Checkout is paused or the secure payment runtime is not ready. No payment has been taken.", noPaymentTaken: true });
+      return;
+    }
+    if (body.fulfillment.type !== "pickup") {
+      res.status(409).json({ error: "Only pickup at the current SOSO HQ location is currently available.", noPaymentTaken: true });
+      return;
+    }
+    if (body.paymentProvider !== "paystack" || body.paymentMethod !== "card") {
+      res.status(409).json({ error: "Checkout currently accepts Paystack card payments only.", noPaymentTaken: true });
+      return;
+    }
+    const client = new JusticeSureCommerceClient();
+    const [availableFulfillment, locations] = await Promise.all([
+      client.listStoreFulfillmentOptions(),
+      client.listLocations(),
+    ]);
+    if (!availableFulfillment.includes("pickup") || !isValidPickupLocation(locations, body.fulfillment.locationId)) {
+      res.status(409).json({ error: "Select the current valid SOSO HQ pickup location.", noPaymentTaken: true });
+      return;
+    }
     if (!attempt) {
       const catalog = await client.listProducts();
       const storefront = await readPublishedPlatformContent();
@@ -581,6 +616,18 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
         : null;
       if (!resolved) {
         res.status(400).json({ error: "A selected product or size is no longer available for secure checkout." });
+        return;
+      }
+      const publishedPricesMatch = Boolean(storefront && resolved.every((item) => {
+        const product = catalog.find(({ id }) => id === item.productId);
+        const storefrontProduct = storefront.products.find(({ commerceProductId }) => commerceProductId === item.productId);
+        const variant = product?.variants.find(({ id }) => id === item.variantId);
+        return Boolean(product && storefrontProduct
+          && matchesPlatformPrice(storefrontProduct.price, product.amountKobo)
+          && variant && matchesPlatformPrice(storefrontProduct.price, variant.amountKobo));
+      }));
+      if (!publishedPricesMatch) {
+        res.status(409).json({ error: "A selected product or size no longer matches its published price. Refresh the catalogue before checkout.", noPaymentTaken: true });
         return;
       }
       const ownershipToken = randomOwnershipToken();
@@ -624,6 +671,9 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
     if (!quote.payment) throw new JusticeSureRequestError("JusticeSure did not return quote payment authority.", 502);
     if (quote.payment.provider !== body.paymentProvider || quote.payment.method !== body.paymentMethod) {
       throw new JusticeSureRequestError("JusticeSure returned quote payment authority different from the requested ready provider and method.", 502);
+    }
+    if (quote.chargeCurrency !== "NGN" || quote.settlementCurrency !== "NGN") {
+      throw new JusticeSureRequestError("JusticeSure did not authorize Paystack card charge and settlement in NGN.", 409);
     }
     // Creation response deliberately omits line/fulfillment details. Retrieve
     // the immutable quote and bind those authoritative facts before allowing
@@ -676,12 +726,6 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
 
 router.post("/payment/initiate", async (req, res): Promise<void> => {
   const config = justiceSureConfig();
-  if (!isJusticeSureCommerceReady(config)) {
-    errorResponse(res, new JusticeSureConfigurationError(
-      "Secure payment is not available while the JusticeSure v1 runtime and staging configuration are being verified. No payment has been taken.",
-    ));
-    return;
-  }
   const body = checkoutBody(req.body);
   if (!body || !body.quoteId || !body.displayCurrency || !body.paymentProvider || !body.paymentMethod) {
     res.status(400).json({ error: "Review a current immutable quote and choose a ready payment method before secure checkout." });
@@ -718,8 +762,35 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
     return;
   }
 
+  if (!(await commerceActivationEnabled())) {
+    res.status(409).json({ error: "Checkout is paused or the secure payment runtime is not ready. No payment has been taken.", noPaymentTaken: true });
+    return;
+  }
+  if (body.paymentProvider !== "paystack" || body.paymentMethod !== "card") {
+    res.status(409).json({ error: "Checkout currently accepts Paystack card payments only.", noPaymentTaken: true });
+    return;
+  }
+  if (!isJusticeSureCommerceReady(config)) {
+    errorResponse(res, new JusticeSureConfigurationError(
+      "Secure payment is not available while the JusticeSure v1 runtime and staging configuration are being verified. No payment has been taken.",
+    ));
+    return;
+  }
+
   try {
     const client = new JusticeSureCommerceClient(config);
+    if (body.fulfillment.type !== "pickup") {
+      res.status(409).json({ error: "Only pickup at the current SOSO HQ location is currently available.", noPaymentTaken: true });
+      return;
+    }
+    const [availableFulfillment, locations] = await Promise.all([
+      client.listStoreFulfillmentOptions(),
+      client.listLocations(),
+    ]);
+    if (!availableFulfillment.includes("pickup") || !isValidPickupLocation(locations, body.fulfillment.locationId)) {
+      res.status(409).json({ error: "Select the current valid SOSO HQ pickup location.", noPaymentTaken: true });
+      return;
+    }
     const quoteSnapshot = attempt.quoteSnapshot as Record<string, unknown> & {
       payment?: { provider?: JusticeSureProvider }; displayCurrency?: string;
     };

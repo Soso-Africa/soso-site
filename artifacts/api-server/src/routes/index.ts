@@ -8,6 +8,7 @@ import paymentRouter from "./payment";
 import redirectsRouter from "./redirects";
 import sitemapRouter from "./sitemap";
 import staffAuthRouter from "./staff-auth";
+import staffActivationRouter from "./staff-activation";
 import staffContentRouter from "./staff-content";
 import staffRouter from "./staff";
 import storageRouter from "./storage";
@@ -24,6 +25,7 @@ router.use(redirectsRouter);
 router.use(sitemapRouter);
 router.use(staffAuthRouter);
 router.use(staffRouter);
+router.use(staffActivationRouter);
 router.use(staffContentRouter);
 router.use(storageRouter);
 

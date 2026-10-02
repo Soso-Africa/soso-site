@@ -61,6 +61,7 @@ const homepageCategoryTile = z.object({
   desktopCropPosition: z.string().regex(/^(?:left|center|right)(?: (?:top|center|bottom))?$/).optional(),
   mobileCropPosition: z.string().regex(/^(?:left|center|right)(?: (?:top|center|bottom))?$/).optional(),
   active: z.boolean().optional(),
+  productSlug: slug.optional(),
   imageMode: z.enum(["static", "crossfade"]).optional(),
   rotationMs: z.number().int().min(3000).max(15000).optional(),
 }).strict();
@@ -71,6 +72,7 @@ const homepageOccasion = z.object({
   imageAlt: z.string().trim().min(1).max(300),
   href,
   linkLabel: copy.min(1),
+  productSlug: slug.optional(),
 }).strict();
 const imageProvenance = z.object({
   source: z.string().min(1).max(300),
@@ -210,6 +212,7 @@ export const PlatformContentSchema = z.object({
       editorial: z.object({
         imageUrl: localPath, imageAlt: z.string().trim().min(1).max(300),
         eyebrow: copy.min(1), title: copy.min(1), body: copy.min(1), link,
+        productSlug: slug.optional(),
       }).strict(),
     }).strict(),
     featured: z.object({
@@ -219,10 +222,10 @@ export const PlatformContentSchema = z.object({
     occasions: z.object({ eyebrow: copy, title: copy, items: z.array(homepageOccasion).length(2) }).strict(),
     fit: z.object({
       eyebrow: copy, title: copy, imageUrl: localPath, imageAlt: z.string().min(1),
-      steps: z.array(copyItem).min(1), ctaLabel: copy,
+      steps: z.array(copyItem).min(1), ctaLabel: copy, productSlug: slug.optional(),
     }).strict(),
     confidence: z.object({ eyebrow: copy, title: copy, items: z.array(copyItem).min(1), marquee: z.array(copy).min(1) }).strict(),
-    story: z.object({ imageUrl: localPath, logoUrl: localPath, title: copy, body: copy, link }).strict(),
+    story: z.object({ imageUrl: localPath, logoUrl: localPath, title: copy, body: copy, link, productSlug: slug.optional() }).strict(),
     finalCta: z.object({
       eyebrow: copy, title: copy, body: copy, primaryCta: link, stylistCtaLabel: copy, note: copy,
     }).strict(),
@@ -640,10 +643,40 @@ export const PlatformContentSchema = z.object({
     if (group.visible && group.department) {
       const liveProducts = content.products.filter((item) => item.department === group.department && item.fulfilmentState !== "unavailable");
       const browseOnlyProducts = content.products.filter((item) => item.department === group.department && item.fulfilmentState === "unavailable");
-      if (liveProducts.length === 0 && !(group.department === "accessories" && browseOnlyProducts.length > 0)) {
+      const emptyAccessoriesNavigation = group.department === "accessories"
+        && liveProducts.length === 0
+        && browseOnlyProducts.length === 0;
+      if (emptyAccessoriesNavigation) {
+        const safeEmptyAccessoryTarget = (target: string): boolean => {
+          try {
+            const parsed = new URL(target, "https://soso.invalid");
+            if (parsed.origin !== "https://soso.invalid") return false;
+            if (parsed.pathname === "/shop") {
+              return parsed.searchParams.get("department") === "accessories"
+                && [...parsed.searchParams.keys()].every((key) => key === "department" || key === "category");
+            }
+            const collectionSlug = parsed.pathname.match(/^\/collections\/([a-z0-9]+(?:-[a-z0-9]+)*)$/)?.[1];
+            return Boolean(collectionSlug
+              && content.collections.some((collection) => collection.slug === collectionSlug && collection.department === "accessories"));
+          } catch {
+            return false;
+          }
+        };
+        const navigationLinks = group.columns.flatMap((column) => column.links);
+        if (group.href !== "/shop?department=accessories"
+          || group.featuredProductSlugs.length > 0
+          || navigationLinks.length === 0
+          || navigationLinks.some((item) => !safeEmptyAccessoryTarget(item.href))) {
+          ctx.addIssue({
+            code: "custom",
+            message: "An empty Accessories menu may only expose accessory shop/category navigation and must not feature products",
+            path: ["site", "megaMenu", groupIndex],
+          });
+        }
+      } else if (liveProducts.length === 0 && !(group.department === "accessories" && browseOnlyProducts.length > 0)) {
         ctx.addIssue({ code: "custom", message: `Visible ${group.label} menu requires at least one available product`, path: ["site", "megaMenu", groupIndex, "visible"] });
       }
-      if (group.featuredProductSlugs.length === 0) {
+      if (!emptyAccessoriesNavigation && group.featuredProductSlugs.length === 0) {
         ctx.addIssue({ code: "custom", message: `Visible ${group.label} menu requires at least one featured product image`, path: ["site", "megaMenu", groupIndex, "featuredProductSlugs"] });
       }
     }
@@ -746,6 +779,48 @@ export const PlatformContentSchema = z.object({
 });
 
 export type PlatformContent = z.infer<typeof PlatformContentSchema>;
+
+export type HomepageProductBindingProjection = {
+  productSlug: string;
+  name: string;
+  imageUrl: string;
+  imageUrls: string[];
+  href: string;
+};
+
+/**
+ * Canonical storefront projection for a product-backed homepage panel.
+ * Panel copy remains editorial; product identity, imagery, and destination
+ * always come from the currently supplied product snapshot.
+ */
+export function resolveHomepageProductBinding(
+  content: PlatformContent,
+  productSlug: string,
+): HomepageProductBindingProjection | null {
+  const product = content.products.find((item) => item.slug === productSlug);
+  if (
+    !product
+    || product.fulfilmentState === "unavailable"
+    || (product.department === "accessories" && product.releaseState !== "approved")
+  ) return null;
+  const approvedImageUrls = product.images
+    .filter((item) => item.src && item.alt.trim() && item.provenance.source.trim() && item.provenance.rights.trim())
+    .map((item) => item.src);
+  const imageUrls = [...new Set([product.img, ...approvedImageUrls].filter(Boolean))];
+  if (
+    !product.name.trim()
+    || !product.img
+    || approvedImageUrls.length === 0
+    || !approvedImageUrls.includes(product.img)
+  ) return null;
+  return {
+    productSlug: product.slug,
+    name: product.name,
+    imageUrl: product.img,
+    imageUrls,
+    href: `/product/${product.slug}`,
+  };
+}
 
 export function unfinishedProductImages(content: PlatformContent): { path: (string | number)[]; message: string }[] {
   return content.products.flatMap((product, index) => {

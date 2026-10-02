@@ -112,9 +112,9 @@ export type CopyItem = { title: string; body: string; imageUrl?: string; href?: 
 export type HomepageCategoryTile = {
   eyebrow: string; title: string; description: string; imageUrl: string; imageUrls?: string[];
   mobileImageUrls?: string[]; imageAlt: string; href: string; desktopCropPosition?: string;
-  mobileCropPosition?: string; active?: boolean; imageMode?: "static" | "crossfade"; rotationMs?: number;
+  mobileCropPosition?: string; active?: boolean; imageMode?: "static" | "crossfade"; rotationMs?: number; productSlug?: string;
 };
-export type HomepageOccasion = { title: string; body: string; imageUrl: string; imageAlt: string; href: string; linkLabel: string };
+export type HomepageOccasion = { title: string; body: string; imageUrl: string; imageAlt: string; href: string; linkLabel: string; productSlug?: string };
 export type PlatformContent = {
   contentVersion: number;
   site: {
@@ -173,13 +173,13 @@ export type PlatformContent = {
     categories: { heading: string; accessibleLabel: string; ctaLabel: string; items: HomepageCategoryTile[] };
     newArrival: {
       eyebrow: string; title: string; link: ContentLink; productSlug: string;
-      editorial: { imageUrl: string; imageAlt: string; eyebrow: string; title: string; body: string; link: ContentLink };
+      editorial: { productSlug?: string; imageUrl: string; imageAlt: string; eyebrow: string; title: string; body: string; link: ContentLink };
     };
     featured: { eyebrow: string; title: string; link: ContentLink; productSlugs: string[]; legacySparseCompatibility?: true };
     occasions: { eyebrow: string; title: string; items: HomepageOccasion[] };
-    fit: { eyebrow: string; title: string; imageUrl: string; imageAlt: string; steps: CopyItem[]; ctaLabel: string };
+    fit: { productSlug?: string; eyebrow: string; title: string; imageUrl: string; imageAlt: string; steps: CopyItem[]; ctaLabel: string };
     confidence: { eyebrow: string; title: string; items: CopyItem[]; marquee: string[] };
-    story: { imageUrl: string; logoUrl: string; title: string; body: string; link: ContentLink };
+    story: { productSlug?: string; imageUrl: string; logoUrl: string; title: string; body: string; link: ContentLink };
     finalCta: { eyebrow: string; title: string; body: string; primaryCta: ContentLink; stylistCtaLabel: string; note: string };
   };
   pages: {
@@ -319,7 +319,7 @@ export type PlatformContent = {
   };
 };
 
-export type PublishedPlatformContent = { content: PlatformContent; publishedAt: string };
+export type PublishedPlatformContent = { content: PlatformContent; publishedAt: string; checkoutEnabled?: boolean };
 
 export const platformContentQueryKey = ["platform-content"] as const;
 

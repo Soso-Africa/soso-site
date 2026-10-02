@@ -17,6 +17,8 @@ import {
   findStaleCatalogueProducts,
   queryFaqHistoryEvents,
   default as staffContentRouter,
+  buildConfirmedCatalogueCandidate,
+  buildHomepagePublicationCandidate,
   preservesLegacySparseFeaturedProvenance,
   PolicyInputSchema,
 } from "./staff-content";
@@ -27,6 +29,7 @@ import {
   mergePlatformContentDefaults,
   mergePublishedPlatformContentDefaults,
   PlatformContentSchema,
+  resolveHomepageProductBinding,
   platformContentHash,
   unfinishedProductImages,
   readLegacyPublishedFaqItems,
@@ -34,7 +37,115 @@ import {
 } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
 import { validateCollectionMediaAssets, validateProductMediaAssets } from "../lib/product-media-validation";
-import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
+import { validateHomepageMerchandisingMediaAssets, validateHomepageProductBindings } from "../lib/homepage-media-validation";
+
+test("legacy homepage documents remain valid and product bindings project canonical PDP data", () => {
+  const legacy = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  legacy.homepage.categories.items.forEach((item) => { delete item.productSlug; });
+  legacy.homepage.occasions.items.forEach((item) => { delete item.productSlug; });
+  delete legacy.homepage.fit.productSlug;
+  delete legacy.homepage.story.productSlug;
+  delete legacy.homepage.newArrival.editorial.productSlug;
+  assert.equal(PlatformContentSchema.safeParse(legacy).success, true);
+
+  const projected = resolveHomepageProductBinding(DEFAULT_PLATFORM_CONTENT, "vault");
+  assert.deepEqual(projected, {
+    productSlug: "vault",
+    name: "Vault",
+    imageUrl: "/images/soso/vault-black.jpg",
+    imageUrls: ["/images/soso/vault-black.jpg"],
+    href: "/product/vault",
+  });
+});
+
+test("product-backed homepage panels reject unpublished slugs and mismatched product imagery", () => {
+  const published = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const draft = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const draftOnlyProduct = { ...structuredClone(draft.products[0]!), slug: "draft-only-product" };
+  draft.products.push(draftOnlyProduct);
+  draft.homepage.categories.items[0]!.productSlug = draftOnlyProduct.slug;
+  draft.homepage.categories.items[0]!.imageUrl = draftOnlyProduct.img;
+  const scopedCandidate = buildHomepagePublicationCandidate(published, draft);
+  let issues = validateHomepageProductBindings(scopedCandidate);
+  assert.ok(issues.some((issue) => issue.path.join(".") === "homepage.categories.items.0.productSlug"));
+
+  const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  content.homepage.categories.items[0]!.productSlug = "vault";
+  content.homepage.categories.items[0]!.imageUrl = "/images/soso/ivory-kaftan.jpg";
+  issues = validateHomepageProductBindings(content);
+  assert.ok(issues.some((issue) => issue.path.join(".") === "homepage.categories.items.0.imageUrl"));
+
+  const unavailable = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  unavailable.products.find((product) => product.slug === "vault")!.fulfilmentState = "unavailable";
+  unavailable.homepage.categories.items[0]!.productSlug = "vault";
+  issues = validateHomepageProductBindings(unavailable);
+  assert.ok(issues.some((issue) => issue.path.join(".") === "homepage.categories.items.0.productSlug"));
+
+  const availableLegacyClothing = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const legacyClothing = availableLegacyClothing.products.find((product) => product.slug === "vault")!;
+  legacyClothing.releaseState = "placeholder";
+  legacyClothing.legacyMigration = {
+    sourceProductId: 117,
+    sourceUrl: "https://shopsoso.co/product/legacy-vault/",
+  };
+  availableLegacyClothing.homepage.categories.items[0]!.productSlug = "vault";
+  assert.ok(resolveHomepageProductBinding(availableLegacyClothing, "vault"));
+  issues = validateHomepageProductBindings(availableLegacyClothing);
+  assert.equal(issues.some((issue) => issue.path.join(".") === "homepage.categories.items.0.productSlug"), false);
+
+  const placeholderAccessory = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const accessory = placeholderAccessory.products.find((product) => product.slug === "soso-bag-coming-soon")!;
+  accessory.fulfilmentState = "made_immediately";
+  placeholderAccessory.homepage.occasions.items[0]!.productSlug = accessory.slug;
+  issues = validateHomepageProductBindings(placeholderAccessory);
+  assert.ok(issues.some((issue) => issue.path.join(".") === "homepage.occasions.items.0.productSlug"));
+});
+
+test("homepage publication candidate preserves the published catalogue and unrelated draft copies", () => {
+  const published = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const draft = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  draft.products[0]!.name = "Draft-only product name";
+  draft.site.announcement = "Draft-only announcement";
+  draft.pages.shop.title = "Draft-only shop title";
+  draft.homepage.seo.title = "Scoped homepage title";
+  const draftAccessories = draft.site.megaMenu.find((group) => group.id === "accessories")!;
+  draftAccessories.visible = !draftAccessories.visible;
+  const publishedWithoutAccessories = structuredClone(published);
+  publishedWithoutAccessories.products = publishedWithoutAccessories.products.filter((product) => product.department !== "accessories");
+  publishedWithoutAccessories.site.megaMenu.find((group) => group.id === "accessories")!.featuredProductSlugs = [];
+
+  const candidate = buildHomepagePublicationCandidate(publishedWithoutAccessories, draft);
+  const expected = structuredClone(publishedWithoutAccessories);
+  expected.homepage = structuredClone(draft.homepage);
+  expected.site.megaMenu.find((group) => group.id === "accessories")!.visible = draftAccessories.visible;
+  assert.deepEqual(candidate, expected);
+  assert.deepEqual(candidate.products, publishedWithoutAccessories.products);
+  assert.deepEqual(candidate.pages, published.pages);
+  assert.equal(candidate.site.announcement, published.site.announcement);
+  assert.equal(candidate.homepage.seo.title, "Scoped homepage title");
+  assert.equal(
+    candidate.site.megaMenu.find((group) => group.id === "accessories")!.visible,
+    draftAccessories.visible,
+  );
+  assert.deepEqual(
+    candidate.site.megaMenu.filter((group) => group.id !== "accessories"),
+    publishedWithoutAccessories.site.megaMenu.filter((group) => group.id !== "accessories"),
+  );
+  assert.equal(
+    buildHomepagePublicationCandidate(published, draft).site.megaMenu.find((group) => group.id === "accessories")!.visible,
+    published.site.megaMenu.find((group) => group.id === "accessories")!.visible,
+  );
+  const confirmedOnly = buildConfirmedCatalogueCandidate(
+    published,
+    published.products.filter((product) => product.department !== "accessories"),
+  );
+  assert.equal(
+    confirmedOnly.candidate.site.megaMenu.find((group) => group.id === "accessories")!.visible,
+    published.site.megaMenu.find((group) => group.id === "accessories")!.visible,
+  );
+  assert.equal(confirmedOnly.prunedReferences.some((issue) => issue.includes("visible set false")), false);
+  assert.equal(PlatformContentSchema.safeParse(confirmedOnly.candidate).success, true);
+});
 
 test("catalogue mapping history deduplicates saves and marks later fingerprint changes", () => {
   const first = structuredClone(DEFAULT_PLATFORM_CONTENT);
@@ -1333,6 +1444,7 @@ test("homepage merchandising image checks inspect unique configured images and r
   assert.deepEqual(await validateHomepageMerchandisingMediaAssets(content), []);
   content.homepage.newArrival.editorial.imageUrl = "/images/soso/kaftan-white.jpg";
   content.homepage.fit.imageUrl = content.homepage.categories.items[0]!.imageUrl;
+  content.homepage.story.productSlug = "vault";
   const inspected: string[] = [];
   const validIssues = await validateHomepageMerchandisingMediaAssets(content, async (path) => {
     inspected.push(path);
@@ -1345,6 +1457,7 @@ test("homepage merchandising image checks inspect unique configured images and r
     content.homepage.newArrival.editorial.imageUrl,
     ...content.homepage.occasions.items.map((item) => item.imageUrl),
     content.homepage.fit.imageUrl,
+    content.homepage.story.imageUrl,
   ];
   assert.equal(inspected.length, new Set(configured).size);
   const invalid = await validateHomepageMerchandisingMediaAssets(content, async () => null);

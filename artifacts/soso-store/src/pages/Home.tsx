@@ -9,6 +9,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { HomeHeroMedia } from "@/components/HomeHeroMedia";
 import { CategoryFeature } from "@/components/CategoryFeature";
 import { HomeJournalPreview } from "@/components/HomeJournalPreview";
+import { resolveProductMedia, resolveMobileFrames } from "@/lib/homepageProducts";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 
 const canonicalCategoryTargets = ["/collections/kaftans", "/collections/agbadas", "/collections/shirts", "/collections/dashikis", "/collections/two-piece"];
@@ -27,6 +28,8 @@ export default function Home() {
     .sort((left, right) => Number(right.merchandising.isNew) - Number(left.merchandising.isNew) || left.merchandising.sortPriority - right.merchandising.sortPriority)]
     .filter((product, index, all) => all.findIndex((candidate) => candidate.slug === product.slug) === index)
     .slice(0, 4);
+  const fitMedia = resolveProductMedia(homepage.fit.productSlug, products);
+  const fitImage = homepage.fit.productSlug ? fitMedia : { primary: homepage.fit.imageUrl, alt: homepage.fit.imageAlt };
   const campaign = homepage.hero.campaignCta;
   const now = Date.now();
   const heroCta = campaign?.enabled && Date.parse(campaign.startsAt) <= now && now < Date.parse(campaign.endsAt)
@@ -58,22 +61,27 @@ export default function Home() {
 
     {/* 2. Five alternating category destinations */}
     <div aria-label="Shop SOSO Categories">
-      {canonicalCategoryTargets.map((target) => homepage.categories.items.find((item) => item.href === target)).filter((item): item is NonNullable<typeof item> => Boolean(item) && item?.active !== false).map((item, index) => {
+      {canonicalCategoryTargets.map((target) => homepage.categories.items.find((item) => item.href === target)).filter((item): item is NonNullable<typeof item> => Boolean(item) && item?.active !== false).flatMap((item): { item: typeof item; media: ReturnType<typeof resolveProductMedia> }[] => {
+        if (!item.productSlug) return [{ item, media: null }];
+        const media = resolveProductMedia(item.productSlug, products, item.imageUrls?.length ? item.imageUrls : [item.imageUrl]);
+        return media ? [{ item, media }] : [];
+      }).map(({ item, media }, index) => {
+        const mobile = media ? resolveMobileFrames(item.productSlug, products, item.mobileImageUrls) : item.mobileImageUrls;
         return (
           <CategoryFeature
             key={item.href}
             categoryName={item.title}
             eyebrow={item.eyebrow}
-            images={item.imageUrls?.length ? item.imageUrls : [item.imageUrl]}
-            mobileImages={item.mobileImageUrls}
-            description={item.description}
-            imageAlt={item.imageAlt}
+            images={media ? media.frames : item.imageUrls?.length ? item.imageUrls : [item.imageUrl]}
+            mobileImages={mobile}
+            description={media ? `${item.description} Shown: ${media.name}.` : item.description}
+            imageAlt={media ? media.alt : item.imageAlt}
             href={item.href}
             isEven={index % 2 === 0}
             testId={`home-category-${index}`}
             desktopCropPosition={item.desktopCropPosition}
             mobileCropPosition={item.mobileCropPosition}
-            imageMode={item.imageMode}
+            imageMode={media && media.frames.length < 2 ? "static" : item.imageMode}
             rotationMs={item.rotationMs}
           />
         );
@@ -111,7 +119,11 @@ export default function Home() {
         <h2 id="home-occasion-heading" className="soso-display text-4xl text-foreground md:text-5xl">{homepage.occasions.title}</h2>
       </div>
       <div className="mx-auto grid max-w-[2000px] gap-2 lg:grid-cols-2">
-        {homepage.occasions.items.map((item, index) => (
+        {homepage.occasions.items.flatMap((raw) => {
+          if (!raw.productSlug) return [raw];
+          const m = resolveProductMedia(raw.productSlug, products);
+          return m ? [{ ...raw, imageUrl: m.primary, imageAlt: m.alt, href: m.pdpHref }] : [];
+        }).map((item, index) => (
           <Link key={item.title} href={item.href} className="group relative aspect-[4/5] overflow-hidden sm:aspect-[4/3] lg:aspect-[5/4]" data-testid={`home-occasion-${index}`} data-merchandising-value={item.title}>
             <img src={item.imageUrl} alt={item.imageAlt} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
@@ -142,7 +154,9 @@ export default function Home() {
     {/* 7. Fit & Details */}
     <section className="max-w-[1600px] mx-auto px-4 md:px-6 py-16 md:py-32 grid lg:grid-cols-2 gap-12 lg:gap-24 items-center">
       <div className="relative aspect-[3/4] overflow-hidden bg-muted/20">
-        <img src={homepage.fit.imageUrl} alt={homepage.fit.imageAlt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />
+        {fitImage && (fitMedia
+          ? <Link href={fitMedia.pdpHref}><img src={fitMedia.primary} alt={fitMedia.alt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" /></Link>
+          : <img src={fitImage.primary} alt={fitImage.alt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />)}
       </div>
       <div className="lg:pr-12 text-center lg:text-left">
         <p className="text-[11px] uppercase tracking-[.3em] text-secondary mb-5">{homepage.fit.eyebrow}</p>
