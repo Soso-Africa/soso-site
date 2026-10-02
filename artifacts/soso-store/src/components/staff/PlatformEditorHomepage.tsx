@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, AlertCircle, ImageUp, Star, Trash2 } from "lucide-react";
 import type { CatalogProduct, PlatformContent } from "../../data/platformContent";
+import { productFrames } from "../../lib/homepageProducts";
 
 type Homepage = PlatformContent["homepage"];
 
@@ -18,15 +19,31 @@ function MoveButtons({ index, length, move }: { index: number; length: number; m
   </div>;
 }
 
+type PickerProduct = Pick<CatalogProduct, "slug" | "name" | "img" | "images"> & Partial<Pick<CatalogProduct, "category" | "department">>;
+
+function ProductPicker({ label, value, products, onPick, testId }: { label: string; value?: string; products: PickerProduct[]; onPick: (slug: string) => void; testId?: string }) {
+  const product = products.find((item) => item.slug === value);
+  const thumb = product ? productFrames(product)[0]?.src : undefined;
+  return <div className="flex items-end gap-3">
+    {thumb ? <img src={thumb} alt={product?.name ?? ""} className="h-16 w-12 border border-border object-cover" /> : <div className="h-16 w-12 border border-dashed border-border" />}
+    <label className={`${labelClass} flex-1`}>{label}<select data-testid={testId} className={inputClass} value={product ? value : ""} onChange={(event) => onPick(event.target.value)}>
+      {!product && <option value="">{value ? `Unavailable: ${value}` : "Choose a live product"}</option>}
+      {products.map((item) => <option key={item.slug} value={item.slug}>{item.name}</option>)}
+    </select></label>
+  </div>;
+}
+
 export function PlatformEditorHomepage({
   data,
   products,
+  collections = [],
   allowedTargets,
   onChange,
   onUploadMedia,
 }: {
   data: Homepage;
-  products: Pick<CatalogProduct, "slug" | "name">[];
+  products: PickerProduct[];
+  collections?: { slug: string; label: string; category?: string; department?: string }[];
   allowedTargets: string[];
   onChange: (data: Homepage) => void;
   onUploadMedia: (file: File) => Promise<string>;
@@ -50,6 +67,9 @@ export function PlatformEditorHomepage({
     if (data.featured.productSlugs.length !== 4) result.push("Featured must contain exactly 4 products.");
     if (!data.featured.legacySparseCompatibility && new Set(data.featured.productSlugs).size !== data.featured.productSlugs.length) result.push("Featured products must be unique.");
     if (data.featured.productSlugs.some((slug) => !productSlugs.has(slug))) result.push("Featured contains an unknown product.");
+    data.categories.items.forEach((item) => { if (item.productSlug && !productSlugs.has(item.productSlug)) result.push(`${item.title}: chosen product is not currently published.`); });
+    data.occasions.items.forEach((item) => { if (item.productSlug && !productSlugs.has(item.productSlug)) result.push(`${item.title}: chosen product is not currently published.`); });
+    if (data.fit.productSlug && !productSlugs.has(data.fit.productSlug)) result.push("Fit support product is not currently published.");
     if (data.occasions.items.length !== 2) result.push("Occasions must contain exactly 2 panels.");
     const imagePaths = [
       data.hero.imageUrl, data.hero.mobileImageUrl, data.fit.imageUrl, data.newArrival.editorial.imageUrl,
@@ -122,6 +142,7 @@ export function PlatformEditorHomepage({
           const images = item.imageUrls?.length ? item.imageUrls : [item.imageUrl];
           const commitImages = (nextImages: string[]) => {
             if (!nextImages.length) return;
+            if (item.productSlug) { const items = [...data.categories.items]; items[index] = { ...item, imageUrl: nextImages[0]!, imageUrls: nextImages, imageMode: nextImages.length >= 2 ? "crossfade" : "static" }; update("categories", { ...data.categories, items }); return; }
             const items = [...data.categories.items];
             const fallback = nextImages.includes(item.imageUrl) ? item.imageUrl : nextImages[0]!;
             items[index] = {
@@ -134,19 +155,33 @@ export function PlatformEditorHomepage({
           };
           return <div key={`${index}-${item.title}`} className="border border-border bg-muted/10 p-3" data-testid={`homepage-category-${index}`} data-merchandising-value={item.title}>
           <div className="mb-3 flex items-center justify-between"><strong className="text-xs">Position {index + 1}</strong><MoveButtons index={index} length={data.categories.items.length} move={(from, to) => move(data.categories.items, from, to, (items) => update("categories", { ...data.categories, items }))} /></div>
+          <div className="mb-4 space-y-3 border border-border bg-background p-3">
+            <ProductPicker label="Live product for this category" value={item.productSlug} products={(() => { const col = collections.find((c) => `/collections/${c.slug}` === item.href); return col && col.category ? products.filter((candidate) => candidate.category === col.category && (!col.department || candidate.department === col.department)) : products; })()} testId={`homepage-category-product-${index}`} onPick={(slug) => {
+              const product = products.find((candidate) => candidate.slug === slug); if (!product) return;
+              const first = productFrames(product)[0]; if (!first) return;
+              const items = [...data.categories.items];
+              items[index] = { ...item, productSlug: slug, imageUrl: first.src, imageUrls: [first.src], mobileImageUrls: [], imageAlt: first.alt || product.name, imageMode: "static" };
+              update("categories", { ...data.categories, items });
+            }} />
+            {item.productSlug && (() => { const product = products.find((candidate) => candidate.slug === item.productSlug); if (!product) return <p className="text-xs text-destructive">This product is no longer published. Choose another.</p>;
+              const frames = productFrames(product);
+              const mobile = item.mobileImageUrls ?? [];
+              return <div><p className={labelClass}>Frames (first selected is primary, up to 4)</p><div className="mt-2 grid grid-cols-5 gap-2">{frames.map((frame) => { const on = images.includes(frame.src); return <button key={frame.src} type="button" aria-pressed={on} onClick={() => commitImages(on ? images.filter((src) => src !== frame.src) : [...images, frame.src].slice(0, 4))} className={`aspect-[3/4] overflow-hidden border-2 ${on ? "border-primary" : "border-border opacity-60"}`}><img src={frame.src} alt={frame.alt} className="h-full w-full object-cover" /></button>; })}</div>
+                <p className={`${labelClass} mt-3`}>Mobile frames (up to 4, independent of desktop)</p><div className="mt-2 grid grid-cols-5 gap-2">{frames.map((frame) => { const on = mobile.includes(frame.src); return <button key={frame.src} type="button" aria-pressed={on} onClick={() => { const items = [...data.categories.items]; items[index] = { ...item, mobileImageUrls: (on ? mobile.filter((src) => src !== frame.src) : [...mobile, frame.src]).slice(0, 4) }; update("categories", { ...data.categories, items }); }} className={`aspect-[3/4] overflow-hidden border-2 ${on ? "border-primary" : "border-border opacity-60"}`}><img src={frame.src} alt={frame.alt} className="h-full w-full object-cover" /></button>; })}</div></div>; })()}
+          </div>
           <div className="mb-4 border border-border bg-background p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-xs font-semibold">Rotating category photos</p>
                 <p className="mt-1 text-xs text-muted-foreground">{images.length >= 2 ? `${images.length} photos · Crossfade active` : "Add a second photo to activate Crossfade."}</p>
               </div>
-              <label className={`inline-flex min-h-9 cursor-pointer items-center gap-2 border border-primary px-3 text-[10px] font-semibold uppercase tracking-wider text-primary ${images.length >= 4 ? "pointer-events-none opacity-40" : ""}`}>
+              <label className={`inline-flex min-h-9 cursor-pointer items-center gap-2 border border-primary px-3 text-[10px] font-semibold uppercase tracking-wider text-primary ${images.length >= 4 || item.productSlug ? "pointer-events-none opacity-40" : ""}`}>
                 <ImageUp size={13} /> {uploadingCategory === index ? "Uploading…" : "Upload photo"}
                 <input
                   className="sr-only"
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
-                  disabled={uploadingCategory !== null || images.length >= 4}
+                  disabled={uploadingCategory !== null || images.length >= 4 || Boolean(item.productSlug)}
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     event.currentTarget.value = "";
@@ -203,16 +238,20 @@ export function PlatformEditorHomepage({
             {mediaStatus && <p className="mt-3 text-xs text-muted-foreground" role="status">{mediaStatus}</p>}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            {(["eyebrow", "title", "description", "imageUrl", "imageAlt", "href", "desktopCropPosition", "mobileCropPosition"] as const).map((key) => <Field key={key} label={key} value={item[key] ?? ""} onChange={(value) => {
+            {(["eyebrow", "title", "description", "imageUrl", "imageAlt", "href", "desktopCropPosition", "mobileCropPosition"] as const).filter((key) => key !== "href" && (!item.productSlug || (key !== "imageUrl" && key !== "imageAlt"))).map((key) => <Field key={key} label={key} value={item[key] ?? ""} onChange={(value) => {
               const items = [...data.categories.items]; items[index] = { ...item, [key]: value }; update("categories", { ...data.categories, items });
             }} />)}
-            <label className={labelClass}>Mobile Image URLs (comma separated)
+            <label className={labelClass}>Category destination<select data-testid={`homepage-category-href-${index}`} className={inputClass} value={item.href} onChange={(event) => { const items = [...data.categories.items]; items[index] = { ...item, href: event.target.value }; update("categories", { ...data.categories, items }); }}>
+              {!collections.some((c) => `/collections/${c.slug}` === item.href) && <option value={item.href}>Unavailable: {item.href}</option>}
+              {collections.filter((c) => ["kaftans", "agbadas", "shirts", "dashikis", "two-piece"].includes(c.slug)).map((c) => <option key={c.slug} value={`/collections/${c.slug}`}>{c.label}</option>)}
+            </select></label>
+            {!item.productSlug && <label className={labelClass}>Mobile Image URLs (comma separated)
               <input className={inputClass} value={item.mobileImageUrls?.join(", ") || ""} onChange={(event) => {
                 const items = [...data.categories.items];
                 items[index] = { ...item, mobileImageUrls: event.target.value ? event.target.value.split(",").map((value) => value.trim()).filter(Boolean) : [] };
                 update("categories", { ...data.categories, items });
               }} />
-            </label>
+            </label>}
             <label className={labelClass}>Image behaviour<select className={inputClass} value={item.imageMode ?? "static"} onChange={(event) => {
               const items = [...data.categories.items]; items[index] = { ...item, imageMode: event.target.value as "static" | "crossfade" }; update("categories", { ...data.categories, items });
             }}><option value="static">Static</option><option value="crossfade">Crossfade</option></select></label>
@@ -233,10 +272,11 @@ export function PlatformEditorHomepage({
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field label="Eyebrow" value={data.newArrival.eyebrow} onChange={(eyebrow) => update("newArrival", { ...data.newArrival, eyebrow })} />
         <Field label="Heading" value={data.newArrival.title} onChange={(title) => update("newArrival", { ...data.newArrival, title })} />
-        <label className={labelClass}>Exact product<select data-testid="homepage-new-arrival-product" className={inputClass} value={data.newArrival.productSlug} onChange={(event) => update("newArrival", { ...data.newArrival, productSlug: event.target.value })}>{products.map((product) => <option key={product.slug} value={product.slug}>{product.name} · {product.slug}</option>)}</select></label>
+<ProductPicker label="Exact product" testId="homepage-new-arrival-product" value={data.newArrival.productSlug} products={products} onPick={(productSlug) => update("newArrival", { ...data.newArrival, productSlug })} />
         <Field label="Section link label" value={data.newArrival.link.label} onChange={(label) => update("newArrival", { ...data.newArrival, link: { ...data.newArrival.link, label } })} />
         <Field label="Section link path" value={data.newArrival.link.href} onChange={(href) => update("newArrival", { ...data.newArrival, link: { ...data.newArrival.link, href } })} />
-        {(["imageUrl", "imageAlt", "eyebrow", "title", "body"] as const).map((key) => <Field key={key} label={`Editorial ${key}`} value={data.newArrival.editorial[key]} onChange={(value) => update("newArrival", { ...data.newArrival, editorial: { ...data.newArrival.editorial, [key]: value } })} />)}
+        <ProductPicker label="Editorial product" value={data.newArrival.editorial.productSlug} products={products} onPick={(slug) => { const product = products.find((candidate) => candidate.slug === slug); const first = product && productFrames(product)[0]; if (!product || !first) return; update("newArrival", { ...data.newArrival, editorial: { ...data.newArrival.editorial, productSlug: slug, imageUrl: first.src, imageAlt: first.alt || product.name, link: { ...data.newArrival.editorial.link, href: `/product/${slug}` } } }); }} />
+        {(["imageUrl", "imageAlt", "eyebrow", "title", "body"] as const).filter((key) => !data.newArrival.editorial.productSlug || (key !== "imageUrl" && key !== "imageAlt")).map((key) => <Field key={key} label={`Editorial ${key}`} value={data.newArrival.editorial[key]} onChange={(value) => update("newArrival", { ...data.newArrival, editorial: { ...data.newArrival.editorial, [key]: value } })} />)}
         <Field label="Editorial link label" value={data.newArrival.editorial.link.label} onChange={(label) => update("newArrival", { ...data.newArrival, editorial: { ...data.newArrival.editorial, link: { ...data.newArrival.editorial.link, label } } })} />
         <Field label="Editorial link path" value={data.newArrival.editorial.link.href} onChange={(href) => update("newArrival", { ...data.newArrival, editorial: { ...data.newArrival.editorial, link: { ...data.newArrival.editorial.link, href } } })} />
       </div>
@@ -251,7 +291,7 @@ export function PlatformEditorHomepage({
         <Field label="Link path" value={data.featured.link.href} onChange={(href) => update("featured", { ...data.featured, link: { ...data.featured.link, href } })} />
       </div>
       <div className="mt-3 space-y-2">{data.featured.productSlugs.map((slug, index) => <div key={`${index}-${slug}`} className="flex items-end gap-2" data-testid={`homepage-featured-${index}`} data-merchandising-value={slug}>
-        <label className={`${labelClass} flex-1`}>Position {index + 1}<select className={inputClass} value={slug} onChange={(event) => { const productSlugs = [...data.featured.productSlugs]; productSlugs[index] = event.target.value; update("featured", { ...data.featured, productSlugs }); }}>{products.map((product) => <option key={product.slug} value={product.slug}>{product.name} · {product.slug}</option>)}</select></label>
+<div className="flex-1"><ProductPicker label={`Position ${index + 1}`} value={slug} products={products} onPick={(value) => { const productSlugs = [...data.featured.productSlugs]; productSlugs[index] = value; update("featured", { ...data.featured, productSlugs }); }} /></div>
         <MoveButtons index={index} length={data.featured.productSlugs.length} move={(from, to) => move(data.featured.productSlugs, from, to, (productSlugs) => update("featured", { ...data.featured, productSlugs }))} />
       </div>)}</div>
     </section>
@@ -261,13 +301,15 @@ export function PlatformEditorHomepage({
       <div className="mt-3 grid gap-3 sm:grid-cols-2"><Field label="Eyebrow" value={data.occasions.eyebrow} onChange={(eyebrow) => update("occasions", { ...data.occasions, eyebrow })} /><Field label="Heading" value={data.occasions.title} onChange={(title) => update("occasions", { ...data.occasions, title })} /></div>
       <div className="mt-4 grid gap-3 lg:grid-cols-2">{data.occasions.items.map((item, index) => <div key={`${index}-${item.title}`} className="border border-border p-3" data-testid={`homepage-occasion-${index}`} data-merchandising-value={item.title}>
         <div className="mb-3 flex items-center justify-between"><strong className="text-xs">Position {index + 1}</strong><MoveButtons index={index} length={data.occasions.items.length} move={(from, to) => move(data.occasions.items, from, to, (items) => update("occasions", { ...data.occasions, items }))} /></div>
-        <div className="grid gap-3 sm:grid-cols-2">{(["title", "body", "imageUrl", "imageAlt", "href", "linkLabel"] as const).map((key) => <Field key={key} label={key} value={item[key]} onChange={(value) => { const items = [...data.occasions.items]; items[index] = { ...item, [key]: value }; update("occasions", { ...data.occasions, items }); }} />)}</div>
+        <div className="mb-3"><ProductPicker label="Live product (photo, name and link come from it)" value={item.productSlug} products={products} onPick={(slug) => { const product = products.find((candidate) => candidate.slug === slug); const first = product && productFrames(product)[0]; if (!product || !first) return; const items = [...data.occasions.items]; items[index] = { ...item, productSlug: slug, imageUrl: first.src, imageAlt: first.alt || product.name, href: `/product/${slug}` }; update("occasions", { ...data.occasions, items }); }} /></div>
+        <div className="grid gap-3 sm:grid-cols-2">{(["title", "body", "imageUrl", "imageAlt", "href", "linkLabel"] as const).filter((key) => !item.productSlug || (key !== "imageUrl" && key !== "imageAlt" && key !== "href")).map((key) => <Field key={key} label={key} value={item[key]} onChange={(value) => { const items = [...data.occasions.items]; items[index] = { ...item, [key]: value }; update("occasions", { ...data.occasions, items }); }} />)}</div>
       </div>)}</div>
     </section>
 
     <details className="border border-border p-4">
       <summary className="cursor-pointer font-semibold">Fit support (ordered steps)</summary>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">{(["eyebrow", "title", "imageUrl", "imageAlt", "ctaLabel"] as const).map((key) => <Field key={key} label={key} value={data.fit[key]} onChange={(value) => update("fit", { ...data.fit, [key]: value })} />)}</div>
+      <div className="mt-4"><ProductPicker label="Live product for fit photo" value={data.fit.productSlug} products={products} onPick={(slug) => { const product = products.find((candidate) => candidate.slug === slug); const first = product && productFrames(product)[0]; if (!product || !first) return; update("fit", { ...data.fit, productSlug: slug, imageUrl: first.src, imageAlt: first.alt || product.name }); }} /></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">{(["eyebrow", "title", "imageUrl", "imageAlt", "ctaLabel"] as const).filter((key) => !data.fit.productSlug || (key !== "imageUrl" && key !== "imageAlt")).map((key) => <Field key={key} label={key} value={data.fit[key]} onChange={(value) => update("fit", { ...data.fit, [key]: value })} />)}</div>
       <div className="mt-4 space-y-3">{data.fit.steps.map((item, index) => <div key={index} className="grid gap-2 border border-border p-3 sm:grid-cols-[1fr_1fr_auto_auto]"><Field label={`Step ${index + 1} title`} value={item.title} onChange={(title) => { const steps = [...data.fit.steps]; steps[index] = { ...item, title }; update("fit", { ...data.fit, steps }); }} /><Field label="Body" value={item.body} onChange={(body) => { const steps = [...data.fit.steps]; steps[index] = { ...item, body }; update("fit", { ...data.fit, steps }); }} /><MoveButtons index={index} length={data.fit.steps.length} move={(from, to) => move(data.fit.steps, from, to, (steps) => update("fit", { ...data.fit, steps }))} /><button type="button" disabled={data.fit.steps.length <= 1} onClick={() => update("fit", { ...data.fit, steps: data.fit.steps.filter((_, itemIndex) => itemIndex !== index) })} className="border border-border px-3 text-xs disabled:opacity-30">Remove</button></div>)}</div>
       <button type="button" onClick={() => update("fit", { ...data.fit, steps: [...data.fit.steps, { title: "", body: "" }] })} className="mt-3 border border-border px-3 py-2 text-xs">Add fit step</button>
     </details>
@@ -287,7 +329,8 @@ export function PlatformEditorHomepage({
 
     <details className="border border-border bg-muted/10 p-4">
       <summary className="cursor-pointer font-semibold">Legacy story compatibility</summary>
-      <p className="mt-3 text-sm text-muted-foreground">The homepage now uses New arrival editorial media and copy. Legacy story fields remain in the document for compatibility and are not rendered on the homepage.</p>
+      <p className="mt-3 text-sm text-muted-foreground">The homepage now uses New arrival editorial media and copy. Legacy story fields remain in the document. Choose a live product to render a product-bound story block.</p>
+      <div className="mt-3"><ProductPicker label="Story product" testId="homepage-story-product" value={data.story.productSlug} products={products} onPick={(slug) => { const product = products.find((candidate) => candidate.slug === slug); const first = product && productFrames(product)[0]; if (!product || !first) return; update("story", { ...data.story, productSlug: slug, imageUrl: first.src, link: { ...data.story.link, href: `/product/${slug}` } }); }} /></div>
     </details>
 
     <section className="border border-border bg-muted/10 p-4">

@@ -4,10 +4,12 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from 'react';
+import { getPageErrorRecoveryAction } from '@/lib/lazyPage';
 
 export interface ErrorFallbackProps {
   error: Error;
   resetError: () => void;
+  recoveryHref?: string;
 }
 
 interface ErrorBoundaryProps {
@@ -15,6 +17,8 @@ interface ErrorBoundaryProps {
   FallbackComponent?: ComponentType<ErrorFallbackProps>;
   /** Changing this clears a caught error. Pass the route to recover on navigation. */
   resetKey?: unknown;
+  /** Optional public route link shown when a lazy page module fails to load. */
+  recoveryHref?: string;
 }
 
 interface ErrorBoundaryState {
@@ -35,7 +39,8 @@ function toError(value: unknown): Error {
   }
 }
 
-function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
+function DefaultFallback({ error, resetError, recoveryHref }: ErrorFallbackProps) {
+  const pageLoadFailed = getPageErrorRecoveryAction(error) === "reload";
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 p-6">
       <div className="max-w-lg w-full text-center">
@@ -43,8 +48,9 @@ function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
           Something went wrong
         </h1>
         <p className="mt-2 text-sm text-gray-600">
-          This part of the app hit an error. The rest of the app is still
-          running.
+          {pageLoadFailed
+            ? "This page didn’t finish loading. Reload the page to get a fresh copy and try again."
+            : "This part of the app hit an error. The rest of the app is still running."}
         </p>
         {/* Dev only: messages can carry API responses and other internals. */}
         {import.meta.env.DEV ? (
@@ -54,11 +60,18 @@ function DefaultFallback({ error, resetError }: ErrorFallbackProps) {
         ) : null}
         <button
           type="button"
-          onClick={resetError}
+          onClick={pageLoadFailed ? () => window.location.reload() : resetError}
           className="mt-4 rounded bg-gray-900 px-4 py-2 text-sm text-white hover:bg-gray-700"
         >
-          Try again
+          {pageLoadFailed ? "Reload page" : "Try again"}
         </button>
+        {pageLoadFailed && recoveryHref ? (
+          <p className="mt-3 text-sm">
+            <a href={recoveryHref} className="text-gray-700 underline underline-offset-4">
+              Return to Shop
+            </a>
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -101,6 +114,12 @@ export class ErrorBoundary extends Component<
       return this.props.children;
     }
     const Fallback = this.props.FallbackComponent ?? DefaultFallback;
-    return <Fallback error={error} resetError={this.resetError} />;
+    return (
+      <Fallback
+        error={error}
+        resetError={this.resetError}
+        recoveryHref={this.props.recoveryHref}
+      />
+    );
   }
 }

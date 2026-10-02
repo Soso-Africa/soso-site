@@ -26,11 +26,11 @@ import {
   siteContentRevisionsTable,
   staffUsersTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { ensurePlatformContent, platformContentHash, PlatformContentSchema, unfinishedProductImages, type PlatformContent } from "../lib/platform-content";
 import { validateHomepageHeroMediaAssets } from "../lib/hero-media-validation";
-import { validateHomepageMerchandisingMediaAssets } from "../lib/homepage-media-validation";
+import { validateHomepageMerchandisingMediaAssets, validateHomepageProductBindings } from "../lib/homepage-media-validation";
 import { validateLegacyProductPublication } from "../lib/legacy-product-publication";
 import {
   CATALOGUE_BUSINESS_APPROVALS_KEY,
@@ -664,7 +664,6 @@ export function buildConfirmedCatalogueCandidate(
   selected: PlatformContent["products"],
 ): { candidate: PlatformContent; prunedReferences: string[] } {
   const selectedSlugs = new Set(selected.map((product) => product.slug));
-  const hasAccessories = selected.some((product) => product.department === "accessories");
   const prunedReferences: string[] = [];
   const megaMenu = published.site.megaMenu.map((group) => {
     const featuredProductSlugs = group.featuredProductSlugs.filter((slug) => {
@@ -672,20 +671,35 @@ export function buildConfirmedCatalogueCandidate(
       prunedReferences.push(`site.megaMenu[${group.id}].featuredProductSlugs removed omitted product ${slug}`);
       return false;
     });
-    const isAccessoriesGroup = group.department === "accessories" || group.id === "accessories";
-    const hideAccessories = isAccessoriesGroup && !hasAccessories && group.visible;
-    if (hideAccessories) {
-      prunedReferences.push(`site.megaMenu[${group.id}].visible set false because the selected catalogue has no accessory products`);
-    }
     return {
       ...group,
       featuredProductSlugs,
-      ...(hideAccessories ? { visible: false } : {}),
     };
   });
   return {
     candidate: { ...published, site: { ...published.site, megaMenu }, products: selected },
     prunedReferences,
+  };
+}
+
+/** Merge only scoped homepage content and an explicit Accessories visibility choice. */
+export function buildHomepagePublicationCandidate(
+  published: PlatformContent,
+  draft: PlatformContent,
+): PlatformContent {
+  const hasPublishedAccessories = published.products.some((product) => product.department === "accessories");
+  const draftAccessories = hasPublishedAccessories
+    ? undefined
+    : draft.site.megaMenu.find((group) => group.department === "accessories" || group.id === "accessories");
+  const megaMenu = published.site.megaMenu.map((group) => (
+    (group.department === "accessories" || group.id === "accessories") && draftAccessories
+      ? { ...group, visible: draftAccessories.visible }
+      : group
+  ));
+  return {
+    ...published,
+    site: { ...published.site, megaMenu },
+    homepage: draft.homepage,
   };
 }
 
@@ -1352,6 +1366,7 @@ router.post("/staff/content/platform/catalogue/publish-confirmed", platformRoles
       ...await validateProductMediaAssets(selectedContent),
       ...validateLegacyProductPublication(selectedContent, undefined, approvals),
       ...validateAccessoryProductPublication(candidate),
+      ...validateHomepageProductBindings(candidate),
       ...await validateHomepageHeroMediaAssets(candidate),
       ...await validateHomepageMerchandisingMediaAssets(candidate),
       ...await validateProductMediaAssets(candidate),
@@ -1486,6 +1501,7 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     return;
   }
   const mediaIssues = [
+    ...validateHomepageProductBindings(candidateContent.data),
     ...await validateHomepageHeroMediaAssets(candidateContent.data),
     ...await validateHomepageMerchandisingMediaAssets(candidateContent.data),
     ...await validateProductMediaAssets(candidateContent.data),
@@ -1517,6 +1533,7 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
     const approvals = validBusinessApprovalSlugs(parsed.data, approvalRow?.draft);
     const lockedUnfinished = unfinishedProductImages(parsed.data);
     const lockedMedia = [
+      ...validateHomepageProductBindings(parsed.data),
       ...await validateHomepageHeroMediaAssets(parsed.data),
       ...await validateHomepageMerchandisingMediaAssets(parsed.data),
       ...await validateProductMediaAssets(parsed.data),
@@ -1578,6 +1595,103 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
   }
   if (result.kind === "commerce_unavailable") {
     res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. Nothing was published." });
+    return;
+  }
+  res.json(result.row);
+});
+
+router.post("/staff/content/platform/homepage/publish", platformRoles, async (req, res): Promise<void> => {
+  const body = z.object({
+    expectedDraftUpdatedAt: z.string().datetime(),
+    expectedPublishedAt: z.string().datetime().nullable(),
+  }).strict().safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({
+      error: "Provide the current draft timestamp and published timestamp (or null when nothing has been published).",
+      issues: body.error.issues,
+    });
+    return;
+  }
+  await ensurePlatformContent();
+  const expectedDraft = new Date(body.data.expectedDraftUpdatedAt);
+  const expectedPublished = body.data.expectedPublishedAt === null ? null : new Date(body.data.expectedPublishedAt);
+  const publishedGuard = expectedPublished
+    ? eq(siteContentTable.publishedAt, expectedPublished)
+    : isNull(siteContentTable.publishedAt);
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const [current] = await tx.select().from(siteContentTable).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      publishedGuard,
+    )).limit(1);
+    if (!current) return { kind: "conflict" as const };
+    const draft = PlatformContentSchema.safeParse(current.draft);
+    const published = PlatformContentSchema.safeParse(current.published);
+    if (!draft.success || !published.success) {
+      return {
+        kind: "invalid" as const,
+        issues: !draft.success ? draft.error.issues : !published.success ? published.error.issues : [],
+      };
+    }
+    const candidate = buildHomepagePublicationCandidate(published.data, draft.data);
+    const parsed = PlatformContentSchema.safeParse(candidate);
+    if (!parsed.success) return { kind: "invalid" as const, issues: parsed.error.issues };
+    const bindingIssues = validateHomepageProductBindings(parsed.data, { requireCoreBindings: true });
+    if (bindingIssues.length) return { kind: "bindings_invalid" as const, issues: bindingIssues };
+    const mediaIssues = [
+      ...await validateHomepageHeroMediaAssets(parsed.data),
+      ...await validateHomepageMerchandisingMediaAssets(parsed.data),
+    ];
+    if (mediaIssues.length) return { kind: "media_invalid" as const, issues: mediaIssues };
+
+    const now = new Date(Math.max(Date.now(), (expectedPublished?.getTime() ?? 0) + 1));
+    const hash = platformContentHash(parsed.data);
+    const [updated] = await tx.update(siteContentTable).set({
+      published: parsed.data,
+      publishedAt: now,
+      publishedByClerkUserId: req.staff!.clerkUserId,
+    }).where(and(
+      eq(siteContentTable.key, "platform"),
+      eq(siteContentTable.draftUpdatedAt, expectedDraft),
+      publishedGuard,
+    )).returning();
+    if (!updated) return { kind: "conflict" as const };
+    const [revision] = await tx.insert(siteContentRevisionsTable).values({
+      contentKey: "platform",
+      event: "published",
+      snapshot: parsed.data,
+      contentHash: hash,
+      createdByClerkUserId: req.staff!.clerkUserId,
+    }).returning({ id: siteContentRevisionsTable.id });
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId,
+      action: "platform_content.homepage_published",
+      entityType: "site_content",
+      entityId: "platform",
+      metadata: {
+        scope: "homepage",
+        contentHash: hash,
+        revisionId: revision!.id,
+        publishedAt: now.toISOString(),
+      },
+    });
+    return { kind: "published" as const, row: updated };
+  });
+  if (result.kind === "conflict") {
+    res.status(409).json({ error: "The saved draft or published platform content changed before homepage publishing." });
+    return;
+  }
+  if (result.kind === "invalid") {
+    res.status(400).json({ error: "The homepage publication candidate is invalid.", issues: result.issues });
+    return;
+  }
+  if (result.kind === "bindings_invalid") {
+    res.status(400).json({ error: "Homepage product bindings did not pass published-catalogue checks.", issues: result.issues });
+    return;
+  }
+  if (result.kind === "media_invalid") {
+    res.status(400).json({ error: "Homepage media did not pass locked publication checks.", issues: result.issues });
     return;
   }
   res.json(result.row);
@@ -1648,6 +1762,10 @@ router.post("/staff/content/platform/products/:slug/publish", platformRoles, asy
     const candidate = PlatformContentSchema.safeParse({ ...published.data, products });
     if (!candidate.success) {
       return { kind: "invalid" as const, error: "This product cannot be published without updating referenced catalogue content.", issues: candidate.error.issues };
+    }
+    const homepageBindingIssues = validateHomepageProductBindings(candidate.data);
+    if (homepageBindingIssues.length) {
+      return { kind: "invalid" as const, error: "Published homepage product bindings do not match the candidate catalogue.", issues: homepageBindingIssues };
     }
     const selectedContent = { ...candidate.data, products: [product] };
     const unfinished = unfinishedProductImages(selectedContent);

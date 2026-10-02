@@ -829,6 +829,29 @@ function PlatformContentManagementSection() {
       setSaving(false);
     }
   };
+  const publishHomepageSelections = async () => {
+    try {
+      if (!row?.draftUpdatedAt || !row.publishedAt || JSON.stringify(parsedDocument()) !== JSON.stringify(row.draft)) {
+        setStatus("Save your current draft before publishing homepage selections. This action uses the saved version.");
+        return;
+      }
+      setSaving(true);
+      const committed = await customFetch<PlatformContentRow>("/api/staff/content/platform/homepage/publish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedDraftUpdatedAt: row.draftUpdatedAt, expectedPublishedAt: row.publishedAt }),
+        responseType: "json",
+      });
+      setRow(committed);
+      if (committed.draft) { setContent(committed.draft); setJson(JSON.stringify(sectionValue(committed.draft, section), null, 2)); }
+      setStatus("Homepage selections published. Other drafts, products and checkout settings were unchanged.");
+      void refreshRevisions();
+    } catch (error) {
+      setStatus(platformActionError(error, "Homepage selections could not be published. Check each product pick is currently published, then retry."));
+    } finally {
+      setSaving(false);
+    }
+  };
   const publishCatalogueRemoval = async (slug: string): Promise<string | undefined> => {
     try {
       if (!row?.draftUpdatedAt || !row.publishedAt || JSON.stringify(parsedDocument()) !== JSON.stringify(row.draft) ||
@@ -1018,7 +1041,8 @@ function PlatformContentManagementSection() {
         ];
         structuredEditor = <PlatformEditorHomepage
           data={parsed as PlatformContent["homepage"]}
-          products={content?.products ?? []}
+          products={row?.published?.products ?? []}
+          collections={row?.published?.collections ?? []}
           allowedTargets={allowedTargets}
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
           onUploadMedia={async (file) => {
@@ -1156,6 +1180,7 @@ function PlatformContentManagementSection() {
       <div id="platform-publication-controls" tabIndex={-1} className="mt-5 flex flex-wrap items-center gap-3 scroll-mt-6">
         <button data-testid="btn-save-draft" type="button" disabled={saving || !structuredEditorValid} onClick={() => void save()} className="flex min-h-10 items-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50"><Save size={15} /> Save draft</button>
         <button data-testid="btn-publish" type="button" disabled={saving || !row?.draft} onClick={() => void action("publish")} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish</button>
+        {section === "homepage" && <button data-testid="btn-publish-homepage-selections" type="button" disabled={saving || !row?.draft || !row?.published} onClick={() => void publishHomepageSelections()} className="flex min-h-10 items-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary disabled:opacity-50"><Globe size={15} /> Publish homepage selections only</button>}
         <button data-testid="btn-unpublish" type="button" disabled={saving || !row?.published} onClick={() => void action("unpublish")} className="min-h-10 border border-border px-4 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">Unpublish</button>
       </div>
       </fieldset>
