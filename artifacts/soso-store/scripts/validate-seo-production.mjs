@@ -8,6 +8,10 @@ const source = await readFile(resolve(root, "scripts/generate-seo-assets.mjs"), 
 const main = await readFile(resolve(root, "src/main.tsx"), "utf8");
 const vercel = await readFile(resolve(root, "../../vercel.json"), "utf8");
 const legacySource = await readFile(resolve(root, "src/data/legacy-content.ts"), "utf8");
+const legacyProductInventory = JSON.parse(await readFile(
+  resolve(root, "../../docs/soso-legacy-product-inventory.json"),
+  "utf8",
+));
 function legacyCollection(name) {
   const match = legacySource.match(new RegExp(`export const ${name}[^=]*= (\\[[\\s\\S]*?\\n\\]);`));
   assert.ok(match, `${name} must remain a JSON-literal shared source.`);
@@ -98,17 +102,19 @@ assert.deepEqual(vercelConfig.routes.slice(0, 2), [
   { src: "/api", dest: "/api/handler" },
   { src: "/api/(.*)", dest: "/api/handler?__soso_path=$1" },
 ]);
-const commerceWebhook = vercelConfig.routes.find((route) => route.src === "/webhook/commerce/?");
-assert.equal(commerceWebhook?.dest, "/api/handler?__soso_path=payment/webhook");
-assert.ok(vercelConfig.routes.indexOf(commerceWebhook) < filesystemIndex);
 assert.deepEqual(vercelConfig.routes.slice(filesystemIndex + 1), [{ src: "/(.*)", dest: "/spa-fallback" }]);
+const legacyProductRoute = vercelConfig.routes.find((route) => route.dest?.includes("__soso_path=legacy-redirect") && route.src.startsWith("/product/"));
+assert.ok(legacyProductRoute, "Known legacy product URLs must keep using the permanent redirect handler.");
+const legacyProductPattern = new RegExp(legacyProductRoute.src);
+for (const product of legacyProductInventory.products) {
+  const legacyPath = new URL(product.sourceUrl).pathname;
+  assert.match(legacyPath, legacyProductPattern, `${legacyPath} must keep its governed product redirect.`);
+}
+assert.doesNotMatch("/product/utility-navy-two-piece", legacyProductPattern, "Unlisted live PDP routes must reach the SPA fallback instead of the legacy redirect handler.");
 // Historical product-category redirects are an intentional edge migration, not
 // a rewrite of current clean /product/:slug routes. Only reject explicit
 // current route rewrites that would bypass the filesystem prerenders.
-assert.ok(!vercelConfig.routes.some((route) =>
-  !route.dest?.includes("__soso_path=legacy-redirect")
-  && /\/\((?:\?:)?(?:journal|product|collections)\//.test(route.src || "")),
-  "Prerenders must use clean URL filesystem routing, not explicit rewrites.");
+assert.ok(!vercelConfig.routes.some((route) => /\/\((?:\?:)?(?:journal|product|collections)\//.test(route.src || "")), "Prerenders must use clean URL filesystem routing, not explicit rewrites.");
 assert.equal(legacyAboutPages.length, 7, "Every archived About route must remain in the shared source.");
 assert.equal(legacyJournalPosts.length, 14, "Every archived Journal route must remain in the shared source.");
 for (const [name, records, prefix] of [
