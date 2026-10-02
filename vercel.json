@@ -14,6 +14,10 @@
       "dest": "/api/handler?__soso_path=$1"
     },
     {
+      "src": "/webhook/commerce/?",
+      "dest": "/api/handler?__soso_path=payment/webhook"
+    },
+    {
       "src": "/webhook/commerce",
       "dest": "/api/handler?__soso_path=payment/webhook"
     },
@@ -54,8 +58,8 @@
       "dest": "/api/handler?__soso_path=legacy-redirect&path=$1"
     },
     {
-      "src": "/(product/.*)$",
-      "dest": "/api/handler?__soso_path=legacy-redirect&path=$1"
+      "src": "/product/(the-alabaster|the-mahogany|cobalt|vayor|soso-113-2|soso-114-2|two-piece-3|soso-120|two-piece-2|two-piece-1|linen-two-piece-white|soso-118|soso-112-2|soso-117|soso-116|soso-114|soso-113|soso-112|pants|linen-two-piece-2|soso-111|soso-110|soso-109|soso-108|soso-107|soso-106|soso-105|soso-104|soso-103|soso-102|soso-101|danshiki-4|soso-100|soso-99|soso-98-2|soso-98|soso-97|soso-96|soso-95|soso-94|danshiki-2|soso-93|soso-92|danshiki-3|art-piece|danshiki-1|soso-91|soso-90|soso-89|soso-88|soso-87|soso-86|the-dress-shirt-black|soso-85|soso-84|soso-83|soso-82|soso-81|soso-80|soso-79-2|the-dress-shirt|the-ko2-attire|the-ko1-attire|soso-78|soso-77|soso-79|the-koles2piece|the-koleskaftan|soso-76|soso-75|soso-lb-001|soso-73|soso-72-2|soso-71|linen-two-piece|soso-70|soso-69|summervibes-shade|summervibes-ambient|summervibes-tone|soso-68|soso-cufflinks|soso-65|soso-64|soso-63|soso-62|soso-61|soso-60|soso-59-2|soso-58|soso-57|soso-55|soso-54|soso-53|soso-56|soso-52|soso-51|soso-59|soso-47|soso-46|soso-45|soso-44|soso-43|soso-42|soso-41|soso-40|soso-39|soso-38|soso-37|soso-36|soso-35|soso-33|soso-31|soso-30|soso-29|soso-28|soso-27|soso-21|soso-26|soso-25|soso-24|soso-23|soso-22|soso-20|soso-19|soso-18|soso-17|soso-16|soso-15|soso-14|soso-13|soso-04|soso-07|soso-06|soso-02|soso-08|soso-05|soso-01|soso-03|soso-12|soso-11|soso-10|soso-09)/?$",
+      "dest": "/api/handler?__soso_path=legacy-redirect&path=product/$1"
     },
     {
       "src": "/(images|media)/(.*)",
