@@ -1531,6 +1531,58 @@ export const CommerceFulfillmentInputType = {
   delivery: 'delivery',
 } as const;
 
+export type CommerceFulfillmentInputDestinationCountry = typeof CommerceFulfillmentInputDestinationCountry[keyof typeof CommerceFulfillmentInputDestinationCountry];
+
+
+export const CommerceFulfillmentInputDestinationCountry = {
+  NG: 'NG',
+} as const;
+
+export type CommerceShippingAddressCountry = typeof CommerceShippingAddressCountry[keyof typeof CommerceShippingAddressCountry];
+
+
+export const CommerceShippingAddressCountry = {
+  NG: 'NG',
+} as const;
+
+export interface CommerceShippingAddress {
+  country: CommerceShippingAddressCountry;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  region: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  city: string;
+  /** @pattern ^(?:[0-9]{6})?$ */
+  postalCode: string;
+  /**
+     * @minItems 1
+     * @maxItems 3
+     * @items.minLength 1
+     * @items.maxLength 250
+     */
+  addressLines: string[];
+  /**
+     * @minLength 1
+     * @maxLength 160
+     */
+  recipientName: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  recipientPhone: string;
+  /**
+     * @minLength 1
+     * @maxLength 1000
+     */
+  deliveryInstructions?: string;
+}
+
 export interface CommerceFulfillmentInput {
   type: CommerceFulfillmentInputType;
   /**
@@ -1543,6 +1595,8 @@ export interface CommerceFulfillmentInput {
      * @maxLength 1000
      */
   address?: string;
+  destinationCountry?: CommerceFulfillmentInputDestinationCountry;
+  shippingAddress?: CommerceShippingAddress;
 }
 
 export type CommerceCheckoutInputPaymentProvider = typeof CommerceCheckoutInputPaymentProvider[keyof typeof CommerceCheckoutInputPaymentProvider];

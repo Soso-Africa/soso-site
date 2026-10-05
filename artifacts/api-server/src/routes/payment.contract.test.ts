@@ -102,10 +102,18 @@ test("Paystack payment sessions use the approved callback URL and only repair ex
 test("quote confirmation rejects changed line, fulfillment, expiry, and monetary authority", () => {
   const lines = [{ inventoryItemId: checkout.items[0].productId, variantId: checkout.items[0].variantId, quantity: 1 }];
   const requestedItems = [{ productId: checkout.items[0].productId, variantId: checkout.items[0].variantId, quantity: 1 }];
-  const fulfillment = { type: "delivery" as const, address: "1 Example Road" };
+  const fulfillment = {
+    type: "delivery" as const, address: "1 Example Road", destinationCountry: "NG",
+    shippingAddress: {
+      country: "NG", region: "Lagos", city: "Ikeja", postalCode: "100271",
+      addressLines: ["1 Example Road"], recipientName: "Ada Customer", recipientPhone: "+2348000000000",
+    },
+  };
   assert.equal(quoteMatchesRequestedCheckout({ lines, fulfillment }, requestedItems, fulfillment), true);
   assert.equal(quoteMatchesRequestedCheckout({ lines: [{ ...lines[0], quantity: 2 }], fulfillment }, requestedItems, fulfillment), false);
   assert.equal(quoteMatchesRequestedCheckout({ lines, fulfillment: { ...fulfillment, address: "Changed" } }, requestedItems, fulfillment), false);
+  assert.equal(quoteMatchesRequestedCheckout({ lines, fulfillment: { ...fulfillment, destinationCountry: "GB" } }, requestedItems, fulfillment), false);
+  assert.equal(quoteMatchesRequestedCheckout({ lines, fulfillment: { ...fulfillment, shippingAddress: { ...fulfillment.shippingAddress, city: "Changed" } } }, requestedItems, fulfillment), false);
   const snapshot = {
     id: "0efebec6-2687-4d2f-9350-f67282534d30", expiresAt: "2030-01-01T00:00:00.000Z", currency: "NGN",
     displayCurrency: "USD", chargeCurrency: "USD", settlementCurrency: "NGN", fxSnapshotId: null,
@@ -116,12 +124,12 @@ test("quote confirmation rejects changed line, fulfillment, expiry, and monetary
     ...snapshot,
     amounts: { totalMinor: "100" },
     lines: lines.map(({ inventoryItemId, variantId, quantity }) => ({ quantity, variantId, inventoryItemId })),
-    fulfillment: { address: "1 Example Road", type: "delivery" },
+    fulfillment: { shippingAddress: fulfillment.shippingAddress, destinationCountry: "NG", address: "1 Example Road", type: "delivery" },
   }, {
     ...snapshot,
     amounts: { totalMinor: "100" },
     lines: lines.map(({ inventoryItemId, variantId, quantity }) => ({ inventoryItemId, variantId, quantity })),
-    fulfillment: { type: "delivery", address: "1 Example Road" },
+    fulfillment,
   }), true);
   assert.equal(sameImmutableQuote({ ...snapshot, expiresAt: "2030-01-01T00:01:00.000Z" }, snapshot), false);
   assert.equal(sameImmutableQuote({ ...snapshot, amounts: { totalMinor: "101" } }, snapshot), false);

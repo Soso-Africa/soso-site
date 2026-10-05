@@ -117,6 +117,21 @@ export const initiateCommerceCheckoutBodyFulfillmentLocationIdMax = 64;
 
 export const initiateCommerceCheckoutBodyFulfillmentAddressMax = 1000;
 
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressRegionMax = 80;
+
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressCityMax = 120;
+
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressPostalCodeRegExp = new RegExp('^(?:[0-9]{6})?$');
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressAddressLinesItemMax = 250;
+
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressAddressLinesMax = 3;
+
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressRecipientNameMax = 160;
+
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressRecipientPhoneMax = 80;
+
+export const initiateCommerceCheckoutBodyFulfillmentShippingAddressDeliveryInstructionsMax = 1000;
+
 export const initiateCommerceCheckoutBodyNotesMax = 1000;
 
 export const initiateCommerceCheckoutBodyQuoteIdMin = 36;
@@ -147,7 +162,18 @@ export const InitiateCommerceCheckoutBody = zod.object({
   "fulfillment": zod.object({
   "type": zod.enum(['pickup', 'delivery']),
   "locationId": zod.string().min(initiateCommerceCheckoutBodyFulfillmentLocationIdMin).max(initiateCommerceCheckoutBodyFulfillmentLocationIdMax).optional(),
-  "address": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentAddressMax).optional()
+  "address": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentAddressMax).optional(),
+  "destinationCountry": zod.enum(['NG']).optional(),
+  "shippingAddress": zod.object({
+  "country": zod.enum(['NG']),
+  "region": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentShippingAddressRegionMax),
+  "city": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentShippingAddressCityMax),
+  "postalCode": zod.string().regex(initiateCommerceCheckoutBodyFulfillmentShippingAddressPostalCodeRegExp),
+  "addressLines": zod.array(zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentShippingAddressAddressLinesItemMax)).min(1).max(initiateCommerceCheckoutBodyFulfillmentShippingAddressAddressLinesMax),
+  "recipientName": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentShippingAddressRecipientNameMax),
+  "recipientPhone": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentShippingAddressRecipientPhoneMax),
+  "deliveryInstructions": zod.string().min(1).max(initiateCommerceCheckoutBodyFulfillmentShippingAddressDeliveryInstructionsMax).optional()
+}).optional()
 }),
   "notes": zod.string().max(initiateCommerceCheckoutBodyNotesMax).optional(),
   "quoteId": zod.string().min(initiateCommerceCheckoutBodyQuoteIdMin).max(initiateCommerceCheckoutBodyQuoteIdMax),
@@ -238,6 +264,21 @@ export const createCommerceQuoteBodyFulfillmentLocationIdMax = 64;
 
 export const createCommerceQuoteBodyFulfillmentAddressMax = 1000;
 
+export const createCommerceQuoteBodyFulfillmentShippingAddressRegionMax = 80;
+
+export const createCommerceQuoteBodyFulfillmentShippingAddressCityMax = 120;
+
+export const createCommerceQuoteBodyFulfillmentShippingAddressPostalCodeRegExp = new RegExp('^(?:[0-9]{6})?$');
+export const createCommerceQuoteBodyFulfillmentShippingAddressAddressLinesItemMax = 250;
+
+export const createCommerceQuoteBodyFulfillmentShippingAddressAddressLinesMax = 3;
+
+export const createCommerceQuoteBodyFulfillmentShippingAddressRecipientNameMax = 160;
+
+export const createCommerceQuoteBodyFulfillmentShippingAddressRecipientPhoneMax = 80;
+
+export const createCommerceQuoteBodyFulfillmentShippingAddressDeliveryInstructionsMax = 1000;
+
 export const createCommerceQuoteBodyNotesMax = 1000;
 
 export const createCommerceQuoteBodyDisplayCurrencyRegExp = new RegExp('^[A-Za-z]{3}$');
@@ -265,7 +306,18 @@ export const CreateCommerceQuoteBody = zod.object({
   "fulfillment": zod.object({
   "type": zod.enum(['pickup', 'delivery']),
   "locationId": zod.string().min(createCommerceQuoteBodyFulfillmentLocationIdMin).max(createCommerceQuoteBodyFulfillmentLocationIdMax).optional(),
-  "address": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentAddressMax).optional()
+  "address": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentAddressMax).optional(),
+  "destinationCountry": zod.enum(['NG']).optional(),
+  "shippingAddress": zod.object({
+  "country": zod.enum(['NG']),
+  "region": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentShippingAddressRegionMax),
+  "city": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentShippingAddressCityMax),
+  "postalCode": zod.string().regex(createCommerceQuoteBodyFulfillmentShippingAddressPostalCodeRegExp),
+  "addressLines": zod.array(zod.string().min(1).max(createCommerceQuoteBodyFulfillmentShippingAddressAddressLinesItemMax)).min(1).max(createCommerceQuoteBodyFulfillmentShippingAddressAddressLinesMax),
+  "recipientName": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentShippingAddressRecipientNameMax),
+  "recipientPhone": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentShippingAddressRecipientPhoneMax),
+  "deliveryInstructions": zod.string().min(1).max(createCommerceQuoteBodyFulfillmentShippingAddressDeliveryInstructionsMax).optional()
+}).optional()
 }),
   "notes": zod.string().max(createCommerceQuoteBodyNotesMax).optional(),
   "displayCurrency": zod.string().regex(createCommerceQuoteBodyDisplayCurrencyRegExp),

@@ -3,6 +3,8 @@ import { Link } from "wouter";
 import { ChevronLeft, LockKeyhole, MessageCircle } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { QuoteReview } from "@/components/checkout/QuoteReview";
+import { DomesticDeliveryFields } from "@/components/checkout/DomesticDeliveryFields";
+import { deliveryFromForm } from "@/lib/domestic-delivery";
 import { useCart } from "@/context/CartContext";
 import { clearCheckoutOperation, commerceGateway, CommerceRemoteError, savePaymentAttempt, type CommerceDiscovery, type CommerceQuote, type PickupLocation } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
@@ -29,6 +31,7 @@ export default function Checkout() {
   const [method, setMethod] = useState<CommerceDiscovery["paymentMethods"]["providers"][number]["methods"][number] | "">("");
   const currency = "NGN";
   const [fulfillmentType, setFulfillmentType] = useState<"pickup" | "delivery">("pickup");
+  const [quotedDeliveryAddress, setQuotedDeliveryAddress] = useState<string | undefined>();
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [locationId, setLocationId] = useState("");
   const [stylistOpen, setStylistOpen] = useState(false);
@@ -125,7 +128,7 @@ export default function Checkout() {
             },
             fulfillment: fulfillmentType === "pickup"
               ? { type: "pickup", locationId }
-              : { type: "delivery", address: String(form.get("address") || "").trim() },
+              : deliveryFromForm(form),
             notes: String(form.get("deliveryNote") || ""),
           items,
           displayCurrency: currency,
@@ -135,6 +138,7 @@ export default function Checkout() {
         if (!quote) {
           const nextQuote = await commerceGateway.createQuote(request);
           setQuote(nextQuote);
+          setQuotedDeliveryAddress(request.fulfillment.type === "delivery" ? request.fulfillment.address : undefined);
           setState("reviewing");
           return;
         }
@@ -201,48 +205,44 @@ export default function Checkout() {
                   {copy.emailLabel}
                 <input required type="email" name="email" autoComplete="email" onInvalid={handleInvalid} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
-              <fieldset className="space-y-3 text-sm">
-                <legend>Fulfilment</legend>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="fulfillmentType" value="pickup" checked={fulfillmentType === "pickup"}
-                    disabled={!canPickup} onChange={() => { setFulfillmentType("pickup"); invalidateQuote(); }} />
-                  Collect from SOSO
-                </label>
-                <label className="flex items-center gap-2">
-                  <input type="radio" name="fulfillmentType" value="delivery" checked={fulfillmentType === "delivery"}
-                    disabled={!canDeliver} onChange={() => { setFulfillmentType("delivery"); invalidateQuote(); }} />
-                  Delivery {canDeliver ? "" : "(not yet available)"}
-                </label>
-              </fieldset>
-              {fulfillmentType === "pickup" && (
-                <label className="text-sm block">
-                  Pickup location
-                  <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateQuote(); }} disabled={!canPickup}
-                    className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground">
-                    {!locations.length && <option value="">No pickup location available</option>}
-                    {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}, {location.city}</option>)}
-                  </select>
-                </label>
-              )}
-              {fulfillmentType === "delivery" && (
-                <label className="text-sm block">
-                  {copy.addressLabel}
-                  <textarea required name="address" autoComplete="street-address" rows={3} onInvalid={handleInvalid}
-                    className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
-                </label>
-              )}
-              {!canPickup && !canDeliver && <p role="alert" className="text-sm text-destructive">Fulfilment is unavailable. Checkout is paused; no payment has been taken.</p>}
+               <fieldset className="space-y-3 text-sm">
+                 <legend>Fulfilment</legend>
+                 <label className="flex items-center gap-2">
+                   <input type="radio" name="fulfillmentType" value="pickup" checked={fulfillmentType === "pickup"}
+                     disabled={!canPickup} onChange={() => { setFulfillmentType("pickup"); invalidateQuote(); }} />
+                   Collect from SOSO
+                 </label>
+                 <label className="flex items-center gap-2">
+                   <input type="radio" name="fulfillmentType" value="delivery" checked={fulfillmentType === "delivery"}
+                     disabled={!canDeliver} onChange={() => { setFulfillmentType("delivery"); invalidateQuote(); }} />
+                   Delivery within Nigeria {canDeliver ? "" : "(not enabled for this store)"}
+                 </label>
+               </fieldset>
+               {fulfillmentType === "pickup" && (
+                 <label className="text-sm block">
+                   Pickup location
+                   <select required value={locationId} onChange={(event) => { setLocationId(event.target.value); invalidateQuote(); }} disabled={!canPickup}
+                     className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground">
+                     {!locations.length && <option value="">No pickup location available</option>}
+                     {locations.map((location) => <option key={location.id} value={location.id}>{location.name} — {location.address}, {location.city}</option>)}
+                   </select>
+                 </label>
+               )}
+               {fulfillmentType === "delivery" && (
+                 <DomesticDeliveryFields />
+               )}
+               {!canPickup && !canDeliver && <p role="alert" className="text-sm text-destructive">Fulfilment is unavailable. Checkout is paused; no payment has been taken.</p>}
               <label className="text-sm block">
                  {copy.notesLabel} <span className="opacity-60">({copy.optionalLabel})</span>
                 <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
-              <p className="text-xs leading-relaxed text-secondary">
-                {fulfillmentType === "pickup" ? "We will confirm collection details after payment." : copy.deliveryNote}
-              </p>
+               <p className="text-xs leading-relaxed text-secondary">
+                 {fulfillmentType === "pickup" ? "We will confirm collection details after payment." : copy.deliveryNote}
+               </p>
                <div className="grid sm:grid-cols-2 gap-5">
                  <label className="text-sm">
                    Currency
-                   <span className="mt-2 block border border-border px-4 py-3.5">NGN — Nigerian naira</span>
+                    <span className="mt-2 block border border-border px-4 py-3.5">NGN — Nigerian naira</span>
                  </label>
                  <label className="text-sm">
                    Payment method
@@ -265,6 +265,8 @@ export default function Checkout() {
                     paymentProvider={selectedProvider?.provider}
                     paymentMethod={method || undefined}
                     collectionLabel={fulfillmentType === "pickup" ? (locations.find((location) => location.id === locationId)?.name ?? "Collect from SOSO") : "Delivery"}
+                    deliveryAddress={fulfillmentType === "delivery" ? quotedDeliveryAddress : undefined}
+                    shippingCost={fulfillmentType === "delivery" ? moneyFromMinor(quote.amounts.shippingMinor, quote.currency, quote.currencyMinorUnitExponents?.[quote.currency] ?? 2) : undefined}
                   />
                )}
                {state === "ready" && message && (
