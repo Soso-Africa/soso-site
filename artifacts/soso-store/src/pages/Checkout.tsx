@@ -2,6 +2,7 @@ import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ChevronLeft, LockKeyhole, MessageCircle } from "lucide-react";
 import { Seo } from "@/components/Seo";
+import { QuoteReview } from "@/components/checkout/QuoteReview";
 import { useCart } from "@/context/CartContext";
 import { clearCheckoutOperation, commerceGateway, CommerceRemoteError, savePaymentAttempt, type CommerceDiscovery, type CommerceQuote, type PickupLocation } from "@/lib/commerce";
 import { naira } from "@/lib/utils";
@@ -256,11 +257,15 @@ export default function Checkout() {
                  </label>
                </div>
                {quote && (
-                 <section aria-live="polite" className="border border-border bg-muted/20 p-5 text-sm">
-                   <p className="font-semibold">Review your secure quote</p>
-                    <p className="mt-2 text-secondary">Canonical order total ({quote.currency}, minor exponent {quote.currencyMinorUnitExponents?.[quote.currency] ?? 2}): <strong className="text-foreground">{moneyFromMinor(quote.amounts.totalMinor, quote.currency, quote.currencyMinorUnitExponents?.[quote.currency] ?? 2)}</strong></p>
-                    <p className="mt-1 text-xs text-secondary">Display currency: {quote.displayCurrency} (exponent {quote.currencyMinorUnitExponents?.[quote.displayCurrency] ?? "—"}); charge currency: {quote.chargeCurrency} (exponent {quote.currencyMinorUnitExponents?.[quote.chargeCurrency] ?? "—"}); settlement currency: {quote.settlementCurrency} (exponent {quote.currencyMinorUnitExponents?.[quote.settlementCurrency] ?? "—"}). This immutable quote expires {new Date(quote.expiresAt).toLocaleString()}.</p>
-                 </section>
+                  <QuoteReview
+                    formattedTotal={moneyFromMinor(quote.amounts.totalMinor, quote.currency, quote.currencyMinorUnitExponents?.[quote.currency] ?? 2)}
+                    currency={quote.currency}
+                    chargeCurrency={quote.chargeCurrency}
+                    expiresAt={quote.expiresAt}
+                    paymentProvider={selectedProvider?.provider}
+                    paymentMethod={method || undefined}
+                    collectionLabel={fulfillmentType === "pickup" ? (locations.find((location) => location.id === locationId)?.name ?? "Collect from SOSO") : "Delivery"}
+                  />
                )}
                {state === "ready" && message && (
                  <p role="status" className="text-sm text-secondary">{message}</p>
