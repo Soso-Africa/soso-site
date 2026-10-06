@@ -23,6 +23,9 @@ export function Navbar() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const desktopNavRef = useRef<HTMLDivElement>(null);
+  const desktopLinksRef = useRef<HTMLElement>(null);
+  const leftSlotRef = useRef<HTMLDivElement>(null);
+  const [desktopFits, setDesktopFits] = useState(false);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -35,6 +38,31 @@ export function Navbar() {
   const headerControlClass = isTransparent
     ? "text-white/90 hover:text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]"
     : "text-foreground/80 hover:text-foreground";
+
+  // Reserve the logo's own column. Use the full menu only when its actual
+  // content fits, including after fonts load or Staff changes the labels.
+  useEffect(() => {
+    const slot = leftSlotRef.current;
+    const links = desktopLinksRef.current;
+    if (!slot || !links) return;
+    const measure = () => setDesktopFits(
+      window.innerWidth >= 1280 && links.getBoundingClientRect().width <= slot.clientWidth,
+    );
+    const observer = new ResizeObserver(measure);
+    observer.observe(slot);
+    observer.observe(links);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [site]);
+
+  useEffect(() => {
+    if (desktopFits) setMobileMenuOpen(false);
+    else setActiveGroupId(null);
+  }, [desktopFits]);
 
   useEffect(() => {
     const itemCount = announcementItems.length;
@@ -186,7 +214,8 @@ export function Navbar() {
       </div>}
 
       <header
-        className={`sticky top-0 z-50 px-4 md:px-6 lg:px-12 flex items-center justify-between transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        data-testid="storefront-header"
+        className={`sticky top-0 z-50 px-4 md:px-6 lg:px-12 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 md:gap-6 items-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
           isTransparent
             ? "bg-transparent border-transparent text-white"
             : "bg-background border-border text-foreground shadow-sm"
@@ -196,9 +225,10 @@ export function Navbar() {
           height: 72,
         }}
       >
+        <div ref={leftSlotRef} className="min-w-0 h-full flex items-center">
         {/* Mobile Hamburger */}
         <button
-          className={`md:hidden p-2 -ml-2 ${headerControlClass}`}
+          className={`${desktopFits ? "hidden" : "inline-flex"} min-h-11 min-w-11 items-center justify-center ${headerControlClass}`}
           onClick={() => mobileMenuOpen ? setMobileMenuOpen(false) : openMobileMenu()}
           aria-label={mobileMenuOpen ? site.header.closeMenuLabel : site.header.openMenuLabel}
           aria-expanded={mobileMenuOpen}
@@ -213,14 +243,16 @@ export function Navbar() {
         {/* Desktop Navigation */}
         <div
           ref={desktopNavRef}
-          className="hidden md:flex flex-col justify-center h-full"
+          aria-hidden={!desktopFits}
+          inert={!desktopFits}
+          className={`flex flex-col justify-center h-full ${desktopFits ? "" : "absolute left-0 top-0 w-full overflow-hidden invisible pointer-events-none"}`}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) {
               setActiveGroupId(null);
             }
           }}
         >
-          <nav className="flex items-center gap-8 text-[12px] tracking-[0.18em] uppercase font-medium">
+          <nav ref={desktopLinksRef} className="flex w-max items-center gap-8 whitespace-nowrap text-[12px] tracking-[0.18em] uppercase font-medium">
             {hasMegaMenu && visibleGroups.map(group => {
               const isActive = activeGroupId === group.id;
               return (
@@ -271,24 +303,25 @@ export function Navbar() {
             ))}
           </nav>
         </div>
+        </div>
         
         <Link
           href="/"
           aria-label={site.logoAlt}
-          className="flex items-center justify-center transition-opacity duration-300 hover:opacity-70 md:absolute md:left-1/2 md:-translate-x-1/2"
+          className="flex shrink-0 items-center justify-center transition-opacity duration-300 hover:opacity-70"
           data-testid="link-header-home"
         >
-          <BrandLockup variant={isTransparent ? "white" : "black"} />
+          <BrandLockup variant={isTransparent ? "white" : "black"} className="max-[360px]:w-[96px]" />
         </Link>
         
-        <div className="flex items-center gap-4 md:gap-6">
+        <div className="flex min-w-0 items-center justify-self-end gap-1 xl:gap-6">
           <HeaderSearch buttonClassName={headerControlClass} />
           <button
             onClick={openDrawer} 
-            className={`flex items-center gap-2 text-[12px] tracking-[0.12em] uppercase transition-colors duration-300 relative ${headerControlClass}`}
+            className={`flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-2 text-[12px] tracking-[0.12em] uppercase transition-colors duration-300 relative ${headerControlClass}`}
             aria-label={site.header.openCartLabel}
           >
-            <span className="hidden sm:inline font-medium">{site.header.cartLabel.replace(/bag/i, 'Cart')}</span>
+            <span className="hidden xl:inline max-w-16 truncate font-medium">{site.header.cartLabel.replace(/bag/i, 'Cart')}</span>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
               <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -305,7 +338,7 @@ export function Navbar() {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] md:hidden bg-background flex flex-col overflow-hidden animate-in fade-in duration-300">
+        <div ref={mobileMenuRef} id="soso-mobile-menu" role="dialog" aria-modal="true" aria-label={site.header.mainNavigationLabel} className="fixed inset-0 z-[100] bg-background flex flex-col overflow-hidden animate-in fade-in duration-300">
           {/* Header of mobile menu */}
           <div className="flex justify-between items-center p-4 px-6 border-b border-border shrink-0">
             <Link

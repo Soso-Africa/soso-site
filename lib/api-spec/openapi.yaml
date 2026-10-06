@@ -17,6 +17,29 @@ tags:
   - name: storage
     description: Staff image uploads and public object serving
 paths:
+  /payment/purchase-conversion:
+    post:
+      operationId: claimPurchaseConversion
+      summary: Claim one consented conversion from a server-verified paid order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseConversionConsent"
+      responses:
+        "200":
+          description: Minimal verified purchase receipt; contains no order credentials or customer information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifiedPurchaseReceipt"
+        "204":
+          description: No eligible unclaimed purchase
+        "403":
+          description: Consent or public-route restriction failed
+        "503":
+          description: Verification unavailable
   /healthz:
     get:
       operationId: healthCheck
@@ -1534,6 +1557,21 @@ components:
         type: string
         pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
   schemas:
+    PurchaseConversionConsent:
+      type: object
+      additionalProperties: false
+      required: [marketingConsent, publicPath]
+      properties:
+        marketingConsent: { type: boolean, enum: [true] }
+        publicPath: { type: string, maxLength: 500 }
+    VerifiedPurchaseReceipt:
+      type: object
+      additionalProperties: false
+      required: [eventId, value, currency]
+      properties:
+        eventId: { type: string, pattern: "^[a-f0-9-]{36}$" }
+        value: { type: number, exclusiveMinimum: 0 }
+        currency: { type: string, enum: [NGN] }
     UploadUrlRequest:
       type: object
       additionalProperties: false
@@ -2147,6 +2185,9 @@ components:
       additionalProperties: false
       required: [pixelId, enabled]
       properties:
+        conversionLabel:
+          type: ["string", "null"]
+          pattern: "^[A-Za-z0-9_-]{1,80}$"
         pixelId:
           type: ["string", "null"]
           pattern: "^AW-[0-9]{6,20}$"
@@ -2156,6 +2197,9 @@ components:
       additionalProperties: false
       required: [pixelId, enabled]
       properties:
+        purchaseEventId:
+          type: ["string", "null"]
+          pattern: "^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$"
         pixelId:
           type: ["string", "null"]
           pattern: "^[A-Za-z0-9]{5,20}$"
@@ -2209,6 +2253,8 @@ components:
       required: [pixelId]
       properties:
         pixelId: { type: string }
+        conversionLabel: { type: string }
+        purchaseEventId: { type: string }
     PublicMarketingPixelProviders:
       type: object
       additionalProperties: false

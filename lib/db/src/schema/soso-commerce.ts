@@ -614,6 +614,12 @@ export const marketingPixelSettingsTable = pgTable(
   },
 );
 
+export const purchaseConversionClaimsTable = pgTable("soso_purchase_conversion_claims", {
+  attemptId: uuid("attempt_id").primaryKey().references(() => commerceCheckoutAttemptsTable.id, { onDelete: "cascade" }),
+  eventId: uuid("event_id").notNull().unique(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const marketingPixelSettingRevisionsTable = pgTable(
   "soso_marketing_pixel_setting_revisions",
   {

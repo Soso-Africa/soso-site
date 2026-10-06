@@ -27,7 +27,7 @@ type TikTokQueue = unknown[][] & {
   instance?: (id: string) => TikTokQueue;
   load?: (id: string, options?: Record<string, unknown>) => void;
   page?: () => void;
-  track?: (name: string, payload?: Record<string, unknown>) => void;
+  track?: (name: string, payload?: Record<string, unknown>, options?: Record<string, unknown>) => void;
   disableCookie?: () => void;
   revokeConsent?: () => void;
   grantConsent?: () => void;
@@ -114,6 +114,12 @@ export function createTikTokPixel(): MarketingProvider {
       queue()?.revokeConsent?.();
       queue()?.disableCookie?.();
       document.getElementById(SCRIPT_ID)?.remove();
+    },
+    purchase(receipt, config) {
+      const instance = queue()?.instance?.(config.pixelId);
+      instance?.track?.("CompletePayment", {
+        value: receipt.value, currency: receipt.currency,
+      }, { event_id: receipt.eventId });
     },
   };
 }

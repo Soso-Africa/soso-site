@@ -1,3 +1,4 @@
+import purchaseConversionsRouter from "./purchase-conversions";
 import { Router, type IRouter } from "express";
 import analyticsRouter from "./analytics";
 import contentRouter from "./content";
@@ -21,6 +22,7 @@ router.use(analyticsRouter);
 router.use(contentRouter);
 router.use(faqRouter);
 router.use(paymentRouter);
+router.use(purchaseConversionsRouter);
 router.use(redirectsRouter);
 router.use(sitemapRouter);
 router.use(staffAuthRouter);

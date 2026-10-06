@@ -2576,6 +2576,21 @@ function MarketingPixelsSection() {
                         />
                         Enable Tracker
                       </label>
+                      {(p.key === "googleAds" || p.key === "x") && (
+                        <label className="block text-xs">
+                          {p.key === "googleAds" ? "Purchase conversion label (public)" : "Purchase event ID (public, tw-pixel-event)"}
+                          <input className="mt-2 block w-full border border-border bg-background p-3"
+                            value={p.key === "googleAds" ? settings.googleAds.conversionLabel ?? "" : settings.x.purchaseEventId ?? ""}
+                            onChange={(e) => {
+                              const field = p.key === "googleAds" ? "conversionLabel" : "purchaseEventId";
+                              setSettings((current) => ({ ...current, [p.key]: { ...current[p.key], [field]: e.target.value.trim() || null } }));
+                              setDirty(true);
+                            }}
+                            pattern={p.key === "googleAds" ? "[A-Za-z0-9_-]{1,80}" : "tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}"}
+                          />
+                          Blank disables purchase reporting for this provider. Vendor receipt and purchaser exclusion audiences require owner verification.
+                        </label>
+                      )}
                       <div data-testid={`status-pixel-${p.key}`} className="text-[10px] uppercase tracking-wider font-semibold">
                         {config.enabled ? <span className="text-green-500">Active</span> : config.pixelId ? <span className="text-primary">Configured</span> : <span className="text-muted-foreground">Inactive</span>}
                       </div>

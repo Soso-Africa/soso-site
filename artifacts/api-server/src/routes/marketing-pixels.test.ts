@@ -52,6 +52,26 @@ test("enabled providers require a valid identifier", () => {
   assert.match(parsed.success ? "" : parsed.error.issues[0]?.message ?? "", /required before.*enabled/i);
 });
 
+test("purchase destinations validate as public identifiers and changes enter audit summaries", () => {
+  const valid = {
+    ...DEFAULT_MARKETING_PIXEL_SETTINGS,
+    googleAds: { pixelId: "AW-123456789", enabled: true, conversionLabel: "Purchase_label-123" },
+    x: { pixelId: "abc12", enabled: true, purchaseEventId: "tw-abc12-purchase" },
+  };
+  assert.equal(MarketingPixelSettingsSchema.safeParse(valid).success, true);
+  assert.equal(MarketingPixelSettingsSchema.safeParse({
+    ...valid, x: { ...valid.x, purchaseEventId: "tw-other-purchase" },
+  }).success, false);
+  assert.equal(MarketingPixelSettingsSchema.safeParse({
+    ...valid, googleAds: { ...valid.googleAds, conversionLabel: "<script>" },
+  }).success, false);
+  const published = publicMarketingPixelSettings(valid);
+  assert.equal(published.providers.googleAds?.conversionLabel, "Purchase_label-123");
+  assert.equal(published.providers.x?.purchaseEventId, "tw-abc12-purchase");
+  const changed = { ...valid, googleAds: { ...valid.googleAds, conversionLabel: "different" } };
+  assert.deepEqual(marketingPixelAuditSummary(valid, changed).changedProviders, ["googleAds"]);
+});
+
 test("public settings expose only valid enabled identifiers and otherwise fail closed", () => {
   const settings = structuredClone(DEFAULT_MARKETING_PIXEL_SETTINGS);
   settings.meta = { pixelId: "123456789", enabled: true };
