@@ -5,7 +5,7 @@ export type MarketingProviderName = "meta" | "googleAds" | "x" | "tiktok";
 export type MarketingPixelConfig = {
   schemaVersion: 1;
   revision: number;
-  providers: Record<MarketingProviderName, { pixelId: string } | null>;
+  providers: Record<MarketingProviderName, { pixelId: string; conversionLabel?: string; purchaseEventId?: string } | null>;
 };
 
 export type MarketingPayload = {
@@ -66,5 +66,17 @@ export type MarketingProvider = {
   activate(pixelId: string): void;
   resume(pixelId: string): void;
   send(event: ProviderEvent): void;
+  purchase?(receipt: PurchaseReceipt, config: NonNullable<MarketingPixelConfig["providers"][MarketingProviderName]>): void;
   revoke(): void;
 };
+
+export type PurchaseReceipt = { eventId: string; value: number; currency: "NGN" };
+
+export function purchaseReceipt(value: unknown): PurchaseReceipt | null {
+  if (!value || typeof value !== "object") return null;
+  const input = value as Record<string, unknown>;
+  if (typeof input.eventId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(input.eventId)
+    || typeof input.value !== "number" || !Number.isFinite(input.value) || input.value <= 0
+    || input.currency !== "NGN") return null;
+  return { eventId: input.eventId, value: input.value, currency: input.currency };
+}

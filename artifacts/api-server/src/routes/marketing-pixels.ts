@@ -19,7 +19,8 @@ import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 const router: IRouter = Router();
 const SETTINGS_KEY = "storefront";
 
-const providerSetting = (label: string, pattern: RegExp, example: string) => z.object({
+const providerSetting = <T extends z.ZodRawShape = Record<never, never>>(label: string, pattern: RegExp, example: string, extra: T = {} as T) => z.object({
+  ...extra,
   pixelId: z.string()
     .trim()
     .regex(pattern, `${label} must match ${example}`)
@@ -38,10 +39,20 @@ const providerSetting = (label: string, pattern: RegExp, example: string) => z.o
 export const MarketingPixelSettingsSchema = z.object({
   schemaVersion: z.literal(1),
   meta: providerSetting("Meta Pixel ID", /^[0-9]{5,20}$/, "5–20 digits"),
-  googleAds: providerSetting("Google Ads tag ID", /^AW-[0-9]{6,20}$/, "AW- followed by 6–20 digits"),
-  x: providerSetting("X/Twitter Pixel ID", /^[A-Za-z0-9]{5,20}$/, "5–20 letters or digits"),
+  googleAds: providerSetting("Google Ads tag ID", /^AW-[0-9]{6,20}$/, "AW- followed by 6–20 digits", {
+    conversionLabel: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/).nullable().optional(),
+  }),
+  x: providerSetting("X/Twitter Pixel ID", /^[A-Za-z0-9]{5,20}$/, "5–20 letters or digits", {
+    purchaseEventId: z.string().regex(/^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$/).nullable().optional(),
+  }),
   tiktok: providerSetting("TikTok Pixel ID", /^[A-Za-z0-9]{10,30}$/, "10–30 letters or digits"),
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  if (value.x.purchaseEventId && value.x.pixelId
+    && !value.x.purchaseEventId.startsWith(`tw-${value.x.pixelId}-`)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["x", "purchaseEventId"],
+      message: "The purchase event ID must belong to the configured X pixel." });
+  }
+});
 
 export type MarketingPixelSettingsDocument = z.infer<typeof MarketingPixelSettingsSchema>;
 
@@ -65,8 +76,12 @@ export function publicMarketingPixelSettings(
       providers: { meta: null, googleAds: null, x: null, tiktok: null },
     };
   }
-  const provider = (value: { pixelId: string | null; enabled: boolean }) => (
-    value.enabled && value.pixelId ? { pixelId: value.pixelId } : null
+  const provider = (value: { pixelId: string | null; enabled: boolean; conversionLabel?: string | null; purchaseEventId?: string | null }) => (
+    value.enabled && value.pixelId ? {
+      pixelId: value.pixelId,
+      ...(value.conversionLabel ? { conversionLabel: value.conversionLabel } : {}),
+      ...(value.purchaseEventId ? { purchaseEventId: value.purchaseEventId } : {}),
+    } : null
   );
   return {
     schemaVersion: 1 as const,
@@ -113,6 +128,7 @@ export function marketingPixelAuditSummary(
     changedProviders: providers.filter((provider) => (
       previous[provider].pixelId !== next[provider].pixelId
       || previous[provider].enabled !== next[provider].enabled
+      || JSON.stringify(previous[provider]) !== JSON.stringify(next[provider])
     )),
     configuredProviders: providers.filter((provider) => Boolean(next[provider].pixelId)),
     activeProviders: providers.filter((provider) => next[provider].enabled && Boolean(next[provider].pixelId)),

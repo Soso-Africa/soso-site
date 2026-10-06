@@ -17,6 +17,12 @@ export function isPrivateStorefrontPath(path: string): boolean {
   return PRIVATE_SURFACE_PATH.test(path);
 }
 
+/** Advertising SDKs must never run on payment or customer service surfaces. */
+export function isPrivateAdvertisingPath(path: string): boolean {
+  return isPrivateStorefrontPath(path)
+    || /^\/(?:checkout|payment-return|order|orders|measurements|privacy-request)(?:\/|$)/i.test(path);
+}
+
 /**
  * Analytics receives pathname values, not full URLs. Keep this policy
  * forward-compatible so a newly launched public page cannot lose measurement

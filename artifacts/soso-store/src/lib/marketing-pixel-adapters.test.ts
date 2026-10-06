@@ -1,3 +1,30 @@
+test("purchase adapters send only authoritative money and random deduplication IDs to configured destinations", () => {
+  withBrowserGlobals((scope) => {
+    const receipt = { eventId: "4e7bc9b9-afdf-4d48-84ed-224b5a919860", value: 1234.56, currency: "NGN" as const };
+    const meta = createMetaPixel();
+    meta.activate("123456789");
+    meta.purchase?.(receipt, { pixelId: "123456789" });
+    const fbCalls = (scope.fbq as { queue: unknown[][] }).queue;
+    assert.deepEqual(fbCalls.at(-1), ["trackSingle", "123456789", "Purchase",
+      { value: 1234.56, currency: "NGN" }, { eventID: receipt.eventId }]);
+    const google = createGoogleAdsPixel();
+    google.activate("AW-123456789");
+    google.purchase?.(receipt, { pixelId: "AW-123456789", conversionLabel: "purchaseLabel" });
+    assert.deepEqual((scope.dataLayer as unknown[][]).at(-1), ["event", "conversion",
+      { send_to: "AW-123456789/purchaseLabel", value: 1234.56, currency: "NGN", transaction_id: receipt.eventId }]);
+    const x = createXPixel();
+    x.activate("abc12");
+    x.purchase?.(receipt, { pixelId: "abc12", purchaseEventId: "tw-abc12-purchase" });
+    assert.deepEqual((scope.twq as { queue: unknown[][] }).queue.at(-1), ["event", "tw-abc12-purchase",
+      { value: 1234.56, currency: "NGN", conversion_id: receipt.eventId }]);
+    const tiktok = createTikTokPixel();
+    tiktok.activate("C123ABCD456EFGH789IJ");
+    tiktok.purchase?.(receipt, { pixelId: "C123ABCD456EFGH789IJ" });
+    const ttq = scope.ttq as { _i: Record<string, unknown[][]> };
+    assert.deepEqual(ttq._i.C123ABCD456EFGH789IJ.at(-1), ["track", "CompletePayment",
+      { value: 1234.56, currency: "NGN" }, { event_id: receipt.eventId }]);
+  });
+});
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createGoogleAdsPixel } from "./google-ads-pixel.ts";
