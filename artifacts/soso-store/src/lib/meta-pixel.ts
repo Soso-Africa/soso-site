@@ -45,7 +45,12 @@ export function createMetaPixel(): MarketingProvider {
     },
     revoke() {
       fbq("consent", "revoke");
+      destination = "";
       document.getElementById(SCRIPT_ID)?.remove();
+    },
+    purchase(receipt) {
+      if (destination) fbq("trackSingle", destination, "Purchase",
+        { value: receipt.value, currency: receipt.currency }, { eventID: receipt.eventId });
     },
   };
 }

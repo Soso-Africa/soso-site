@@ -9,6 +9,11 @@
 export interface GoogleAdsTagSetting {
   /**
      * @nullable
+     * @pattern ^[A-Za-z0-9_-]{1,80}$
+     */
+  conversionLabel?: string | null;
+  /**
+     * @nullable
      * @pattern ^AW-[0-9]{6,20}$
      */
   pixelId: string | null;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { checkVerifiedPurchase, clearPurchaserSuppression } from "@/lib/purchase-conversions";
 import { useLocation } from "wouter";
 import { usePlatformContent } from "@/data/platformContent";
 import {
@@ -189,6 +190,7 @@ function updateConsentSource(consent: ConsentState | null): void {
   );
   consentSource = consent;
   if (typeof window !== "undefined") {
+    if (consent !== "marketing") clearPurchaserSuppression();
     marketingPixels.setContext(consent === "marketing", window.location.pathname);
   }
 }
@@ -576,6 +578,7 @@ export function ConsentManager() {
         marketingConfigReadyRef.current = true;
         marketingPixels.setContext(true, window.location.pathname);
         marketingPixels.configure(freshConfig);
+        void checkVerifiedPurchase(apiUrl(""), reconcileConsentSource);
       }).catch(() => {
         // A missing configuration response keeps every provider off.
       });
@@ -585,6 +588,7 @@ export function ConsentManager() {
     marketingPixels.setContext(true, pathname);
     if (marketingConfigReadyRef.current && marketingConfig.data) {
       marketingPixels.configure(marketingConfig.data);
+      void checkVerifiedPurchase(apiUrl(""), reconcileConsentSource);
     }
   }, [consent, consentSource, marketingConfig.data, marketingConfig.isError, marketingEligible, pathname]);
 
@@ -672,6 +676,7 @@ export function ConsentManager() {
       sendConsentedEvent("marketing_opt_out");
     }
     if (previousConsent === "marketing" && state !== "marketing") {
+      clearPurchaserSuppression();
       // Withdrawal is synchronously authoritative. No route change, cached
       // query result, or older consent request may reopen the vendor gate.
       marketingRequestGenerationRef.current += 1;

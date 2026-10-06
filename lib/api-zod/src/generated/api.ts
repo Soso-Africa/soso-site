@@ -9,6 +9,30 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Claim one consented conversion from a server-verified paid order
+ */
+export const claimPurchaseConversionBodyPublicPathMax = 500;
+
+
+
+export const ClaimPurchaseConversionBody = zod.object({
+  "marketingConsent": zod.literal(true),
+  "publicPath": zod.string().max(claimPurchaseConversionBodyPublicPathMax)
+})
+
+export const claimPurchaseConversionResponseEventIdRegExp = new RegExp('^[a-f0-9-]{36}$');
+export const claimPurchaseConversionResponseValueExclusiveMin = 0;
+
+
+
+export const ClaimPurchaseConversionResponse = zod.object({
+  "eventId": zod.string().regex(claimPurchaseConversionResponseEventIdRegExp),
+  "value": zod.number().gt(claimPurchaseConversionResponseValueExclusiveMin),
+  "currency": zod.enum(['NGN'])
+})
+
+
+/**
  * Returns server health status
  * @summary Health check
  */
@@ -2628,16 +2652,24 @@ export const GetPublicMarketingPixelsResponse = zod.object({
   "revision": zod.number().min(getPublicMarketingPixelsResponseRevisionMin),
   "providers": zod.object({
   "meta": zod.union([zod.object({
-  "pixelId": zod.string()
+  "pixelId": zod.string(),
+  "conversionLabel": zod.string().optional(),
+  "purchaseEventId": zod.string().optional()
 }),zod.null()]),
   "googleAds": zod.union([zod.object({
-  "pixelId": zod.string()
+  "pixelId": zod.string(),
+  "conversionLabel": zod.string().optional(),
+  "purchaseEventId": zod.string().optional()
 }),zod.null()]),
   "x": zod.union([zod.object({
-  "pixelId": zod.string()
+  "pixelId": zod.string(),
+  "conversionLabel": zod.string().optional(),
+  "purchaseEventId": zod.string().optional()
 }),zod.null()]),
   "tiktok": zod.union([zod.object({
-  "pixelId": zod.string()
+  "pixelId": zod.string(),
+  "conversionLabel": zod.string().optional(),
+  "purchaseEventId": zod.string().optional()
 }),zod.null()])
 })
 })
@@ -2647,7 +2679,9 @@ export const GetPublicMarketingPixelsResponse = zod.object({
  * @summary Get governed marketing pixel settings
  */
 export const getStaffMarketingPixelsResponseSettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const getStaffMarketingPixelsResponseSettingsGoogleAdsConversionLabelRegExp = new RegExp('^[A-Za-z0-9_-]{1,80}$');
 export const getStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const getStaffMarketingPixelsResponseSettingsXPurchaseEventIdRegExp = new RegExp('^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$');
 export const getStaffMarketingPixelsResponseSettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
 export const getStaffMarketingPixelsResponseSettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
 export const getStaffMarketingPixelsResponseRevisionMin = 0;
@@ -2662,10 +2696,12 @@ export const GetStaffMarketingPixelsResponse = zod.object({
   "enabled": zod.boolean()
 }),
   "googleAds": zod.object({
+  "conversionLabel": zod.string().regex(getStaffMarketingPixelsResponseSettingsGoogleAdsConversionLabelRegExp).nullish(),
   "pixelId": zod.string().regex(getStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),
   "x": zod.object({
+  "purchaseEventId": zod.string().regex(getStaffMarketingPixelsResponseSettingsXPurchaseEventIdRegExp).nullish(),
   "pixelId": zod.string().regex(getStaffMarketingPixelsResponseSettingsXPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),
@@ -2684,7 +2720,9 @@ export const GetStaffMarketingPixelsResponse = zod.object({
  * @summary Replace governed marketing pixel settings with optimistic concurrency
  */
 export const updateStaffMarketingPixelsBodySettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const updateStaffMarketingPixelsBodySettingsGoogleAdsConversionLabelRegExp = new RegExp('^[A-Za-z0-9_-]{1,80}$');
 export const updateStaffMarketingPixelsBodySettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const updateStaffMarketingPixelsBodySettingsXPurchaseEventIdRegExp = new RegExp('^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$');
 export const updateStaffMarketingPixelsBodySettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
 export const updateStaffMarketingPixelsBodySettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
 export const updateStaffMarketingPixelsBodyExpectedRevisionMin = 0;
@@ -2699,10 +2737,12 @@ export const UpdateStaffMarketingPixelsBody = zod.object({
   "enabled": zod.boolean()
 }),
   "googleAds": zod.object({
+  "conversionLabel": zod.string().regex(updateStaffMarketingPixelsBodySettingsGoogleAdsConversionLabelRegExp).nullish(),
   "pixelId": zod.string().regex(updateStaffMarketingPixelsBodySettingsGoogleAdsPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),
   "x": zod.object({
+  "purchaseEventId": zod.string().regex(updateStaffMarketingPixelsBodySettingsXPurchaseEventIdRegExp).nullish(),
   "pixelId": zod.string().regex(updateStaffMarketingPixelsBodySettingsXPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),
@@ -2715,7 +2755,9 @@ export const UpdateStaffMarketingPixelsBody = zod.object({
 })
 
 export const updateStaffMarketingPixelsResponseSettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const updateStaffMarketingPixelsResponseSettingsGoogleAdsConversionLabelRegExp = new RegExp('^[A-Za-z0-9_-]{1,80}$');
 export const updateStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const updateStaffMarketingPixelsResponseSettingsXPurchaseEventIdRegExp = new RegExp('^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$');
 export const updateStaffMarketingPixelsResponseSettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
 export const updateStaffMarketingPixelsResponseSettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
 export const updateStaffMarketingPixelsResponseRevisionMin = 0;
@@ -2730,10 +2772,12 @@ export const UpdateStaffMarketingPixelsResponse = zod.object({
   "enabled": zod.boolean()
 }),
   "googleAds": zod.object({
+  "conversionLabel": zod.string().regex(updateStaffMarketingPixelsResponseSettingsGoogleAdsConversionLabelRegExp).nullish(),
   "pixelId": zod.string().regex(updateStaffMarketingPixelsResponseSettingsGoogleAdsPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),
   "x": zod.object({
+  "purchaseEventId": zod.string().regex(updateStaffMarketingPixelsResponseSettingsXPurchaseEventIdRegExp).nullish(),
   "pixelId": zod.string().regex(updateStaffMarketingPixelsResponseSettingsXPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),
@@ -2754,7 +2798,9 @@ export const UpdateStaffMarketingPixelsResponse = zod.object({
 export const listStaffMarketingPixelRevisionsResponseIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
 
 export const listStaffMarketingPixelRevisionsResponseSettingsMetaPixelIdRegExp = new RegExp('^[0-9]{5,20}$');
+export const listStaffMarketingPixelRevisionsResponseSettingsGoogleAdsConversionLabelRegExp = new RegExp('^[A-Za-z0-9_-]{1,80}$');
 export const listStaffMarketingPixelRevisionsResponseSettingsGoogleAdsPixelIdRegExp = new RegExp('^AW-[0-9]{6,20}$');
+export const listStaffMarketingPixelRevisionsResponseSettingsXPurchaseEventIdRegExp = new RegExp('^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$');
 export const listStaffMarketingPixelRevisionsResponseSettingsXPixelIdRegExp = new RegExp('^[A-Za-z0-9]{5,20}$');
 export const listStaffMarketingPixelRevisionsResponseSettingsTiktokPixelIdRegExp = new RegExp('^[A-Za-z0-9]{10,30}$');
 
@@ -2769,10 +2815,12 @@ export const ListStaffMarketingPixelRevisionsResponseItem = zod.object({
   "enabled": zod.boolean()
 }),
   "googleAds": zod.object({
+  "conversionLabel": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsGoogleAdsConversionLabelRegExp).nullish(),
   "pixelId": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsGoogleAdsPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),
   "x": zod.object({
+  "purchaseEventId": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsXPurchaseEventIdRegExp).nullish(),
   "pixelId": zod.string().regex(listStaffMarketingPixelRevisionsResponseSettingsXPixelIdRegExp).nullable(),
   "enabled": zod.boolean()
 }),

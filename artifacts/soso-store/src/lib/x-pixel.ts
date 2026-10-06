@@ -43,5 +43,9 @@ export function createXPixel(): MarketingProvider {
       twq("consent", "revoke");
       document.getElementById(SCRIPT_ID)?.remove();
     },
+    purchase(receipt, config) {
+      if (config.purchaseEventId) twq("event", config.purchaseEventId,
+        { value: receipt.value, currency: receipt.currency, conversion_id: receipt.eventId });
+    },
   };
 }
