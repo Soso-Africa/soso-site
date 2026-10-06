@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -134,4 +135,6 @@ for (const [name, records, prefix] of [
     assert.ok(record.title && record.seoTitle && record.seoDescription && record.body, `${name} ${record.slug} must have crawler content.`);
   }
 }
+const contentTests = spawnSync(process.execPath, ["--test", resolve(root, "scripts/seo-public-content.test.mjs")], { stdio: "inherit" });
+assert.equal(contentTests.status, 0, "Published crawler content regression checks must pass.");
 process.stdout.write("SEO source validation passed: canonical gate, private fallback, crawlable route files, feeds, schema, social metadata, and www redirect are present.\n");
