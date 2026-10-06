@@ -44,8 +44,11 @@ disables that provider's purchase events. Meta and TikTok use standard purchase
 events. Replacing a loaded destination or conversion label blocks that provider
 until a full reload rather than sending to both destinations.
 
-Apply `0012_verified_purchase_claims.sql` using the existing migration runner
-before enabling purchase reporting in a deployed environment. No existing
+The production Vercel build applies only `0012_verified_purchase_claims.sql`
+under the existing migration lock and checks its exact columns, uniqueness and
+ownership foreign key. Non-production builds skip this step. This bounded
+release step does not run other pending migrations. The normal migration runner
+also includes this idempotent SQL for development and isolated testing. No existing
 orders are backfilled and no database is replaced. Missing migration or failed
 verification leaves reporting off and does not affect checkout.
 
