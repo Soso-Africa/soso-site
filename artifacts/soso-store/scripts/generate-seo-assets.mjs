@@ -1,3 +1,4 @@
+import { publishedFaqContent, renderFaqContent, publishedPolicyPages, publishedProductImage } from "./seo-public-content.mjs";
 import { mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,8 +102,10 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 })
 let platform = {};
 let articles = [];
 let databaseArticleSlugs = new Set();
+let faqRows = [];
+let policyRows = [];
 try {
-  const [content, journal] = await Promise.all([
+  const [content, journal, faqResult, policiesResult] = await Promise.all([
     pool.query("select published, published_at as \"publishedAt\" from soso_site_content where key = 'platform' and published_at is not null limit 1"),
     journalApproved ? pool.query(`select slug, title, excerpt, body, seo_title as "seoTitle", seo_description as "seoDescription",
       author_name as "authorName", category, tags, read_time_minutes as "readTimeMinutes",
@@ -110,8 +113,15 @@ try {
       cover_image_url as "coverImageUrl", cover_image_alt as "coverImageAlt",
       published_at as "publishedAt", updated_at as "updatedAt"
       from soso_journal_posts where status = 'published' and published_at is not null order by published_at desc`) : Promise.resolve({ rows: [] }),
+    policiesApproved ? pool.query("select question, answer from soso_faq_items where is_published = true order by sort_order, created_at") : Promise.resolve({ rows: [] }),
+    policiesApproved ? pool.query(`select slug, title, summary, sections, version, status,
+      effective_at as "effectiveAt", updated_at as "updatedAt" from soso_policy_documents
+      where status = 'published' and effective_at is not null and effective_at <= now()
+      order by slug, version desc`) : Promise.resolve({ rows: [] }),
   ]);
   platform = content.rows[0]?.published || {};
+  faqRows = faqResult.rows;
+  policyRows = policiesResult.rows;
   let journalRows = journal.rows;
   const fixturePath = process.env.NODE_ENV === "test"
     ? process.env.SOSO_SEO_JOURNAL_FIXTURE_PATH
@@ -150,9 +160,9 @@ try {
 
 const products = catalogApproved && Array.isArray(platform.products) ? platform.products.filter((p) => safeSlug(p.slug) && p.name && p.description) : [];
 const collections = catalogApproved && Array.isArray(platform.collections) ? platform.collections.filter((c) => safeSlug(c.slug) && c.h1 && c.intro) : [];
-const faq = policiesApproved && Array.isArray(platform.faq?.items) ? platform.faq.items : [];
-const policyLinks = policiesApproved ? (platform.site?.footer?.legalLinks || platform.footer?.legalLinks || []) : [];
-const policyPaths = [...new Set(["/policies", "/privacy", "/terms", "/delivery-returns", "/care", ...policyLinks.map((x) => x.href).filter((x) => /^\/policies\/[a-z0-9-]+$/.test(x || ""))])];
+const faq = publishedFaqContent(faqRows);
+const policyPages = publishedPolicyPages(policyRows);
+const pageCopy = platform.pages || {};
 const approvedAboutPages = legacyAboutPages
   .filter((item) => isLegacyEditoriallyApproved(item))
   .map((item) => ({
@@ -175,14 +185,15 @@ const approvedAboutPages = legacyAboutPages
     }],
   }));
 const staticPages = [
-  { path: "/", title: "SOSO Africa | Premium Nigerian Menswear", description: "Discover premium Nigerian menswear from SOSO Africa.", h1: "SOSO Africa", body: "Discover considered Nigerian menswear, collections, and editorial stories." },
+  { path: "/", title: platform.homepage?.seo?.title || "SOSO Africa | Premium Nigerian Menswear", description: platform.homepage?.seo?.description || "Discover premium Nigerian menswear from SOSO Africa.", h1: "SOSO Africa", body: platform.site?.structuredData?.organizationDescription || "Discover considered Nigerian menswear, collections, and editorial stories." },
   ...(catalogApproved ? [{ path: "/shop", title: "Shop | SOSO Africa", description: "Browse SOSO Africa collections.", h1: "Shop SOSO Africa", body: "Browse the current SOSO Africa collection." }] : []),
   ...(policiesApproved ? [
-    { path: "/faq", title: platform.faq?.seo?.title || "Frequently asked questions | SOSO Africa", description: platform.faq?.seo?.description || "Answers to common SOSO Africa questions.", h1: platform.faq?.title || "Frequently asked questions", body: platform.faq?.intro || "Find answers and support information." },
-    { path: "/about", title: platform.about?.seo?.title || "About SOSO Africa", description: platform.about?.seo?.description || "About SOSO Africa.", h1: platform.about?.hero?.title || "About SOSO Africa", body: platform.about?.hero?.body || "Learn about SOSO Africa." },
-    ...policyPaths.map((path) => ({ path, title: path === "/policies" ? (platform.policies?.seo?.title || "Policies | SOSO Africa") : `${path.slice(1).replaceAll("-", " ")} | SOSO Africa`, description: platform.policies?.seo?.description || "SOSO Africa policy information.", h1: path === "/policies" ? (platform.policies?.title || "Policies") : path.slice(1).replaceAll("-", " "), body: platform.policies?.intro || "Read SOSO Africa policy information." })),
+    { path: "/faq", title: pageCopy.faq?.seo?.title || "Frequently asked questions | SOSO Africa", description: pageCopy.faq?.seo?.description || "Answers to common SOSO Africa questions.", h1: pageCopy.faq?.title || "Frequently asked questions", body: pageCopy.faq?.intro || "Find answers and support information.", bodyHtml: renderFaqContent(faq) },
+    { path: "/about", title: pageCopy.about?.seo?.title || "About SOSO Africa", description: pageCopy.about?.seo?.description || "About SOSO Africa.", h1: pageCopy.about?.hero?.title || "About SOSO Africa", body: pageCopy.about?.hero?.body || "Learn about SOSO Africa." },
+    { path: "/policies", title: pageCopy.policies?.seo?.title || "Policies | SOSO Africa", description: pageCopy.policies?.seo?.description || "SOSO Africa policy information.", h1: pageCopy.policies?.title || "Policies", body: pageCopy.policies?.intro || "Read SOSO Africa policy information.", bodyHtml: `<ul>${policyPages.map((item) => `<li><a href="${escapeHtml(item.path)}">${escapeHtml(item.h1)}</a><p>${escapeHtml(item.description)}</p></li>`).join("")}</ul>` },
+    ...policyPages,
   ] : []),
-  ...(journalApproved && articles.length ? [{ path: "/journal", title: platform.journal?.seo?.title || "Journal | SOSO Africa", description: platform.journal?.seo?.description || "Stories from SOSO Africa.", h1: platform.journal?.heading || "The Journal", body: platform.journal?.intro || "Stories from SOSO Africa." }] : []),
+  ...(journalApproved && articles.length ? [{ path: "/journal", title: pageCopy.journal?.seo?.title || "Journal | SOSO Africa", description: pageCopy.journal?.seo?.description || "Stories from SOSO Africa.", h1: pageCopy.journal?.heading || "The Journal", body: pageCopy.journal?.intro || "Stories from SOSO Africa." }] : []),
 ];
 const legacyAboutRoutes = approvedAboutPages;
 
@@ -217,7 +228,7 @@ function page({ path, title, description, h1, body, bodyHtml, schema = [], type 
     { "@context": "https://schema.org", "@type": "BreadcrumbList", "@id": `${canonical}#breadcrumb`, itemListElement: breadcrumbs },
     ...schema,
   ];
-  const socialImage = image ? absolute(image) : (socialImagePath ? absolute(socialImagePath) : "");
+  const socialImage = image ? absolute(image) : (socialImagePath ? absolute(socialImagePath) : (platform.site?.logoUrl ? absolute(platform.site.logoUrl) : ""));
   const imageMeta = socialImage ? `<meta property="og:image" content="${escapeHtml(socialImage)}"><meta property="og:image:alt" content="${escapeHtml(imageAlt || title)}"><meta name="twitter:image" content="${escapeHtml(socialImage)}"><meta name="twitter:image:alt" content="${escapeHtml(imageAlt || title)}">` : "";
   const articleMeta = article ? `<meta property="article:published_time" content="${escapeHtml(article.publishedAt)}"><meta property="article:modified_time" content="${escapeHtml(article.updatedAt)}"><meta property="article:author" content="${escapeHtml(article.authorName)}">${(article.tags || []).map((tag) => `<meta property="article:tag" content="${escapeHtml(tag)}">`).join("")}` : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${escapeHtml(canonical)}"><meta property="og:type" content="${type}"><meta property="og:site_name" content="${escapeHtml(platform.site?.name || "SOSO Africa")}"><meta property="og:locale" content="en_NG"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${escapeHtml(canonical)}">${imageMeta}${articleMeta}<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${escapeHtml(title)}"><meta name="twitter:description" content="${escapeHtml(description)}"><script id="soso-server-schema" type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c")}</script>${builtHeadAssets}</head><body><div id="root"><main data-soso-crawler-content><h1>${escapeHtml(h1)}</h1>${bodyHtml || `<p>${escapeHtml(body)}</p>`}${links(staticPages)}</main></div><script type="module" src="${escapeHtml(hydrationAsset)}"></script></body></html>`;
@@ -227,9 +238,9 @@ async function emit(path, html) {
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, html);
 }
-const routes = staticPages.map((p) => ({ ...p, lastmod: now }));
+const routes = staticPages.map((p) => ({ lastmod: now, ...p }));
 for (const item of staticPages) {
-  const schema = item.schema ?? (item.path === "/faq" ? [{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((x) => ({ "@type": "Question", name: x.question, acceptedAnswer: { "@type": "Answer", text: x.answer } })) }] : item.path === "/journal" ? [{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: articles.map((a, i) => ({ "@type": "ListItem", position: i + 1, url: absolute(`/journal/${a.slug}`), name: a.title })) }] : []);
+  const schema = item.schema ?? (item.path === "/faq" && faq.length ? [{ "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((x) => ({ "@type": "Question", name: x.question, acceptedAnswer: { "@type": "Answer", text: x.answer } })) }] : item.path === "/journal" ? [{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: articles.map((a, i) => ({ "@type": "ListItem", position: i + 1, url: absolute(`/journal/${a.slug}`), name: a.title })) }] : []);
   await emit(item.path, page({ ...item, schema }));
 }
 for (const item of legacyAboutRoutes) {
@@ -255,6 +266,7 @@ for (const item of legacyAboutRoutes) {
   }));
 }
 for (const product of products) {
+  const productImage = publishedProductImage(product);
   const price = Number(product.price);
   const authoritativeState = ["ready_now", "made_immediately", "unavailable"].includes(product.fulfilmentState);
   const availability = product.fulfilmentState === "unavailable" ? "https://schema.org/OutOfStock" : product.fulfilmentState === "ready_now" ? "https://schema.org/InStock" : "https://schema.org/PreOrder";
@@ -262,7 +274,7 @@ for (const product of products) {
     ? { "@type": "Offer", price, priceCurrency: "NGN", availability, url: absolute(`/product/${product.slug}`), seller: { "@id": `${siteUrl}/#organization` } }
     : undefined;
   const item = { path: `/product/${product.slug}`, title: `${product.name} | SOSO Africa`, description: product.description, h1: product.name, body: product.description, lastmod: now };
-  routes.push(item); await emit(item.path, page({ ...item, schema: [{ "@context": "https://schema.org", "@type": "Product", name: product.name, description: product.description, url: absolute(item.path), brand: { "@type": "Brand", name: platform.site?.name || "SOSO Africa" }, ...(product.img ? { image: absolute(product.img) } : {}), ...(offer ? { offers: offer } : {}) }] }));
+  routes.push(item); await emit(item.path, page({ ...item, image: productImage, schema: [{ "@context": "https://schema.org", "@type": "Product", name: product.name, description: product.description, url: absolute(item.path), brand: { "@type": "Brand", name: platform.site?.name || "SOSO Africa" }, ...(product.img ? { image: absolute(product.img) } : productImage ? { image: absolute(productImage) } : {}), ...(offer ? { offers: offer } : {}) }] }));
 }
 for (const collection of collections) {
   const pieces = products.filter((product) => product.department === collection.department && product.category === collection.category)
