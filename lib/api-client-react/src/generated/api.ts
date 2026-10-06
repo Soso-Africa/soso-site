@@ -78,6 +78,7 @@ import type {
   PrivacyRequestInput,
   PublicMarketingPixelSettings,
   PublishedPlatformContent,
+  PurchaseConversionConsent,
   RedirectLookup,
   StaffAccessInput,
   StaffAccessMapping,
@@ -113,7 +114,8 @@ import type {
   StaffRedirectInput,
   StaffRedirectPublicationInput,
   UploadUrlRequest,
-  UploadUrlResponse
+  UploadUrlResponse,
+  VerifiedPurchaseReceipt
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -142,6 +144,77 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getClaimPurchaseConversionUrl = () => {
+
+
+
+
+  return `/api/payment/purchase-conversion`
+}
+
+/**
+ * @summary Claim one consented conversion from a server-verified paid order
+ */
+export const claimPurchaseConversion = async (purchaseConversionConsent: PurchaseConversionConsent, options?: Parameters<typeof customFetch>[1]): Promise<VerifiedPurchaseReceipt | void> => {
+
+  return customFetch<VerifiedPurchaseReceipt | void>(getClaimPurchaseConversionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(purchaseConversionConsent)
+  }
+);}
+
+
+
+
+
+export const getClaimPurchaseConversionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimPurchaseConversion>>, TError,{data: BodyType<PurchaseConversionConsent>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof claimPurchaseConversion>>, TError,{data: BodyType<PurchaseConversionConsent>}, TContext> => {
+
+const mutationKey = ['claimPurchaseConversion'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof claimPurchaseConversion>>, {data: BodyType<PurchaseConversionConsent>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  claimPurchaseConversion(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ClaimPurchaseConversionMutationResult = NonNullable<Awaited<ReturnType<typeof claimPurchaseConversion>>>
+    export type ClaimPurchaseConversionMutationBody = BodyType<PurchaseConversionConsent>
+    export type ClaimPurchaseConversionMutationError = ErrorType<void>
+
+    /**
+ * @summary Claim one consented conversion from a server-verified paid order
+ */
+export const useClaimPurchaseConversion = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof claimPurchaseConversion>>, TError,{data: BodyType<PurchaseConversionConsent>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof claimPurchaseConversion>>,
+        TError,
+        {data: BodyType<PurchaseConversionConsent>},
+        TContext
+      > => {
+      return useMutation(getClaimPurchaseConversionMutationOptions(options));
+    }
 
 export const getHealthCheckUrl = () => {
 

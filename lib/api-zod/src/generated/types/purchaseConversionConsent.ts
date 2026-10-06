@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface PublicMarketingPixelProvider {
-  pixelId: string;
-  conversionLabel?: string;
-  purchaseEventId?: string;
+export interface PurchaseConversionConsent {
+  marketingConsent: true;
+  /** @maxLength 500 */
+  publicPath: string;
 }

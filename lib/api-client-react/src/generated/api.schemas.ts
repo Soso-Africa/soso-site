@@ -5,6 +5,27 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface PurchaseConversionConsent {
+  marketingConsent: true;
+  /** @maxLength 500 */
+  publicPath: string;
+}
+
+export type VerifiedPurchaseReceiptCurrency = typeof VerifiedPurchaseReceiptCurrency[keyof typeof VerifiedPurchaseReceiptCurrency];
+
+
+export const VerifiedPurchaseReceiptCurrency = {
+  NGN: 'NGN',
+} as const;
+
+export interface VerifiedPurchaseReceipt {
+  /** @pattern ^[a-f0-9-]{36}$ */
+  eventId: string;
+  /** @exclusiveMinimum 0 */
+  value: number;
+  currency: VerifiedPurchaseReceiptCurrency;
+}
+
 export type UploadUrlRequestContentType = typeof UploadUrlRequestContentType[keyof typeof UploadUrlRequestContentType];
 
 
@@ -1000,6 +1021,11 @@ export interface MetaPixelSetting {
 export interface GoogleAdsTagSetting {
   /**
      * @nullable
+     * @pattern ^[A-Za-z0-9_-]{1,80}$
+     */
+  conversionLabel?: string | null;
+  /**
+     * @nullable
      * @pattern ^AW-[0-9]{6,20}$
      */
   pixelId: string | null;
@@ -1007,6 +1033,11 @@ export interface GoogleAdsTagSetting {
 }
 
 export interface XPixelSetting {
+  /**
+     * @nullable
+     * @pattern ^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$
+     */
+  purchaseEventId?: string | null;
   /**
      * @nullable
      * @pattern ^[A-Za-z0-9]{5,20}$
@@ -1067,6 +1098,8 @@ export interface MarketingPixelSettingsRevision {
 
 export interface PublicMarketingPixelProvider {
   pixelId: string;
+  conversionLabel?: string;
+  purchaseEventId?: string;
 }
 
 export interface PublicMarketingPixelProviders {
@@ -2718,3 +2751,4 @@ export const GetStaffExportReport = {
 export type ListStaffPolicyHistory200Item = { [key: string]: unknown };
 
 export type ListStaffRedirectHistory200Item = { [key: string]: unknown };
+

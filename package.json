@@ -11,7 +11,7 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run verify:dev-shared-preparation && pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "validate:soso-client-review": "pnpm run typecheck:libs && pnpm --filter @workspace/soso-store run validate:client-review",
-    "vercel:build": "pnpm run validate:soso-client-review && pnpm --filter @workspace/api-server run typecheck && pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/api-server run verify:cloudinary && pnpm --filter @workspace/soso-store run build && node scripts/verify-non-replit-runtime.mjs",
+    "vercel:build": "pnpm run validate:soso-client-review && pnpm --filter @workspace/api-server run typecheck && pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/api-server run verify:cloudinary && pnpm --filter @workspace/soso-store run build && node scripts/verify-non-replit-runtime.mjs && node lib/db/scripts/ensure-purchase-conversion-schema.mjs",
     "verify:non-replit-runtime": "node scripts/verify-non-replit-runtime.mjs",
     "verify:dev-shared-preparation": "node scripts/verify-dev-shared-preparation.mjs"
   },

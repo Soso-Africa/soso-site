@@ -9,6 +9,11 @@
 export interface XPixelSetting {
   /**
      * @nullable
+     * @pattern ^tw-[A-Za-z0-9]{5,20}-[A-Za-z0-9]{1,30}$
+     */
+  purchaseEventId?: string | null;
+  /**
+     * @nullable
      * @pattern ^[A-Za-z0-9]{5,20}$
      */
   pixelId: string | null;

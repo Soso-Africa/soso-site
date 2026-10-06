@@ -49,5 +49,12 @@ export function createGoogleAdsPixel(): MarketingProvider {
       gtag("consent", "update", { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
       document.getElementById(SCRIPT_ID)?.remove();
     },
+    purchase(receipt, config) {
+      if (!destination || !config.conversionLabel) return;
+      gtag("event", "conversion", {
+        send_to: `${destination}/${config.conversionLabel}`,
+        value: receipt.value, currency: receipt.currency, transaction_id: receipt.eventId,
+      });
+    },
   };
 }

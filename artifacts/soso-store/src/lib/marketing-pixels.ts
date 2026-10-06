@@ -1,15 +1,15 @@
 import { createGoogleAdsPixel } from "./google-ads-pixel.ts";
 import { createMetaPixel } from "./meta-pixel.ts";
 import { createTikTokPixel } from "./tiktok-pixel.ts";
-import { mapMarketingEvent, type MarketingPixelConfig, type MarketingProvider } from "./marketing-pixel-types.ts";
+import { mapMarketingEvent, purchaseReceipt, type MarketingPixelConfig, type MarketingProvider } from "./marketing-pixel-types.ts";
 import { createXPixel } from "./x-pixel.ts";
-import { isPrivateStorefrontPath } from "@workspace/api-client-react";
+import { isPrivateAdvertisingPath } from "@workspace/api-client-react";
 
 export function isMarketingPixelEligiblePath(pathname: string): boolean {
   return pathname.startsWith("/")
     && !pathname.includes("?")
     && !pathname.includes("#")
-    && !isPrivateStorefrontPath(pathname);
+    && !isPrivateAdvertisingPath(pathname);
 }
 
 export function marketingConfigFromSuccessfulRefetch(result: {
@@ -39,6 +39,37 @@ export class MarketingPixelRuntime {
   private initialized = new Map<string, string>();
   private blockedUntilReload = new Set<string>();
   private pageViews = new Map<string, string>();
+  private purchaser = false;
+  private purchases = new Set<string>();
+  private purchaseGeneration = 0;
+
+  getPurchaseGeneration(): number { return this.purchaseGeneration; }
+
+  hasPurchaseDestination(): boolean {
+    return this.consent && this.providers.some((provider) => {
+      const config = this.config?.providers[provider.name];
+      return this.active.has(provider.name) && provider.purchase && config
+        && (provider.name !== "googleAds" || Boolean(config.conversionLabel))
+        && (provider.name !== "x" || Boolean(config.purchaseEventId));
+    });
+  }
+
+  dispatchVerifiedPurchase(input: unknown): void {
+    if (!this.consent || !isMarketingPixelEligiblePath(this.pathname)) return;
+    const receipt = purchaseReceipt(input);
+    if (!receipt) return;
+    this.purchaser = true;
+    for (const provider of this.providers) {
+      const config = this.config?.providers[provider.name];
+      const key = `${provider.name}:${receipt.eventId}`;
+      if (!config || !this.active.has(provider.name) || !provider.purchase || this.purchases.has(key)) continue;
+      // Record the attempt before vendor code. Retrying cannot prove receipt.
+      this.purchases.add(key);
+      try { provider.purchase(receipt, config); } catch { /* At-most-once, isolated dispatch. */ }
+    }
+  }
+
+  suppressPurchaser(): void { this.purchaser = true; }
 
   constructor(providers: MarketingProvider[]) {
     this.providers = providers;
@@ -54,6 +85,11 @@ export class MarketingPixelRuntime {
     }
     this.pathname = pathname;
     if (this.consent) {
+      if (typeof window !== "undefined") {
+        try {
+          if (window.localStorage.getItem("soso-consented-purchaser-v1") === "1") this.purchaser = true;
+        } catch { /* Runtime suppression remains usable without storage. */ }
+      }
       this.activateConfigured();
       this.sendCurrentPage();
     }
@@ -68,6 +104,7 @@ export class MarketingPixelRuntime {
 
   track(eventName: string, properties?: Record<string, unknown>): void {
     if (!this.consent || !isMarketingPixelEligiblePath(this.pathname)) return;
+    if (this.purchaser) return;
     const event = mapMarketingEvent(eventName, properties);
     if (!event) return;
     for (const provider of this.providers) {
@@ -83,6 +120,8 @@ export class MarketingPixelRuntime {
   revoke(): void {
     // Flip the gate before invoking vendor code so re-entrant sends are blocked.
     this.consent = false;
+    this.purchaseGeneration += 1;
+    this.purchaser = false;
     for (const provider of this.providers) {
       if (!this.active.has(provider.name)) continue;
       try {
@@ -97,7 +136,8 @@ export class MarketingPixelRuntime {
 
   private activateConfigured(): void {
     for (const provider of this.providers) {
-      const pixelId = this.config?.providers[provider.name]?.pixelId;
+      const providerConfig = this.config?.providers[provider.name];
+      const pixelId = providerConfig?.pixelId;
       const current = this.active.get(provider.name);
       if (!pixelId) {
         if (current) {
@@ -108,9 +148,10 @@ export class MarketingPixelRuntime {
         continue;
       }
       if (this.blockedUntilReload.has(provider.name)) continue;
-      if (current === pixelId) continue;
+      const destinationIdentity = JSON.stringify(providerConfig);
       const initialized = this.initialized.get(provider.name);
-      if (initialized && initialized !== pixelId) {
+      if (current === pixelId && initialized === destinationIdentity) continue;
+      if (initialized && initialized !== destinationIdentity) {
         if (current) {
           try { provider.revoke(); } catch { /* The runtime gate still blocks future dispatch. */ }
         }
@@ -123,9 +164,9 @@ export class MarketingPixelRuntime {
       }
       this.pageViews.delete(provider.name);
       try {
-        if (initialized === pixelId) provider.resume(pixelId);
+        if (initialized === destinationIdentity) provider.resume(pixelId);
         else provider.activate(pixelId);
-        this.initialized.set(provider.name, pixelId);
+        this.initialized.set(provider.name, destinationIdentity);
         this.active.set(provider.name, pixelId);
       } catch {
         this.active.delete(provider.name);
@@ -134,6 +175,7 @@ export class MarketingPixelRuntime {
   }
 
   private sendCurrentPage(): void {
+    if (this.purchaser) return;
     const event = mapMarketingEvent("page_view");
     if (!event) return;
     for (const provider of this.providers) {
