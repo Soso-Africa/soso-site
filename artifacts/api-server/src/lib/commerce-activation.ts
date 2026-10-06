@@ -55,6 +55,7 @@ export async function inspectCommerceActivation(): Promise<CommerceActivationSta
   const runtimeReady = isJusticeSureCommerceReady(config);
   const blockers: string[] = [];
   let pickupAvailable = false;
+  let deliveryAvailable = false;
   let provider: string | undefined;
 
   if (!config.runtimeReady) blockers.push("Set JUSTICESURE_COMMERCE_RUNTIME_READY=true after production runtime verification.");
@@ -81,7 +82,8 @@ export async function inspectCommerceActivation(): Promise<CommerceActivationSta
     if (paystackReady) provider = "paystack";
     else blockers.push("JusticeSure discovery must confirm eligible Paystack card payments charged and settled in NGN for Nigeria.");
 
-    if (!options.includes("pickup")) blockers.push("Enable pickup in the current JusticeSure store fulfillment options.");
+    deliveryAvailable = options.includes("delivery");
+    if (!options.includes("pickup") && !deliveryAvailable) blockers.push("Enable collection or domestic delivery in the current JusticeSure store fulfillment options.");
     const shops = locations.filter((value) => value && typeof value === "object"
       && !Array.isArray(value) && (value as Record<string, unknown>).type === "shop");
     const validPickup = shops.filter((value) => {
@@ -93,7 +95,7 @@ export async function inspectCommerceActivation(): Promise<CommerceActivationSta
         && isNigerianCountry(location.country);
     });
     pickupAvailable = options.includes("pickup") && validPickup.length === 1;
-    if (validPickup.length !== 1) blockers.push("Configure exactly one valid Nigerian SOSO HQ shop location for pickup.");
+    if (!pickupAvailable && !deliveryAvailable) blockers.push("Configure exactly one valid Nigerian SOSO HQ shop location for collection or enable domestic delivery.");
 
     if (!published) blockers.push("Publish valid platform content before activating checkout.");
     else {
@@ -150,7 +152,7 @@ export async function inspectCommerceActivation(): Promise<CommerceActivationSta
     blockers: uniqueBlockers,
     updatedAt: activationRow?.updatedAt?.toISOString() ?? null,
     ...(provider ? { provider } : {}),
-    fulfillmentOptions: pickupAvailable ? ["pickup"] : [],
+    fulfillmentOptions: [...(pickupAvailable ? ["pickup"] : []), ...(deliveryAvailable ? ["delivery"] : [])],
   };
 }
 
