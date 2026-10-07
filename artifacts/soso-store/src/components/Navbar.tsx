@@ -5,6 +5,7 @@ import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/d
 import { ChevronDown } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
 import { BrandLockup } from "./BrandLockup";
+import { CurrencySelector } from "./CurrencySelector";
 
 const isGlobalWhatsAppControl = (href: string) => /(?:wa\.me|whatsapp)/i.test(href);
 
@@ -99,7 +100,7 @@ export function Navbar() {
     if (!mobileMenuOpen) return;
 
     const menu = mobileMenuRef.current;
-    const focusableSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusableSelector = 'a[href], button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
     const focusable = () => Array.from(menu?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
     const firstFocusable = focusable()[0];
     firstFocusable?.focus();
@@ -358,6 +359,7 @@ export function Navbar() {
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8">
+            <CurrencySelector />
             {/* Mega Menu Groups (Accordions) */}
             {hasMegaMenu && (
               <div className="flex flex-col">

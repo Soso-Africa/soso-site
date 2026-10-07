@@ -9,6 +9,39 @@ import * as zod from 'zod';
 
 
 /**
+ * @summary Estimate browsing prices in local currency; never changes NGN checkout
+ */
+export const displayPricesBodyCurrencyRegExp = new RegExp('^[A-Z]{3}$');
+export const displayPricesBodyAmountsItemMin = 0;
+export const displayPricesBodyAmountsItemMax = 1000000000;
+
+export const displayPricesBodyAmountsMax = 128;
+
+
+
+export const DisplayPricesBody = zod.object({
+  "currency": zod.string().regex(displayPricesBodyCurrencyRegExp).optional(),
+  "amounts": zod.array(zod.number().min(displayPricesBodyAmountsItemMin).max(displayPricesBodyAmountsItemMax)).max(displayPricesBodyAmountsMax)
+})
+
+export const DisplayPricesResponse = zod.object({
+  "baseCurrency": zod.enum(['NGN']),
+  "currency": zod.string(),
+  "suggestedCurrency": zod.string(),
+  "availableCurrencies": zod.array(zod.string()),
+  "estimated": zod.boolean(),
+  "updatedAt": zod.string().nullable(),
+  "expiresAt": zod.string().nullable(),
+  "unavailableReason": zod.union([zod.literal('rates_unavailable'),zod.literal('currency_unsupported'),zod.literal(null)]).nullable(),
+  "sourceUrl": zod.string(),
+  "prices": zod.array(zod.object({
+  "naira": zod.number(),
+  "amount": zod.number()
+}))
+})
+
+
+/**
  * @summary Claim one consented conversion from a server-verified paid order
  */
 export const claimPurchaseConversionBodyPublicPathMax = 500;

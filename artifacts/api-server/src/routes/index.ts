@@ -2,6 +2,7 @@ import purchaseConversionsRouter from "./purchase-conversions";
 import { Router, type IRouter } from "express";
 import analyticsRouter from "./analytics";
 import contentRouter from "./content";
+import displayPricesRouter from "./display-prices";
 import faqRouter from "./faq";
 import healthRouter from "./health";
 import marketingPixelsRouter from "./marketing-pixels";
@@ -16,6 +17,7 @@ import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
+router.use(displayPricesRouter);
 router.use(healthRouter);
 router.use(marketingPixelsRouter);
 router.use(analyticsRouter);

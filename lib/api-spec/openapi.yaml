@@ -17,6 +17,26 @@ tags:
   - name: storage
     description: Staff image uploads and public object serving
 paths:
+  /price-display:
+    post:
+      operationId: displayPrices
+      summary: Estimate browsing prices in local currency; never changes NGN checkout
+      tags: [storefront]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceDisplayInput"
+      responses:
+        "200":
+          description: Display-only conversion, falling back to NGN when rates are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceDisplaySnapshot"
+        "400":
+          description: Invalid display-price request
   /payment/purchase-conversion:
     post:
       operationId: claimPurchaseConversion
@@ -1557,6 +1577,59 @@ components:
         type: string
         pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
   schemas:
+    PriceDisplayInput:
+      type: object
+      additionalProperties: false
+      required: [amounts]
+      properties:
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        amounts:
+          type: array
+          maxItems: 128
+          items:
+            type: number
+            minimum: 0
+            maximum: 1000000000
+    DisplayPrice:
+      type: object
+      required: [naira, amount]
+      properties:
+        naira:
+          type: number
+        amount:
+          type: number
+    PriceDisplaySnapshot:
+      type: object
+      required: [baseCurrency, currency, suggestedCurrency, availableCurrencies, estimated, updatedAt, expiresAt, unavailableReason, sourceUrl, prices]
+      properties:
+        baseCurrency:
+          type: string
+          enum: [NGN]
+        currency:
+          type: string
+        suggestedCurrency:
+          type: string
+        availableCurrencies:
+          type: array
+          items:
+            type: string
+        estimated:
+          type: boolean
+        updatedAt:
+          type: [string, "null"]
+        expiresAt:
+          type: [string, "null"]
+        unavailableReason:
+          type: [string, "null"]
+          enum: [rates_unavailable, currency_unsupported, null]
+        sourceUrl:
+          type: string
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/DisplayPrice"
     PurchaseConversionConsent:
       type: object
       additionalProperties: false

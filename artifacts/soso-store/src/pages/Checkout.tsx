@@ -2,6 +2,7 @@ import React, { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ChevronLeft, LockKeyhole, MessageCircle } from "lucide-react";
 import { Seo } from "@/components/Seo";
+import { CurrencyNotice } from "@/components/CurrencySelector";
 import { QuoteReview } from "@/components/checkout/QuoteReview";
 import { useCart } from "@/context/CartContext";
 import { clearCheckoutOperation, commerceGateway, CommerceRemoteError, savePaymentAttempt, type CommerceDiscovery, type CommerceQuote, type PickupLocation } from "@/lib/commerce";
@@ -180,6 +181,7 @@ export default function Checkout() {
              {copy.intro}
           </p>
 
+          <CurrencyNotice className="mt-4" />
           {items.length === 0 ? (
             <div className="mt-10 border border-border p-7">
                <p className="soso-display text-2xl">{copy.emptyMessage}</p>

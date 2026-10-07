@@ -334,7 +334,7 @@ export default function Shop() {
             )}
             {(minPrice != null || maxPrice != null) && (
               <span className="inline-flex items-center gap-1.5 border border-foreground/20 bg-muted px-3 py-1.5 text-[11px] text-foreground">
-                {copy.priceFilterLabel}: {minPrice != null ? `₦${minPrice}` : "0"} - {maxPrice != null ? `₦${maxPrice}` : copy.maximumPriceValueLabel}
+                {copy.priceFilterLabel} (NGN): {minPrice != null ? `₦${minPrice}` : "0"} - {maxPrice != null ? `₦${maxPrice}` : copy.maximumPriceValueLabel}
                 <button type="button" onClick={() => updateParams({ minPrice: null, maxPrice: null })} aria-label={copy.removePriceFilterLabel} className="hover:text-primary"><X size={12} /></button>
               </span>
             )}

@@ -5,6 +5,56 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface PriceDisplayInput {
+  /** @pattern ^[A-Z]{3}$ */
+  currency?: string;
+  /**
+     * @maxItems 128
+     * @items.minimum 0
+     * @items.maximum 1000000000
+     */
+  amounts: number[];
+}
+
+export interface DisplayPrice {
+  naira: number;
+  amount: number;
+}
+
+export type PriceDisplaySnapshotBaseCurrency = typeof PriceDisplaySnapshotBaseCurrency[keyof typeof PriceDisplaySnapshotBaseCurrency];
+
+
+export const PriceDisplaySnapshotBaseCurrency = {
+  NGN: 'NGN',
+} as const;
+
+/**
+ * @nullable
+ */
+export type PriceDisplaySnapshotUnavailableReason = typeof PriceDisplaySnapshotUnavailableReason[keyof typeof PriceDisplaySnapshotUnavailableReason] | null;
+
+
+export const PriceDisplaySnapshotUnavailableReason = {
+  rates_unavailable: 'rates_unavailable',
+  currency_unsupported: 'currency_unsupported',
+} as const;
+
+export interface PriceDisplaySnapshot {
+  baseCurrency: PriceDisplaySnapshotBaseCurrency;
+  currency: string;
+  suggestedCurrency: string;
+  availableCurrencies: string[];
+  estimated: boolean;
+  /** @nullable */
+  updatedAt: string | null;
+  /** @nullable */
+  expiresAt: string | null;
+  /** @nullable */
+  unavailableReason: PriceDisplaySnapshotUnavailableReason;
+  sourceUrl: string;
+  prices: DisplayPrice[];
+}
+
 export interface PurchaseConversionConsent {
   marketingConsent: true;
   /** @maxLength 500 */
