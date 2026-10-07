@@ -16,6 +16,7 @@ import { StringListEditor } from "./StringListEditor";
 import { ImagesEditor } from "./ImagesEditor";
 import { MaterialTurnSetsEditor } from "./MaterialTurnSetsEditor";
 import { ColourEditor } from "./ColourEditor";
+import { VariantPricingEditor } from "./VariantPricingEditor";
 import { canConfirmMapping, isConfirmedMappingCurrent } from "./mapping-staleness";
 import { CommerceSearchSelect } from "./CommerceSearchSelect";
 import { publicationLabel, publicationState, type SaveResult } from "./product-state";
@@ -117,11 +118,16 @@ export function ProductEditor({
   const updateVariantMapping = (choice: string, id: string) => {
     if ((product.commerceVariantIds?.[choice] ?? "") === id) return;
     const updatedVariants = { ...(product.commerceVariantIds || {}) };
+    const prices = { ...product.variantPrices };
+    const variant = mappedCommerceProduct?.variants.find((item) => item.id === id);
+    if (variant) prices[choice] = variant.amountKobo / 100;
+    else delete prices[choice];
     if (id) updatedVariants[choice] = id;
     else delete updatedVariants[choice];
     onChange({
       ...product,
       commerceVariantIds: Object.keys(updatedVariants).length > 0 ? updatedVariants : undefined,
+      variantPrices: Object.keys(prices).length > 0 ? prices : undefined,
       commerceMappingConfirmation: undefined,
     });
   };
@@ -897,6 +903,9 @@ export function ProductEditor({
                         ...product,
                         commerceProductId: id || undefined,
                         commerceVariantIds: undefined,
+                        variantPrices: undefined,
+                        price: commerceProducts.find((remote) => remote.id === id)?.amountKobo
+                          ? commerceProducts.find((remote) => remote.id === id)!.amountKobo / 100 : product.price,
                         commerceMappingConfirmation: undefined,
                       });
                     }}
@@ -910,6 +919,7 @@ export function ProductEditor({
                     </div>
                   )}
 
+                  <VariantPricingEditor product={product} remote={mappedCommerceProduct} onChange={onChange} />
                   {mappedCommerceProduct?.variants.length === 0 && eligibleCommerceChoices.length > 0 && (
                     <div className="border border-amber-300 bg-amber-50 p-3 text-[10px] text-amber-900">
                       This JusticeSure product has no variants, while SOSO offers {eligibleCommerceChoices.length} size or custom choice{eligibleCommerceChoices.length === 1 ? "" : "s"}.

@@ -1,5 +1,5 @@
 import type { CatalogProduct, PlatformContent } from "../data/platformContent";
-import { isProductReleased } from "./purchasing";
+import { isProductReleased, productPriceRange } from "./purchasing";
 
 type StructuredSite = Pick<PlatformContent["site"], "name" | "logoAlt" | "structuredData">;
 
@@ -28,6 +28,7 @@ export function buildProductStructuredData(
     : product.fulfilmentState === "ready_now"
       ? "https://schema.org/InStock"
       : "https://schema.org/PreOrder";
+  const range = productPriceRange(product);
 
   return {
     "@context": "https://schema.org",
@@ -39,10 +40,10 @@ export function buildProductStructuredData(
     brand: { "@type": "Brand", name: site.name },
     ...(hasAuthoritativeOffer ? {
       offers: {
-        "@type": "Offer",
+        "@type": range.min !== range.max ? "AggregateOffer" : "Offer",
         url: urls.absoluteUrl(path),
         priceCurrency: "NGN",
-        price: product.price,
+        ...(range.min !== range.max ? { lowPrice: range.min, highPrice: range.max } : { price: range.min }),
         availability,
         seller: { "@id": `${urls.siteUrl}/#organization` },
       },

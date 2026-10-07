@@ -4,6 +4,7 @@ import { Search, X, ArrowRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { usePlatformContent } from "@/data/platformContent";
 import { DisplayPrice } from "@/context/DisplayCurrencyContext";
+import { productPriceRange } from "@/lib/purchasing";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 
 export function HeaderSearch({ buttonClassName = "text-secondary hover:text-primary" }: { buttonClassName?: string }) {
@@ -238,7 +239,7 @@ export function HeaderSearch({ buttonClassName = "text-secondary hover:text-prim
                             <img src={p.img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                           </div>
                           <p className="soso-display text-base text-foreground group-hover:text-secondary transition-colors">{p.name}</p>
-                          <p className="text-sm text-secondary mt-1"><DisplayPrice amount={p.price} /></p>
+                          <p className="text-sm text-secondary mt-1">{productPriceRange(p).min !== productPriceRange(p).max && "From "}<DisplayPrice amount={productPriceRange(p).min} /></p>
                         </Link>
                       ))}
                     </div>

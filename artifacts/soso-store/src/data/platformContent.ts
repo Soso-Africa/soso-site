@@ -50,6 +50,8 @@ export type CatalogProduct = {
   relatedProductSlugs?: string[];
   commerceProductId?: string;
   commerceVariantIds?: Record<string, string>;
+  /** NGN price for each size/custom choice, verified against its JusticeSure variant. */
+  variantPrices?: Record<string, number>;
   commerceMappingConfirmation?: {
     productHash: string;
     localHash: string;
@@ -69,6 +71,7 @@ export type CatalogProduct = {
     previewImageSrc?: string;
   }[];
   allowCustomColour: boolean;
+  /** Retired archive data only; never render, generate or edit colour masks. */
   colourVisualizer?: { baseImageSrc: string; garmentMaskSrc: string };
   fabric: string;
   fit: string;

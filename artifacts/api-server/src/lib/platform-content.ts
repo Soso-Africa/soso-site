@@ -320,6 +320,8 @@ export const PlatformContentSchema = z.object({
     colour: copy.min(1),
     colourOptions: z.array(colourOption).min(1).max(16),
     allowCustomColour: z.boolean(),
+    // Read old records without losing governed-file references. This retired
+    // metadata is not a rendering capability and is ignored by publication.
     colourVisualizer: z.object({
       baseImageSrc: governedColourAssetPath,
       garmentMaskSrc: garmentMaskPath,
@@ -342,6 +344,7 @@ export const PlatformContentSchema = z.object({
     featured: z.boolean().optional(), relatedProductSlugs: z.array(slug).optional(),
     commerceProductId: z.string().uuid().optional(),
     commerceVariantIds: z.record(z.string(), z.string().uuid()).optional(),
+    variantPrices: z.record(z.string(), z.number().positive().max(1_000_000_000).multipleOf(0.01)).optional(),
     commerceMappingConfirmation: z.object({
       productHash: z.string().regex(/^[0-9a-f]{64}$/),
       localHash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -468,6 +471,11 @@ export const PlatformContentSchema = z.object({
       ctx.addIssue({ code: "custom", message: "Only unavailable products may include an unavailable message", path: ["unavailableMessage"] });
     }
     const standards = new Set(product.standardSizes);
+    Object.entries(product.variantPrices ?? {}).forEach(([choice]) => {
+      if (!(product.standardEligible && standards.has(choice)) && !(product.customEligible && choice === "Custom")) {
+        ctx.addIssue({ code: "custom", message: "Variant price must belong to an eligible size or Custom choice", path: ["variantPrices", choice] });
+      }
+    });
     product.readyNowSizes.forEach((size, index) => {
       if (!standards.has(size)) ctx.addIssue({ code: "custom", message: "Ready-now sizes must be Standard sizes", path: ["readyNowSizes", index] });
     });

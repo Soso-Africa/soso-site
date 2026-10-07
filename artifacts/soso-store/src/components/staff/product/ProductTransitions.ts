@@ -1,5 +1,11 @@
 import type { CatalogProduct } from "../../../data/platformContent";
 
+function removePrices(product: CatalogProduct, choices: string[]): CatalogProduct["variantPrices"] {
+  const prices = { ...product.variantPrices };
+  choices.forEach((choice) => delete prices[choice]);
+  return Object.keys(prices).length ? prices : undefined;
+}
+
 export function handleUpdateDepartment(
   product: CatalogProduct,
   department: CatalogProduct["department"],
@@ -11,7 +17,7 @@ export function handleUpdateDepartment(
     || product.sizes.some((size) => size.toLowerCase() === "custom")
     || Boolean(product.commerceVariantIds?.Custom)
   );
-  if (leavingMenWithCustomData && !confirm("Women and Accessories are ready-to-wear only. Changing department will remove Custom sizing and its commerce mapping. Continue?")) {
+  if (leavingMenWithCustomData && !confirm("Women and Accessories are ready-to-wear only. Changing department will remove Custom sizing, its commerce mapping and its size price. Continue?")) {
     return null;
   }
   const commerceVariantIds = { ...(product.commerceVariantIds ?? {}) };
@@ -23,6 +29,7 @@ export function handleUpdateDepartment(
     customEligible: department === "men" ? product.customEligible : false,
     sizes: department === "men" ? product.sizes : product.sizes.filter((size) => size.toLowerCase() !== "custom"),
     commerceVariantIds: Object.keys(commerceVariantIds).length > 0 ? commerceVariantIds : undefined,
+    variantPrices: department !== "men" ? removePrices(product, ["Custom"]) : product.variantPrices,
     commerceMappingConfirmation: leavingMenWithCustomData ? undefined : product.commerceMappingConfirmation,
   };
 }
@@ -35,7 +42,7 @@ export function handleToggleCustomEligible(
   if (!checked) {
     const hasData = product.commerceVariantIds?.["Custom"];
     if (hasData) {
-      if (!confirm("Disabling Custom eligibility will clear its mapped commerce variant. Continue?")) {
+      if (!confirm("Disabling Custom eligibility will clear its mapped commerce variant and Custom price. Continue?")) {
         return null;
       }
     }
@@ -55,6 +62,7 @@ export function handleToggleCustomEligible(
     customEligible: checked,
     sizes: Array.from(sizes),
     commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    variantPrices: checked ? product.variantPrices : removePrices(product, ["Custom"]),
     commerceMappingConfirmation: undefined,
   };
 }
@@ -67,7 +75,7 @@ export function handleToggleStandardEligible(
   if (!checked) {
     const stdSizes = product.standardSizes || [];
     if (stdSizes.length > 0) {
-      if (!confirm("Disabling Standard eligibility will clear all its standard size variants and ready-now configurations. Continue?")) {
+      if (!confirm("Disabling Standard eligibility will clear all its standard size variants, prices and ready-now configurations. Continue?")) {
         return null;
       }
     }
@@ -86,6 +94,7 @@ export function handleToggleStandardEligible(
     standardSizes: checked ? product.standardSizes : [],
     readyNowSizes: checked ? product.readyNowSizes : [],
     commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    variantPrices: checked ? product.variantPrices : removePrices(product, product.standardSizes),
     commerceMappingConfirmation: undefined,
   };
 }
@@ -151,6 +160,7 @@ export function handleUpdateAvailableSizes(
     standardSizes: newStandardSizes,
     readyNowSizes: newReadyNowSizes,
     commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    variantPrices: removePrices(product, removedSizes),
     commerceMappingConfirmation: removedSizes.length > 0 ? undefined : product.commerceMappingConfirmation,
   };
 }
@@ -185,6 +195,7 @@ export function handleUpdateStandardSizes(
     standardSizes: Array.from(stdSizes),
     readyNowSizes: newReadyNow,
     commerceVariantIds: Object.keys(newVariants).length > 0 ? newVariants : undefined,
+    variantPrices: checked ? product.variantPrices : removePrices(product, [size]),
     commerceMappingConfirmation: undefined,
   };
 }

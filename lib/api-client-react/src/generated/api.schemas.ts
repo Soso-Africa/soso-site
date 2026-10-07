@@ -1943,6 +1943,8 @@ export const CatalogueMappingProductInputFulfilmentState = {
 
 export type CatalogueMappingProductInputCommerceVariantIds = {[key: string]: string};
 
+export type CatalogueMappingProductInputVariantPrices = {[key: string]: number};
+
 export interface CatalogueMappingProductInput {
   /**
      * @minLength 1
@@ -1967,6 +1969,7 @@ export interface CatalogueMappingProductInput {
   /** @pattern ^[0-9a-fA-F-]{36}$ */
   commerceProductId?: string;
   commerceVariantIds?: CatalogueMappingProductInputCommerceVariantIds;
+  variantPrices?: CatalogueMappingProductInputVariantPrices;
 }
 
 export interface CatalogueMappingPreviewInput {
