@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import binary from "@sparticuz/chromium";
+import { PNG } from "pngjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const origin = "http://127.0.0.1:41740";
@@ -81,6 +82,24 @@ try {
     assert.equal(response.status, 200);
     const bytes = Buffer.from(await response.arrayBuffer());
     assert.equal(`${bytes.readUInt32BE(16)}x${bytes.readUInt32BE(20)}`, icon.sizes);
+    const image = PNG.sync.read(bytes);
+    let gold = 0;
+    let blue = 0;
+    for (let y = 0; y < image.height; y++) {
+      for (let x = 0; x < image.width; x++) {
+        const offset = (y * image.width + x) * 4;
+        const [red, green, b, alpha] = image.data.subarray(offset, offset + 4);
+        assert.equal(alpha, 255, "App icons must have an opaque background.");
+        if (red > 120 && green > 60 && green < red && b < green * 0.8) {
+          gold++;
+          assert(Math.hypot(x + 0.5 - image.width / 2, y + 0.5 - image.height / 2)
+            < image.width * 0.4, "Gold artwork must stay inside the maskable safe circle.");
+        }
+        if (b > red * 1.2 && b > green * 1.2) blue++;
+      }
+    }
+    assert(gold > image.width * image.height * 0.1, "Use the gold SOSO monogram, not a generic S.");
+    assert.equal(blue, 0, "The blue S must not return to the app icons.");
   }
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
@@ -105,7 +124,7 @@ try {
     }
     return urls.sort();
   });
-  const expected = ["/offline.html", "/pwa-icon-192.png", "/pwa-icon-512.png"].sort();
+  const expected = ["/offline.html", "/pwa-icon-gold-192.png", "/pwa-icon-gold-512.png"].sort();
   assert.deepEqual(await cacheAudit(), expected);
   // Chromium's renderer offline emulation may leave worker fetches online.
   // Removing the origin proves real worker network-failure handling instead.
@@ -137,6 +156,8 @@ try {
   await popup.waitFor();
   assert(await popup.getByText("On your iPhone or iPad").isVisible(), "Desktop-style iPadOS must get Apple's manual steps.");
   assert(await popup.getByText(/Choose.*Add to Home Screen/).isVisible());
+  assert((await popup.locator("img").getAttribute("src")).endsWith("/pwa-icon-gold-192.png"),
+    "The installation popup must use the same gold branding as the app.");
   assert.equal(await popup.getByRole("button", { name: "Install SOSO", exact: true }).count(), 0,
     "Safari must not offer a fake native installation action.");
   await ipadPage.keyboard.press("Escape");

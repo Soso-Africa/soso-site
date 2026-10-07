@@ -56,7 +56,7 @@ export function PwaInstallPopup({ contentReady }: { contentReady: boolean }) {
     onOpenChange={(open) => { if (!open) dismiss(); }}>
     <DialogContent data-pwa-install-popup className="w-[calc(100%_-_2rem)] max-w-md p-7 sm:p-8">
       <div className="flex items-center gap-4">
-        <img src={`${import.meta.env.BASE_URL}pwa-icon-192.png`} alt="" width={56} height={56}
+        <img src={`${import.meta.env.BASE_URL}pwa-icon-gold-192.png`} alt="" width={56} height={56}
           className="h-14 w-14 rounded-xl" />
         <div>
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">SOSO Africa</p>
