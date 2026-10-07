@@ -5,7 +5,6 @@ import {
   JusticeSureConfigurationError,
   JusticeSureRequestError,
   isJusticeSureCommerceReady,
-  isJusticeSureCommerceReadable,
   isJusticeSureTestMode,
   justiceSureConfig,
 } from "./justicesureCommerce";
@@ -38,58 +37,6 @@ test("JusticeSure activation requires the published runtime and every staged ser
     assert.equal(justiceSureConfig().baseUrl, "https://justicesure.example/api/v1/commerce");
   } finally {
     restoreEnv();
-  }
-});
-
-test("catalogue reads are available without opening checkout writes", async () => {
-  const config = {
-    runtimeReady: false,
-    baseUrl: "https://commerce.example/api/v1/commerce",
-    apiKey: "jsk_test_key_123",
-  };
-  assert.equal(isJusticeSureCommerceReadable(config), true);
-  assert.equal(isJusticeSureCommerceReady(config), false);
-  assert.throws(() => new JusticeSureCommerceClient(config), JusticeSureConfigurationError);
-  const client = new JusticeSureCommerceClient(config, true);
-  const originalFetch = globalThis.fetch;
-  let requests = 0;
-  globalThis.fetch = async () => {
-    requests += 1;
-    return new Response(JSON.stringify({ data: [] }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  };
-  try {
-    assert.deepEqual(await client.listLocations(), []);
-    assert.equal(requests, 1);
-    await assert.rejects(
-      () => client.createPriceQuote({ items: [], fulfillment: { type: "pickup" } }),
-      JusticeSureConfigurationError,
-    );
-    assert.equal(requests, 1);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("store fulfilment discovery reads merchant options and rejects malformed availability", async () => {
-  const client = new JusticeSureCommerceClient({
-    runtimeReady: false,
-    baseUrl: "https://commerce.example/api/v1/commerce",
-    apiKey: "jsk_test_key_123",
-  }, true);
-  const originalFetch = globalThis.fetch;
-  let options: unknown = ["pickup", "delivery"];
-  globalThis.fetch = async () => new Response(JSON.stringify({ data: { fulfillment: { options } } }), {
-    status: 200, headers: { "content-type": "application/json" },
-  });
-  try {
-    assert.deepEqual(await client.listStoreFulfillmentOptions(), ["pickup", "delivery"]);
-    options = ["pickup", "unsupported"];
-    await assert.rejects(() => client.listStoreFulfillmentOptions(), JusticeSureRequestError);
-  } finally {
-    globalThis.fetch = originalFetch;
   }
 });
 

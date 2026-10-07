@@ -35,6 +35,7 @@ import {
   type JusticeSurePaymentMethod,
   type JusticeSureProvider,
 } from "../lib/justicesureCommerce";
+import { domesticFulfillment, domesticFulfillmentOptions, fulfillmentUnavailable, deliveryQuoteMatches } from "../lib/domestic-fulfillment";
 import {
   CUSTOM_DISPATCH_GUIDANCE,
   customerCanSubmit,
@@ -89,7 +90,7 @@ type CheckoutBody = {
   checkoutOperationId: string;
   customer: { name: string; email: string; phone: string };
   items: CheckoutItem[];
-  fulfillment: { type: "pickup" | "delivery"; locationId?: string; address?: string };
+  fulfillment: JusticeSureFulfillment;
   quoteId?: string;
   displayCurrency?: string;
   paymentProvider?: JusticeSureProvider;
@@ -253,9 +254,8 @@ function checkoutBody(value: unknown): CheckoutBody | null {
       ...(customColour ? { customColour } : {}),
     });
   }
-  const locationId = stringValue(fulfillment.locationId, 64);
-  const address = stringValue(fulfillment.address, 1_000);
-  if ((type === "pickup" && !isUuid(locationId)) || (type === "delivery" && !address)) return null;
+  const validatedFulfillment = domesticFulfillment(fulfillment);
+  if (!validatedFulfillment) return null;
   const quoteId = stringValue(body.quoteId, 64);
   const displayCurrency = stringValue(body.displayCurrency, 3)?.toUpperCase();
   const paymentProvider = stringValue(body.paymentProvider, 20);
@@ -268,7 +268,7 @@ function checkoutBody(value: unknown): CheckoutBody | null {
     checkoutOperationId,
     customer: { name, email, phone },
     items,
-    fulfillment: { type, locationId, address },
+    fulfillment: validatedFulfillment,
     ...(quoteId ? { quoteId } : {}),
     ...(displayCurrency ? { displayCurrency } : {}),
     ...(paymentProvider ? { paymentProvider: paymentProvider as JusticeSureProvider } : {}),
@@ -344,7 +344,8 @@ export function quoteMatchesRequestedCheckout(
   if (!sameLines) return false;
   return quote.fulfillment.type === fulfillment.type
     && (quote.fulfillment.locationId ?? undefined) === fulfillment.locationId
-    && (quote.fulfillment.address ?? undefined) === fulfillment.address;
+    && (quote.fulfillment.address ?? undefined) === fulfillment.address
+    && deliveryQuoteMatches(quote.fulfillment, fulfillment);
 }
 
 export function sameImmutableQuote(
@@ -577,8 +578,8 @@ router.get("/payment/discovery", async (req, res): Promise<void> => {
     res.json({
       currencies,
       paymentMethods,
-      corridors,
-      fulfillmentOptions: fulfillmentOptions.includes("pickup") ? ["pickup"] : [],
+      corridors: corridors.filter((corridor) => corridor.originCountry === "NG" && corridor.destinationCountry === "NG"),
+      fulfillmentOptions: domesticFulfillmentOptions(fulfillmentOptions, country),
     });
   } catch (error) {
     errorResponse(res, error);
@@ -614,10 +615,6 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
       res.status(409).json({ error: "Checkout is paused or the secure payment runtime is not ready. No payment has been taken.", noPaymentTaken: true });
       return;
     }
-    if (body.fulfillment.type !== "pickup") {
-      res.status(409).json({ error: "Only pickup at the current SOSO HQ location is currently available.", noPaymentTaken: true });
-      return;
-    }
     if (body.paymentProvider !== "paystack" || body.paymentMethod !== "card") {
       res.status(409).json({ error: "Checkout currently accepts Paystack card payments only.", noPaymentTaken: true });
       return;
@@ -625,10 +622,11 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
     const client = new JusticeSureCommerceClient();
     const [availableFulfillment, locations] = await Promise.all([
       client.listStoreFulfillmentOptions(),
-      client.listLocations(),
+      body.fulfillment.type === "pickup" ? client.listLocations() : Promise.resolve([]),
     ]);
-    if (!availableFulfillment.includes("pickup") || !isValidPickupLocation(locations, body.fulfillment.locationId)) {
-      res.status(409).json({ error: "Select the current valid SOSO HQ pickup location.", noPaymentTaken: true });
+    const unavailable = fulfillmentUnavailable(body.fulfillment, availableFulfillment, isValidPickupLocation(locations, body.fulfillment.locationId));
+    if (unavailable) {
+      res.status(409).json({ error: unavailable, noPaymentTaken: true });
       return;
     }
     if (!attempt) {
@@ -655,11 +653,7 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
       }
       const ownershipToken = randomOwnershipToken();
       const items: JusticeSureLineItem[] = resolved.map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
-      const fulfillment: JusticeSureFulfillment = {
-        type: body.fulfillment.type,
-        ...(body.fulfillment.locationId ? { locationId: body.fulfillment.locationId } : {}),
-        ...(body.fulfillment.address ? { address: body.fulfillment.address } : {}),
-      };
+      const fulfillment: JusticeSureFulfillment = body.fulfillment;
       // Persist the exact request intent before the quote/network boundary.
       const orderRequestBody = {
         customer: body.customer, items, fulfillment, paymentMethod: body.paymentProvider,
@@ -683,10 +677,7 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
     }
     if (!attempt) throw new Error("Checkout quote operation was not persisted.");
     const items: JusticeSureLineItem[] = (attempt.items as CheckoutItem[]).map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
-    const fulfillment: JusticeSureFulfillment = {
-      type: body.fulfillment.type, ...(body.fulfillment.locationId ? { locationId: body.fulfillment.locationId } : {}),
-      ...(body.fulfillment.address ? { address: body.fulfillment.address } : {}),
-    };
+    const fulfillment: JusticeSureFulfillment = body.fulfillment;
     const quote = await client.createPriceQuote({
       items, fulfillment, provider: body.paymentProvider, paymentMethod: body.paymentMethod,
       ...(body.displayCurrency ? { displayCurrency: body.displayCurrency } : {}),
@@ -802,16 +793,13 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
 
   try {
     const client = new JusticeSureCommerceClient(config);
-    if (body.fulfillment.type !== "pickup") {
-      res.status(409).json({ error: "Only pickup at the current SOSO HQ location is currently available.", noPaymentTaken: true });
-      return;
-    }
     const [availableFulfillment, locations] = await Promise.all([
       client.listStoreFulfillmentOptions(),
-      client.listLocations(),
+      body.fulfillment.type === "pickup" ? client.listLocations() : Promise.resolve([]),
     ]);
-    if (!availableFulfillment.includes("pickup") || !isValidPickupLocation(locations, body.fulfillment.locationId)) {
-      res.status(409).json({ error: "Select the current valid SOSO HQ pickup location.", noPaymentTaken: true });
+    const unavailable = fulfillmentUnavailable(body.fulfillment, availableFulfillment, isValidPickupLocation(locations, body.fulfillment.locationId));
+    if (unavailable) {
+      res.status(409).json({ error: unavailable, noPaymentTaken: true });
       return;
     }
     const quoteSnapshot = attempt.quoteSnapshot as Record<string, unknown> & {

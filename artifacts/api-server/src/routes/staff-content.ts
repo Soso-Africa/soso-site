@@ -43,6 +43,7 @@ import { validateAccessoryProductPublication } from "../lib/accessory-product-pu
 import { validateCollectionMediaAssets, validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { platformProductReferences } from "../lib/platform-product-references";
 import { deleteDraftProduct } from "../lib/delete-draft-product";
+import { CatalogueAlertProductsSchema, catalogueAlertProjection, findStaleProjectedProducts } from "../lib/catalogue-alert-projection";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
 import {
@@ -563,38 +564,45 @@ export function findStaleCatalogueProducts(
 }
 
 router.get("/staff/commerce/catalogue-mapping/stale", platformRoles, async (_req, res): Promise<void> => {
-  await ensurePlatformContent();
-  const [row] = await db.select({ draft: siteContentTable.draft })
+  // API startup owns initialization. A recurring read must not rerun
+  // migrations/reconciliation or fetch both complete platform documents.
+  const [row] = await db.select({ products: catalogueAlertProjection })
     .from(siteContentTable)
     .where(eq(siteContentTable.key, "platform"))
     .limit(1);
-  const parsed = PlatformContentSchema.safeParse(row?.draft);
+  const parsed = CatalogueAlertProductsSchema.safeParse(row?.products ?? []);
   if (!parsed.success) {
-    res.json({ products: [] });
+    res.status(500).json({ error: "Catalogue mapping alerts could not be read." });
     return;
   }
-  const confirmationDates = parsed.data.products.flatMap((product) =>
-    product.commerceProductId && product.commerceMappingConfirmation
-      ? [new Date(product.commerceMappingConfirmation.confirmedAt)]
-      : []);
+  const confirmationDates = parsed.data.map((product) => new Date(product.confirmedAt));
   if (confirmationDates.length === 0) {
     res.json({ products: [] });
     return;
   }
   const earliestConfirmation = new Date(Math.min(...confirmationDates.map((date) => date.getTime())));
+  const identifiers = [...new Set(parsed.data.flatMap((product) =>
+    [product.productId, ...Object.values(product.variantIds)]))];
+  // A latest completed event per relevant identifier is sufficient to answer
+  // "newer than this confirmation", without downloading an ever-growing log.
+  const eventIdentifier = sql<string>`alert_ids.identifier`;
   const events = await db.select({
-    identifiers: commerceWebhookEventsTable.catalogueIdentifiers,
-    occurredAt: commerceWebhookEventsTable.eventOccurredAt,
-  }).from(commerceWebhookEventsTable).where(and(
+    identifier: eventIdentifier,
+    occurredAt: sql`max(${commerceWebhookEventsTable.eventOccurredAt})`.mapWith(commerceWebhookEventsTable.eventOccurredAt),
+  }).from(commerceWebhookEventsTable)
+    .innerJoin(sql`lateral jsonb_array_elements_text(${commerceWebhookEventsTable.catalogueIdentifiers}) as alert_ids(identifier)`, sql`true`)
+    .where(and(
     eq(commerceWebhookEventsTable.status, "completed"),
     inArray(commerceWebhookEventsTable.eventType, ["commerce.product.updated", "commerce.inventory.updated"]),
     gte(commerceWebhookEventsTable.eventOccurredAt, earliestConfirmation),
-  ));
+    inArray(eventIdentifier, identifiers),
+  )).groupBy(eventIdentifier);
   const invalidations = events.flatMap((event) =>
-    event.occurredAt && event.identifiers.length > 0
-      ? [{ identifiers: event.identifiers, occurredAt: event.occurredAt }]
+    event.occurredAt
+      ? [{ identifiers: [event.identifier], occurredAt: event.occurredAt }]
       : []);
-  res.json({ products: findStaleCatalogueProducts(parsed.data, invalidations) });
+  res.set("Cache-Control", "no-store");
+  res.json({ products: findStaleProjectedProducts(parsed.data, invalidations) });
 });
 
 router.get("/staff/commerce/catalogue-mapping/:slug/history", platformRoles, async (req, res): Promise<void> => {

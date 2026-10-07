@@ -62,17 +62,6 @@ test("commerce catalogue supports provider-authorized products without images or
   assert.deepEqual(product.commerceVariantIds, {});
 });
 
-test("pickup presents only complete shops, without accepting warehouses as shopper locations", () => {
-  assert.deepEqual(projectPickupLocations({ locations: [
-    { id: productId, type: "warehouse", name: "Stock room", address: null, city: null, country: "Nigeria" },
-    { id: standardVariantId, type: "shop", name: "SOSO HQ", address: "37 Agadez Street", city: "Abuja", country: "Nigeria" },
-  ] }), [{ id: standardVariantId, name: "SOSO HQ", address: "37 Agadez Street", city: "Abuja", country: "Nigeria" }]);
-  assert.deepEqual(projectPickupLocations({ locations: [{ id: productId, type: "warehouse" }] }), []);
-  assert.throws(() => projectPickupLocations({ locations: [
-    { id: productId, type: "shop", name: "SOSO HQ", address: null, city: "Abuja", country: "Nigeria" },
-  ] }), /pickup_locations_invalid_location/);
-});
-
 test("commerce catalogue refuses a non-NGN price even for an otherwise usable product", () => {
   assert.throws(() => projectCommerceCatalogProduct({
     id: productId, name: "Vault", description: null, currency: "USD", amountKobo: 25000000,

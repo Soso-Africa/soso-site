@@ -7,6 +7,7 @@ import serverlessChromium from "@sparticuz/chromium";
 import { chromium } from "@playwright/test";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
+import { assertMenuCollections, menuFixture } from "./assert-menu-collections.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const baselineDir = resolve(root, "visual/baselines");
@@ -80,7 +81,7 @@ function parseRgb(value) {
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-async function installDeterministicRoutes(page) {
+async function installDeterministicRoutes(page, publicContent = platform) {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname.includes("fonts.googleapis.com") || url.hostname.includes("fonts.gstatic.com")) {
@@ -92,7 +93,8 @@ async function installDeterministicRoutes(page) {
       return;
     }
     if (url.pathname === "/api/content/platform") {
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(platform) });
+      assert.equal(route.request().method(), "GET", "Menu review must never write public content.");
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(publicContent) });
       return;
     }
     if (url.pathname === "/api/price-display") {
@@ -384,6 +386,24 @@ try {
       await assertVisualSemantics(page, surface, viewportName);
     }
     await context.close();
+    // Fresh contexts avoid cached publication responses. These are semantic checks,
+    // not new pixel baselines, and all API traffic stays fixture-backed.
+    for (const restricted of [false, true]) {
+      const fixture = menuFixture(platform, restricted);
+      const menuContext = await browser.newContext({
+        viewport, colorScheme: "light", reducedMotion: "reduce",
+        deviceScaleFactor: 1, locale: "en-US", timezoneId: "Africa/Lagos",
+      });
+      try {
+        const menuPage = await menuContext.newPage();
+        await installDeterministicRoutes(menuPage, fixture);
+        await preparePage(menuPage, surfaces[0]);
+        await assertMenuCollections(menuPage, fixture, viewportName, origin);
+        process.stdout.write(`Passed ${viewportName} Men menu: ${restricted ? "absent/wrong-department guards" : "five destinations, Staff copy and collection navigation"}.\n`);
+      } finally {
+        await menuContext.close();
+      }
+    }
   }
   completed = true;
 } finally {

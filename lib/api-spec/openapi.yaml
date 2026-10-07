@@ -2539,6 +2539,22 @@ components:
         type: { type: string, enum: [pickup, delivery] }
         locationId: { type: string, minLength: 36, maxLength: 64 }
         address: { type: string, minLength: 1, maxLength: 1000 }
+        destinationCountry: { type: string, enum: [NG] }
+        shippingAddress:
+          $ref: "#/components/schemas/CommerceShippingAddress"
+    CommerceShippingAddress:
+      type: object
+      additionalProperties: false
+      required: [country, region, city, postalCode, addressLines, recipientName, recipientPhone]
+      properties:
+        country: { type: string, enum: [NG] }
+        region: { type: string, minLength: 1, maxLength: 80 }
+        city: { type: string, minLength: 1, maxLength: 120 }
+        postalCode: { type: string, pattern: "^(?:[0-9]{6})?$" }
+        addressLines: { type: array, minItems: 1, maxItems: 3, items: { type: string, minLength: 1, maxLength: 250 } }
+        recipientName: { type: string, minLength: 1, maxLength: 160 }
+        recipientPhone: { type: string, minLength: 1, maxLength: 80 }
+        deliveryInstructions: { type: string, minLength: 1, maxLength: 1000 }
     CommerceCheckoutInput:
       type: object
       required: [checkoutOperationId, customer, items, fulfillment, quoteId, displayCurrency, paymentProvider, paymentMethod]
