@@ -9,6 +9,7 @@
     "build": "vite build --config vite.config.ts && pnpm --dir ../../scripts exec tsx ../artifacts/soso-store/scripts/generate-seo-assets.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "test": "pnpm --dir ../../scripts exec tsx --test ../artifacts/soso-store/src/**/*.test.ts ../artifacts/soso-store/src/**/*.test.tsx",
+    "test:pwa": "pnpm run build && node scripts/test-pwa.mjs",
     "test:homepage-merchandising": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-homepage-merchandising.mjs",
     "test:garment-mask-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-garment-mask-browser.mjs",
     "test:accessory-demand-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-accessory-demand-browser.mjs",
