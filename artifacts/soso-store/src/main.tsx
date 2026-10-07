@@ -4,6 +4,9 @@ import App from './App';
 import { ErrorBoundary } from '@/components/error-boundary';
 
 import './index.css';
+import { preparePwa } from './lib/pwa';
+
+preparePwa();
 
 const rootElement = document.getElementById('root')!;
 // Generated discovery pages contain safe crawler-readable markup in #root.
