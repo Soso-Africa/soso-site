@@ -14,6 +14,7 @@ export function toMappingProduct(p: CatalogProduct) {
     fulfilmentState: p.fulfilmentState,
     commerceProductId: p.commerceProductId,
     commerceVariantIds: p.commerceVariantIds,
+    variantPrices: p.variantPrices,
   };
 }
 

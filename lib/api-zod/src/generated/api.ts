@@ -2627,6 +2627,10 @@ export const previewStaffCatalogueMappingBodyProductsItemStandardSizesItemMax = 
 
 export const previewStaffCatalogueMappingBodyProductsItemCommerceProductIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
 export const previewStaffCatalogueMappingBodyProductsItemCommerceVariantIdsRegExpOne = new RegExp('^[0-9a-fA-F-]{36}$');
+export const previewStaffCatalogueMappingBodyProductsItemVariantPricesMinOne = 0.01;
+export const previewStaffCatalogueMappingBodyProductsItemVariantPricesMaxOne = 1000000000;
+export const previewStaffCatalogueMappingBodyProductsItemVariantPricesMultipleOfOne = 0.01;
+
 export const previewStaffCatalogueMappingBodyProductsMax = 1000;
 
 
@@ -2641,7 +2645,8 @@ export const PreviewStaffCatalogueMappingBody = zod.object({
   "standardSizes": zod.array(zod.string().min(1).max(previewStaffCatalogueMappingBodyProductsItemStandardSizesItemMax)),
   "fulfilmentState": zod.enum(['ready_now', 'made_immediately', 'unavailable']),
   "commerceProductId": zod.string().regex(previewStaffCatalogueMappingBodyProductsItemCommerceProductIdRegExp).optional(),
-  "commerceVariantIds": zod.record(zod.string(), zod.string().regex(previewStaffCatalogueMappingBodyProductsItemCommerceVariantIdsRegExpOne)).optional()
+  "commerceVariantIds": zod.record(zod.string(), zod.string().regex(previewStaffCatalogueMappingBodyProductsItemCommerceVariantIdsRegExpOne)).optional(),
+  "variantPrices": zod.record(zod.string(), zod.number().min(previewStaffCatalogueMappingBodyProductsItemVariantPricesMinOne).max(previewStaffCatalogueMappingBodyProductsItemVariantPricesMaxOne).multipleOf(previewStaffCatalogueMappingBodyProductsItemVariantPricesMultipleOfOne)).optional()
 })).max(previewStaffCatalogueMappingBodyProductsMax)
 })
 

@@ -9,6 +9,7 @@ export type LocalCatalogueProduct = {
   standardSizes: string[];
   commerceProductId?: string;
   commerceVariantIds?: Record<string, string>;
+  variantPrices?: Record<string, number>;
 };
 
 export type CatalogueSnapshot = {
@@ -164,6 +165,7 @@ export function localMappingHash(local: LocalCatalogueProduct): string {
     standardSizes: [...local.standardSizes],
     commerceProductId: local.commerceProductId ?? null,
     commerceVariantIds: local.commerceVariantIds ?? {},
+    ...(Object.keys(local.variantPrices ?? {}).length ? { variantPrices: local.variantPrices } : {}),
   });
 }
 
@@ -193,7 +195,8 @@ function makeMapping(local: LocalCatalogueProduct, catalog: JusticeSureCatalogPr
     const variant = matches[0]!;
     if (used.has(variant.id)) return { ...base, status: unsafe, evidence: [...evidence, "Two choices would assign the same variant."], productId: product.id, productHash: snapshot.products[product.id] };
     if (isAvailable(local) && !variant.inStock) return { ...base, status: unsafe, evidence: [...evidence, `Variant ${choice.key} has no stock.`], productId: product.id, productHash: snapshot.products[product.id] };
-    if (variant.amountKobo !== Math.round(local.price * 100)) return { ...base, status: unsafe, evidence: [...evidence, `Variant ${choice.key} price does not exactly match NGN converted to kobo.`], productId: product.id, productHash: snapshot.products[product.id] };
+    const choicePrice = local.variantPrices?.[choice.key] ?? local.price;
+    if (variant.amountKobo !== Math.round(choicePrice * 100)) return { ...base, status: unsafe, evidence: [...evidence, `Variant ${choice.key} price does not exactly match its SOSO size price converted to kobo.`], productId: product.id, productHash: snapshot.products[product.id] };
     const existing = Object.entries(local.commerceVariantIds ?? {}).find(([key]) => normalizedSize(key) === choice.semantic)?.[1];
     if (existing && existing !== variant.id) return { ...base, status: unsafe, evidence: [...evidence, `Existing variant ID for ${choice.key} does not match.`], productId: product.id, productHash: snapshot.products[product.id] };
     used.add(variant.id); base.variantIds[choice.key] = variant.id; base.choiceLabels[choice.key] = variant.label;

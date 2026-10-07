@@ -63,8 +63,8 @@ test("checkout selection type and price come from the authoritative variant mapp
     amountKobo: 2500000,
     inStock: true,
     variants: [
-      catalogVariant(customVariantId, "custom"),
-      catalogVariant(standardVariantId, "L"),
+      { ...catalogVariant(customVariantId, "custom"), amountKobo: 2500000 },
+      { ...catalogVariant(standardVariantId, "L"), amountKobo: 2500000 },
     ],
   }];
   const colour = {

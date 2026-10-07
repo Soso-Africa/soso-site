@@ -12,7 +12,7 @@ import { ProductCard } from "@/components/ProductCard";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight, ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
 import * as Accordion from "@radix-ui/react-accordion";
-import { isMappedPurchaseChoice, isProductReleased, mappedPurchaseChoices, visibleStandardSizes } from "@/lib/purchasing";
+import { isMappedPurchaseChoice, isProductReleased, mappedPurchaseChoices, visibleStandardSizes, purchaseChoicePrice, productPriceRange } from "@/lib/purchasing";
 import { WhatsAppIcon } from "@/components/Icons";
 import { MaterialTurnStage } from "@/components/MaterialTurnStage";
 import { AccessoryLaunchNotificationForm } from "@/components/AccessoryLaunchNotificationForm";
@@ -36,35 +36,12 @@ function FallbackGallery({
         <div className="flex touch-pan-y">
           {gallery.map((g: any, i: number) => (
             <div key={i} className="flex-[0_0_100%] min-w-0 relative overflow-hidden">
-              {g.type === 'mask' ? (
-                <div
-                  className="w-full aspect-[2/3] transition-transform duration-500 relative"
-                  style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)", backgroundColor: 'hsl(var(--muted))' }}
-                  aria-label={g.label}
-                >
-                  <img src={g.baseSrc} alt={g.label} className="absolute inset-0 w-full h-full object-cover" />
-                  <div
-                    className="absolute inset-0 w-full h-full object-cover"
-                    style={{
-                      backgroundColor: g.hex,
-                      opacity: 0.72,
-                      WebkitMaskImage: `url(${g.maskSrc})`,
-                      WebkitMaskSize: 'cover',
-                      WebkitMaskPosition: 'center',
-                      maskImage: `url(${g.maskSrc})`,
-                      maskSize: 'cover',
-                      maskPosition: 'center'
-                    }}
-                  />
-                </div>
-              ) : (
                 <img
                   src={g.src}
                   alt={g.label}
-                  className="w-full aspect-[2/3] object-cover transition-transform duration-500"
+                  className="w-full aspect-[2/3] object-contain transition-transform duration-500"
                   style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)" }}
                 />
-              )}
             </div>
           ))}
         </div>
@@ -112,26 +89,7 @@ function FallbackGallery({
             aria-label={`${productCopy.viewProductLabel}: ${g.label}`}
             aria-current={i === img}
           >
-            {g.type === 'mask' ? (
-              <div className="aspect-[3/4] relative w-full bg-muted">
-                <img src={g.baseSrc} alt={g.label} className="absolute inset-0 w-full h-full object-cover" />
-                <div
-                  className="absolute inset-0 w-full h-full object-cover"
-                  style={{
-                    backgroundColor: g.hex,
-                    opacity: 0.72,
-                    WebkitMaskImage: `url(${g.maskSrc})`,
-                    WebkitMaskSize: 'cover',
-                    WebkitMaskPosition: 'center',
-                    maskImage: `url(${g.maskSrc})`,
-                    maskSize: 'cover',
-                    maskPosition: 'center'
-                  }}
-                />
-              </div>
-            ) : (
-              <img src={g.src} alt={g.label} className="aspect-[3/4] object-cover w-full" />
-            )}
+            <img src={g.src} alt={g.label} className="aspect-[3/4] object-contain w-full" />
           </button>
         ))}
       </div>
@@ -229,18 +187,9 @@ export default function ProductDetail() {
   }, [product]);
 
   const selectedColour = product?.colourOptions?.find(c => c.id === selectedColourId);
-  const visualizer = product?.colourVisualizer;
-  // Published content validates these assets server-side. Retain this narrow
-  // client guard so incomplete/stale content can never mount an unmasked tint.
-  const hasValidMaskVisualizer = Boolean(
-    visualizer?.baseImageSrc
-    && /^\/(?:images\/soso\/|api\/storage\/objects\/uploads\/)[^?#]*\.(?:jpe?g|png|webp)$/i.test(visualizer.baseImageSrc)
-    && visualizer.garmentMaskSrc
-    && /^\/(?:images\/soso\/|api\/storage\/objects\/uploads\/)[^?#]*\.png$/i.test(visualizer.garmentMaskSrc),
-  );
   const isOriginalColourSelection = selectedColourId === "as-shown";
   const hasDynamicPreview = selectedColourId !== "custom" && selectedColour
-    && (isOriginalColourSelection || selectedColour.previewImageSrc || hasValidMaskVisualizer);
+    && (isOriginalColourSelection || selectedColour.previewImageSrc);
 
   useEffect(() => {
     if (hasDynamicPreview) setImg(0);
@@ -250,25 +199,14 @@ export default function ProductDetail() {
     return <PlatformContentState loading={platform.isLoading} error={platform.isError} copy={platform.data?.content.site.platformState} />;
   }
 
-  type GalleryItem =
-    | { type: 'static' | 'image'; src: string; label: string; provenance: any }
-    | { type: 'mask'; baseSrc: string; maskSrc: string; hex: string; label: string; provenance: any };
+  type GalleryItem = { type: 'static' | 'image'; src: string; label: string; provenance: any };
 
   const galleryItems: GalleryItem[] = [];
-  if (selectedColour && selectedColourId !== "custom" && !isOriginalColourSelection) {
+  if (selectedColour && selectedColourId !== "custom") {
     if (selectedColour.previewImageSrc) {
       galleryItems.push({
         type: 'static',
         src: selectedColour.previewImageSrc,
-        label: `${product.name} in ${selectedColour.label}`,
-        provenance: null
-      });
-    } else if (hasValidMaskVisualizer && visualizer) {
-      galleryItems.push({
-        type: 'mask',
-        baseSrc: visualizer.baseImageSrc,
-        maskSrc: visualizer.garmentMaskSrc,
-        hex: selectedColour.hex,
         label: `${product.name} in ${selectedColour.label}`,
         provenance: null
       });
@@ -282,6 +220,8 @@ export default function ProductDetail() {
   const gallery: GalleryItem[] = [...galleryItems, ...baseGallery];
 
   const productCopy = platformContent!.productCopy;
+  const selectedPrice = size ? purchaseChoicePrice(product, size) : productPriceRange(product).min;
+  const hasPriceRange = productPriceRange(product).min !== productPriceRange(product).max;
   const supportCopy = platformContent!.supportCopy;
   const sizeGuide = platformContent!.sizeGuide;
 
@@ -312,8 +252,8 @@ export default function ProductDetail() {
     addItem({
       slug: product.slug,
       name: product.name,
-      img: product.img,
-      price: product.price,
+      img: selectedColour?.previewImageSrc || product.img,
+      price: selectedPrice,
       size: size,
       selectedColourId: colourId,
       selectedColourLabel: colourLabel,
@@ -358,7 +298,7 @@ export default function ProductDetail() {
         ]}
       />
       {/* ————— HERO / BUY BLOCK ————— */}
-      <div className="max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
+      <div className="w-full min-w-0 max-w-[1280px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-10 md:gap-16 pt-8 md:pt-14 pb-16">
         {/* Breadcrumbs (Mobile & Desktop) */}
         <div className="md:col-span-2">
           <nav aria-label={productCopy.breadcrumbAriaLabel} className="text-[10px] uppercase tracking-widest text-secondary">
@@ -383,6 +323,7 @@ export default function ProductDetail() {
 
         {/* Gallery / Stage */}
         <div
+          className="min-w-0"
           style={{
             opacity: loaded ? 1 : 0,
             transform: loaded ? "none" : "translateY(24px)",
@@ -413,7 +354,7 @@ export default function ProductDetail() {
 
         {/* Buy panel */}
         <div
-          className="h-max"
+          className="h-max min-w-0"
           style={{
             opacity: loaded ? 1 : 0,
             transform: loaded ? "none" : "translateY(24px)",
@@ -421,13 +362,13 @@ export default function ProductDetail() {
           }}
         >
           <p className="text-[11px] tracking-[0.3em] uppercase mb-3 text-secondary">{product.category} · {productCopy.categorySuffix}</p>
-          <h1 className="soso-display text-5xl md:text-6xl font-normal leading-[1.02] text-foreground">{product.name}</h1>
+          <h1 className="soso-display break-words text-5xl md:text-6xl font-normal leading-[1.02] text-foreground">{product.name}</h1>
           <p className="soso-display text-lg mt-2 opacity-70 italic text-foreground">{product.note}</p>
 
           {/* Availability / Price */}
           <div className="flex flex-col gap-2 mt-5 text-foreground">
             <div className="flex items-center gap-4">
-              {!isUnavailable && <span className="text-2xl font-medium tracking-wide"><DisplayPrice amount={product.price} /></span>}
+              {!isUnavailable && <span className="text-2xl font-medium tracking-wide">{!size && hasPriceRange && <span className="mr-1 text-sm">From</span>}<DisplayPrice amount={selectedPrice} /></span>}
               {product.fulfilmentState === "ready_now" && (
                 <span className="text-[10px] uppercase tracking-widest text-green-600/90 font-bold border border-green-600/20 px-2 py-1" data-testid="status-ready-now">{productCopy.readyNowLabel}</span>
               )}
@@ -456,12 +397,12 @@ export default function ProductDetail() {
           </p>
           <dl className="mt-6 grid grid-cols-3 gap-px border border-border bg-border text-sm">
             {[
-              [productCopy.colourLabel, product.colour],
+              [productCopy.colourLabel, selectedColourId === "custom" ? customColour.trim() || "Custom colour" : selectedColour?.label || product.colour],
               [productCopy.fabricLabel, product.fabric],
               [productCopy.fitLabel, product.fit],
             ].map(([label, value]) => <div key={label} className="bg-background p-3">
               <dt className="text-[10px] uppercase tracking-wider opacity-55">{label}</dt>
-              <dd className="mt-1 font-medium">{value}</dd>
+              <dd className="mt-1 break-words font-medium">{value}</dd>
             </div>)}
           </dl>
 
@@ -527,13 +468,8 @@ export default function ProductDetail() {
                           {selectedColour?.label}
                         </p>
                         {!hasDynamicPreview && (
-                          <p className="text-[11px] opacity-60 text-amber-600/90 mt-1">
-                            A preview is currently unavailable for {selectedColour?.label}. The garment will be crafted in this colour.
-                          </p>
-                        )}
-                        {hasDynamicPreview && !selectedColour?.previewImageSrc && (
-                          <p className="text-[11px] opacity-60 mt-1">
-                            This preview is an illustration of {selectedColour?.label}. Actual garment colour may vary slightly by fabric.
+                          <p className="mt-1 text-xs leading-5 text-foreground">
+                            No separate photograph is available for {selectedColour?.label}. The original product photo stays unchanged.
                           </p>
                         )}
                       </>
@@ -572,6 +508,7 @@ export default function ProductDetail() {
                           data-testid={`button-size-${s}`}
                         >
                           {s}
+                           {hasPriceRange && <span className="ml-2 text-xs"><DisplayPrice amount={purchaseChoicePrice(product, s)} /></span>}
                           <span className={`ml-2 text-[9px] uppercase tracking-wider ${isReadyNow ? "text-green-600" : "opacity-60"}`}>
                             {isReadyNow ? productCopy.readyNowLabel : productCopy.madeImmediatelyLabel}
                           </span>
@@ -611,6 +548,7 @@ export default function ProductDetail() {
                     data-testid="button-size-custom"
                   >
                     <span>{productCopy.customSizingLabel}</span>
+                   {hasPriceRange && <span className="text-xs"><DisplayPrice amount={purchaseChoicePrice(product, "Custom")} /></span>}
                     {size === "Custom" && <span className="text-[10px] uppercase tracking-widest">{productCopy.selectedLabel}</span>}
                   </button>
                   <p className="text-[12px] mt-2 opacity-60">
@@ -646,7 +584,7 @@ export default function ProductDetail() {
                       ? "Online purchase paused"
                       : !isPurchasable
                       ? productCopy.unavailableInSizeLabel
-                      : `${productCopy.addToBagLabel.replace(/bag/i, 'Cart')}${productCopy.addToBagPriceSeparator}${formatDisplayPrice(product.price, snapshot)}`}
+                      : `${productCopy.addToBagLabel.replace(/bag/i, 'Cart')}${productCopy.addToBagPriceSeparator}${formatDisplayPrice(selectedPrice, snapshot)}`}
             </button>
             <button
               type="button"
@@ -756,9 +694,9 @@ export default function ProductDetail() {
       <div
         className="fixed bottom-0 left-0 right-0 md:hidden flex items-center gap-3 px-4 py-3 z-40 bg-background/95 backdrop-blur-md border-t border-border"
       >
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <p className="text-[11px] uppercase tracking-widest text-secondary">{product.name}</p>
-          <p className="text-sm text-foreground font-medium"><DisplayPrice amount={product.price} /></p>
+          <p className="text-sm text-foreground font-medium"><DisplayPrice amount={selectedPrice} /></p>
         </div>
         <button
           onClick={handleAddToCart}

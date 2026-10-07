@@ -1,5 +1,19 @@
 import type { CatalogProduct } from "@/data/platformContent";
 
+/** Older single-price products continue to use their base price. */
+export function purchaseChoicePrice(product: CatalogProduct, choice: string | null): number {
+  return (choice ? product.variantPrices?.[choice] : undefined) ?? product.price;
+}
+
+export function productPriceRange(product: CatalogProduct): { min: number; max: number } {
+  const choices = [
+    ...(product.standardEligible ? product.standardSizes : []),
+    ...(product.customEligible ? ["Custom"] : []),
+  ];
+  const prices = choices.length ? choices.map((choice) => purchaseChoicePrice(product, choice)) : [product.price];
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
 export function mappedPurchaseChoices(product: CatalogProduct): string[] {
   if (!isProductReleased(product) || product.fulfilmentState === "unavailable" || !product.commerceProductId) return [];
 
@@ -56,6 +70,7 @@ export function changeCartLineSelection<T extends CartLineSelection>(
   newCommerceVariantId?: string,
   selectedColourId?: string,
   customColour?: string,
+  newPrice?: number,
 ): T[] {
   if (oldSize === newSize || !newCommerceVariantId) return items;
 
@@ -73,11 +88,13 @@ export function changeCartLineSelection<T extends CartLineSelection>(
             ...item,
             quantity: item.quantity + source.quantity,
             commerceVariantId: newCommerceVariantId,
+            ...(Number.isFinite(newPrice) && newPrice! > 0 ? { price: newPrice } : {}),
           }
         : item);
   }
 
   return items.map((item) => item === source
-    ? { ...item, size: newSize, commerceVariantId: newCommerceVariantId }
+    ? { ...item, size: newSize, commerceVariantId: newCommerceVariantId,
+        ...(Number.isFinite(newPrice) && newPrice! > 0 ? { price: newPrice } : {}) }
     : item);
 }

@@ -4,7 +4,7 @@ import { DisplayPrice } from "@/context/DisplayCurrencyContext";
 import { CurrencyNotice } from "./CurrencySelector";
 import { Link } from "wouter";
 import { usePlatformContent } from "@/data/platformContent";
-import { mappedPurchaseChoices } from "@/lib/purchasing";
+import { mappedPurchaseChoices, purchaseChoicePrice } from "@/lib/purchasing";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 
 export function CartDrawer() {
@@ -146,7 +146,8 @@ export function CartDrawer() {
                              const newSize = e.target.value;
                              const variantId = product?.commerceVariantIds?.[newSize];
                               if (!variantId || !mappedSizes.includes(newSize)) return;
-                             updateSize(item.slug, item.size, newSize, variantId, item.selectedColourId, item.customColour);
+                             updateSize(item.slug, item.size, newSize, variantId, item.selectedColourId, item.customColour,
+                               product ? purchaseChoicePrice(product, newSize) : undefined);
                            }}
                             className="min-w-0 max-w-full bg-transparent text-[12px] opacity-70 uppercase tracking-widest outline-none cursor-pointer hover:text-primary border-b border-transparent hover:border-primary pb-0.5"
                             aria-label={copy.changeSizeLabel}

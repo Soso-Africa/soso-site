@@ -647,7 +647,7 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
         const variant = product?.variants.find(({ id }) => id === item.variantId);
         return Boolean(product && storefrontProduct
           && matchesPlatformPrice(storefrontProduct.price, product.amountKobo)
-          && variant && matchesPlatformPrice(storefrontProduct.price, variant.amountKobo));
+          && variant && matchesPlatformPrice(storefrontProduct.variantPrices?.[item.selectedSize] ?? storefrontProduct.price, variant.amountKobo));
       }));
       if (!publishedPricesMatch) {
         res.status(409).json({ error: "A selected product or size no longer matches its published price. Refresh the catalogue before checkout.", noPaymentTaken: true });

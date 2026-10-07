@@ -454,7 +454,7 @@ test("accessory launch does not replace an authored accessory listing or menu", 
   assert.equal(parsed.site.megaMenu.find((group) => group.id === "accessories")?.label, "Finishing Pieces");
 });
 
-test("colour visualizers require verified stored preview, base, and garment mask images", async () => {
+test("colour photographs remain verified while missing retired masks are ignored", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   content.products[0]!.colourOptions[0]!.previewImageSrc = "/api/storage/objects/uploads/colour-preview.png";
   content.products[0]!.colourVisualizer = {
@@ -476,10 +476,13 @@ test("colour visualizers require verified stored preview, base, and garment mask
   const valid = await validateProductMediaAssets(content, async (path) => inspection(path));
   assert.deepEqual(valid, []);
   const missingMask = await validateProductMediaAssets(content, async (path) => path.endsWith("colour-mask.png") ? null : inspection(path));
-  assert.equal(missingMask.some((issue) => issue.path.join(".") === "products.0.colourVisualizer.garmentMaskSrc"), true);
+  assert.equal(missingMask.some((issue) => issue.path.includes("colourVisualizer")), false);
+  const missingPhoto = await validateProductMediaAssets(content, async (path) =>
+    path.endsWith("colour-preview.png") ? null : inspection(path));
+  assert.equal(missingPhoto.some((issue) => issue.path.join(".") === "products.0.colourOptions.0.previewImageSrc"), true);
 });
 
-test("garment mask publishing rejects JPEG, opaque, and transparent masks but accepts mixed PNG alpha", async () => {
+test("retired mask MIME and alpha no longer participate in photo publication", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   content.products[0]!.colourVisualizer = {
     baseImageSrc: "/api/storage/objects/uploads/base.png",
@@ -498,13 +501,13 @@ test("garment mask publishing rejects JPEG, opaque, and transparent masks but ac
     height: 1,
     ...(path.endsWith("mask.png") ? { bytes } : {}),
   });
-  assert.ok((await validateProductMediaAssets(content, inspect(png([0, 255]), "image/jpeg"))).some((issue) => issue.path.at(-1) === "garmentMaskSrc"));
-  assert.ok((await validateProductMediaAssets(content, inspect(png([255, 255])))).some((issue) => issue.message.includes("transparent background")));
-  assert.ok((await validateProductMediaAssets(content, inspect(png([0, 0])))).some((issue) => issue.message.includes("transparent background")));
+  assert.equal((await validateProductMediaAssets(content, inspect(png([0, 255]), "image/jpeg"))).some((issue) => issue.path.includes("colourVisualizer")), false);
+  assert.equal((await validateProductMediaAssets(content, inspect(png([255, 255])))).some((issue) => issue.path.includes("colourVisualizer")), false);
+  assert.equal((await validateProductMediaAssets(content, inspect(png([0, 0])))).some((issue) => issue.path.includes("colourVisualizer")), false);
   assert.deepEqual(await validateProductMediaAssets(content, inspect(png([0, 255]))), []);
 });
 
-test("garment mask publishing rejects token mixed-alpha pixels that are not review-usable", async () => {
+test("retired mask alpha coverage cannot block original-photo publication", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   content.products[0]!.colourVisualizer = {
     baseImageSrc: "/api/storage/objects/uploads/base.png",
@@ -523,10 +526,10 @@ test("garment mask publishing rejects token mixed-alpha pixels that are not revi
     height: 1,
     ...(path.endsWith("mask.png") ? { bytes } : {}),
   }));
-  assert.ok(issues.some((issue) => issue.message.includes("transparent background")));
+  assert.equal(issues.some((issue) => issue.path.includes("colourVisualizer")), false);
 });
 
-test("garment mask publishing requires dimensions that exactly match the base photo", async () => {
+test("retired mask dimensions are not used to validate actual product photographs", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   content.products[0]!.colourVisualizer = {
     baseImageSrc: "/api/storage/objects/uploads/base.png",
@@ -543,10 +546,10 @@ test("garment mask publishing requires dimensions that exactly match the base ph
     height: 1,
     ...(path.endsWith("mask.png") ? { bytes } : {}),
   }));
-  assert.ok(issues.some((issue) => issue.message.includes("dimensions must exactly match")));
+  assert.equal(issues.some((issue) => issue.path.includes("colourVisualizer")), false);
 });
 
-test("garment mask publishing rejects excessive decoded pixel dimensions before decoding", async () => {
+test("retired oversized mask bytes are never decoded during photo publication", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   content.products[0]!.colourVisualizer = {
     baseImageSrc: "/api/storage/objects/uploads/base.png",
@@ -564,10 +567,10 @@ test("garment mask publishing rejects excessive decoded pixel dimensions before 
     height: 1,
     ...(path.endsWith("mask.png") ? { bytes } : {}),
   }));
-  assert.ok(issues.some((issue) => issue.message.includes("decoded pixels")));
+  assert.equal(issues.some((issue) => issue.path.includes("colourVisualizer")), false);
 });
 
-test("garment mask checks cannot be bypassed by reusing the opaque base image path", async () => {
+test("legacy shared base and mask references stay inert archive data", async () => {
   const content = structuredClone(DEFAULT_PLATFORM_CONTENT);
   const sharedPath = "/api/storage/objects/uploads/shared.png";
   content.products[0]!.colourVisualizer = {
@@ -585,10 +588,7 @@ test("garment mask checks cannot be bypassed by reusing the opaque base image pa
     height: 1,
     bytes,
   }));
-  assert.ok(issues.some((issue) => (
-    issue.path.join(".") === "products.0.colourVisualizer.garmentMaskSrc"
-    && issue.message.includes("transparent background")
-  )));
+  assert.equal(issues.some((issue) => issue.path.includes("colourVisualizer")), false);
 });
 
 const actor = "clerk_staff_editor";

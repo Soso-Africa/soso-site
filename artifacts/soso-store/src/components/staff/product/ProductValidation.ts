@@ -44,6 +44,14 @@ export function collectProductIssues(
   }
   if (!product.name) errors.push("Name is required");
   if (!product.price || product.price <= 0 || !Number.isInteger(product.price)) errors.push("Price must be a positive whole number");
+  Object.entries(product.variantPrices ?? {}).forEach(([choice, price]) => {
+    if (!(product.standardEligible && product.standardSizes.includes(choice)) && !(product.customEligible && choice === "Custom")) {
+      errors.push(`Variant price is configured for an ineligible choice: ${choice}`, "mapping");
+    }
+    if (!Number.isFinite(price) || price <= 0 || price > 1_000_000_000 || Math.abs(price * 100 - Math.round(price * 100)) > 0.000001) {
+      errors.push(`Variant price for ${choice} must be a positive NGN amount with at most two decimal places`, "mapping");
+    }
+  });
   if (!product.category) errors.push("Category is required");
   else if (collectionCategories.length > 0 && !collectionCategories.includes(product.category)) {
     errors.push(`Category is not represented by a catalogue collection: ${product.category}`);

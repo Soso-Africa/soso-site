@@ -23,6 +23,7 @@ export * from './catalogueMappingPreviewInput';
 export * from './catalogueMappingProductInput';
 export * from './catalogueMappingProductInputCommerceVariantIds';
 export * from './catalogueMappingProductInputFulfilmentState';
+export * from './catalogueMappingProductInputVariantPrices';
 export * from './catalogueMappingSuggestion';
 export * from './catalogueMappingSuggestionChoiceLabels';
 export * from './catalogueMappingSuggestionStatus';

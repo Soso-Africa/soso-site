@@ -63,6 +63,7 @@ export type AuthoritativeStorefrontProduct = {
   slug: string;
   commerceProductId?: string;
   commerceVariantIds?: Record<string, string>;
+  variantPrices?: Record<string, number>;
   name: string;
   price: number;
   standardEligible: boolean;
@@ -142,6 +143,7 @@ export function resolveAuthoritativeCheckoutItems(
         standardSizes: storefrontProduct.standardEligible ? storefrontProduct.standardSizes : [],
         commerceProductId: storefrontProduct.commerceProductId,
         commerceVariantIds: storefrontProduct.commerceVariantIds,
+        variantPrices: storefrontProduct.variantPrices,
       }) : "";
       if (!storefrontProduct
         || storefrontProduct.fulfilmentState === "unavailable"
@@ -153,6 +155,7 @@ export function resolveAuthoritativeCheckoutItems(
         || confirmation.confidence < 95
         || confirmation.productHash !== catalogueProductHash(product)
         || confirmation.localHash !== currentLocalHash
+        || variant.amountKobo !== Math.round((storefrontProduct.variantPrices?.[selectedChoice] ?? storefrontProduct.price) * 100)
         || !validColour) {
         return null;
       }
@@ -163,7 +166,7 @@ export function resolveAuthoritativeCheckoutItems(
       ...(variant ? { variantId: variant.id } : {}),
       displayName: product.name,
       selectedSize: storefrontProduct ? item.selectedSize! : (label.toLowerCase() === "custom" ? "Custom" : label),
-      unitPriceKobo: product.amountKobo,
+      unitPriceKobo: variant?.amountKobo ?? product.amountKobo,
     });
   }
   return resolved;

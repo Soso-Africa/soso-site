@@ -1,4 +1,5 @@
 import type { CatalogProduct } from "@/data/platformContent";
+import { productPriceRange, purchaseChoicePrice } from "./purchasing";
 
 export function filterAndSortProducts(
   products: CatalogProduct[],
@@ -39,11 +40,13 @@ export function filterAndSortProducts(
   }
 
   if (options.minPrice != null && Number.isFinite(options.minPrice)) {
-    result = result.filter((product) => product.price >= options.minPrice!);
+    result = result.filter((product) => (options.size && options.size !== "__all"
+      ? purchaseChoicePrice(product, options.size) : productPriceRange(product).max) >= options.minPrice!);
   }
 
   if (options.maxPrice != null && Number.isFinite(options.maxPrice)) {
-    result = result.filter((product) => product.price <= options.maxPrice!);
+    result = result.filter((product) => (options.size && options.size !== "__all"
+      ? purchaseChoicePrice(product, options.size) : productPriceRange(product).min) <= options.maxPrice!);
   }
 
   if (options.searchQuery && options.searchQuery.trim()) {
@@ -61,8 +64,8 @@ export function filterAndSortProducts(
 
   result = [...result].sort((a, b) => {
     switch (options.sort) {
-      case "price_asc": return a.price - b.price;
-      case "price_desc": return b.price - a.price;
+      case "price_asc": return productPriceRange(a).min - productPriceRange(b).min;
+      case "price_desc": return productPriceRange(b).min - productPriceRange(a).min;
       case "newest":
         return Number(b.merchandising.isNew) - Number(a.merchandising.isNew)
           || b.merchandising.sortPriority - a.merchandising.sortPriority;

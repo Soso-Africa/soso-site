@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { trackStorefrontEvent } from '@/components/ConsentManager';
-import { changeCartLineSelection, isSameCartLine } from '@/lib/purchasing';
+import { changeCartLineSelection, isSameCartLine, purchaseChoicePrice } from '@/lib/purchasing';
+import { usePlatformContent } from '@/data/platformContent';
 
 export type CartItem = {
   slug: string;
@@ -25,7 +26,7 @@ type CartContextType = {
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
   removeItem: (slug: string, size: string, selectedColourId: string, customColour?: string) => void;
   updateQuantity: (slug: string, size: string, selectedColourId: string, quantity: number, customColour?: string) => void;
-  updateSize: (slug: string, oldSize: string, newSize: string, newCommerceVariantId: string | undefined, selectedColourId: string, customColour?: string) => void;
+  updateSize: (slug: string, oldSize: string, newSize: string, newCommerceVariantId: string | undefined, selectedColourId: string, customColour?: string, newPrice?: number) => void;
   clearCart: () => void;
   cartTotal: number;
   itemCount: number;
@@ -89,6 +90,26 @@ function persistCart(items: CartItem[]): void {
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>(readStoredCart);
+  const platform = usePlatformContent();
+  useEffect(() => {
+    const products = platform.data?.content.products;
+    if (!products) return;
+    setItems((current) => {
+      let changed = false;
+      const next = current.map((item) => {
+        const product = products.find((candidate) => candidate.slug === item.slug);
+        if (!product || product.commerceProductId !== item.commerceProductId
+          || product.commerceVariantIds?.[item.size] !== item.commerceVariantId
+          || !item.commerceVariantId) return item;
+        const price = purchaseChoicePrice(product, item.size);
+        const img = product.colourOptions.find((colour) => colour.id === item.selectedColourId)?.previewImageSrc || product.img;
+        if (price === item.price && img === item.img) return item;
+        changed = true;
+        return { ...item, price, img };
+      });
+      return changed ? next : current;
+    });
+  }, [platform.data]);
   
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -118,7 +139,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (existing) {
         return current.map(i => 
           sameLine(i)
-            ? { ...i, quantity: i.quantity + 1 }
+            ? { ...i, ...newItem, quantity: i.quantity + 1 }
             : i
         );
       }
@@ -140,7 +161,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const updateSize = (slug: string, oldSize: string, newSize: string, newCommerceVariantId: string | undefined, selectedColourId: string, customColour?: string) => {
+  const updateSize = (slug: string, oldSize: string, newSize: string, newCommerceVariantId: string | undefined, selectedColourId: string, customColour?: string, newPrice?: number) => {
     setItems((current) => changeCartLineSelection(
       current,
       slug,
@@ -149,6 +170,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       newCommerceVariantId,
       selectedColourId,
       customColour,
+      newPrice,
     ));
   };
 

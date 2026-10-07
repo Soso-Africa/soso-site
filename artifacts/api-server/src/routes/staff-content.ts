@@ -247,6 +247,7 @@ const catalogueMappingProductInput = z.object({
   fulfilmentState: z.enum(["ready_now", "made_immediately", "unavailable"]),
   commerceProductId: z.string().uuid().optional(),
   commerceVariantIds: z.record(z.string(), z.string().uuid()).optional(),
+  variantPrices: z.record(z.string(), z.number().positive().max(1_000_000_000).multipleOf(0.01)).optional(),
 }).strict();
 
 const catalogueMappingConfirmationInput = z.object({
@@ -275,6 +276,7 @@ function toLocalMappingProduct(product: MappingProductSource): LocalCataloguePro
     standardSizes: product.standardEligible ? product.standardSizes : [],
     commerceProductId: product.commerceProductId,
     commerceVariantIds: product.commerceVariantIds,
+    variantPrices: product.variantPrices,
   };
 }
 

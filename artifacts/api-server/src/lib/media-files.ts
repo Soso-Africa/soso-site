@@ -3,7 +3,6 @@ export const VIDEO_MEDIA_TYPES = new Set(["video/mp4", "video/webm"]);
 export const MAX_UPLOADED_IMAGE_BYTES = 12 * 1024 * 1024;
 export const MAX_HERO_POSTER_BYTES = 512 * 1024;
 export const MAX_HERO_VIDEO_BYTES = 8 * 1024 * 1024;
-export const MAX_GARMENT_MASK_PIXELS = 16_000_000;
 
 export function imageDimensions(
   bytes: Uint8Array,

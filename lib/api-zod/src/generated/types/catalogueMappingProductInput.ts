@@ -7,6 +7,7 @@
  */
 import type { CatalogueMappingProductInputCommerceVariantIds } from './catalogueMappingProductInputCommerceVariantIds';
 import type { CatalogueMappingProductInputFulfilmentState } from './catalogueMappingProductInputFulfilmentState';
+import type { CatalogueMappingProductInputVariantPrices } from './catalogueMappingProductInputVariantPrices';
 
 export interface CatalogueMappingProductInput {
   /**
@@ -32,4 +33,5 @@ export interface CatalogueMappingProductInput {
   /** @pattern ^[0-9a-fA-F-]{36}$ */
   commerceProductId?: string;
   commerceVariantIds?: CatalogueMappingProductInputCommerceVariantIds;
+  variantPrices?: CatalogueMappingProductInputVariantPrices;
 }

@@ -7,7 +7,7 @@ import { useCart } from "@/context/CartContext";
 import { usePlatformContent } from "@/data/platformContent";
 import { trackStorefrontEvent, editorialOrigin } from "@/components/ConsentManager";
 import { X } from "lucide-react";
-import { isMappedPurchaseChoice, mappedPurchaseChoices, visibleStandardSizes } from "@/lib/purchasing";
+import { isMappedPurchaseChoice, mappedPurchaseChoices, visibleStandardSizes, purchaseChoicePrice, productPriceRange } from "@/lib/purchasing";
 import { AccessoryLaunchNotificationForm } from "@/components/AccessoryLaunchNotificationForm";
 
 interface ProductCardProps {
@@ -48,8 +48,8 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
     addItem({
       slug: product.slug,
       name: product.name,
-      img: product.img,
-      price: product.price,
+      img: product.colourOptions?.[0]?.previewImageSrc || product.img,
+      price: purchaseChoicePrice(product, selectedSize),
       size: selectedSize,
       selectedColourId: selectedColour.id,
       selectedColourLabel: selectedColour.label,
@@ -78,7 +78,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               alt={primaryImage?.alt ?? product.name}
               width={900}
               height={1200}
-              className={`w-full h-full object-cover object-top transition-transform duration-700 ease-out group-hover:scale-105 ${isUnavailable ? "opacity-60 grayscale" : ""} ${secondaryImage ? "group-hover:opacity-0 group-focus-within:opacity-0" : ""}`}
+              className={`w-full h-full object-contain ${secondaryImage ? "group-hover:opacity-0 group-focus-within:opacity-0" : ""}`}
               loading="lazy"
             />
             {secondaryImage && (
@@ -87,7 +87,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
                 alt={secondaryImage.alt}
                 width={900}
                 height={1200}
-                className={`absolute inset-0 w-full h-full object-cover object-top transition-all duration-700 ease-out opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-hover:scale-105 ${isUnavailable ? "grayscale" : ""}`}
+                className="absolute inset-0 w-full h-full object-contain opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                 loading="lazy"
               />
             )}
@@ -106,7 +106,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
             </div>
 
             {isUnavailable && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/10 backdrop-blur-[2px]">
+              <div className="absolute bottom-3 left-3 right-3 flex items-center justify-center">
                 <span className="bg-background px-4 py-2 text-xs uppercase tracking-widest text-secondary font-semibold border border-border">
                   {productCopy?.unavailableLabel}
                 </span>
@@ -156,7 +156,8 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
             </p>}
           </div>
           {!isUnavailable && showPrice && <p className="text-[15px] font-semibold whitespace-nowrap text-foreground" data-testid={`text-price-${product.slug}`}>
-            <DisplayPrice amount={product.price} />
+            {productPriceRange(product).min !== productPriceRange(product).max && <span className="mr-1">From</span>}
+            <DisplayPrice amount={productPriceRange(product).min} />
           </p>}
         </Link>
         {isUnavailable && product.department === "accessories" && (
@@ -180,11 +181,11 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
           </div>
           <div className="flex-1 overflow-y-auto p-6">
             <div className="flex gap-4 mb-6">
-                <img src={primaryImage?.src ?? product.img} alt={primaryImage?.alt ?? product.name} className="w-20 aspect-[3/4] object-cover bg-muted/20" />
+                <img src={product.colourOptions?.[0]?.previewImageSrc || primaryImage?.src || product.img} alt={primaryImage?.alt ?? product.name} className="w-20 aspect-[3/4] object-contain bg-muted/20" />
               <div>
                 <p className="text-[11px] uppercase tracking-[0.2em] text-secondary mb-1">{product.category}</p>
                 <h3 className="soso-display text-xl text-foreground">{product.name}</h3>
-                <p className="text-sm text-foreground mt-1 font-medium"><DisplayPrice amount={product.price} /></p>
+                <p className="text-sm text-foreground mt-1 font-medium">{!selectedSize && productPriceRange(product).min !== productPriceRange(product).max && "From "}<DisplayPrice amount={selectedSize ? purchaseChoicePrice(product, selectedSize) : productPriceRange(product).min} /></p>
               </div>
             </div>
 

@@ -112,6 +112,7 @@ export async function inspectCommerceActivation(): Promise<CommerceActivationSta
           standardSizes: product.standardEligible ? product.standardSizes : [],
           commerceProductId: product.commerceProductId,
           commerceVariantIds: product.commerceVariantIds,
+          variantPrices: product.variantPrices,
         });
         if (!product.commerceProductId || !product.commerceVariantIds || !confirmation
           || confirmation.confidence < 95 || confirmation.localHash !== localHash
@@ -131,7 +132,7 @@ export async function inspectCommerceActivation(): Promise<CommerceActivationSta
           const variantId = product.commerceVariantIds[choice];
           const variant = variantId ? mappedProduct.variants.find((candidate) => candidate.id === variantId) : undefined;
           if (!variant || !variantMatchesChoice(variant, choice) || !variant.inStock
-            || !matchesPlatformPrice(product.price, variant.amountKobo)) {
+            || !matchesPlatformPrice(product.variantPrices?.[choice] ?? product.price, variant.amountKobo)) {
             blockers.push(`${label}: ${choice} needs a mapped, in-stock JusticeSure variant with a valid positive NGN price.`);
           }
         }

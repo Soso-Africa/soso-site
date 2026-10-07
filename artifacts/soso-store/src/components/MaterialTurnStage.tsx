@@ -59,11 +59,8 @@ export function MaterialTurnStage({ sets, productCopy }: MaterialTurnStageProps)
         setActiveView(activeView);
 
         const activeStateIndex = Math.round(stateFloat);
-        if (!prefersReducedMotion) {
-          applyIllusion(stateFloat);
-        } else {
-          applySnap(activeStateIndex);
-        }
+        // Switch between the actual stills without warping or overlapping garments.
+        applySnap(activeStateIndex);
       });
     };
 
@@ -76,40 +73,6 @@ export function MaterialTurnStage({ sets, productCopy }: MaterialTurnStageProps)
       if (frame) cancelAnimationFrame(frame);
     };
   }, [totalStates, prefersReducedMotion]);
-
-  const applyIllusion = (stateFloat: number) => {
-    sets.forEach((set, setIdx) => {
-      (["front", "back"] as const).forEach((view, viewIdx) => {
-        const stateIdx = setIdx * 2 + viewIdx;
-        const el = document.getElementById(`turn-img-wrap-${set.id}-${view}`);
-        if (!el) return;
-
-        const dist = stateFloat - stateIdx;
-
-        if (Math.abs(dist) >= 1) {
-          el.style.opacity = "0";
-          el.style.pointerEvents = "none";
-          el.style.transform = "translateX(" + (dist > 0 ? -5 : 5) + "%) rotateY(" + (dist > 0 ? -70 : 70) + "deg)";
-          el.style.zIndex = "1";
-          return;
-        }
-
-        const ease = Math.sin((dist * Math.PI) / 2);
-        const rotateY = ease * -70;
-        const translateX = ease * -3; // subtle sway
-        const translateY = Math.abs(ease) * -2;
-        const scale = 1 - Math.abs(dist) * 0.05;
-
-        let opacity = 1 - Math.pow(Math.abs(dist), 1.5);
-        opacity = Math.max(0, Math.min(1, opacity));
-
-        el.style.opacity = opacity.toString();
-        el.style.pointerEvents = Math.abs(dist) < 0.1 ? "auto" : "none";
-        el.style.transform = "translateX(" + translateX + "%) translateY(" + translateY + "%) scale(" + scale + ") rotateY(" + rotateY + "deg)";
-        el.style.zIndex = Math.abs(dist) < 0.5 ? "10" : "5";
-      });
-    });
-  };
 
   const applySnap = (activeStateIndex: number) => {
     sets.forEach((set, setIdx) => {
@@ -152,7 +115,7 @@ export function MaterialTurnStage({ sets, productCopy }: MaterialTurnStageProps)
       >
         <div aria-live="polite" className="sr-only">{["Showing material ", activeSet.label, " ", activeView, " view"].join("")}</div>
 
-        <div className="flex-1 relative" style={{ perspective: "1500px", transformStyle: "preserve-3d" }}>
+        <div className="flex-1 relative">
            {sets.map((set) => (
              <div key={set.id} className="absolute inset-0 pointer-events-none">
                 {(["front", "back"] as const).map((view) => (
@@ -165,7 +128,7 @@ export function MaterialTurnStage({ sets, productCopy }: MaterialTurnStageProps)
                      <img
                        src={set[view].src}
                        alt={set[view].alt}
-                        className="absolute inset-0 w-full h-full object-cover origin-center transition-transform duration-500 ease-out motion-reduce:transition-none"
+                       className="absolute inset-0 w-full h-full object-contain origin-center transition-transform duration-500 ease-out motion-reduce:transition-none"
                        style={{ transform: zoomed && activeSet.id === set.id && activeView === view ? "scale(1.8)" : "scale(1)" }}
                      />
                    </div>
@@ -258,7 +221,7 @@ export function MaterialTurnStage({ sets, productCopy }: MaterialTurnStageProps)
               aria-current={i === activeIndex}
               data-testid={"button-turn-stage-thumb-" + set.id}
             >
-              <img src={set.front.src} alt={set.front.alt} className="aspect-[3/4] object-cover w-full group-hover:scale-105 transition-transform duration-500 motion-reduce:transition-none motion-reduce:group-hover:scale-100" />
+              <img src={set.front.src} alt={set.front.alt} className="aspect-[3/4] object-contain w-full" />
               {i !== activeIndex && (
                 <div className="absolute inset-0 bg-background/20 group-hover:bg-transparent transition-colors motion-reduce:transition-none" />
               )}
