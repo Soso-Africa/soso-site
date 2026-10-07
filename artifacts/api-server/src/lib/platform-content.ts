@@ -1168,7 +1168,7 @@ export const DEFAULT_PLATFORM_CONTENT: PlatformContent = {
         id: "men", label: "Men", href: "/shop?department=men", department: "men", visible: true,
         columns: [
           { heading: "Shop", links: [{ label: "Shop all men", href: "/shop?department=men" }, { label: "New arrivals", href: "/shop?department=men&sort=newest" }, { label: "Ready now", href: "/shop?department=men&fulfilment=ready_now" }] },
-          { heading: "Collections", links: [{ label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }] },
+          { heading: "Collections", links: [{ label: "Kaftans", href: "/collections/kaftans" }, { label: "Agbadas", href: "/collections/agbadas" }, { label: "Shirts", href: "/collections/shirts" }, { label: "Dashikis", href: "/collections/dashikis" }, { label: "Two-Piece Sets", href: "/collections/two-piece" }] },
           { heading: "Services", links: [{ label: "Made-to-measure", href: "/shop?department=men&size=Custom" }, { label: "Ask a stylist", href: "/#whatsapp" }] },
         ],
         featuredProductSlugs: ["sovereign-agbada", "vault"],
