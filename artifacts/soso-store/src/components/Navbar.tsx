@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
 import { BrandLockup } from "./BrandLockup";
 import { CurrencySelector } from "./CurrencySelector";
+import { completeMenCollections } from "@/lib/menuCollections";
 
 const isGlobalWhatsAppControl = (href: string) => /(?:wa\.me|whatsapp)/i.test(href);
 
@@ -178,7 +179,10 @@ export function Navbar() {
   if (!site || !navigationCopy) return null;
 
   const hasMegaMenu = !!(site.megaMenu && site.megaMenu.length > 0);
-  const visibleGroups = site.megaMenu?.filter(g => g.visible) || [];
+  const visibleGroups = completeMenCollections(
+    site.megaMenu?.filter(g => g.visible) || [],
+    data?.content.collections ?? [],
+  );
 
   const isLegacyShopLink = (href: string) => (
     href === "/shop"
