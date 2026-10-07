@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/context/CartContext";
-import { naira } from "@/lib/utils";
+import { DisplayPrice } from "@/context/DisplayCurrencyContext";
+import { CurrencyNotice } from "./CurrencySelector";
 import { Link } from "wouter";
 import { usePlatformContent } from "@/data/platformContent";
 import { mappedPurchaseChoices } from "@/lib/purchasing";
@@ -94,7 +95,7 @@ export function CartDrawer() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-6 space-y-8">
           {items.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-60 space-y-4">
                <p className="soso-display text-xl">{copy.emptyMessage.replace(/bag/i, 'cart')}</p>
@@ -115,29 +116,29 @@ export function CartDrawer() {
                 : [item.size, ...mappedSizes];
 
               return (
-              <div key={`${item.slug}-${item.size}-${item.selectedColourId}-${item.customColour ?? ""}`} className="flex gap-4">
-                <Link href={`/product/${item.slug}`} onClick={closeDrawer}>
+               <div key={`${item.slug}-${item.size}-${item.selectedColourId}-${item.customColour ?? ""}`} className="flex min-w-0 gap-4">
+                 <Link href={`/product/${item.slug}`} onClick={closeDrawer} className="w-20 shrink-0 sm:w-24">
                   <img
                     src={item.img}
                     alt={item.name}
-                    className="w-24 aspect-[3/4] cursor-pointer bg-muted object-cover transition-opacity hover:opacity-90"
+                     className="w-full aspect-[3/4] cursor-pointer bg-muted object-cover transition-opacity hover:opacity-90"
                      width={96}
                      height={128}
                      loading="lazy"
                      decoding="async"
                   />
                 </Link>
-                       <div className="flex items-center gap-2 mt-1">
-                         <span className="w-3 h-3 rounded-full border border-black/10 inline-block" style={{ backgroundColor: item.customColour ? 'transparent' : item.selectedColourHex }} />
-                         <p className="text-[12px] opacity-70">{item.customColour ?? item.selectedColourLabel ?? "Custom colour"}</p>
-                       </div>
-                <div className="flex-1 flex flex-col">
-                  <div className="flex justify-between items-start">
-                    <div>
+                 <div className="min-w-0 flex-1 flex flex-col">
+                   <div className="flex justify-between items-start gap-2">
+                     <div className="min-w-0 break-words">
                       <Link href={`/product/${item.slug}`} onClick={closeDrawer} className="soso-display text-lg hover:underline underline-offset-4">
                         {item.name}
                       </Link>
                        <div className="flex items-center gap-2 mt-1">
+                         <span className="w-3 h-3 shrink-0 rounded-full border border-black/10 inline-block" style={{ backgroundColor: item.customColour ? 'transparent' : item.selectedColourHex }} />
+                         <p className="text-[12px] opacity-70">{item.customColour ?? item.selectedColourLabel ?? "Custom colour"}</p>
+                       </div>
+                        <div className="flex min-w-0 items-center gap-2 mt-1">
                          <span className="text-[12px] opacity-70 uppercase tracking-widest">{copy.sizeLabel}</span>
                           <select
                            value={item.size}
@@ -147,7 +148,7 @@ export function CartDrawer() {
                               if (!variantId || !mappedSizes.includes(newSize)) return;
                              updateSize(item.slug, item.size, newSize, variantId, item.selectedColourId, item.customColour);
                            }}
-                           className="bg-transparent text-[12px] opacity-70 uppercase tracking-widest outline-none cursor-pointer hover:text-primary border-b border-transparent hover:border-primary pb-0.5"
+                            className="min-w-0 max-w-full bg-transparent text-[12px] opacity-70 uppercase tracking-widest outline-none cursor-pointer hover:text-primary border-b border-transparent hover:border-primary pb-0.5"
                             aria-label={copy.changeSizeLabel}
                            data-testid={`select-cart-size-${item.slug}`}
                          >
@@ -176,14 +177,14 @@ export function CartDrawer() {
                     </div>
                     <button
                       onClick={() => removeItem(item.slug, item.size, item.selectedColourId, item.customColour)}
-                      className="text-xs opacity-50 hover:opacity-100 underline underline-offset-2"
+                       className="shrink-0 text-xs opacity-50 hover:opacity-100 underline underline-offset-2"
                     >
                        {copy.removeLabel}
                     </button>
                   </div>
 
-                  <div className="mt-auto flex items-center justify-between">
-                    <div className="flex items-center border" style={{ borderColor: "hsl(var(--border))" }}>
+                   <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-3">
+                     <div className="flex shrink-0 items-center border" style={{ borderColor: "hsl(var(--border))" }}>
                       <button
                         onClick={() => updateQuantity(item.slug, item.size, item.selectedColourId, item.quantity - 1, item.customColour)}
                         className="flex h-8 w-8 items-center justify-center transition-colors hover:bg-muted"
@@ -200,8 +201,8 @@ export function CartDrawer() {
                         +
                       </button>
                     </div>
-                    <span className="text-[14px] font-medium tracking-wide">
-                      {naira(item.price * item.quantity)}
+                     <span className="ml-auto max-w-full break-words text-right text-[14px] font-medium tracking-wide">
+                      <DisplayPrice amount={item.price * item.quantity} />
                     </span>
                   </div>
                 </div>
@@ -211,11 +212,12 @@ export function CartDrawer() {
         </div>
 
         {items.length > 0 && (
-          <div className="p-6 border-t border-border bg-muted/20">
-            <div className="flex items-center justify-between mb-6">
+           <div className="min-w-0 p-6 border-t border-border bg-muted/20">
+             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                <span className="text-sm uppercase tracking-widest opacity-80">{copy.subtotalLabel}</span>
-              <span className="text-xl font-medium">{naira(cartTotal)}</span>
+               <span className="ml-auto max-w-full break-words text-right text-xl font-medium"><DisplayPrice amount={cartTotal} /></span>
             </div>
+            <CurrencyNotice className="mb-4" />
             <p className="text-[11px] opacity-60 mb-6 tracking-wide">
                {copy.helpText}
             </p>

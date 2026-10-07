@@ -4,6 +4,7 @@ import { openPrivacyChoices } from "./ConsentManager";
 import { usePlatformContent } from "@/data/platformContent";
 import { ChevronDown } from "lucide-react";
 import { BrandLockup } from "./BrandLockup";
+import { CurrencySelector } from "./CurrencySelector";
 
 const footerLinkClass = "py-1 text-[13px] text-secondary hover:text-foreground hover:underline underline-offset-4";
 
@@ -55,6 +56,7 @@ export function Footer() {
     <footer className="bg-background text-foreground border-t border-border">
       <div className="mx-auto max-w-[1600px] px-6 lg:px-12 py-16 md:py-24">
 
+        <div className="mb-12"><CurrencySelector /></div>
         {/* Top Section: Links & Address */}
         <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-6 lg:gap-8">
 

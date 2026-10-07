@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { Reveal } from "@/components/Reveal";
 import { useCart } from "@/context/CartContext";
-import { naira } from "@/lib/utils";
+import { DisplayPrice, formatDisplayPrice, useDisplayCurrency } from "@/context/DisplayCurrencyContext";
 import { Seo } from "@/components/Seo";
 import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { editorialOrigin, trackStorefrontEvent } from "@/components/ConsentManager";
@@ -143,6 +143,7 @@ function FallbackGallery({
 }
 
 export default function ProductDetail() {
+  const { snapshot } = useDisplayCurrency();
   const [, params] = useRoute("/product/:slug");
   const [, setLocation] = useLocation();
   const { addItem } = useCart();
@@ -426,7 +427,7 @@ export default function ProductDetail() {
           {/* Availability / Price */}
           <div className="flex flex-col gap-2 mt-5 text-foreground">
             <div className="flex items-center gap-4">
-              {!isUnavailable && <span className="text-2xl font-medium tracking-wide">{naira(product.price)}</span>}
+              {!isUnavailable && <span className="text-2xl font-medium tracking-wide"><DisplayPrice amount={product.price} /></span>}
               {product.fulfilmentState === "ready_now" && (
                 <span className="text-[10px] uppercase tracking-widest text-green-600/90 font-bold border border-green-600/20 px-2 py-1" data-testid="status-ready-now">{productCopy.readyNowLabel}</span>
               )}
@@ -645,7 +646,7 @@ export default function ProductDetail() {
                       ? "Online purchase paused"
                       : !isPurchasable
                       ? productCopy.unavailableInSizeLabel
-                      : `${productCopy.addToBagLabel.replace(/bag/i, 'Cart')}${productCopy.addToBagPriceSeparator}${naira(product.price)}`}
+                      : `${productCopy.addToBagLabel.replace(/bag/i, 'Cart')}${productCopy.addToBagPriceSeparator}${formatDisplayPrice(product.price, snapshot)}`}
             </button>
             <button
               type="button"
@@ -757,7 +758,7 @@ export default function ProductDetail() {
       >
         <div className="flex-1">
           <p className="text-[11px] uppercase tracking-widest text-secondary">{product.name}</p>
-          <p className="text-sm text-foreground font-medium">{naira(product.price)}</p>
+          <p className="text-sm text-foreground font-medium"><DisplayPrice amount={product.price} /></p>
         </div>
         <button
           onClick={handleAddToCart}

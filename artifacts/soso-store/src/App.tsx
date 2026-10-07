@@ -6,6 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, useLocation, Router as WouterRouter, Redirect } from 'wouter';
 
 import { CartProvider } from '@/context/CartContext';
+import { DisplayCurrencyProvider } from '@/context/DisplayCurrencyContext';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
@@ -116,12 +117,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <CartProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <AppShell />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
+        <DisplayCurrencyProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <AppShell />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </DisplayCurrencyProvider>
       </CartProvider>
     </QueryClientProvider>
   );

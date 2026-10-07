@@ -95,6 +95,19 @@ async function installDeterministicRoutes(page) {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(platform) });
       return;
     }
+    if (url.pathname === "/api/price-display") {
+      const { amounts = [] } = route.request().postDataJSON() ?? {};
+      // Native NGN fixtures stay independent of live rates, country and storage.
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
+        baseCurrency: "NGN", currency: "NGN", suggestedCurrency: "NGN",
+        availableCurrencies: ["NGN", "GBP", "USD"], estimated: false,
+        updatedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        unavailableReason: null, sourceUrl: "https://www.exchangerate-api.com",
+        prices: amounts.map((naira) => ({ naira, amount: naira })),
+      }) });
+      return;
+    }
     if (url.pathname === "/api/policies/privacy") {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(privacy) });
       return;

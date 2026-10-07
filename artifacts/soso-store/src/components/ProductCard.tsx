@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "wouter";
-import { naira } from "@/lib/utils";
+import { DisplayPrice } from "@/context/DisplayCurrencyContext";
 import type { CatalogProduct } from "@/data/platformContent";
 import { Drawer } from "vaul";
 import { useCart } from "@/context/CartContext";
@@ -156,7 +156,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
             </p>}
           </div>
           {!isUnavailable && showPrice && <p className="text-[15px] font-semibold whitespace-nowrap text-foreground" data-testid={`text-price-${product.slug}`}>
-            {naira(product.price)}
+            <DisplayPrice amount={product.price} />
           </p>}
         </Link>
         {isUnavailable && product.department === "accessories" && (
@@ -184,7 +184,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               <div>
                 <p className="text-[11px] uppercase tracking-[0.2em] text-secondary mb-1">{product.category}</p>
                 <h3 className="soso-display text-xl text-foreground">{product.name}</h3>
-                <p className="text-sm text-foreground mt-1 font-medium">{naira(product.price)}</p>
+                <p className="text-sm text-foreground mt-1 font-medium"><DisplayPrice amount={product.price} /></p>
               </div>
             </div>
 

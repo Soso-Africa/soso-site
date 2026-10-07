@@ -74,6 +74,8 @@ import type {
   PlatformProductPublication,
   PolicyDocument,
   PolicySummary,
+  PriceDisplayInput,
+  PriceDisplaySnapshot,
   PrivacyRequestAcknowledgement,
   PrivacyRequestInput,
   PublicMarketingPixelSettings,
@@ -144,6 +146,77 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getDisplayPricesUrl = () => {
+
+
+
+
+  return `/api/price-display`
+}
+
+/**
+ * @summary Estimate browsing prices in local currency; never changes NGN checkout
+ */
+export const displayPrices = async (priceDisplayInput: PriceDisplayInput, options?: Parameters<typeof customFetch>[1]): Promise<PriceDisplaySnapshot> => {
+
+  return customFetch<PriceDisplaySnapshot>(getDisplayPricesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(priceDisplayInput)
+  }
+);}
+
+
+
+
+
+export const getDisplayPricesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof displayPrices>>, TError,{data: BodyType<PriceDisplayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof displayPrices>>, TError,{data: BodyType<PriceDisplayInput>}, TContext> => {
+
+const mutationKey = ['displayPrices'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof displayPrices>>, {data: BodyType<PriceDisplayInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  displayPrices(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisplayPricesMutationResult = NonNullable<Awaited<ReturnType<typeof displayPrices>>>
+    export type DisplayPricesMutationBody = BodyType<PriceDisplayInput>
+    export type DisplayPricesMutationError = ErrorType<void>
+
+    /**
+ * @summary Estimate browsing prices in local currency; never changes NGN checkout
+ */
+export const useDisplayPrices = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof displayPrices>>, TError,{data: BodyType<PriceDisplayInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof displayPrices>>,
+        TError,
+        {data: BodyType<PriceDisplayInput>},
+        TContext
+      > => {
+      return useMutation(getDisplayPricesMutationOptions(options));
+    }
 
 export const getClaimPurchaseConversionUrl = () => {
 
