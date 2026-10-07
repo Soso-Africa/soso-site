@@ -2,7 +2,8 @@
 
 This guide describes SOSO installation behavior and browser limitations.
 
-- HTTPS production builds advertise a standalone app with the existing blue SOSO brand icon, 192px and maskable 512px icons, and iPad/iPhone touch-icon metadata.
+- HTTPS production builds advertise a standalone app with the existing gold SOSO monogram used by the browser favicon, 192px and maskable 512px icons, and iPad/iPhone touch-icon metadata.
+- Generate app icons from the existing brand logo using `node artifacts/soso-store/scripts/generate-pwa-icons.mjs`. Preserve the real artwork; do not substitute the older blue S vector. Gold-versioned URLs prevent an old active worker from showing cached blue icons in the new popup. Compatibility icon URLs also contain gold artwork.
 - Desktop Chrome/Edge and Android support installation where the browser offers it. The footer uses a native installation prompt when available, plus accessible manual instructions.
 - iPhone/iPad users open the site in Safari and choose Share → Add to Home Screen. Mac Safari offers File → Add to Dock. Installation is browser-controlled, not guaranteed in every browser or embedded preview.
 - Public browsing automatically shows a dismissible install popup after a short delay, without requiring a footer visit. On iPhone/iPad (including iPadOS desktop-style user agents), it explains Safari Share → Add to Home Screen; supported browsers can open their native prompt from a user click.

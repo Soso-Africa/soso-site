@@ -1,9 +1,9 @@
 /* Cache only a generic offline notice and app icons, never shopper data. */
 const scope = new URL(self.registration.scope);
 const prefix = `soso-pwa:${scope.pathname}:`;
-const cacheName = `${prefix}v1`;
+const cacheName = `${prefix}v2`;
 const offlineUrl = new URL("offline.html", scope).href;
-const staticUrls = ["offline.html", "pwa-icon-192.png", "pwa-icon-512.png"]
+const staticUrls = ["offline.html", "pwa-icon-gold-192.png", "pwa-icon-gold-512.png"]
   .map((path) => new URL(path, scope).href);
 
 self.addEventListener("install", (event) => {
