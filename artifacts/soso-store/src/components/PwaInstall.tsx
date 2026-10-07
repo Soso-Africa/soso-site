@@ -1,34 +1,20 @@
 import React, { useEffect, useState } from "react";
+import { consumeInstallPrompt, pwaInstallState, subscribePwaInstall } from "@/lib/pwa";
 
-interface InstallPrompt extends Event {
-  prompt(): Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+export function usePwaInstallState() {
+  const [state, setState] = useState(pwaInstallState);
+  useEffect(() => {
+    const update = () => setState(pwaInstallState());
+    const unsubscribe = subscribePwaInstall(update);
+    update();
+    return unsubscribe;
+  }, []);
+  return state;
 }
 
 export function PwaInstall() {
-  const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
-  const [installed, setInstalled] = useState(false);
+  const { prompt, installed } = usePwaInstallState();
   const [error, setError] = useState(false);
-  useEffect(() => {
-    const media = window.matchMedia("(display-mode: standalone)");
-    const update = () => setInstalled(media.matches || Boolean(
-      (navigator as Navigator & { standalone?: boolean }).standalone,
-    ));
-    const before = (event: Event) => {
-      event.preventDefault();
-      setPrompt(event as InstallPrompt);
-    };
-    const done = () => { setInstalled(true); setPrompt(null); };
-    update();
-    window.addEventListener("beforeinstallprompt", before);
-    window.addEventListener("appinstalled", done);
-    media.addEventListener("change", update);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", before);
-      window.removeEventListener("appinstalled", done);
-      media.removeEventListener("change", update);
-    };
-  }, []);
   if (installed) return null;
   return <div className="mb-12 max-w-xl text-[13px] leading-relaxed text-secondary">
     {prompt && <button type="button" className="mb-3 border border-border px-4 py-2 text-foreground hover:bg-muted"
@@ -36,12 +22,11 @@ export function PwaInstall() {
         setError(false);
         try {
           await prompt.prompt();
-          const choice = await prompt.userChoice;
-          if (choice.outcome === "accepted") setInstalled(true);
+           await prompt.userChoice;
         } catch {
           setError(true);
         } finally {
-          setPrompt(null);
+           consumeInstallPrompt(prompt);
         }
       }}>Install SOSO</button>}
     {error && <p role="status">Use the browser instructions below to install SOSO.</p>}

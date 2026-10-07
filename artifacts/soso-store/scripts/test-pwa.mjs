@@ -40,8 +40,11 @@ try {
     args: binary.args.filter((arg) => arg !== "--single-process"), headless: true,
   });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await context.addInitScript(() => localStorage.setItem("soso-consent-v1", "essential_only"));
-  await context.route("**/api/**", (route) => {
+  await context.addInitScript(() => {
+    localStorage.setItem("soso-consent-v1", "essential_only");
+    sessionStorage.setItem("soso-pwa-install-dismissed-v1", "yes");
+  });
+  const routeApi = (route) => {
     const path = new URL(route.request().url()).pathname;
     let body = { error: "pwa_fixture_only" };
     let status = 404;
@@ -57,7 +60,8 @@ try {
       status = 200;
     }
     return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
-  });
+  };
+  await context.route("**/api/**", routeApi);
   const page = await context.newPage();
   await page.goto(origin + "/shop");
   const help = page.getByText("Install SOSO on your device", { exact: true });
@@ -117,7 +121,104 @@ try {
   await page.goto(origin + "/shop");
   await help.waitFor();
   assert.deepEqual(await cacheAudit(), expected);
-  console.log("PWA checks passed: manifest/icons, mobile instructions, install/dismiss/installed events, worker, offline return/Staff, safe caches and reconnect.");
+
+  const ipad = await browser.newContext({
+    viewport: { width: 1024, height: 1366 },
+    userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
+  });
+  await ipad.addInitScript(() => {
+    localStorage.setItem("soso-consent-v1", "essential_only");
+    Object.defineProperty(navigator, "maxTouchPoints", { get: () => 5 });
+  });
+  await ipad.route("**/api/**", routeApi);
+  const ipadPage = await ipad.newPage();
+  await ipadPage.goto(origin + "/shop");
+  const popup = ipadPage.getByRole("dialog", { name: "Install SOSO" });
+  await popup.waitFor();
+  assert(await popup.getByText("On your iPhone or iPad").isVisible(), "Desktop-style iPadOS must get Apple's manual steps.");
+  assert(await popup.getByText(/Choose.*Add to Home Screen/).isVisible());
+  assert.equal(await popup.getByRole("button", { name: "Install SOSO", exact: true }).count(), 0,
+    "Safari must not offer a fake native installation action.");
+  await ipadPage.keyboard.press("Escape");
+  await popup.waitFor({ state: "hidden" });
+  await ipadPage.reload();
+  await ipadPage.waitForTimeout(3200);
+  assert.equal(await popup.count(), 0, "Dismissal must survive navigation/reload in the same session.");
+  await ipadPage.evaluate(() => sessionStorage.removeItem("soso-pwa-install-dismissed-v1"));
+  await ipadPage.reload();
+  await popup.waitFor();
+  await ipadPage.evaluate(() => window.dispatchEvent(new Event("appinstalled")));
+  await popup.waitFor({ state: "hidden" });
+  assert.equal(await ipadPage.getByText("Install SOSO on your device", { exact: true }).count(), 0);
+
+  // A fresh browsing session still shows the guide, but not on sensitive routes.
+  const safe = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await safe.addInitScript(() => localStorage.setItem("soso-consent-v1", "essential_only"));
+  await safe.route("**/api/**", routeApi);
+  const safePage = await safe.newPage();
+  for (const path of ["/checkout", "/checkout/return", "/sign-in", "/privacy"]) {
+    await safePage.goto(origin + path);
+    await safePage.waitForTimeout(2800);
+    assert.equal(await safePage.locator("[data-pwa-install-popup]").count(), 0, path + " must not be interrupted.");
+  }
+  await safePage.goto(origin + "/shop");
+  await safePage.getByRole("dialog", { name: "Install SOSO" }).waitFor();
+  const box = await safePage.locator("[data-pwa-install-popup]").boundingBox();
+  assert(box.x >= 0 && box.x + box.width <= 390, "The phone popup must fit the viewport.");
+  await safePage.getByRole("button", { name: "Continue browsing", exact: true }).click();
+
+  const installedContext = await browser.newContext();
+  await installedContext.addInitScript(() => {
+    localStorage.setItem("soso-consent-v1", "essential_only");
+    Object.defineProperty(navigator, "standalone", { get: () => true });
+  });
+  await installedContext.route("**/api/**", routeApi);
+  const installedPage = await installedContext.newPage();
+  await installedPage.goto(origin + "/shop");
+  await installedPage.waitForTimeout(3200);
+  assert.equal(await installedPage.locator("[data-pwa-install-popup]").count(), 0);
+  assert.equal(await installedPage.getByText("Install SOSO on your device", { exact: true }).count(), 0);
+
+  const native = await browser.newContext();
+  await native.addInitScript(() => {
+    localStorage.setItem("soso-consent-v1", "essential_only");
+    document.addEventListener("DOMContentLoaded", () => {
+      const early = new Event("beforeinstallprompt", { cancelable: true });
+      early.prompt = async () => { window.__earlyPwaPromptCalled = true; };
+      early.userChoice = Promise.resolve({ outcome: "dismissed" });
+      window.dispatchEvent(early);
+    });
+  });
+  await native.route("**/api/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/api/content/platform") {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 1000));
+    }
+    return routeApi(route);
+  });
+  const nativePage = await native.newPage();
+  await nativePage.goto(origin + "/shop");
+  const nativePopup = nativePage.getByRole("dialog", { name: "Install SOSO" });
+  await nativePopup.waitFor();
+  await nativePopup.getByRole("button", { name: "Install SOSO", exact: true }).click();
+  assert(await nativePage.evaluate(() => window.__earlyPwaPromptCalled),
+    "An install event before catalogue/footer mounting must remain usable.");
+  await nativePopup.waitFor({ state: "hidden" });
+
+  const privacyContext = await browser.newContext();
+  await privacyContext.route("**/api/**", routeApi);
+  const privacyPage = await privacyContext.newPage();
+  await privacyPage.goto(origin + "/shop");
+  const privacyChoices = privacyPage.locator("[data-soso-privacy-choices]");
+  await privacyChoices.waitFor();
+  await privacyPage.waitForTimeout(3200);
+  assert.equal(await privacyPage.locator("[data-pwa-install-popup]").count(), 0,
+    "The installation dialog must not cover unresolved privacy choices.");
+  await privacyChoices.getByRole("button", { name: platform.content.site.consent.essentialLabel, exact: true }).click();
+  await privacyPage.getByRole("dialog", { name: "Install SOSO" }).waitFor();
+  await privacyPage.getByRole("button", { name: "Continue browsing", exact: true }).click();
+  assert.equal(await privacyPage.evaluate(() => localStorage.getItem("soso-consent-v1")), "essential_only",
+    "Dismissing the install guide must not grant optional measurement consent.");
+  console.log("PWA checks passed: manifest/icons, automatic iPad and phone popup, session dismissal, installed suppression, sensitive-route exclusion, early native prompt, worker, safe caches and reconnect.");
 } finally {
   await browser?.close();
   await stopServer();

@@ -172,6 +172,8 @@ async function preparePage(page, surface) {
     localStorage.clear();
     sessionStorage.clear();
     localStorage.setItem("soso-consent-v1", "essential_only");
+    // Baselines cover the storefront; the automatic install dialog has its own PWA checks.
+    sessionStorage.setItem("soso-pwa-install-dismissed-v1", "yes");
   });
   await page.goto(`${origin}${surface.path}`, { waitUntil: "networkidle" });
   assert.equal(
