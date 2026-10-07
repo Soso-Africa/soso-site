@@ -11,6 +11,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { CartDrawer } from '@/components/CartDrawer';
 import { ConsentManager } from '@/components/ConsentManager';
+import { PwaInstallPopup } from '@/components/PwaInstallPopup';
 import { Seo } from '@/components/Seo';
 import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
 import { customFetch } from '@workspace/api-client-react';
@@ -161,6 +162,7 @@ function AppShell() {
         <>
           <CartDrawer />
           <ConsentManager />
+          <PwaInstallPopup contentReady={Boolean(platform.data)} />
         </>
       )}
     </>

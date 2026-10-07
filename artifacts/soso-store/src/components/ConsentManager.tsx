@@ -797,6 +797,7 @@ export function ConsentManager() {
 
   return (
     <section
+      data-soso-privacy-choices
       aria-label={copy.regionLabel}
       aria-live="polite"
       role="region"
