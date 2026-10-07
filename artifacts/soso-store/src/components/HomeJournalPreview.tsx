@@ -16,12 +16,17 @@ export function HomeJournalPreview() {
 
   return (
     <section className="my-16 md:my-32 max-w-[1600px] mx-auto px-4 md:px-6">
-      <div className="mb-10 flex items-end justify-between gap-6">
-        <div>
-          <p className="mb-3 text-[11px] uppercase tracking-[0.3em] text-secondary">The Journal</p>
-          <h2 className="soso-display text-4xl text-foreground md:text-5xl">Latest from SOSO</h2>
+      <div className="mb-8 flex flex-col items-start gap-4 md:mb-10 md:flex-row md:items-end md:justify-between md:gap-6">
+        <div className="min-w-0">
+          <p className="mb-3 text-[10px] uppercase tracking-[0.24em] text-secondary md:text-[11px] md:tracking-[0.3em]">The Journal</p>
+          <h2 className="soso-display text-[clamp(1.75rem,7.6vw,2rem)] leading-[1.15] tracking-[-0.025em] text-foreground md:text-5xl md:leading-none md:tracking-normal">Latest from SOSO</h2>
         </div>
-        <Link href="/journal" className="text-[11px] font-semibold uppercase tracking-[0.2em] underline underline-offset-8">Read the Journal</Link>
+        <Link href="/journal" className="inline-flex min-h-11 shrink-0 items-center gap-3 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.16em] underline underline-offset-8 transition-colors hover:text-secondary md:min-h-0 md:tracking-[0.2em]">
+          Read the Journal
+          <svg aria-hidden="true" className="md:hidden" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 12h16M14 6l6 6-6 6" />
+          </svg>
+        </Link>
       </div>
       <div className="grid md:grid-cols-3 gap-6 md:gap-8">
         {previewPosts.map((post) => (
@@ -35,7 +40,7 @@ export function HomeJournalPreview() {
                <p className="text-[11px] text-secondary tracking-widest uppercase mb-2">
                  {post.publishedAt ? format(new Date(post.publishedAt), 'MMMM yyyy') : ''}
                </p>
-               <h3 className="soso-display text-2xl text-foreground mb-3 leading-tight group-hover:text-secondary transition-colors">{post.title}</h3>
+                <h3 className="soso-display text-[22px] text-foreground mb-3 leading-[1.3] tracking-tight md:text-2xl md:leading-tight md:tracking-normal group-hover:text-secondary transition-colors">{post.title}</h3>
                <span className="text-[11px] font-bold uppercase tracking-[0.15em] border-b border-border pb-1 group-hover:border-secondary transition-colors">Read Article</span>
              </div>
           </Link>

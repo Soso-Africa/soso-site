@@ -1,3 +1,4 @@
+import React from "react";
 import type { PlatformContent } from "../../data/platformContent";
 import { CopyPanel, PlatformCopyFields } from "./PlatformCopyFields";
 

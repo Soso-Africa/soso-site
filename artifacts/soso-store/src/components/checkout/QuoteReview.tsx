@@ -8,6 +8,8 @@ type QuoteReviewProps = {
   paymentProvider?: string;
   paymentMethod?: string;
   collectionLabel?: string;
+  deliveryAddress?: string;
+  shippingCost?: string;
 };
 
 const providerNames: Record<string, string> = {
@@ -27,12 +29,14 @@ function expiryText(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-export function QuoteReview({ formattedTotal, currency, chargeCurrency, expiresAt, paymentProvider, paymentMethod, collectionLabel }: QuoteReviewProps) {
+export function QuoteReview({ formattedTotal, currency, chargeCurrency, expiresAt, paymentProvider, paymentMethod, collectionLabel, deliveryAddress, shippingCost }: QuoteReviewProps) {
   const expiry = expiryText(expiresAt);
   const providerName = paymentProvider ? providerNames[paymentProvider] ?? readableName(paymentProvider) : "";
   const paymentLabel = [providerName, paymentMethod ? readableName(paymentMethod) : ""].filter(Boolean).join(" · ");
   const rows: Array<[string, string]> = [];
-  if (collectionLabel) rows.push(["Collection", collectionLabel]);
+  if (deliveryAddress) rows.push(["Delivery within Nigeria", deliveryAddress]);
+  else if (collectionLabel) rows.push(["Collection", collectionLabel]);
+  if (shippingCost) rows.push(["Delivery charge", shippingCost]);
   if (paymentLabel) rows.push(["Payment", paymentLabel]);
   if (expiry) rows.push(["Valid until", expiry]);
   return (

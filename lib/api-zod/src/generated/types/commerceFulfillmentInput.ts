@@ -5,7 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CommerceFulfillmentInputDestinationCountry } from './commerceFulfillmentInputDestinationCountry';
 import type { CommerceFulfillmentInputType } from './commerceFulfillmentInputType';
+import type { CommerceShippingAddress } from './commerceShippingAddress';
 
 export interface CommerceFulfillmentInput {
   type: CommerceFulfillmentInputType;
@@ -19,4 +21,6 @@ export interface CommerceFulfillmentInput {
      * @maxLength 1000
      */
   address?: string;
+  destinationCountry?: CommerceFulfillmentInputDestinationCountry;
+  shippingAddress?: CommerceShippingAddress;
 }

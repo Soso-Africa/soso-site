@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import { ArrowUp, ArrowDown, Plus, Trash2, AlertCircle } from "lucide-react";
-import type { CatalogProduct, PlatformContent } from "../../data/platformContent";
+import type { CatalogProduct, PlatformCollection, PlatformContent } from "../../data/platformContent";
+import { completeMenCollections } from "../../lib/menuCollections";
 import { PlatformEditorFooter, PlatformEditorSiteRoutineCopy } from "./PlatformEditorRoutineCopy";
 
 type SiteData = PlatformContent["site"];
@@ -12,16 +13,27 @@ export function PlatformEditorSite({
   onChange,
   allowedTargets,
   products,
+  publishedCollections,
   onValidityChange,
 }: {
   data: SiteData;
   onChange: (data: SiteData) => void;
   allowedTargets: string[];
   products: ProductOption[];
+  publishedCollections: Pick<PlatformCollection, "slug" | "label" | "department">[];
   onValidityChange?: (valid: boolean) => void;
 }) {
   const suggestions = data.header?.searchSuggestions || [];
-  const megaMenu = data.megaMenu || [];
+  const megaMenu = useMemo(
+    () => completeMenCollections(data.megaMenu || [], publishedCollections),
+    [data.megaMenu, publishedCollections],
+  );
+  useEffect(() => {
+    if (megaMenu.some((group, index) => group !== data.megaMenu?.[index])) {
+      // Hydrate the local JSON buffer, not the saved draft or published snapshot.
+      onChange({ ...data, megaMenu });
+    }
+  }, [data, megaMenu, onChange]);
   const announcementItems = data.announcementItems;
   const contactEmailValid = !data.contactEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.contactEmail);
   const contactPhoneValid = !data.contactPhone || (
@@ -488,6 +500,10 @@ export function PlatformEditorSite({
           </div>
         )}
 
+        <p className="mb-4 text-xs text-muted-foreground">
+          Men collection links match the approved published collections. Rename or reorder them here;
+          missing approved destinations are kept reachable. Changes remain a draft until an authorized publication.
+        </p>
         <div className="space-y-5">
           {megaMenu.map((group, groupIndex) => {
             const departmentProducts = group.department

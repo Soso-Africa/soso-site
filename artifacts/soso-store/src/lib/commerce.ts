@@ -18,6 +18,11 @@ export type CheckoutRequest = {
   } | {
     type: "delivery";
     address: string;
+    destinationCountry: "NG";
+    shippingAddress: {
+      country: "NG"; region: string; city: string; postalCode: string; addressLines: string[];
+      recipientName: string; recipientPhone: string; deliveryInstructions?: string;
+    };
   };
   quoteId: string;
   displayCurrency: string;
@@ -72,22 +77,19 @@ export function projectPickupLocations(value: unknown): PickupLocation[] {
   const body = record(value);
   if (!body || !Array.isArray(body.locations)) throw new CommerceConfigurationError("pickup_locations_invalid_response");
   const ids = new Set<string>();
-  return body.locations
-    .filter((value) => record(value)?.type === "shop")
-    .map((value) => {
-      const location = record(value)!;
-      const fields = ["id", "name", "address", "city", "country"] as const;
-      if (fields.some((field) => typeof location[field] !== "string" || !(location[field] as string).trim())
-        || !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(location.id as string)) {
-        throw new CommerceConfigurationError("pickup_locations_invalid_location");
-      }
-      const projected = Object.fromEntries(fields.map((field) => [field, (location[field] as string).trim()])) as PickupLocation;
-      if (ids.has(projected.id)) throw new CommerceConfigurationError("pickup_locations_duplicate_id");
-      ids.add(projected.id);
-      return projected;
-    });
+  return body.locations.filter((value) => record(value)?.type === "shop").map((value) => {
+    const location = record(value)!;
+    const fields = ["id", "name", "address", "city", "country"] as const;
+    if (fields.some((field) => typeof location[field] !== "string" || !(location[field] as string).trim())
+      || !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(location.id as string)) {
+      throw new CommerceConfigurationError("pickup_locations_invalid_location");
+    }
+    const projected = Object.fromEntries(fields.map((field) => [field, (location[field] as string).trim()])) as PickupLocation;
+    if (ids.has(projected.id)) throw new CommerceConfigurationError("pickup_locations_duplicate_id");
+    ids.add(projected.id);
+    return projected;
+  });
 }
-
 type CommerceCatalogProjection = {
   id: string;
   name: string;

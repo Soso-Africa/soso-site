@@ -1,4 +1,6 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 import { Link } from "wouter";
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { committedRowFor } from "../components/staff/platform-row";
@@ -192,6 +194,8 @@ export default function Staff() {
   const [range, setRange] = useState(() => dateRangeFor(7));
   const [activeTab, setActiveTabState] = useState<StaffTab>("overview");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const visible = useDocumentVisible();
+  const queryClient = useQueryClient();
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
   const canViewOrders = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
   const canManageMeasurements = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
@@ -201,39 +205,23 @@ export default function Staff() {
   const canReviewAccessoryLaunchNotifications = ["owner", "administrator", "editor"].includes(profile?.role as string);
   const isEditorial = ["owner", "administrator", "editor"].includes(profile?.role as string);
 
-  const overview = useGetStaffOverview(range, { query: { queryKey: ["staff-overview", range.from, range.to], enabled: Boolean(profile), refetchInterval: 60_000 } });
-  const orders = useListStaffOrders(range, { query: { queryKey: ["staff-orders", range.from, range.to], enabled: canViewOrders, refetchInterval: 45_000 } });
-  const enquiries = useListStaffEnquiries({ query: { queryKey: ["staff-enquiries"], enabled: canManageEnquiries, refetchInterval: 45_000 } });
-  const privacy = useListStaffPrivacyRequests({ query: { queryKey: ["staff-privacy"], enabled: canManagePrivacy, refetchInterval: 45_000 } });
-  const accessoryLaunchNotifications = useListStaffAccessoryLaunchNotifications({ query: { queryKey: ["staff-accessory-launch-notifications"], enabled: canReviewAccessoryLaunchNotifications, refetchInterval: 45_000 } });
-  const accessoryLaunchNotificationSummary = useGetStaffAccessoryLaunchNotificationSummary(range, { query: { queryKey: ["staff-accessory-launch-notification-summary", range.from, range.to], enabled: canReviewAccessoryLaunchNotifications, refetchInterval: 45_000 } });
-  const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications"], enabled: Boolean(profile), refetchInterval: 45_000 } });
-  const [staleCatalogueProducts, setStaleCatalogueProducts] = useState<StaleCatalogueProduct[]>([]);
-
-  useEffect(() => {
-    if (!isEditorial) {
-      setStaleCatalogueProducts([]);
-      return;
-    }
-    const controller = new AbortController();
-    const loadStaleMappings = async () => {
-      try {
-        const result = await customFetch<{ products?: StaleCatalogueProduct[] }>("/api/staff/commerce/catalogue-mapping/stale", {
-          responseType: "json",
-          signal: controller.signal,
-        });
-        if (Array.isArray(result.products)) setStaleCatalogueProducts(result.products);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    };
-    void loadStaleMappings();
-    const interval = window.setInterval(() => { void loadStaleMappings(); }, 15_000);
-    return () => {
-      controller.abort();
-      window.clearInterval(interval);
-    };
-  }, [isEditorial]);
+  const overview = useGetStaffOverview(range, { query: { queryKey: ["staff-overview", range.from, range.to, profile?.id, profile?.role], enabled: Boolean(profile) && visible && activeTab === "overview", refetchInterval: 60_000, refetchIntervalInBackground: false } });
+  const orders = useListStaffOrders(range, { query: { queryKey: ["staff-orders", range.from, range.to, profile?.id, profile?.role], enabled: canViewOrders && visible && activeTab === "orders", refetchInterval: 45_000, refetchIntervalInBackground: false } });
+  const enquiries = useListStaffEnquiries({ query: { queryKey: ["staff-enquiries", profile?.id, profile?.role], enabled: canManageEnquiries && visible && activeTab === "enquiries", refetchInterval: 45_000, refetchIntervalInBackground: false } });
+  const privacy = useListStaffPrivacyRequests({ query: { queryKey: ["staff-privacy", profile?.id, profile?.role], enabled: canManagePrivacy && visible && activeTab === "privacy", refetchInterval: 45_000, refetchIntervalInBackground: false } });
+  const accessoryLaunchNotifications = useListStaffAccessoryLaunchNotifications({ query: { queryKey: ["staff-accessory-launch-notifications", profile?.id, profile?.role], enabled: canReviewAccessoryLaunchNotifications && visible && activeTab === "accessory-launch-notifications", refetchInterval: 45_000, refetchIntervalInBackground: false } });
+  const accessoryLaunchNotificationSummary = useGetStaffAccessoryLaunchNotificationSummary(range, { query: { queryKey: ["staff-accessory-launch-notification-summary", range.from, range.to, profile?.id, profile?.role], enabled: canReviewAccessoryLaunchNotifications && visible && activeTab === "accessory-launch-notifications", refetchInterval: 45_000, refetchIntervalInBackground: false } });
+  const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications", profile?.id, profile?.role], enabled: Boolean(profile) && visible && activeTab === "overview", refetchInterval: 45_000, refetchIntervalInBackground: false } });
+  const staleCatalogueQuery = useQuery({
+    queryKey: ["staff-stale-catalogue-mappings", profile?.id, profile?.role],
+    queryFn: ({ signal }) => customFetch<{ products: StaleCatalogueProduct[] }>("/api/staff/commerce/catalogue-mapping/stale", { responseType: "json", signal }),
+    enabled: isEditorial && visible && ["overview", "platform", "commerce-activation"].includes(activeTab),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
+  const staleCatalogueProducts = isEditorial ? staleCatalogueQuery.data?.products ?? [] : [];
 
   const availableTabs = new Set<StaffTab>(["overview"]);
   if (canViewOrders) availableTabs.add("orders");
@@ -296,13 +284,11 @@ export default function Staff() {
   ].filter((group) => group.items.length);
 
   const refreshOperations = () => {
-    const refreshes: Promise<unknown>[] = [overview.refetch(), notifications.refetch()];
-    if (canViewOrders) refreshes.push(orders.refetch());
-    if (canManageEnquiries) refreshes.push(enquiries.refetch());
-    if (canManagePrivacy) refreshes.push(privacy.refetch());
-    if (canReviewAccessoryLaunchNotifications) refreshes.push(accessoryLaunchNotifications.refetch());
-    if (canReviewAccessoryLaunchNotifications) refreshes.push(accessoryLaunchNotificationSummary.refetch());
-    void Promise.all(refreshes);
+    // Disabled sections are marked stale and refresh when opened, rather
+    // than transferring every list after an unrelated operation.
+    for (const key of ["staff-overview", "staff-notifications", "staff-orders", "staff-enquiries", "staff-privacy", "staff-accessory-launch-notifications", "staff-accessory-launch-notification-summary"]) {
+      void queryClient.invalidateQueries({ queryKey: [key], refetchType: "active" });
+    }
   };
 
   const activeNavigation = navigation.flatMap((group) => group.items).find((item) => item.id === activeTab);
@@ -346,6 +332,7 @@ export default function Staff() {
           </div>
           {["overview", "orders", "accessory-launch-notifications", "analytics"].includes(activeTab) && <DateRangeControl range={range} onChange={setRange} />}
         </header>
+        {isEditorial && staleCatalogueQuery.isError && <p role="status" className="mt-4 text-sm text-muted-foreground">Catalogue alerts could not refresh. Saving and publishing still check current mappings.</p>}
         {staleCatalogueProducts.length > 0 && (
           <aside role="alert" className="mt-6 border border-amber-300 bg-amber-50 p-4 text-amber-950">
             <div className="flex items-start gap-3">
@@ -409,6 +396,7 @@ type ManagedMediaCleanupSummary = {
 };
 
 function MediaCleanupSection() {
+  const visible = useDocumentVisible();
   const [items, setItems] = useState<ManagedMediaCleanupItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
@@ -430,10 +418,11 @@ function MediaCleanupSection() {
   }, []);
 
   useEffect(() => {
+    if (!visible) return;
     void load();
     const interval = window.setInterval(() => { void load(); }, 45_000);
     return () => window.clearInterval(interval);
-  }, [load]);
+  }, [load, visible]);
 
   const retry = async () => {
     setRetrying(true);
@@ -1034,6 +1023,7 @@ function PlatformContentManagementSection() {
         structuredEditor = <PlatformEditorSite
           data={parsed as PlatformContent["site"]}
           products={content?.products ?? []}
+          publishedCollections={row?.published?.collections ?? []}
           allowedTargets={allowedTargets}
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
           onValidityChange={setStructuredEditorValid}
