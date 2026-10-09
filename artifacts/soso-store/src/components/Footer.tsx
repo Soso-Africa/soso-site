@@ -6,6 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { BrandLockup } from "./BrandLockup";
 import { CurrencySelector } from "./CurrencySelector";
 import { PwaInstall } from "./PwaInstall";
+import { NewsletterSignup } from "./NewsletterSignup";
 
 const footerLinkClass = "py-1 text-[13px] text-secondary hover:text-foreground hover:underline underline-offset-4";
 
@@ -57,6 +58,7 @@ export function Footer() {
     <footer className="bg-background text-foreground border-t border-border">
       <div className="mx-auto max-w-[1600px] px-6 lg:px-12 py-16 md:py-24">
 
+        <NewsletterSignup />
         <div className="mb-12"><CurrencySelector /></div>
         <PwaInstall />
         {/* Top Section: Links & Address */}

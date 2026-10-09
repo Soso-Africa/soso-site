@@ -58,7 +58,7 @@ const [shell, manifestSource] = await Promise.all([
 const { products, journalEntries = [] } = JSON.parse(manifestSource);
 
 const defaultMeta = {
-  title: "SOSO Africa | Premium Nigerian Menswear",
+  title: "SOSO Africa | Premium African Fashion",
   description: "Discover SOSO Africa's premium kaftans, agbadas, dashikis and shirts, with considered sizing guidance and stylist support.",
 };
 

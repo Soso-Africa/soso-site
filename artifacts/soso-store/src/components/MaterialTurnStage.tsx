@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, ZoomIn, ZoomOut } from "lucide-react";
 import type { CatalogProduct, PlatformContent } from "../data/platformContent";
+import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
 
 type TurnSet = NonNullable<CatalogProduct["materialTurnSets"]>[0];
 type ProductCopy = PlatformContent["productCopy"];
@@ -127,6 +128,8 @@ export function MaterialTurnStage({ sets, productCopy }: MaterialTurnStageProps)
                    >
                      <img
                        src={set[view].src}
+                       {...(zoomed && activeSet.id === set.id && activeView === view
+                         ? {} : responsiveProductPhoto(set[view].src, "(max-width: 1023px) 100vw, 50vw"))}
                        alt={set[view].alt}
                        className="absolute inset-0 w-full h-full object-contain origin-center transition-transform duration-500 ease-out motion-reduce:transition-none"
                        style={{ transform: zoomed && activeSet.id === set.id && activeView === view ? "scale(1.8)" : "scale(1)" }}
@@ -221,7 +224,7 @@ export function MaterialTurnStage({ sets, productCopy }: MaterialTurnStageProps)
               aria-current={i === activeIndex}
               data-testid={"button-turn-stage-thumb-" + set.id}
             >
-              <img src={set.front.src} alt={set.front.alt} className="aspect-[3/4] object-contain w-full" />
+              <img src={set.front.src} {...responsiveProductPhoto(set.front.src, "120px")} alt={set.front.alt} className="aspect-[3/4] object-contain w-full" />
               {i !== activeIndex && (
                 <div className="absolute inset-0 bg-background/20 group-hover:bg-transparent transition-colors motion-reduce:transition-none" />
               )}

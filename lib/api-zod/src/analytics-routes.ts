@@ -1,5 +1,5 @@
 const PRIVATE_SURFACE_PATH =
-  /^\/(?:api|staff|sign-in|sign-up)(?:\/|$)|^\/journal\/preview(?:\/|$)/i;
+  /^\/(?:api|staff|sign-in|sign-up)(?:\/|$)|^\/journal\/preview(?:\/|$)|^\/newsletter\/(?:confirm|unsubscribe)(?:\/|$)/i;
 
 /**
  * This is intentionally a deny-list rather than an allow-list: storefront
@@ -8,7 +8,7 @@ const PRIVATE_SURFACE_PATH =
  * since ingestion and staff quality reporting use the same policy.
  */
 export const INVALID_STOREFRONT_PATH_PATTERN =
-  String.raw`(^$)|(^[^/])|(^//)|(^/(api|staff|sign-in|sign-up)(/|$))|(^/journal/preview(/|$))|[?#\s\x00-\x1f\x7f\\]|^.{201,}$`;
+  String.raw`(^$)|(^[^/])|(^//)|(^/(api|staff|sign-in|sign-up)(/|$))|(^/journal/preview(/|$))|(^/newsletter/(confirm|unsubscribe)(/|$))|[?#\s\x00-\x1f\x7f\\]|^.{201,}$`;
 
 const INVALID_STOREFRONT_PATH = new RegExp(INVALID_STOREFRONT_PATH_PATTERN, "i");
 
@@ -20,6 +20,7 @@ export function isPrivateStorefrontPath(path: string): boolean {
 /** Advertising SDKs must never run on payment or customer service surfaces. */
 export function isPrivateAdvertisingPath(path: string): boolean {
   return isPrivateStorefrontPath(path)
+    || /^\/newsletter\/(?:confirm|unsubscribe)(?:\/|$)/i.test(path)
     || /^\/(?:checkout|payment-return|order|orders|measurements|privacy-request)(?:\/|$)/i.test(path);
 }
 

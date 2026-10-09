@@ -11,6 +11,7 @@ import { CategoryFeature } from "@/components/CategoryFeature";
 import { HomeJournalPreview } from "@/components/HomeJournalPreview";
 import { resolveProductMedia, resolveMobileFrames } from "@/lib/homepageProducts";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
+import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
 
 const canonicalCategoryTargets = ["/collections/kaftans", "/collections/agbadas", "/collections/shirts", "/collections/dashikis", "/collections/two-piece"];
 
@@ -125,7 +126,7 @@ export default function Home() {
           return m ? [{ ...raw, imageUrl: m.primary, imageAlt: m.alt, href: m.pdpHref }] : [];
         }).map((item, index) => (
           <Link key={item.title} href={item.href} className="group relative aspect-[4/5] overflow-hidden sm:aspect-[4/3] lg:aspect-[5/4]" data-testid={`home-occasion-${index}`} data-merchandising-value={item.title}>
-            <img src={item.imageUrl} alt={item.imageAlt} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
+            <img src={item.imageUrl} {...responsiveProductPhoto(item.imageUrl, "(max-width: 1023px) 100vw, 50vw")} alt={item.imageAlt} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 z-10 p-8 text-center text-white md:p-12">
               <p className="mb-3 text-[12px] uppercase tracking-[0.2em] text-white/80">{item.body}</p>
@@ -155,8 +156,8 @@ export default function Home() {
     <section className="max-w-[1600px] mx-auto px-4 md:px-6 py-16 md:py-32 grid lg:grid-cols-2 gap-12 lg:gap-24 items-center">
       <div className="relative aspect-[3/4] overflow-hidden bg-muted/20">
         {fitImage && (fitMedia
-          ? <Link href={fitMedia.pdpHref}><img src={fitMedia.primary} alt={fitMedia.alt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" /></Link>
-          : <img src={fitImage.primary} alt={fitImage.alt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />)}
+          ? <Link href={fitMedia.pdpHref}><img src={fitMedia.primary} {...responsiveProductPhoto(fitMedia.primary, "(max-width: 1023px) 100vw, 50vw")} alt={fitMedia.alt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" /></Link>
+          : <img src={fitImage.primary} {...responsiveProductPhoto(fitImage.primary, "(max-width: 1023px) 100vw, 50vw")} alt={fitImage.alt} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" />)}
       </div>
       <div className="lg:pr-12 text-center lg:text-left">
         <p className="text-[11px] uppercase tracking-[.3em] text-secondary mb-5">{homepage.fit.eyebrow}</p>

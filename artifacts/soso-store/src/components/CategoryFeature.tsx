@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
+import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
 
 export function CategoryFeature({
   categoryName, eyebrow, description, images, mobileImages, imageAlt, href, isEven, testId,
@@ -91,8 +92,9 @@ export function CategoryFeature({
         transition: "opacity 1600ms cubic-bezier(0.33, 1, 0.68, 1), transform 1600ms cubic-bezier(0.33, 1, 0.68, 1)",
       }}
     >
-      {sourceFor(index) !== safeImages[index] && <source media="(max-width: 767px)" srcSet={sourceFor(index)} />}
+      {sourceFor(index) !== safeImages[index] && <source media="(max-width: 767px)" srcSet={responsiveProductPhoto(sourceFor(index), "100vw").srcSet ?? sourceFor(index)} sizes="100vw" />}
       <img src={safeImages[index]} alt={active ? imageAlt : ""} aria-hidden={!active || undefined} width={1200} height={1600}
+        {...responsiveProductPhoto(safeImages[index], "(max-width: 767px) 100vw, 50vw")}
         loading="lazy" decoding="async"
         onLoad={() => setLoadedIndexes((loaded) => loaded.includes(index) ? loaded : [...loaded, index])}
         className="h-full w-full object-cover object-[var(--mobile-position)] md:object-[var(--desktop-position)]"

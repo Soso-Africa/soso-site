@@ -1,0 +1,235 @@
+openapi: 3.1.0
+info: { title: SosoMail, version: 1.0.0 }
+paths:
+  /staff/mail/settings:
+    get:
+      operationId: getStaffMailboxSettings
+      tags: [mail]
+      responses:
+        "200":
+          description: Owner sees non-secret settings; administrator sees status only. Password is never returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [configured, version, tested, enabled, newsletterEnabled, hasPassword]
+                properties:
+                  configured: { type: boolean }
+                  version: { type: number, multipleOf: 1 }
+                  tested: { type: boolean }
+                  enabled: { type: boolean }
+                  newsletterEnabled: { type: boolean }
+                  hasPassword: { type: boolean }
+                  settings: { $ref: "#/components/schemas/StaffMailboxConfiguration" }
+    put:
+      operationId: saveStaffMailboxSettings
+      tags: [mail]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailboxSettingsWrite"
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/mail/test:
+    post:
+      operationId: testStaffMailboxConnection
+      tags: [mail]
+      description: Owner-only SMTP and IMAP authentication check. Sends no email. Test is bound to the saved settings version.
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/mail/messages:
+    get:
+      operationId: listStaffMailboxMessages
+      tags: [mail]
+      parameters:
+        - { name: folder, in: query, schema: { type: string, enum: [inbox, sent], default: inbox } }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/mail/messages/{uid}:
+    get:
+      operationId: readStaffMailboxMessage
+      tags: [mail]
+      description: Bounded plaintext preview; no remote HTML, images or attachment downloads. Does not mark messages read.
+      parameters:
+        - { name: uid, in: path, required: true, schema: { type: number, multipleOf: 1, minimum: 1 } }
+        - { name: uidValidity, in: query, required: true, schema: { type: string, pattern: '^\d+$' } }
+        - { name: folder, in: query, schema: { type: string, enum: [inbox, sent], default: inbox } }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/mail/send:
+    post:
+      operationId: sendStaffMailboxMessage
+      tags: [mail]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MailboxMessageInput"
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/mail/history:
+    get:
+      operationId: listStaffMailboxSendHistory
+      tags: [mail]
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/subscribers:
+    get:
+      operationId: listStaffNewsletterSubscribers
+      tags: [mail]
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [all, pending, confirmed, unsubscribed], default: all } }
+        - { name: before, in: query, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/subscribers/{id}/confirmation:
+    post:
+      operationId: resendStaffNewsletterConfirmation
+      tags: [mail]
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/subscribers/{id}/unsubscribe:
+    post:
+      operationId: unsubscribeStaffNewsletterSubscriber
+      tags: [mail]
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/campaigns:
+    get:
+      operationId: listStaffNewsletterCampaigns
+      tags: [mail]
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+    post:
+      operationId: createStaffNewsletterCampaign
+      tags: [mail]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewsletterCampaignInput"
+      responses: { "201": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/campaigns/{id}/send:
+    post:
+      operationId: sendStaffNewsletterCampaignBatch
+      tags: [mail]
+      description: Explicit batch of up to three currently confirmed subscribers. Durable reservations and hourly allowance prevent duplicate sends. No background auto-retries.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /newsletter/status:
+    get:
+      operationId: getNewsletterSignupStatus
+      tags: [mail]
+      responses:
+        "200":
+          description: Whether signup can currently send a confirmation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available]
+                properties: { available: { type: boolean } }
+  /newsletter/subscribe:
+    post:
+      operationId: requestNewsletterSubscription
+      tags: [mail]
+      description: Explicit consent, separate from accounts, purchases, accessory alerts and analytics. Uniform response does not enumerate addresses. Double opt-in required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewsletterSignupInput"
+      responses: { "202": { $ref: "#/components/responses/MailResult" } }
+  /newsletter/confirm:
+    post:
+      operationId: confirmNewsletterSubscription
+      tags: [mail]
+      requestBody: { $ref: "#/components/requestBodies/NewsletterToken" }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /newsletter/unsubscribe:
+    post:
+      operationId: unsubscribeNewsletterSubscription
+      tags: [mail]
+      requestBody: { $ref: "#/components/requestBodies/NewsletterToken" }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+components:
+  schemas:
+    MailIdentifier:
+      type: string
+      pattern: '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$'
+    MailboxEmail:
+      type: string
+      maxLength: 254
+      pattern: '^[^\s@]+@[^\s@]+\.[^\s@]+$'
+    MailboxSettingsWrite:
+      allOf:
+        - { $ref: "#/components/schemas/StaffMailboxConfiguration" }
+        - type: object
+          required: [expectedVersion]
+          properties:
+            expectedVersion: { type: number, multipleOf: 1, minimum: 0 }
+            password: { type: string, minLength: 1, maxLength: 1024, writeOnly: true, description: Omit to keep the existing password. }
+    MailboxMessageInput:
+      type: object
+      required: [idempotencyKey, to, subject, text]
+      additionalProperties: false
+      properties:
+        idempotencyKey: { $ref: "#/components/schemas/MailIdentifier" }
+        to: { $ref: "#/components/schemas/MailboxEmail" }
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        text: { type: string, minLength: 1, maxLength: 24000 }
+        reply:
+          type: object
+          required: [uid, uidValidity, folder]
+          properties:
+            uid: { type: number, multipleOf: 1, minimum: 1 }
+            uidValidity: { type: string, pattern: '^\d+$' }
+            folder: { type: string, enum: [inbox, sent] }
+    NewsletterCampaignInput:
+      type: object
+      required: [subject, text]
+      additionalProperties: false
+      properties:
+        subject: { type: string, minLength: 1, maxLength: 200 }
+        text: { type: string, minLength: 1, maxLength: 24000 }
+    NewsletterSignupInput:
+      type: object
+      required: [email, consent]
+      additionalProperties: false
+      properties:
+        email: { $ref: "#/components/schemas/MailboxEmail" }
+        consent: { type: boolean, enum: [true] }
+        website: { type: string, maxLength: 200, default: "" }
+    NewsletterLinkInput:
+      type: object
+      required: [token]
+      additionalProperties: false
+      properties: { token: { type: string, maxLength: 100 } }
+    StaffMailboxConfiguration:
+      type: object
+      required: [smtpHost, smtpPort, imapHost, imapPort, username, fromName, publicOrigin, enabled, newsletterEnabled, policyConfirmed, hourlyLimit]
+      properties:
+        smtpHost: { type: string, minLength: 4, maxLength: 253 }
+        smtpPort: { type: number, enum: [465, 587] }
+        imapHost: { type: string, minLength: 4, maxLength: 253 }
+        imapPort: { type: number, enum: [993] }
+        username: { $ref: "#/components/schemas/MailboxEmail" }
+        fromName: { type: string, minLength: 1, maxLength: 100 }
+        publicOrigin: { type: string, pattern: '^https://[^/?#]+/?$', description: HTTPS storefront origin without a path. }
+        enabled: { type: boolean }
+        newsletterEnabled: { type: boolean }
+        policyConfirmed: { type: boolean }
+        hourlyLimit: { type: number, multipleOf: 1, minimum: 0, maximum: 10000 }
+  requestBodies:
+    NewsletterToken:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/NewsletterLinkInput"
+  responses:
+    MailResult:
+      description: Operation result or bounded data. No passwords or raw credential errors.
+      content:
+        application/json:
+          schema: { type: object, additionalProperties: true }

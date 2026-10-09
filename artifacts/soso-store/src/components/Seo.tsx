@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { normalizeStorefrontTitle } from "@workspace/api-client-react";
 import { usePlatformContent, type CatalogProduct, type PlatformContent } from "@/data/platformContent";
 import { buildProductStructuredData } from "@/lib/product-schema";
 import { absoluteUrl, indexingEnabled, siteUrl, socialImageUrl } from "@/lib/seo";
@@ -119,6 +120,7 @@ export function Seo({
 }: SeoProps) {
   const { data } = usePlatformContent();
   const site = data?.content.site;
+  title = normalizeStorefrontTitle(title);
 
   useEffect(() => {
     const pageIsIndexable = Boolean(siteUrl && indexingEnabled && !noIndex);

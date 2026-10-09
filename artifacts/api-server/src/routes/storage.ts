@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { responsivePhotoDelivery, RESPONSIVE_PHOTO_WIDTHS } from "../lib/responsive-media";
 import {
   FinalizeStorageUploadBody,
   FinalizeStorageUploadResponse,
@@ -140,6 +141,12 @@ router.post(
 
 router.get("/storage/objects/*path", async (req: Request, res: Response): Promise<void> => {
   try {
+    const width = req.query.w === undefined ? undefined : Number(req.query.w);
+    if (width !== undefined && (typeof req.query.w !== "string"
+      || !(RESPONSIVE_PHOTO_WIDTHS as readonly number[]).includes(width))) {
+      res.status(400).json({ error: "Unsupported photo width" });
+      return;
+    }
     const raw = req.params.path;
     const relativePath = Array.isArray(raw) ? raw.join("/") : raw;
     const inspected = await storage.inspectUploadedMedia(relativePath);
@@ -149,7 +156,8 @@ router.get("/storage/objects/*path", async (req: Request, res: Response): Promis
       return;
     }
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.redirect(302, storage.uploadedDeliveryUrl(relativePath));
+    const original = storage.uploadedDeliveryUrl(relativePath);
+    res.redirect(302, width === undefined ? original : responsivePhotoDelivery(original, width));
   } catch (error) {
     if (error instanceof MediaNotFoundError) {
       res.status(404).json({ error: "Object not found" });

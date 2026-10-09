@@ -8,6 +8,273 @@
 import * as zod from 'zod';
 
 
+export const getStaffMailboxSettingsResponseVersionMultipleOf = 1;
+
+export const getStaffMailboxSettingsResponseSettingsSmtpHostMin = 4;
+export const getStaffMailboxSettingsResponseSettingsSmtpHostMax = 253;
+
+export const getStaffMailboxSettingsResponseSettingsImapHostMin = 4;
+export const getStaffMailboxSettingsResponseSettingsImapHostMax = 253;
+
+export const getStaffMailboxSettingsResponseSettingsUsernameMax = 254;
+
+
+export const getStaffMailboxSettingsResponseSettingsUsernameRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+export const getStaffMailboxSettingsResponseSettingsFromNameMax = 100;
+
+export const getStaffMailboxSettingsResponseSettingsPublicOriginRegExp = new RegExp('^https://[^/?#]+/?$');
+export const getStaffMailboxSettingsResponseSettingsHourlyLimitMin = 0;
+export const getStaffMailboxSettingsResponseSettingsHourlyLimitMax = 10000;
+export const getStaffMailboxSettingsResponseSettingsHourlyLimitMultipleOf = 1;
+
+
+
+export const GetStaffMailboxSettingsResponse = zod.object({
+  "configured": zod.boolean(),
+  "version": zod.number().multipleOf(getStaffMailboxSettingsResponseVersionMultipleOf),
+  "tested": zod.boolean(),
+  "enabled": zod.boolean(),
+  "newsletterEnabled": zod.boolean(),
+  "hasPassword": zod.boolean(),
+  "settings": zod.object({
+  "smtpHost": zod.string().min(getStaffMailboxSettingsResponseSettingsSmtpHostMin).max(getStaffMailboxSettingsResponseSettingsSmtpHostMax),
+  "smtpPort": zod.union([zod.literal(465),zod.literal(587)]),
+  "imapHost": zod.string().min(getStaffMailboxSettingsResponseSettingsImapHostMin).max(getStaffMailboxSettingsResponseSettingsImapHostMax),
+  "imapPort": zod.literal(993),
+  "username": zod.string().max(getStaffMailboxSettingsResponseSettingsUsernameMax).regex(getStaffMailboxSettingsResponseSettingsUsernameRegExp),
+  "fromName": zod.string().min(1).max(getStaffMailboxSettingsResponseSettingsFromNameMax),
+  "publicOrigin": zod.string().regex(getStaffMailboxSettingsResponseSettingsPublicOriginRegExp).describe('HTTPS storefront origin without a path.'),
+  "enabled": zod.boolean(),
+  "newsletterEnabled": zod.boolean(),
+  "policyConfirmed": zod.boolean(),
+  "hourlyLimit": zod.number().min(getStaffMailboxSettingsResponseSettingsHourlyLimitMin).max(getStaffMailboxSettingsResponseSettingsHourlyLimitMax).multipleOf(getStaffMailboxSettingsResponseSettingsHourlyLimitMultipleOf)
+}).optional()
+})
+
+
+export const saveStaffMailboxSettingsBodyOneSmtpHostMin = 4;
+export const saveStaffMailboxSettingsBodyOneSmtpHostMax = 253;
+
+export const saveStaffMailboxSettingsBodyOneImapHostMin = 4;
+export const saveStaffMailboxSettingsBodyOneImapHostMax = 253;
+
+export const saveStaffMailboxSettingsBodyOneUsernameMax = 254;
+
+
+export const saveStaffMailboxSettingsBodyOneUsernameRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+export const saveStaffMailboxSettingsBodyOneFromNameMax = 100;
+
+export const saveStaffMailboxSettingsBodyOnePublicOriginRegExp = new RegExp('^https://[^/?#]+/?$');
+export const saveStaffMailboxSettingsBodyOneHourlyLimitMin = 0;
+export const saveStaffMailboxSettingsBodyOneHourlyLimitMax = 10000;
+export const saveStaffMailboxSettingsBodyOneHourlyLimitMultipleOf = 1;
+
+export const saveStaffMailboxSettingsBodyTwoExpectedVersionMin = 0;
+export const saveStaffMailboxSettingsBodyTwoExpectedVersionMultipleOf = 1;
+
+export const saveStaffMailboxSettingsBodyTwoPasswordMax = 1024;
+
+
+
+export const SaveStaffMailboxSettingsBody = zod.object({
+  "smtpHost": zod.string().min(saveStaffMailboxSettingsBodyOneSmtpHostMin).max(saveStaffMailboxSettingsBodyOneSmtpHostMax),
+  "smtpPort": zod.union([zod.literal(465),zod.literal(587)]),
+  "imapHost": zod.string().min(saveStaffMailboxSettingsBodyOneImapHostMin).max(saveStaffMailboxSettingsBodyOneImapHostMax),
+  "imapPort": zod.literal(993),
+  "username": zod.string().max(saveStaffMailboxSettingsBodyOneUsernameMax).regex(saveStaffMailboxSettingsBodyOneUsernameRegExp),
+  "fromName": zod.string().min(1).max(saveStaffMailboxSettingsBodyOneFromNameMax),
+  "publicOrigin": zod.string().regex(saveStaffMailboxSettingsBodyOnePublicOriginRegExp).describe('HTTPS storefront origin without a path.'),
+  "enabled": zod.boolean(),
+  "newsletterEnabled": zod.boolean(),
+  "policyConfirmed": zod.boolean(),
+  "hourlyLimit": zod.number().min(saveStaffMailboxSettingsBodyOneHourlyLimitMin).max(saveStaffMailboxSettingsBodyOneHourlyLimitMax).multipleOf(saveStaffMailboxSettingsBodyOneHourlyLimitMultipleOf)
+}).and(zod.object({
+  "expectedVersion": zod.number().min(saveStaffMailboxSettingsBodyTwoExpectedVersionMin).multipleOf(saveStaffMailboxSettingsBodyTwoExpectedVersionMultipleOf),
+  "password": zod.string().min(1).max(saveStaffMailboxSettingsBodyTwoPasswordMax).optional().describe('Omit to keep the existing password.')
+}))
+
+export const SaveStaffMailboxSettingsResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * Owner-only SMTP and IMAP authentication check. Sends no email. Test is bound to the saved settings version.
+ */
+export const TestStaffMailboxConnectionResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const listStaffMailboxMessagesQueryFolderDefault = `inbox`;
+
+export const ListStaffMailboxMessagesQueryParams = zod.object({
+  "folder": zod.enum(['inbox', 'sent']).default(listStaffMailboxMessagesQueryFolderDefault)
+})
+
+export const ListStaffMailboxMessagesResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * Bounded plaintext preview; no remote HTML, images or attachment downloads. Does not mark messages read.
+ */
+export const readStaffMailboxMessagePathUidMultipleOf = 1;
+
+
+
+export const ReadStaffMailboxMessageParams = zod.object({
+  "uid": zod.coerce.number().min(1).multipleOf(readStaffMailboxMessagePathUidMultipleOf)
+})
+
+export const readStaffMailboxMessageQueryUidValidityRegExp = new RegExp('^\\d+$');
+export const readStaffMailboxMessageQueryFolderDefault = `inbox`;
+
+export const ReadStaffMailboxMessageQueryParams = zod.object({
+  "uidValidity": zod.coerce.string().regex(readStaffMailboxMessageQueryUidValidityRegExp),
+  "folder": zod.enum(['inbox', 'sent']).default(readStaffMailboxMessageQueryFolderDefault)
+})
+
+export const ReadStaffMailboxMessageResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const sendStaffMailboxMessageBodyIdempotencyKeyRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+export const sendStaffMailboxMessageBodyToMax = 254;
+
+
+export const sendStaffMailboxMessageBodyToRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+export const sendStaffMailboxMessageBodySubjectMax = 200;
+
+export const sendStaffMailboxMessageBodyTextMax = 24000;
+
+export const sendStaffMailboxMessageBodyReplyUidMultipleOf = 1;
+
+export const sendStaffMailboxMessageBodyReplyUidValidityRegExp = new RegExp('^\\d+$');
+
+
+export const SendStaffMailboxMessageBody = zod.object({
+  "idempotencyKey": zod.string().regex(sendStaffMailboxMessageBodyIdempotencyKeyRegExp),
+  "to": zod.string().max(sendStaffMailboxMessageBodyToMax).regex(sendStaffMailboxMessageBodyToRegExp),
+  "subject": zod.string().min(1).max(sendStaffMailboxMessageBodySubjectMax),
+  "text": zod.string().min(1).max(sendStaffMailboxMessageBodyTextMax),
+  "reply": zod.object({
+  "uid": zod.number().min(1).multipleOf(sendStaffMailboxMessageBodyReplyUidMultipleOf),
+  "uidValidity": zod.string().regex(sendStaffMailboxMessageBodyReplyUidValidityRegExp),
+  "folder": zod.enum(['inbox', 'sent'])
+}).optional()
+})
+
+export const SendStaffMailboxMessageResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListStaffMailboxSendHistoryResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const listStaffNewsletterSubscribersQueryStatusDefault = `all`;
+export const listStaffNewsletterSubscribersQueryBeforeRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const ListStaffNewsletterSubscribersQueryParams = zod.object({
+  "status": zod.enum(['all', 'pending', 'confirmed', 'unsubscribed']).default(listStaffNewsletterSubscribersQueryStatusDefault),
+  "before": zod.coerce.string().regex(listStaffNewsletterSubscribersQueryBeforeRegExp).optional()
+})
+
+export const ListStaffNewsletterSubscribersResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const resendStaffNewsletterConfirmationPathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const ResendStaffNewsletterConfirmationParams = zod.object({
+  "id": zod.coerce.string().regex(resendStaffNewsletterConfirmationPathIdRegExp)
+})
+
+export const ResendStaffNewsletterConfirmationResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const unsubscribeStaffNewsletterSubscriberPathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const UnsubscribeStaffNewsletterSubscriberParams = zod.object({
+  "id": zod.coerce.string().regex(unsubscribeStaffNewsletterSubscriberPathIdRegExp)
+})
+
+export const UnsubscribeStaffNewsletterSubscriberResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const ListStaffNewsletterCampaignsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const createStaffNewsletterCampaignBodySubjectMax = 200;
+
+export const createStaffNewsletterCampaignBodyTextMax = 24000;
+
+
+
+export const CreateStaffNewsletterCampaignBody = zod.object({
+  "subject": zod.string().min(1).max(createStaffNewsletterCampaignBodySubjectMax),
+  "text": zod.string().min(1).max(createStaffNewsletterCampaignBodyTextMax)
+})
+
+export const CreateStaffNewsletterCampaignResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * Explicit batch of up to three currently confirmed subscribers. Durable reservations and hourly allowance prevent duplicate sends. No background auto-retries.
+ */
+export const sendStaffNewsletterCampaignBatchPathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const SendStaffNewsletterCampaignBatchParams = zod.object({
+  "id": zod.coerce.string().regex(sendStaffNewsletterCampaignBatchPathIdRegExp)
+})
+
+export const SendStaffNewsletterCampaignBatchResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const GetNewsletterSignupStatusResponse = zod.object({
+  "available": zod.boolean()
+})
+
+
+/**
+ * Explicit consent, separate from accounts, purchases, accessory alerts and analytics. Uniform response does not enumerate addresses. Double opt-in required.
+ */
+export const requestNewsletterSubscriptionBodyEmailMax = 254;
+
+
+export const requestNewsletterSubscriptionBodyEmailRegExp = new RegExp('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$');
+export const requestNewsletterSubscriptionBodyWebsiteDefault = ``;
+export const requestNewsletterSubscriptionBodyWebsiteMax = 200;
+
+
+
+export const RequestNewsletterSubscriptionBody = zod.object({
+  "email": zod.string().max(requestNewsletterSubscriptionBodyEmailMax).regex(requestNewsletterSubscriptionBodyEmailRegExp),
+  "consent": zod.literal(true),
+  "website": zod.string().max(requestNewsletterSubscriptionBodyWebsiteMax).default(requestNewsletterSubscriptionBodyWebsiteDefault)
+})
+
+export const RequestNewsletterSubscriptionResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const confirmNewsletterSubscriptionBodyTokenMax = 100;
+
+
+
+export const ConfirmNewsletterSubscriptionBody = zod.object({
+  "token": zod.string().max(confirmNewsletterSubscriptionBodyTokenMax)
+})
+
+export const ConfirmNewsletterSubscriptionResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const unsubscribeNewsletterSubscriptionBodyTokenMax = 100;
+
+
+
+export const UnsubscribeNewsletterSubscriptionBody = zod.object({
+  "token": zod.string().max(unsubscribeNewsletterSubscriptionBodyTokenMax)
+})
+
+export const UnsubscribeNewsletterSubscriptionResponse = zod.record(zod.string(), zod.unknown())
+
+
 /**
  * @summary Estimate browsing prices in local currency; never changes NGN checkout
  */
@@ -3467,6 +3734,10 @@ export const RetryPendingMediaCleanupResponse = zod.object({
  */
 export const GetStorageObjectParams = zod.object({
   "objectPath": zod.coerce.string()
+})
+
+export const GetStorageObjectQueryParams = zod.object({
+  "w": zod.union([zod.literal(480),zod.literal(768),zod.literal(1280),zod.literal(1600)]).optional().describe('Optional non-cropping photo delivery width. Omit for the original full-resolution asset.')
 })
 
 export const GetStorageObjectResponse = zod.unknown()

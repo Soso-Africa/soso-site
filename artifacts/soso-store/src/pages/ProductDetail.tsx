@@ -8,6 +8,8 @@ import { StylistEnquiryDialog } from "@/components/StylistEnquiryDialog";
 import { editorialOrigin, trackStorefrontEvent } from "@/components/ConsentManager";
 import { catalogApproved } from "@/lib/seo";
 import { PlatformContentState, usePlatformContent } from "@/data/platformContent";
+import { productReturnHref, returnToProductOrigin } from "@/lib/storefront-navigation";
+import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
 import { ProductCard } from "@/components/ProductCard";
 import useEmblaCarousel from "embla-carousel-react";
 import { ChevronLeft, ChevronRight, ChevronDown, ZoomIn, ZoomOut } from "lucide-react";
@@ -38,6 +40,7 @@ function FallbackGallery({
             <div key={i} className="flex-[0_0_100%] min-w-0 relative overflow-hidden">
                 <img
                   src={g.src}
+                  {...(zoomed ? {} : responsiveProductPhoto(g.src, "(max-width: 767px) 100vw, 80vw"))}
                   alt={g.label}
                   className="w-full aspect-[2/3] object-contain transition-transform duration-500"
                   style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)" }}
@@ -122,9 +125,9 @@ export default function ProductDetail() {
   const [returnToResults] = useState(() => {
     try {
       const stored = window.sessionStorage.getItem("soso-return-to");
-      return stored?.startsWith("/shop") ? stored : "/shop";
+      return productReturnHref(stored?.startsWith("/shop") ? stored : "/shop");
     } catch {
-      return "/shop";
+      return productReturnHref();
     }
   });
 
@@ -314,6 +317,10 @@ export default function ProductDetail() {
           </nav>
           <Link
             href={returnToResults}
+            onClick={(event) => {
+              if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
+                && returnToProductOrigin()) event.preventDefault();
+            }}
             className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-widest text-foreground font-medium hover:underline"
             data-testid="link-return-to-results"
           >
