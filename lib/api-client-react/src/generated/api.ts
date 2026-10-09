@@ -36,9 +36,11 @@ import type {
   CommerceQuoteInput,
   CommerceWebhookInput,
   CommerceWebhookReceipt,
+  ConfirmNewsletterSubscription200,
   ConsentInput,
   ConsentRecord,
   ConsentRegionDecision,
+  CreateStaffNewsletterCampaign201,
   CustomerMeasurement,
   CustomerMeasurementInput,
   CustomerMeasurements,
@@ -50,24 +52,39 @@ import type {
   FinalizeUploadRequest,
   FinalizeUploadResponse,
   GetCommerceDiscoveryParams,
+  GetNewsletterSignupStatus200,
   GetRedirectParams,
   GetSiteContent200,
   GetStaffAccessoryLaunchNotificationSummaryParams,
   GetStaffAnalyticsMetricsParams,
   GetStaffExportParams,
   GetStaffFunnelParams,
+  GetStaffMailboxSettings200,
   GetStaffOverviewParams,
+  GetStorageObjectParams,
   HealthStatus,
   JournalPost,
   ListStaffAuditEventsParams,
   ListStaffFaqHistoryParams,
+  ListStaffMailboxMessages200,
+  ListStaffMailboxMessagesParams,
+  ListStaffMailboxSendHistory200,
+  ListStaffNewsletterCampaigns200,
+  ListStaffNewsletterSubscribers200,
+  ListStaffNewsletterSubscribersParams,
   ListStaffOrdersParams,
   ListStaffPolicyHistory200Item,
   ListStaffRedirectHistory200Item,
+  MailIdentifier,
+  MailboxMessageInput,
+  MailboxSettingsWrite,
   ManagedMediaCleanupItem,
   ManagedMediaCleanupSummary,
   MarketingPixelSettingsRevision,
   MarketingPixelSettingsUpdate,
+  NewsletterCampaignInput,
+  NewsletterLinkInput,
+  NewsletterSignupInput,
   PlatformContentPublication,
   PlatformContentRevision,
   PlatformContentUpdate,
@@ -81,7 +98,14 @@ import type {
   PublicMarketingPixelSettings,
   PublishedPlatformContent,
   PurchaseConversionConsent,
+  ReadStaffMailboxMessage200,
+  ReadStaffMailboxMessageParams,
   RedirectLookup,
+  RequestNewsletterSubscription202,
+  ResendStaffNewsletterConfirmation200,
+  SaveStaffMailboxSettings200,
+  SendStaffMailboxMessage200,
+  SendStaffNewsletterCampaignBatch200,
   StaffAccessInput,
   StaffAccessMapping,
   StaffAccessUpdate,
@@ -115,6 +139,9 @@ import type {
   StaffRedirect,
   StaffRedirectInput,
   StaffRedirectPublicationInput,
+  TestStaffMailboxConnection200,
+  UnsubscribeNewsletterSubscription200,
+  UnsubscribeStaffNewsletterSubscriber200,
   UploadUrlRequest,
   UploadUrlResponse,
   VerifiedPurchaseReceipt
@@ -146,6 +173,1191 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetStaffMailboxSettingsUrl = () => {
+
+
+
+
+  return `/api/staff/mail/settings`
+}
+
+export const getStaffMailboxSettings = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetStaffMailboxSettings200> => {
+
+  return customFetch<GetStaffMailboxSettings200>(getGetStaffMailboxSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffMailboxSettingsQueryKey = () => {
+    return [
+    `/api/staff/mail/settings`
+    ] as const;
+    }
+
+
+export const getGetStaffMailboxSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getStaffMailboxSettings>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffMailboxSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffMailboxSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffMailboxSettings>>> = ({ signal }) => getStaffMailboxSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffMailboxSettings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffMailboxSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffMailboxSettings>>>
+export type GetStaffMailboxSettingsQueryError = ErrorType<unknown>
+
+
+
+export function useGetStaffMailboxSettings<TData = Awaited<ReturnType<typeof getStaffMailboxSettings>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffMailboxSettings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffMailboxSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveStaffMailboxSettingsUrl = () => {
+
+
+
+
+  return `/api/staff/mail/settings`
+}
+
+export const saveStaffMailboxSettings = async (mailboxSettingsWrite: MailboxSettingsWrite, options?: Parameters<typeof customFetch>[1]): Promise<SaveStaffMailboxSettings200> => {
+
+  return customFetch<SaveStaffMailboxSettings200>(getSaveStaffMailboxSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mailboxSettingsWrite)
+  }
+);}
+
+
+
+
+
+export const getSaveStaffMailboxSettingsMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveStaffMailboxSettings>>, TError,{data: BodyType<MailboxSettingsWrite>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveStaffMailboxSettings>>, TError,{data: BodyType<MailboxSettingsWrite>}, TContext> => {
+
+const mutationKey = ['saveStaffMailboxSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveStaffMailboxSettings>>, {data: BodyType<MailboxSettingsWrite>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveStaffMailboxSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveStaffMailboxSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof saveStaffMailboxSettings>>>
+    export type SaveStaffMailboxSettingsMutationBody = BodyType<MailboxSettingsWrite>
+    export type SaveStaffMailboxSettingsMutationError = ErrorType<unknown>
+
+    export const useSaveStaffMailboxSettings = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveStaffMailboxSettings>>, TError,{data: BodyType<MailboxSettingsWrite>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveStaffMailboxSettings>>,
+        TError,
+        {data: BodyType<MailboxSettingsWrite>},
+        TContext
+      > => {
+      return useMutation(getSaveStaffMailboxSettingsMutationOptions(options));
+    }
+
+export const getTestStaffMailboxConnectionUrl = () => {
+
+
+
+
+  return `/api/staff/mail/test`
+}
+
+/**
+ * Owner-only SMTP and IMAP authentication check. Sends no email. Test is bound to the saved settings version.
+ */
+export const testStaffMailboxConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<TestStaffMailboxConnection200> => {
+
+  return customFetch<TestStaffMailboxConnection200>(getTestStaffMailboxConnectionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getTestStaffMailboxConnectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testStaffMailboxConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof testStaffMailboxConnection>>, TError,void, TContext> => {
+
+const mutationKey = ['testStaffMailboxConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof testStaffMailboxConnection>>, void> = () => {
+
+
+          return  testStaffMailboxConnection(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TestStaffMailboxConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof testStaffMailboxConnection>>>
+
+    export type TestStaffMailboxConnectionMutationError = ErrorType<unknown>
+
+    export const useTestStaffMailboxConnection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof testStaffMailboxConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof testStaffMailboxConnection>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getTestStaffMailboxConnectionMutationOptions(options));
+    }
+
+export const getListStaffMailboxMessagesUrl = (params?: ListStaffMailboxMessagesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/mail/messages?${stringifiedParams}` : `/api/staff/mail/messages`
+}
+
+export const listStaffMailboxMessages = async (params?: ListStaffMailboxMessagesParams, options?: Parameters<typeof customFetch>[1]): Promise<ListStaffMailboxMessages200> => {
+
+  return customFetch<ListStaffMailboxMessages200>(getListStaffMailboxMessagesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffMailboxMessagesQueryKey = (params?: ListStaffMailboxMessagesParams,) => {
+    return [
+    `/api/staff/mail/messages`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListStaffMailboxMessagesQueryOptions = <TData = Awaited<ReturnType<typeof listStaffMailboxMessages>>, TError = ErrorType<unknown>>(params?: ListStaffMailboxMessagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffMailboxMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffMailboxMessagesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffMailboxMessages>>> = ({ signal }) => listStaffMailboxMessages(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffMailboxMessages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffMailboxMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffMailboxMessages>>>
+export type ListStaffMailboxMessagesQueryError = ErrorType<unknown>
+
+
+
+export function useListStaffMailboxMessages<TData = Awaited<ReturnType<typeof listStaffMailboxMessages>>, TError = ErrorType<unknown>>(
+ params?: ListStaffMailboxMessagesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffMailboxMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffMailboxMessagesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getReadStaffMailboxMessageUrl = (uid: number,
+    params: ReadStaffMailboxMessageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/mail/messages/${uid}?${stringifiedParams}` : `/api/staff/mail/messages/${uid}`
+}
+
+/**
+ * Bounded plaintext preview; no remote HTML, images or attachment downloads. Does not mark messages read.
+ */
+export const readStaffMailboxMessage = async (uid: number,
+    params: ReadStaffMailboxMessageParams, options?: Parameters<typeof customFetch>[1]): Promise<ReadStaffMailboxMessage200> => {
+
+  return customFetch<ReadStaffMailboxMessage200>(getReadStaffMailboxMessageUrl(uid,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getReadStaffMailboxMessageQueryKey = (uid: number,
+    params?: ReadStaffMailboxMessageParams,) => {
+    return [
+    `/api/staff/mail/messages/${uid}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getReadStaffMailboxMessageQueryOptions = <TData = Awaited<ReturnType<typeof readStaffMailboxMessage>>, TError = ErrorType<unknown>>(uid: number,
+    params: ReadStaffMailboxMessageParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof readStaffMailboxMessage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getReadStaffMailboxMessageQueryKey(uid,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof readStaffMailboxMessage>>> = ({ signal }) => readStaffMailboxMessage(uid,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: uid !== null && uid !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof readStaffMailboxMessage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ReadStaffMailboxMessageQueryResult = NonNullable<Awaited<ReturnType<typeof readStaffMailboxMessage>>>
+export type ReadStaffMailboxMessageQueryError = ErrorType<unknown>
+
+
+
+export function useReadStaffMailboxMessage<TData = Awaited<ReturnType<typeof readStaffMailboxMessage>>, TError = ErrorType<unknown>>(
+ uid: number,
+    params: ReadStaffMailboxMessageParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof readStaffMailboxMessage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getReadStaffMailboxMessageQueryOptions(uid,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSendStaffMailboxMessageUrl = () => {
+
+
+
+
+  return `/api/staff/mail/send`
+}
+
+export const sendStaffMailboxMessage = async (mailboxMessageInput: MailboxMessageInput, options?: Parameters<typeof customFetch>[1]): Promise<SendStaffMailboxMessage200> => {
+
+  return customFetch<SendStaffMailboxMessage200>(getSendStaffMailboxMessageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(mailboxMessageInput)
+  }
+);}
+
+
+
+
+
+export const getSendStaffMailboxMessageMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendStaffMailboxMessage>>, TError,{data: BodyType<MailboxMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendStaffMailboxMessage>>, TError,{data: BodyType<MailboxMessageInput>}, TContext> => {
+
+const mutationKey = ['sendStaffMailboxMessage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendStaffMailboxMessage>>, {data: BodyType<MailboxMessageInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendStaffMailboxMessage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendStaffMailboxMessageMutationResult = NonNullable<Awaited<ReturnType<typeof sendStaffMailboxMessage>>>
+    export type SendStaffMailboxMessageMutationBody = BodyType<MailboxMessageInput>
+    export type SendStaffMailboxMessageMutationError = ErrorType<unknown>
+
+    export const useSendStaffMailboxMessage = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendStaffMailboxMessage>>, TError,{data: BodyType<MailboxMessageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendStaffMailboxMessage>>,
+        TError,
+        {data: BodyType<MailboxMessageInput>},
+        TContext
+      > => {
+      return useMutation(getSendStaffMailboxMessageMutationOptions(options));
+    }
+
+export const getListStaffMailboxSendHistoryUrl = () => {
+
+
+
+
+  return `/api/staff/mail/history`
+}
+
+export const listStaffMailboxSendHistory = async ( options?: Parameters<typeof customFetch>[1]): Promise<ListStaffMailboxSendHistory200> => {
+
+  return customFetch<ListStaffMailboxSendHistory200>(getListStaffMailboxSendHistoryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffMailboxSendHistoryQueryKey = () => {
+    return [
+    `/api/staff/mail/history`
+    ] as const;
+    }
+
+
+export const getListStaffMailboxSendHistoryQueryOptions = <TData = Awaited<ReturnType<typeof listStaffMailboxSendHistory>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffMailboxSendHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffMailboxSendHistoryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffMailboxSendHistory>>> = ({ signal }) => listStaffMailboxSendHistory({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffMailboxSendHistory>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffMailboxSendHistoryQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffMailboxSendHistory>>>
+export type ListStaffMailboxSendHistoryQueryError = ErrorType<unknown>
+
+
+
+export function useListStaffMailboxSendHistory<TData = Awaited<ReturnType<typeof listStaffMailboxSendHistory>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffMailboxSendHistory>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffMailboxSendHistoryQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStaffNewsletterSubscribersUrl = (params?: ListStaffNewsletterSubscribersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/newsletter/subscribers?${stringifiedParams}` : `/api/staff/newsletter/subscribers`
+}
+
+export const listStaffNewsletterSubscribers = async (params?: ListStaffNewsletterSubscribersParams, options?: Parameters<typeof customFetch>[1]): Promise<ListStaffNewsletterSubscribers200> => {
+
+  return customFetch<ListStaffNewsletterSubscribers200>(getListStaffNewsletterSubscribersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffNewsletterSubscribersQueryKey = (params?: ListStaffNewsletterSubscribersParams,) => {
+    return [
+    `/api/staff/newsletter/subscribers`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListStaffNewsletterSubscribersQueryOptions = <TData = Awaited<ReturnType<typeof listStaffNewsletterSubscribers>>, TError = ErrorType<unknown>>(params?: ListStaffNewsletterSubscribersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterSubscribers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffNewsletterSubscribersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffNewsletterSubscribers>>> = ({ signal }) => listStaffNewsletterSubscribers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterSubscribers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffNewsletterSubscribersQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffNewsletterSubscribers>>>
+export type ListStaffNewsletterSubscribersQueryError = ErrorType<unknown>
+
+
+
+export function useListStaffNewsletterSubscribers<TData = Awaited<ReturnType<typeof listStaffNewsletterSubscribers>>, TError = ErrorType<unknown>>(
+ params?: ListStaffNewsletterSubscribersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterSubscribers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffNewsletterSubscribersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getResendStaffNewsletterConfirmationUrl = (id: MailIdentifier,) => {
+
+
+
+
+  return `/api/staff/newsletter/subscribers/${id}/confirmation`
+}
+
+export const resendStaffNewsletterConfirmation = async (id: MailIdentifier, options?: Parameters<typeof customFetch>[1]): Promise<ResendStaffNewsletterConfirmation200> => {
+
+  return customFetch<ResendStaffNewsletterConfirmation200>(getResendStaffNewsletterConfirmationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResendStaffNewsletterConfirmationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendStaffNewsletterConfirmation>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendStaffNewsletterConfirmation>>, TError,{id: MailIdentifier}, TContext> => {
+
+const mutationKey = ['resendStaffNewsletterConfirmation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendStaffNewsletterConfirmation>>, {id: MailIdentifier}> = (props) => {
+          const {id} = props ?? {};
+
+          return  resendStaffNewsletterConfirmation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendStaffNewsletterConfirmationMutationResult = NonNullable<Awaited<ReturnType<typeof resendStaffNewsletterConfirmation>>>
+
+    export type ResendStaffNewsletterConfirmationMutationError = ErrorType<unknown>
+
+    export const useResendStaffNewsletterConfirmation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendStaffNewsletterConfirmation>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendStaffNewsletterConfirmation>>,
+        TError,
+        {id: MailIdentifier},
+        TContext
+      > => {
+      return useMutation(getResendStaffNewsletterConfirmationMutationOptions(options));
+    }
+
+export const getUnsubscribeStaffNewsletterSubscriberUrl = (id: MailIdentifier,) => {
+
+
+
+
+  return `/api/staff/newsletter/subscribers/${id}/unsubscribe`
+}
+
+export const unsubscribeStaffNewsletterSubscriber = async (id: MailIdentifier, options?: Parameters<typeof customFetch>[1]): Promise<UnsubscribeStaffNewsletterSubscriber200> => {
+
+  return customFetch<UnsubscribeStaffNewsletterSubscriber200>(getUnsubscribeStaffNewsletterSubscriberUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getUnsubscribeStaffNewsletterSubscriberMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsubscribeStaffNewsletterSubscriber>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unsubscribeStaffNewsletterSubscriber>>, TError,{id: MailIdentifier}, TContext> => {
+
+const mutationKey = ['unsubscribeStaffNewsletterSubscriber'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unsubscribeStaffNewsletterSubscriber>>, {id: MailIdentifier}> = (props) => {
+          const {id} = props ?? {};
+
+          return  unsubscribeStaffNewsletterSubscriber(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnsubscribeStaffNewsletterSubscriberMutationResult = NonNullable<Awaited<ReturnType<typeof unsubscribeStaffNewsletterSubscriber>>>
+
+    export type UnsubscribeStaffNewsletterSubscriberMutationError = ErrorType<unknown>
+
+    export const useUnsubscribeStaffNewsletterSubscriber = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsubscribeStaffNewsletterSubscriber>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unsubscribeStaffNewsletterSubscriber>>,
+        TError,
+        {id: MailIdentifier},
+        TContext
+      > => {
+      return useMutation(getUnsubscribeStaffNewsletterSubscriberMutationOptions(options));
+    }
+
+export const getListStaffNewsletterCampaignsUrl = () => {
+
+
+
+
+  return `/api/staff/newsletter/campaigns`
+}
+
+export const listStaffNewsletterCampaigns = async ( options?: Parameters<typeof customFetch>[1]): Promise<ListStaffNewsletterCampaigns200> => {
+
+  return customFetch<ListStaffNewsletterCampaigns200>(getListStaffNewsletterCampaignsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffNewsletterCampaignsQueryKey = () => {
+    return [
+    `/api/staff/newsletter/campaigns`
+    ] as const;
+    }
+
+
+export const getListStaffNewsletterCampaignsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffNewsletterCampaigns>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterCampaigns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffNewsletterCampaignsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffNewsletterCampaigns>>> = ({ signal }) => listStaffNewsletterCampaigns({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterCampaigns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffNewsletterCampaignsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffNewsletterCampaigns>>>
+export type ListStaffNewsletterCampaignsQueryError = ErrorType<unknown>
+
+
+
+export function useListStaffNewsletterCampaigns<TData = Awaited<ReturnType<typeof listStaffNewsletterCampaigns>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterCampaigns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffNewsletterCampaignsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffNewsletterCampaignUrl = () => {
+
+
+
+
+  return `/api/staff/newsletter/campaigns`
+}
+
+export const createStaffNewsletterCampaign = async (newsletterCampaignInput: NewsletterCampaignInput, options?: Parameters<typeof customFetch>[1]): Promise<CreateStaffNewsletterCampaign201> => {
+
+  return customFetch<CreateStaffNewsletterCampaign201>(getCreateStaffNewsletterCampaignUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterCampaignInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffNewsletterCampaignMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffNewsletterCampaign>>, TError,{data: BodyType<NewsletterCampaignInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffNewsletterCampaign>>, TError,{data: BodyType<NewsletterCampaignInput>}, TContext> => {
+
+const mutationKey = ['createStaffNewsletterCampaign'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffNewsletterCampaign>>, {data: BodyType<NewsletterCampaignInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffNewsletterCampaign(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffNewsletterCampaignMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffNewsletterCampaign>>>
+    export type CreateStaffNewsletterCampaignMutationBody = BodyType<NewsletterCampaignInput>
+    export type CreateStaffNewsletterCampaignMutationError = ErrorType<unknown>
+
+    export const useCreateStaffNewsletterCampaign = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffNewsletterCampaign>>, TError,{data: BodyType<NewsletterCampaignInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffNewsletterCampaign>>,
+        TError,
+        {data: BodyType<NewsletterCampaignInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffNewsletterCampaignMutationOptions(options));
+    }
+
+export const getSendStaffNewsletterCampaignBatchUrl = (id: MailIdentifier,) => {
+
+
+
+
+  return `/api/staff/newsletter/campaigns/${id}/send`
+}
+
+/**
+ * Explicit batch of up to three currently confirmed subscribers. Durable reservations and hourly allowance prevent duplicate sends. No background auto-retries.
+ */
+export const sendStaffNewsletterCampaignBatch = async (id: MailIdentifier, options?: Parameters<typeof customFetch>[1]): Promise<SendStaffNewsletterCampaignBatch200> => {
+
+  return customFetch<SendStaffNewsletterCampaignBatch200>(getSendStaffNewsletterCampaignBatchUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSendStaffNewsletterCampaignBatchMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendStaffNewsletterCampaignBatch>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendStaffNewsletterCampaignBatch>>, TError,{id: MailIdentifier}, TContext> => {
+
+const mutationKey = ['sendStaffNewsletterCampaignBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendStaffNewsletterCampaignBatch>>, {id: MailIdentifier}> = (props) => {
+          const {id} = props ?? {};
+
+          return  sendStaffNewsletterCampaignBatch(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendStaffNewsletterCampaignBatchMutationResult = NonNullable<Awaited<ReturnType<typeof sendStaffNewsletterCampaignBatch>>>
+
+    export type SendStaffNewsletterCampaignBatchMutationError = ErrorType<unknown>
+
+    export const useSendStaffNewsletterCampaignBatch = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendStaffNewsletterCampaignBatch>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendStaffNewsletterCampaignBatch>>,
+        TError,
+        {id: MailIdentifier},
+        TContext
+      > => {
+      return useMutation(getSendStaffNewsletterCampaignBatchMutationOptions(options));
+    }
+
+export const getGetNewsletterSignupStatusUrl = () => {
+
+
+
+
+  return `/api/newsletter/status`
+}
+
+export const getNewsletterSignupStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<GetNewsletterSignupStatus200> => {
+
+  return customFetch<GetNewsletterSignupStatus200>(getGetNewsletterSignupStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetNewsletterSignupStatusQueryKey = () => {
+    return [
+    `/api/newsletter/status`
+    ] as const;
+    }
+
+
+export const getGetNewsletterSignupStatusQueryOptions = <TData = Awaited<ReturnType<typeof getNewsletterSignupStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNewsletterSignupStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetNewsletterSignupStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getNewsletterSignupStatus>>> = ({ signal }) => getNewsletterSignupStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getNewsletterSignupStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetNewsletterSignupStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getNewsletterSignupStatus>>>
+export type GetNewsletterSignupStatusQueryError = ErrorType<unknown>
+
+
+
+export function useGetNewsletterSignupStatus<TData = Awaited<ReturnType<typeof getNewsletterSignupStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getNewsletterSignupStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetNewsletterSignupStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestNewsletterSubscriptionUrl = () => {
+
+
+
+
+  return `/api/newsletter/subscribe`
+}
+
+/**
+ * Explicit consent, separate from accounts, purchases, accessory alerts and analytics. Uniform response does not enumerate addresses. Double opt-in required.
+ */
+export const requestNewsletterSubscription = async (newsletterSignupInput: NewsletterSignupInput, options?: Parameters<typeof customFetch>[1]): Promise<RequestNewsletterSubscription202> => {
+
+  return customFetch<RequestNewsletterSubscription202>(getRequestNewsletterSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterSignupInput)
+  }
+);}
+
+
+
+
+
+export const getRequestNewsletterSubscriptionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestNewsletterSubscription>>, TError,{data: BodyType<NewsletterSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestNewsletterSubscription>>, TError,{data: BodyType<NewsletterSignupInput>}, TContext> => {
+
+const mutationKey = ['requestNewsletterSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestNewsletterSubscription>>, {data: BodyType<NewsletterSignupInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestNewsletterSubscription(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestNewsletterSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof requestNewsletterSubscription>>>
+    export type RequestNewsletterSubscriptionMutationBody = BodyType<NewsletterSignupInput>
+    export type RequestNewsletterSubscriptionMutationError = ErrorType<unknown>
+
+    export const useRequestNewsletterSubscription = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestNewsletterSubscription>>, TError,{data: BodyType<NewsletterSignupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestNewsletterSubscription>>,
+        TError,
+        {data: BodyType<NewsletterSignupInput>},
+        TContext
+      > => {
+      return useMutation(getRequestNewsletterSubscriptionMutationOptions(options));
+    }
+
+export const getConfirmNewsletterSubscriptionUrl = () => {
+
+
+
+
+  return `/api/newsletter/confirm`
+}
+
+export const confirmNewsletterSubscription = async (newsletterLinkInput: NewsletterLinkInput, options?: Parameters<typeof customFetch>[1]): Promise<ConfirmNewsletterSubscription200> => {
+
+  return customFetch<ConfirmNewsletterSubscription200>(getConfirmNewsletterSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterLinkInput)
+  }
+);}
+
+
+
+
+
+export const getConfirmNewsletterSubscriptionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmNewsletterSubscription>>, TError,{data: BodyType<NewsletterLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmNewsletterSubscription>>, TError,{data: BodyType<NewsletterLinkInput>}, TContext> => {
+
+const mutationKey = ['confirmNewsletterSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmNewsletterSubscription>>, {data: BodyType<NewsletterLinkInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmNewsletterSubscription(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmNewsletterSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof confirmNewsletterSubscription>>>
+    export type ConfirmNewsletterSubscriptionMutationBody = BodyType<NewsletterLinkInput>
+    export type ConfirmNewsletterSubscriptionMutationError = ErrorType<unknown>
+
+    export const useConfirmNewsletterSubscription = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmNewsletterSubscription>>, TError,{data: BodyType<NewsletterLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmNewsletterSubscription>>,
+        TError,
+        {data: BodyType<NewsletterLinkInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmNewsletterSubscriptionMutationOptions(options));
+    }
+
+export const getUnsubscribeNewsletterSubscriptionUrl = () => {
+
+
+
+
+  return `/api/newsletter/unsubscribe`
+}
+
+export const unsubscribeNewsletterSubscription = async (newsletterLinkInput: NewsletterLinkInput, options?: Parameters<typeof customFetch>[1]): Promise<UnsubscribeNewsletterSubscription200> => {
+
+  return customFetch<UnsubscribeNewsletterSubscription200>(getUnsubscribeNewsletterSubscriptionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterLinkInput)
+  }
+);}
+
+
+
+
+
+export const getUnsubscribeNewsletterSubscriptionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsubscribeNewsletterSubscription>>, TError,{data: BodyType<NewsletterLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof unsubscribeNewsletterSubscription>>, TError,{data: BodyType<NewsletterLinkInput>}, TContext> => {
+
+const mutationKey = ['unsubscribeNewsletterSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof unsubscribeNewsletterSubscription>>, {data: BodyType<NewsletterLinkInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  unsubscribeNewsletterSubscription(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UnsubscribeNewsletterSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof unsubscribeNewsletterSubscription>>>
+    export type UnsubscribeNewsletterSubscriptionMutationBody = BodyType<NewsletterLinkInput>
+    export type UnsubscribeNewsletterSubscriptionMutationError = ErrorType<unknown>
+
+    export const useUnsubscribeNewsletterSubscription = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof unsubscribeNewsletterSubscription>>, TError,{data: BodyType<NewsletterLinkInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof unsubscribeNewsletterSubscription>>,
+        TError,
+        {data: BodyType<NewsletterLinkInput>},
+        TContext
+      > => {
+      return useMutation(getUnsubscribeNewsletterSubscriptionMutationOptions(options));
+    }
 
 export const getDisplayPricesUrl = () => {
 
@@ -6323,20 +7535,29 @@ export const useRetryPendingMediaCleanup = <TError = ErrorType<void>,
       return useMutation(getRetryPendingMediaCleanupMutationOptions(options));
     }
 
-export const getGetStorageObjectUrl = (objectPath: string,) => {
+export const getGetStorageObjectUrl = (objectPath: string,
+    params?: GetStorageObjectParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/storage/objects/${objectPath}`
+  return stringifiedParams.length > 0 ? `/api/storage/objects/${objectPath}?${stringifiedParams}` : `/api/storage/objects/${objectPath}`
 }
 
 /**
  * @summary Publicly serve uploaded storefront media
  */
-export const getStorageObject = async (objectPath: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+export const getStorageObject = async (objectPath: string,
+    params?: GetStorageObjectParams, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
 
-  return customFetch<Blob>(getGetStorageObjectUrl(objectPath),
+  return customFetch<Blob>(getGetStorageObjectUrl(objectPath,params),
   {
     ...options,
     method: 'GET'
@@ -6349,23 +7570,25 @@ export const getStorageObject = async (objectPath: string, options?: Parameters<
 
 
 
-export const getGetStorageObjectQueryKey = (objectPath: string,) => {
+export const getGetStorageObjectQueryKey = (objectPath: string,
+    params?: GetStorageObjectParams,) => {
     return [
-    `/api/storage/objects/${objectPath}`
+    `/api/storage/objects/${objectPath}`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<void>>(objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetStorageObjectQueryOptions = <TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<void>>(objectPath: string,
+    params?: GetStorageObjectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetStorageObjectQueryKey(objectPath);
+  const queryKey =  queryOptions?.queryKey ?? getGetStorageObjectQueryKey(objectPath,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageObject>>> = ({ signal }) => getStorageObject(objectPath, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStorageObject>>> = ({ signal }) => getStorageObject(objectPath,params, { signal, ...requestOptions });
 
 
 
@@ -6383,11 +7606,12 @@ export type GetStorageObjectQueryError = ErrorType<void>
  */
 
 export function useGetStorageObject<TData = Awaited<ReturnType<typeof getStorageObject>>, TError = ErrorType<void>>(
- objectPath: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ objectPath: string,
+    params?: GetStorageObjectParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStorageObject>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetStorageObjectQueryOptions(objectPath,options)
+  const queryOptions = getGetStorageObjectQueryOptions(objectPath,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

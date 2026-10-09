@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { normalizeStorefrontTitle } from "@workspace/api-zod";
 import { createHash } from "node:crypto";
 import {
   CreateAccessoryLaunchNotificationBody,
@@ -224,8 +225,14 @@ router.get("/content/platform", async (_req, res): Promise<void> => {
   // Do not CDN-cache the response: activation is checked live even when the
   // large, version-verified editorial snapshot is reused in this process.
   res.set("Cache-Control", "no-store");
+  const publicContent = publicCatalogueContent(snapshot.content, checkoutEnabled);
+  const oldTitle = publicContent.homepage.seo.title;
+  const currentTitle = normalizeStorefrontTitle(oldTitle);
   res.json({
-    content: publicCatalogueContent(snapshot.content, checkoutEnabled),
+    content: currentTitle === oldTitle ? publicContent : {
+      ...publicContent,
+      homepage: { ...publicContent.homepage, seo: { ...publicContent.homepage.seo, title: currentTitle } },
+    },
     publishedAt: snapshot.publishedAt,
     checkoutEnabled,
   });

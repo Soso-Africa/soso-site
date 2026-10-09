@@ -9,6 +9,7 @@ import { trackStorefrontEvent, editorialOrigin } from "@/components/ConsentManag
 import { X } from "lucide-react";
 import { isMappedPurchaseChoice, mappedPurchaseChoices, visibleStandardSizes, purchaseChoicePrice, productPriceRange } from "@/lib/purchasing";
 import { AccessoryLaunchNotificationForm } from "@/components/AccessoryLaunchNotificationForm";
+import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
 
 interface ProductCardProps {
   product: CatalogProduct;
@@ -32,12 +33,6 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
   const standardSizes = visibleStandardSizes(product);
   const customIsMappable = purchaseChoices.includes("Custom");
   const hasMappedChoices = purchaseChoices.length > 0;
-
-  const rememberCatalogueReturn = () => {
-    if (window.location.pathname === "/shop") {
-      window.sessionStorage.setItem("soso-return-to", `${window.location.pathname}${window.location.search}`);
-    }
-  };
 
   const handleQuickAdd = () => {
     if (!isMappedPurchaseChoice(product, selectedSize)) return;
@@ -64,17 +59,17 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
 
   return (
     <>
-      <article className="soso-card group">
+      <article className="soso-card group" data-soso-product-anchor={product.slug}>
         <div className="relative overflow-hidden aspect-[3/4] bg-muted/20 border border-border">
           <Link
             href={`/product/${product.slug}`}
-            onClick={rememberCatalogueReturn}
             className="block h-full"
             aria-label={productCopy ? `${productCopy.viewProductLabel}: ${product.name}` : undefined}
             data-testid={`link-${testIdPrefix}-${product.slug}`}
           >
             <img
               src={primaryImage?.src ?? product.img}
+              {...responsiveProductPhoto(primaryImage?.src ?? product.img)}
               alt={primaryImage?.alt ?? product.name}
               width={900}
               height={1200}
@@ -84,6 +79,7 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
             {secondaryImage && (
               <img
                 src={secondaryImage.src}
+                 {...responsiveProductPhoto(secondaryImage.src)}
                 alt={secondaryImage.alt}
                 width={900}
                 height={1200}
@@ -133,7 +129,6 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
 
         <Link
           href={`/product/${product.slug}`}
-          onClick={rememberCatalogueReturn}
           className="mt-5 flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4"
           data-testid={`link-${testIdPrefix}-details-${product.slug}`}
         >
@@ -257,7 +252,6 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               href={`/product/${product.slug}`}
               onClick={() => {
                 setQuickShopOpen(false);
-                rememberCatalogueReturn();
               }}
               className="block text-center mt-4 text-[11px] uppercase tracking-widest text-secondary hover:text-primary hover:underline underline-offset-4"
               data-testid={`link-quickshop-details-${product.slug}`}

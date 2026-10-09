@@ -17,6 +17,36 @@ tags:
   - name: storage
     description: Staff image uploads and public object serving
 paths:
+  /staff/mail/settings:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1settings"
+  /staff/mail/test:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1test"
+  /staff/mail/messages:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1messages"
+  /staff/mail/messages/{uid}:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1messages~1{uid}"
+  /staff/mail/send:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1send"
+  /staff/mail/history:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1history"
+  /staff/newsletter/subscribers:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1subscribers"
+  /staff/newsletter/subscribers/{id}/confirmation:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1subscribers~1{id}~1confirmation"
+  /staff/newsletter/subscribers/{id}/unsubscribe:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1subscribers~1{id}~1unsubscribe"
+  /staff/newsletter/campaigns:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1campaigns"
+  /staff/newsletter/campaigns/{id}/send:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1campaigns~1{id}~1send"
+  /newsletter/status:
+    $ref: "./mail.openapi.yaml#/paths/~1newsletter~1status"
+  /newsletter/subscribe:
+    $ref: "./mail.openapi.yaml#/paths/~1newsletter~1subscribe"
+  /newsletter/confirm:
+    $ref: "./mail.openapi.yaml#/paths/~1newsletter~1confirm"
+  /newsletter/unsubscribe:
+    $ref: "./mail.openapi.yaml#/paths/~1newsletter~1unsubscribe"
   /price-display:
     post:
       operationId: displayPrices
@@ -1521,13 +1551,25 @@ paths:
           in: path
           required: true
           schema: { type: string }
+        - name: w
+          in: query
+          required: false
+          description: Optional non-cropping photo delivery width. Omit for the original full-resolution asset.
+          schema: { type: integer, enum: [480, 768, 1280, 1600] }
       responses:
         "200":
           description: Immutable uploaded media
           content:
             "*/*":
               schema: { type: string, format: binary }
+        "302":
+          description: Redirect to verified original media or a bounded photo delivery variant
+          headers:
+            Location:
+              schema: { type: string }
+        "400": { description: "Unsupported photo width" }
         "404": { description: "Object not found" }
+        "415": { description: "Media failed its governed identity checks" }
         "500": { description: "Object could not be served" }
   /storage/public-objects/{filePath}:
     get:

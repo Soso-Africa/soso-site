@@ -185,7 +185,7 @@ const approvedAboutPages = legacyAboutPages
     }],
   }));
 const staticPages = [
-  { path: "/", title: platform.homepage?.seo?.title || "SOSO Africa | Premium Nigerian Menswear", description: platform.homepage?.seo?.description || "Discover premium Nigerian menswear from SOSO Africa.", h1: "SOSO Africa", body: platform.site?.structuredData?.organizationDescription || "Discover considered Nigerian menswear, collections, and editorial stories." },
+  { path: "/", title: /^SOSO Africa \| Premium Nigerian (Menswear|Fashion)$/.test(platform.homepage?.seo?.title ?? "") ? "SOSO Africa | Premium African Fashion" : (platform.homepage?.seo?.title || "SOSO Africa | Premium African Fashion"), description: platform.homepage?.seo?.description || "Discover premium African fashion from SOSO Africa.", h1: "SOSO Africa", body: platform.site?.structuredData?.organizationDescription || "Discover considered African fashion, collections, and editorial stories." },
   ...(catalogApproved ? [{ path: "/shop", title: "Shop | SOSO Africa", description: "Browse SOSO Africa collections.", h1: "Shop SOSO Africa", body: "Browse the current SOSO Africa collection." }] : []),
   ...(policiesApproved ? [
     { path: "/faq", title: pageCopy.faq?.seo?.title || "Frequently asked questions | SOSO Africa", description: pageCopy.faq?.seo?.description || "Answers to common SOSO Africa questions.", h1: pageCopy.faq?.title || "Frequently asked questions", body: pageCopy.faq?.intro || "Find answers and support information.", bodyHtml: renderFaqContent(faq) },

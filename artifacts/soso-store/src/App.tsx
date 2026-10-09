@@ -18,6 +18,9 @@ import { customFetch } from '@workspace/api-client-react';
 import { usePlatformContent } from '@/data/platformContent';
 import { legacyRedirectByPath } from '@/data/legacy-redirects';
 import { lazyPage } from '@/lib/lazyPage';
+import { StorefrontNavigation } from '@/components/StorefrontNavigation';
+import { isImmediateStorefrontRoute } from '@/lib/storefront-navigation';
+import { loadShopPage, loadProductPage } from '@/lib/storefront-page-modules';
 
 import Home from '@/pages/Home';
 
@@ -33,9 +36,10 @@ const NotFound = lazyPage(() => import('@/pages/not-found'));
 const PaymentReturn = lazyPage(() => import('@/pages/PaymentReturn'));
 const Policy = lazyPage(() => import('@/pages/Policy'));
 const PolicyHub = lazyPage(() => import('@/pages/PolicyHub'));
-const ProductDetail = lazyPage(() => import('@/pages/ProductDetail'));
-const Shop = lazyPage(() => import('@/pages/Shop'));
+const ProductDetail = lazyPage(loadProductPage);
+const Shop = lazyPage(loadShopPage);
 const SignIn = lazyPage(() => import('@/pages/SignIn'));
+const NewsletterLink = lazyPage(() => import('@/pages/NewsletterLink'));
 const Staff = lazyPage(() => import('@/pages/Staff'));
 
 const queryClient = new QueryClient();
@@ -72,6 +76,8 @@ function Router() {
           <Route path="/returns" component={ReturnsRedirect} />
           <Route path="/care" component={Policy} />
           <Route path="/sign-in/*?" component={SignIn} />
+          <Route path="/newsletter/confirm" component={NewsletterLink} />
+          <Route path="/newsletter/unsubscribe" component={NewsletterLink} />
           <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
           <Route path="/staff" component={StaffGate} />
           <Route component={NotFound} />
@@ -134,7 +140,8 @@ function App() {
 function AppShell() {
   const [location] = useLocation();
   const platform = usePlatformContent();
-  const staffOrAuthSurface = isPrivateStorefrontPath(location);
+  const staffOrAuthSurface = isPrivateStorefrontPath(location)
+    && !/^\/newsletter\/(?:confirm|unsubscribe)(?:\/|$)/i.test(location);
 
   useEffect(() => {
     document.documentElement.classList.toggle("soso-staff-theme", staffOrAuthSurface);
@@ -143,6 +150,7 @@ function AppShell() {
 
   return (
     <>
+      <StorefrontNavigation />
       {platform.data && <a href="#main-content" className="soso-skip-link">{platform.data.content.site.skipLinkLabel}</a>}
       <div className="flex flex-col min-h-screen">
         {!staffOrAuthSurface && <Navbar />}
@@ -171,12 +179,12 @@ function AppShell() {
 
 function RedirectGuard({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(() => !isImmediateStorefrontRoute(window.location.pathname));
 
   useEffect(() => {
     let cancelled = false;
     let timedOut = false;
-    setChecking(true);
+    setChecking(!isImmediateStorefrontRoute(location));
 
     const normalizedPath = location !== "/" && location.endsWith("/")
       ? location
@@ -225,7 +233,7 @@ function RedirectGuard({ children }: { children: ReactNode }) {
     };
   }, [location, navigate]);
 
-  if (checking) {
+  if (checking && !isImmediateStorefrontRoute(location)) {
     return (
       <div
         className="flex min-h-[45vh] items-center justify-center px-6 text-center"

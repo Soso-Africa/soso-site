@@ -26,7 +26,7 @@ export function PwaInstallPopup({ contentReady }: { contentReady: boolean }) {
     || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const macSafari = !appleMobile && /Macintosh/.test(navigator.userAgent)
     && /Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Edg/.test(navigator.userAgent);
-  const eligible = !/^\/(checkout|staff|sign-in|sign-up|privacy|cookies|terms|policies)(\/|$)/.test(pathname);
+  const eligible = !/^\/(checkout|staff|sign-in|sign-up|privacy|cookies|terms|policies|newsletter)(\/|$)/.test(pathname);
 
   useEffect(() => {
     if (!contentReady || !eligible || installed || dismissed) return;

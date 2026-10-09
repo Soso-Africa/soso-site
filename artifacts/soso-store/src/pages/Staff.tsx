@@ -10,6 +10,7 @@ import { productDeletionReferences } from "../components/staff/product/catalogue
 import { platformActionError } from "../components/staff/platform-action-error";
 import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
 import { CommerceActivationPanel } from "../components/staff/CommerceActivationPanel";
+import { StaffMailSection } from "../components/staff/StaffMailSection";
 import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
 import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
@@ -181,7 +182,7 @@ function formatDateSafe(value: string | Date | null | undefined, pattern: string
   return Number.isNaN(date.getTime()) ? fallback : format(date, pattern);
 }
 
-type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "media-cleanup" | "redirects" | "marketing-pixels" | "analytics" | "staff" | "commerce-activation";
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "media-cleanup" | "redirects" | "marketing-pixels" | "analytics" | "staff" | "commerce-activation" | "email";
 type StaffNavGroup = {
   label: string;
   items: { id: StaffTab; label: string; icon: React.ElementType }[];
@@ -234,6 +235,7 @@ export default function Staff() {
   if (profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "operations") availableTabs.add("redirects");
   if (profile?.role === "owner" || profile?.role === "administrator") availableTabs.add("marketing-pixels");
   if (profile) availableTabs.add("commerce-activation");
+  if (profile && ["owner", "administrator"].includes(profile.role)) availableTabs.add("email");
   if (canSeeAnalytics) availableTabs.add("analytics");
   if (profile?.role === "owner") availableTabs.add("staff");
 
@@ -266,6 +268,7 @@ export default function Staff() {
       ...(canManageEnquiries ? [staffNavItem("enquiries", "Enquiries", MessageSquare)] : []),
     ] },
     { label: "Customer care", items: [
+      ...(["owner", "administrator"].includes(profile.role) ? [staffNavItem("email", "Email & newsletter", Mail)] : []),
       ...(canManagePrivacy ? [staffNavItem("privacy", "Privacy requests", LockKeyhole)] : []),
       ...(canReviewAccessoryLaunchNotifications ? [staffNavItem("accessory-launch-notifications", "Accessory launch requests", Bell)] : []),
     ] },
@@ -363,6 +366,7 @@ export default function Staff() {
         {activeTab === "journal" && <JournalManagementSection />}
         {activeTab === "platform" && <PlatformContentManagementSection />}
         {activeTab === "commerce-activation" && <CommerceActivationPanel role={profile.role} />}
+        {activeTab === "email" && ["owner", "administrator"].includes(profile.role) && <StaffMailSection key={profile.id} role={profile.role} actor={profile.id} />}
         {activeTab === "faq" && <FaqManagementSection />}
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
         {activeTab === "media-cleanup" && <MediaCleanupSection />}

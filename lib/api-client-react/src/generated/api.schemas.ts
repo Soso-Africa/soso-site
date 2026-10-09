@@ -2593,6 +2593,134 @@ export interface StaffExport {
 }
 
 /**
+ * @pattern ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$
+ */
+export type MailIdentifier = string;
+
+/**
+ * @maxLength 254
+ * @pattern ^[^\s@]+@[^\s@]+\.[^\s@]+$
+ */
+export type MailboxEmail = string;
+
+export type StaffMailboxConfigurationSmtpPort = typeof StaffMailboxConfigurationSmtpPort[keyof typeof StaffMailboxConfigurationSmtpPort];
+
+
+export const StaffMailboxConfigurationSmtpPort = {
+  NUMBER_465: 465,
+  NUMBER_587: 587,
+} as const;
+
+export type StaffMailboxConfigurationImapPort = typeof StaffMailboxConfigurationImapPort[keyof typeof StaffMailboxConfigurationImapPort];
+
+
+export const StaffMailboxConfigurationImapPort = {
+  NUMBER_993: 993,
+} as const;
+
+export interface StaffMailboxConfiguration {
+  /**
+     * @minLength 4
+     * @maxLength 253
+     */
+  smtpHost: string;
+  smtpPort: StaffMailboxConfigurationSmtpPort;
+  /**
+     * @minLength 4
+     * @maxLength 253
+     */
+  imapHost: string;
+  imapPort: StaffMailboxConfigurationImapPort;
+  username: MailboxEmail;
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  fromName: string;
+  /**
+     * HTTPS storefront origin without a path.
+     * @pattern ^https://[^/?#]+/?$
+     */
+  publicOrigin: string;
+  enabled: boolean;
+  newsletterEnabled: boolean;
+  policyConfirmed: boolean;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  hourlyLimit: number;
+}
+
+export type MailboxSettingsWrite = StaffMailboxConfiguration & {
+  /** @minimum 0 */
+  expectedVersion: number;
+  /**
+     * Omit to keep the existing password.
+     * @minLength 1
+     * @maxLength 1024
+     */
+  password?: string;
+};
+
+export type MailboxMessageInputReplyFolder = typeof MailboxMessageInputReplyFolder[keyof typeof MailboxMessageInputReplyFolder];
+
+
+export const MailboxMessageInputReplyFolder = {
+  inbox: 'inbox',
+  sent: 'sent',
+} as const;
+
+export type MailboxMessageInputReply = {
+  /** @minimum 1 */
+  uid: number;
+  /** @pattern ^\d+$ */
+  uidValidity: string;
+  folder: MailboxMessageInputReplyFolder;
+};
+
+export interface MailboxMessageInput {
+  idempotencyKey: MailIdentifier;
+  to: MailboxEmail;
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  subject: string;
+  /**
+     * @minLength 1
+     * @maxLength 24000
+     */
+  text: string;
+  reply?: MailboxMessageInputReply;
+}
+
+export interface NewsletterCampaignInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  subject: string;
+  /**
+     * @minLength 1
+     * @maxLength 24000
+     */
+  text: string;
+}
+
+export interface NewsletterSignupInput {
+  email: MailboxEmail;
+  consent: true;
+  /** @maxLength 200 */
+  website?: string;
+}
+
+export interface NewsletterLinkInput {
+  /** @maxLength 100 */
+  token: string;
+}
+
+/**
  * Last observed redirect updatedAt value used to reject stale mutations.
  */
 export type RedirectExpectedRevisionParameter = string;
@@ -2600,6 +2728,93 @@ export type RedirectExpectedRevisionParameter = string;
 export type StaffDateFromParameter = string;
 
 export type StaffDateToParameter = string;
+
+export type GetStaffMailboxSettings200 = {
+  configured: boolean;
+  version: number;
+  tested: boolean;
+  enabled: boolean;
+  newsletterEnabled: boolean;
+  hasPassword: boolean;
+  settings?: StaffMailboxConfiguration;
+};
+
+export type SaveStaffMailboxSettings200 = { [key: string]: unknown };
+
+export type TestStaffMailboxConnection200 = { [key: string]: unknown };
+
+export type ListStaffMailboxMessagesParams = {
+folder?: ListStaffMailboxMessagesFolder;
+};
+
+export type ListStaffMailboxMessagesFolder = typeof ListStaffMailboxMessagesFolder[keyof typeof ListStaffMailboxMessagesFolder];
+
+
+export const ListStaffMailboxMessagesFolder = {
+  inbox: 'inbox',
+  sent: 'sent',
+} as const;
+
+export type ListStaffMailboxMessages200 = { [key: string]: unknown };
+
+export type ReadStaffMailboxMessageParams = {
+/**
+ * @pattern ^\d+$
+ */
+uidValidity: string;
+folder?: ReadStaffMailboxMessageFolder;
+};
+
+export type ReadStaffMailboxMessageFolder = typeof ReadStaffMailboxMessageFolder[keyof typeof ReadStaffMailboxMessageFolder];
+
+
+export const ReadStaffMailboxMessageFolder = {
+  inbox: 'inbox',
+  sent: 'sent',
+} as const;
+
+export type ReadStaffMailboxMessage200 = { [key: string]: unknown };
+
+export type SendStaffMailboxMessage200 = { [key: string]: unknown };
+
+export type ListStaffMailboxSendHistory200 = { [key: string]: unknown };
+
+export type ListStaffNewsletterSubscribersParams = {
+status?: ListStaffNewsletterSubscribersStatus;
+before?: MailIdentifier;
+};
+
+export type ListStaffNewsletterSubscribersStatus = typeof ListStaffNewsletterSubscribersStatus[keyof typeof ListStaffNewsletterSubscribersStatus];
+
+
+export const ListStaffNewsletterSubscribersStatus = {
+  all: 'all',
+  pending: 'pending',
+  confirmed: 'confirmed',
+  unsubscribed: 'unsubscribed',
+} as const;
+
+export type ListStaffNewsletterSubscribers200 = { [key: string]: unknown };
+
+export type ResendStaffNewsletterConfirmation200 = { [key: string]: unknown };
+
+export type UnsubscribeStaffNewsletterSubscriber200 = { [key: string]: unknown };
+
+export type ListStaffNewsletterCampaigns200 = { [key: string]: unknown };
+
+export type CreateStaffNewsletterCampaign201 = { [key: string]: unknown };
+
+export type SendStaffNewsletterCampaignBatch200 = { [key: string]: unknown };
+
+export type GetNewsletterSignupStatus200 = {
+  available: boolean;
+};
+
+export type RequestNewsletterSubscription202 = { [key: string]: unknown };
+
+export type ConfirmNewsletterSubscription200 = { [key: string]: unknown };
+
+export type UnsubscribeNewsletterSubscription200 = { [key: string]: unknown };
 
 export type GetCommerceDiscoveryParams = {
 /**
@@ -2804,4 +3019,21 @@ export const GetStaffExportReport = {
 export type ListStaffPolicyHistory200Item = { [key: string]: unknown };
 
 export type ListStaffRedirectHistory200Item = { [key: string]: unknown };
+
+export type GetStorageObjectParams = {
+/**
+ * Optional non-cropping photo delivery width. Omit for the original full-resolution asset.
+ */
+w?: GetStorageObjectW;
+};
+
+export type GetStorageObjectW = typeof GetStorageObjectW[keyof typeof GetStorageObjectW];
+
+
+export const GetStorageObjectW = {
+  NUMBER_480: 480,
+  NUMBER_768: 768,
+  NUMBER_1280: 1280,
+  NUMBER_1600: 1600,
+} as const;
 

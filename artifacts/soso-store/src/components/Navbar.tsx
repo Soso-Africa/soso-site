@@ -93,7 +93,6 @@ export function Navbar() {
   useEffect(() => {
     setMobileMenuOpen(false);
     setActiveGroupId(null);
-    window.scrollTo(0, 0);
   }, [location]);
 
   // Mobile Menu Focus Trap
