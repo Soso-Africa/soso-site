@@ -1259,7 +1259,7 @@ function Pulse({ overview, loading }: { overview: StaffOverview | undefined; loa
       {!overview.paymentIsLive && (
         <div className="mt-4 flex gap-3 border border-destructive/25 bg-destructive/5 p-4 text-sm text-destructive">
           <AlertCircle className="mt-0.5 shrink-0" size={18} />
-          <p><strong>Payments are not live.</strong> No checkout confirmation should be treated as a verified order until the payment workflow is enabled.</p>
+          <p><strong>Live checkout is paused or not ready.</strong> Review Checkout activation for setup requirements. Only provider-confirmed payments count as verified orders; a checkout redirect is not payment confirmation.</p>
         </div>
       )}
     </section>

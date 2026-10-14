@@ -59,6 +59,9 @@ import {
 } from "@workspace/db";
 import { and, count, desc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
+import { commerceActivationEnabled } from "../lib/commerce-activation";
+import { justiceSureConfig } from "../lib/justicesureCommerce";
+import { verifiedLiveOrderPredicate } from "../lib/verified-order-reporting";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { hashManagedStaffPassword, newManagedStaffIdentity, setManagedStaffPassword } from "./staff-auth";
 import {
@@ -334,17 +337,18 @@ export function staffOverviewView(
   },
   range: { from: string; to: string },
   generatedAt = new Date(),
+  paymentIsLive = false,
 ) {
   return {
     ...values,
-    paymentIsLive: false,
+    paymentIsLive,
     from: range.from,
     to: range.to,
     generatedAt,
     freshnessMinutes: 5,
     metrics: [
-      { key: "orders_received", label: "Orders received", definition: "Orders created in the selected date range.", value: values.ordersTotal },
-      { key: "in_production", label: "Atelier active", definition: "All orders currently in atelier confirmation or production, regardless of when they were created.", value: values.ordersInProduction },
+      { key: "orders_received", label: "Verified orders", definition: "Orders created in the selected date range with a confirmed paid, fulfilled or refunded non-simulated JusticeSure checkout. Excludes unpaid checkouts, test payments and unverified records.", value: values.ordersTotal },
+      { key: "in_production", label: "Atelier active", definition: "Verified non-simulated orders currently in atelier confirmation or production, regardless of when they were created.", value: values.ordersInProduction },
       { key: "open_enquiries", label: "Open enquiries", definition: "New or in-progress enquiries received in the selected date range.", value: values.openEnquiries },
       { key: "consented_events", label: "Consented storefront events", definition: "First-party events from visitors who opted into measurement.", value: values.storefrontEvents7d },
     ],
@@ -485,12 +489,12 @@ router.get("/staff/overview", async (req, res): Promise<void> => {
   }
 
   const activeEnquiryStatuses = ["new", "in_progress"];
-  const [[orders], [inProduction], [enquiries], [events]] = await Promise.all([
-    db.select({ value: count() }).from(ordersTable).where(and(gte(ordersTable.createdAt, range.start), lte(ordersTable.createdAt, range.end))),
+  const [[orders], [inProduction], [enquiries], [events], checkoutEnabled] = await Promise.all([
+    db.select({ value: count() }).from(ordersTable).where(and(verifiedLiveOrderPredicate(), gte(ordersTable.createdAt, range.start), lte(ordersTable.createdAt, range.end))),
     db
       .select({ value: count() })
       .from(ordersTable)
-      .where(inArray(ordersTable.status, ["atelier_confirmation", "in_production"])),
+      .where(and(verifiedLiveOrderPredicate(), inArray(ordersTable.status, ["atelier_confirmation", "in_production"]))),
     db
       .select({ value: count() })
       .from(customerEnquiriesTable)
@@ -499,6 +503,7 @@ router.get("/staff/overview", async (req, res): Promise<void> => {
       .select({ value: count() })
       .from(analyticsEventsTable)
       .where(and(gte(analyticsEventsTable.occurredAt, range.start), lte(analyticsEventsTable.occurredAt, range.end), inArray(analyticsEventsTable.consent, ["analytics", "marketing"]))),
+    commerceActivationEnabled(),
   ]);
 
   const values = {
@@ -509,7 +514,8 @@ router.get("/staff/overview", async (req, res): Promise<void> => {
   };
 
   res.json(
-    GetStaffOverviewResponse.parse(staffOverviewView(values, range)),
+    GetStaffOverviewResponse.parse(staffOverviewView(values, range, new Date(),
+      checkoutEnabled && !justiceSureConfig().apiKey?.startsWith("jsk_test_"))),
   );
 });
 
