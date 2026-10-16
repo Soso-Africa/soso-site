@@ -125,7 +125,7 @@ export function HeroVideoPreparation({ target, currentPath, onUploadMedia, onAdo
             key={`${kind}:${kind === "source" ? review.sourceUrl : review.candidateUrl}`}
             aria-label={`${target} ${kind} quality preview`}
             src={kind === "source" ? review.sourceUrl : review.candidateUrl}
-            controls playsInline preload="metadata"
+            controls muted playsInline preload="metadata"
             className="max-h-80 w-full bg-neutral-800 object-contain"
             onLoadedMetadata={(event) => {
               const valid = previewMatchesEvidence(event.currentTarget, kind === "source" ? review.report.before : review.report.after);
