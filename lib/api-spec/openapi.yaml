@@ -17,6 +17,52 @@ tags:
   - name: storage
     description: Staff image uploads and public object serving
 paths:
+  /shopper-auth/sessions:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1sessions"
+  /shopper-auth/sessions/revoke:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1sessions~1revoke"
+  /shopper-auth/sessions/revoke-many:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1sessions~1revoke-many"
+  /shopper-auth/session:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1session"
+  /shopper-auth/register:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1register"
+  /shopper-auth/login:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1login"
+  /shopper-auth/logout:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1logout"
+  /shopper-auth/resend-verification:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1resend-verification"
+  /shopper-auth/verify-email:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1verify-email"
+  /shopper-auth/forgot-password:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1forgot-password"
+  /shopper-auth/reset-password:
+    $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1reset-password"
+  /shopper/profile:
+    $ref: "./shopper.openapi.yaml#/paths/~1shopper~1profile"
+  /shopper/link:
+    $ref: "./shopper.openapi.yaml#/paths/~1shopper~1link"
+  /shopper/orders:
+    $ref: "./shopper.openapi.yaml#/paths/~1shopper~1orders"
+  /shopper/orders/{id}:
+    $ref: "./shopper.openapi.yaml#/paths/~1shopper~1orders~1{id}"
+  /storage/usage:
+    $ref: "./cloudinary-usage.yaml#/paths/~1storage~1usage"
+  /account/profile:
+    $ref: "./shopper-accounts.yaml#/paths/~1account~1profile"
+  /account/link:
+    $ref: "./shopper-accounts.yaml#/paths/~1account~1link"
+  /account/orders:
+    $ref: "./shopper-accounts.yaml#/paths/~1account~1orders"
+  /account/orders/{orderId}:
+    $ref: "./shopper-accounts.yaml#/paths/~1account~1orders~1{orderId}"
+  /account/production:
+    $ref: "./shopper-accounts.yaml#/paths/~1account~1production"
+  /account/measurements:
+    $ref: "./shopper-accounts.yaml#/paths/~1account~1measurements"
+  /account/measurements/{profileId}:
+    $ref: "./shopper-accounts.yaml#/paths/~1account~1measurements~1{profileId}"
   /staff/mail/settings:
     $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1settings"
   /staff/mail/test:

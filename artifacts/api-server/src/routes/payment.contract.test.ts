@@ -6,14 +6,45 @@ import type { AddressInfo } from "node:net";
 import test from "node:test";
 import {
   commerceWebhookEventsTable,
+  commerceCheckoutAttemptsTable,
   db,
+  orderItemsTable,
+  ordersTable,
+  pool,
+  siteContentTable,
   staffSessionsTable,
   staffUsersTable,
 } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import app from "../app";
 import { checkoutRequestHash, hasOwnership, paymentSessionRequestBodyForAttempt, quoteMatchesRequestedCheckout, remoteStatus, sameImmutableQuote, shouldRecoverPaymentAttempt } from "./payment";
-import type { JusticeSureOrder } from "../lib/justicesureCommerce";
+import { JusticeSureCommerceClient, JusticeSureRequestError, type JusticeSureOrder, type JusticeSureQuote, type JusticeSureCatalogProduct } from "../lib/justicesureCommerce";
+import { DEFAULT_PLATFORM_CONTENT, PlatformContentSchema } from "../lib/platform-content";
+import { catalogueProductHash, localMappingHash } from "../lib/catalogue-mapping";
+import { checkoutInitiationLockDb, checkoutInitiationLockPool } from "../lib/checkout-initiation-lock";
+
+async function jsonObject(response: Response): Promise<Record<string, unknown>> {
+  const value = await response.json();
+  assert.ok(value && typeof value === "object" && !Array.isArray(value));
+  return value as Record<string, unknown>;
+}
+
+function providerGate() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function waitForGate(promise: Promise<void>) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([promise, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Concurrent provider barrier was not reached")), 5_000);
+    })]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const checkout = {
   checkoutOperationId: "checkout-test-operation",
@@ -37,6 +68,11 @@ test("canonical checkout claim changes for contact, address, notes, provider, an
   assert.notEqual(initial, checkoutRequestHash({ ...checkout, notes: "Do not call" }));
   assert.notEqual(initial, checkoutRequestHash({ ...checkout, paymentProvider: "paypal" }));
   assert.notEqual(initial, checkoutRequestHash({ ...checkout, displayCurrency: "EUR" }));
+  assert.notEqual(initial, checkoutRequestHash({ ...checkout, customerExternalId: "soso:verified-subject" }));
+  assert.notEqual(
+    checkoutRequestHash({ ...checkout, customerExternalId: "soso:verified-subject" }),
+    checkoutRequestHash({ ...checkout, customerExternalId: "soso:another-subject" }),
+  );
 });
 
 
@@ -133,6 +169,616 @@ test("quote confirmation rejects changed line, fulfillment, expiry, and monetary
   }), true);
   assert.equal(sameImmutableQuote({ ...snapshot, expiresAt: "2030-01-01T00:01:00.000Z" }, snapshot), false);
   assert.equal(sameImmutableQuote({ ...snapshot, amounts: { totalMinor: "101" } }, snapshot), false);
+});
+
+test("guest quote creation needs no prior quote, while initiation and status require an owned attempt", async () => {
+  const previous = process.env.JUSTICESURE_COMMERCE_RUNTIME_READY;
+  process.env.JUSTICESURE_COMMERCE_RUNTIME_READY = "false";
+  const server = app.listen(0);
+  try {
+    await once(server, "listening");
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const payload = {
+      ...checkout,
+      checkoutOperationId: `regression-${crypto.randomUUID()}`,
+      displayCurrency: "NGN",
+      paymentProvider: "paystack",
+      fulfillment: { type: "pickup", locationId: crypto.randomUUID() },
+    };
+    const quote = await fetch(`${base}/api/payment/quote`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    });
+    assert.equal(quote.status, 409);
+    assert.equal((await jsonObject(quote)).noPaymentTaken, true);
+    const initiate = await fetch(`${base}/api/payment/initiate`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...payload, quoteId: crypto.randomUUID() }),
+    });
+    assert.equal(initiate.status, 409);
+    assert.match(String((await jsonObject(initiate)).error), /Create and review a quote/);
+    const status = await fetch(`${base}/api/payment/status/${crypto.randomUUID()}`);
+    assert.equal(status.status, 404);
+    assert.equal((await jsonObject(status)).error, "Checkout attempt not found.");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    if (previous === undefined) delete process.env.JUSTICESURE_COMMERCE_RUNTIME_READY;
+    else process.env.JUSTICESURE_COMMERCE_RUNTIME_READY = previous;
+  }
+});
+
+test("persisted quote confirms only for its browser and recovers payment with deterministic provider mocks", async (t) => {
+  // This fixture must never replace real published content, even when someone
+  // accidentally invokes the file without the isolated-schema runner.
+  const schema = await db.execute(sql`select current_schema() as name`);
+  assert.match(String(schema.rows[0]?.name), /^soso_api_test_[a-f0-9]+$/);
+  const environment = {
+    NODE_ENV: "test",
+    JUSTICESURE_COMMERCE_API_BASE_URL: "https://commerce.example.test",
+    JUSTICESURE_COMMERCE_TEST_API_KEY: "jsk_test_payment_contract",
+    JUSTICESURE_COMMERCE_TEST_WEBHOOK_SECRET: "payment-contract-secret",
+    JUSTICESURE_COMMERCE_RUNTIME_READY: "true",
+    SOSO_PAYMENT_RETURN_URL: "https://store.example.test/checkout/return",
+  };
+  const previous = Object.fromEntries(Object.keys(environment).map((key) => [key, process.env[key]]));
+  t.after(() => {
+    for (const key of Object.keys(environment)) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  });
+  const productId = checkout.items[0].productId;
+  const variantId = checkout.items[0].variantId;
+  const locationId = "bb36b5b8-60b1-4a8d-b8e7-c68c8ca01949";
+  const quoteId = "f9fbf593-9856-4f93-bcc4-b3b02ef3827e";
+  const remoteAttemptId = "be103ef1-de70-4f41-af79-d9a0c841e237";
+  const payload = {
+    ...checkout, checkoutOperationId: "contract-confirmation-operation",
+    displayCurrency: "NGN", paymentProvider: "paystack" as const,
+    items: [{ ...checkout.items[0], selectedSize: "M" }],
+    fulfillment: { type: "pickup" as const, locationId },
+  };
+  const catalog: JusticeSureCatalogProduct = {
+    id: productId, name: "Contract garment", description: null, amountKobo: 10000,
+    currency: "NGN", inStock: true, images: [],
+    variants: [{ id: variantId, name: "Medium", label: "M", attributes: { size: "M" }, amountKobo: 10000, inStock: true }],
+  };
+  const published = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const product = {
+    ...published.products[0], name: catalog.name, price: 100,
+    standardEligible: true, customEligible: false, sizes: ["M"], standardSizes: ["M"], readyNowSizes: ["M"],
+    fulfilmentState: "ready_now" as const,
+    commerceProductId: productId, commerceVariantIds: { M: variantId }, variantPrices: { M: 100 },
+    colourOptions: [{ id: "black", label: "Black", hex: "#000000" }], allowCustomColour: false,
+  };
+  product.commerceMappingConfirmation = {
+    productHash: catalogueProductHash(catalog),
+    localHash: localMappingHash({
+      ...product, eligibility: { standard: true, custom: false },
+    }),
+    snapshotHash: "a".repeat(64), snapshotFetchedAt: new Date().toISOString(),
+    confirmedAt: new Date().toISOString(), confidence: 100, source: "manual",
+    evidence: ["Isolated deterministic contract fixture"], choiceLabels: { M: "M" },
+  };
+  published.products[0] = product;
+  PlatformContentSchema.parse(published);
+  Object.assign(process.env, environment);
+  const immutableQuote: JusticeSureQuote = {
+    id: quoteId, expiresAt: "2099-01-01T00:00:00.000Z",
+    currency: "NGN", displayCurrency: "NGN", chargeCurrency: "NGN", settlementCurrency: "NGN",
+    amounts: { subtotalMinor: "10000", shippingMinor: "0", totalMinor: "10000" }, fxSnapshotId: null,
+    payment: { provider: "paystack", method: "card", chargeCurrency: "NGN", settlementCurrency: "NGN" },
+    lines: [{ inventoryItemId: productId, variantId, quantity: 1, name: catalog.name, unitPrice: 100, unitPriceKobo: "10000" }],
+    fulfillment: { type: "pickup", locationId, address: null, destinationCountry: "NG", shippingAddress: null },
+  };
+  let currentQuote = structuredClone(immutableQuote);
+  let remoteOrder = order(0);
+  remoteOrder.status = "pending";
+  remoteOrder.payment.status = "pending";
+  remoteOrder.amounts.paidKobo = 0;
+  remoteOrder.amounts.outstandingKobo = 10000;
+  remoteOrder.delivery.fulfillmentType = "pickup";
+  let failSession = true;
+  const originalFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = new URL(String(input));
+    assert.equal(url.hostname, "127.0.0.1", "All nonlocal network traffic is forbidden in the payment contract fixture");
+    return originalFetch(input, init);
+  });
+  const client = JusticeSureCommerceClient.prototype;
+  t.mock.method(client, "listProducts", async () => [structuredClone(catalog)]);
+  t.mock.method(client, "listStoreFulfillmentOptions", async () => ["pickup"]);
+  t.mock.method(client, "listLocations", async () => [{ id: locationId, type: "shop", name: "SOSO HQ", address: "1 Example Road", city: "Lagos", country: "NG" }]);
+  t.mock.method(client, "listCurrencies", async () => [{ code: "NGN", name: "Naira", minorUnitExponent: 2 }]);
+  const quoteCreate = t.mock.method(client, "createPriceQuote", async (input: Parameters<typeof client.createPriceQuote>[0]) => {
+    assert.deepEqual(input.items, [{ productId, variantId, quantity: 1 }]);
+    assert.deepEqual(input.fulfillment, payload.fulfillment);
+    return structuredClone(immutableQuote);
+  });
+  t.mock.method(client, "getPriceQuote", async (id: string) => {
+    assert.equal(id, quoteId);
+    return structuredClone(currentQuote);
+  });
+  const createOrder = t.mock.method(client, "createOrder", async (input: Parameters<typeof client.createOrder>[0]) => {
+    assert.equal(input.body.quoteId, quoteId);
+    assert.equal(input.body.paymentMethod, "paystack");
+    assert.deepEqual(input.body.customer, payload.customer);
+    assert.equal(input.idempotencyKey, `order_${payload.checkoutOperationId}`);
+    return { order: structuredClone(remoteOrder), replayed: false };
+  });
+  t.mock.method(client, "getOrder", async (id: string) => {
+    assert.equal(id, remoteOrder.id);
+    return structuredClone(remoteOrder);
+  });
+  const session = t.mock.method(client, "createPaymentSession", async (input: Parameters<typeof client.createPaymentSession>[0]) => {
+    assert.equal(input.orderId, remoteOrder.id);
+    assert.equal(input.idempotencyKey, `payment_${payload.checkoutOperationId}_${quoteId.slice(0, 8)}`);
+    assert.deepEqual(input.body, {
+      provider: "paystack", email: payload.customer.email, redirectUrl: environment.SOSO_PAYMENT_RETURN_URL,
+    });
+    if (failSession) throw new JusticeSureRequestError("Mock provider unavailable", 503, "PROVIDER_UNAVAILABLE");
+    return { provider: "paystack", reference: "contract-payment-reference", attemptId: remoteAttemptId,
+      checkoutUrl: "https://checkout.example.test/payment", replayed: false };
+  });
+  const verify = t.mock.method(client, "verifyPaymentAttempt", async (id: string, paymentId: string) => {
+    assert.equal(id, remoteOrder.id);
+    assert.equal(paymentId, remoteAttemptId);
+    return { attemptId: paymentId, status: "pending", paymentStatus: "pending" };
+  });
+  const reconcile = t.mock.method(client, "reconcilePaymentAttempt", async (id: string, paymentId: string) => {
+    assert.equal(id, remoteOrder.id);
+    assert.equal(paymentId, remoteAttemptId);
+    return { attemptId: paymentId, status: "pending", paymentStatus: "pending" };
+  });
+  let server: Server | undefined;
+  let attemptId: string | undefined;
+  try {
+    await db.insert(siteContentTable).values({ key: "platform", draft: published, published, publishedAt: new Date() });
+    server = app.listen(0);
+    await once(server, "listening");
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const post = (path: string, body: unknown, cookie?: string) => fetch(`${base}/api/payment/${path}`, {
+      method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+      body: JSON.stringify(body),
+    });
+    const created = await post("quote", payload);
+    assert.equal(created.status, 201, JSON.stringify(await created.clone().json()));
+    const snapshot = await jsonObject(created);
+    assert.equal(snapshot.id, quoteId);
+    const setCookie = created.headers.get("set-cookie")!;
+    assert.match(setCookie, /HttpOnly/i);
+    assert.match(setCookie, /SameSite=Lax/i);
+    assert.match(setCookie, /Path=\/api\/payment/i);
+    const cookie = setCookie.split(";")[0];
+    const [persisted] = await db.select().from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.quoteId, quoteId));
+    attemptId = persisted.id;
+    assert.equal(hasOwnership({ headers: { cookie } } as never, attemptId, persisted.ownershipTokenHash), true);
+    assert.notEqual(persisted.ownershipTokenHash, cookie.split(".")[1]);
+    assert.deepEqual(persisted.quoteSnapshot, snapshot);
+    assert.equal((persisted.orderRequestBody as Record<string, unknown>)?.quoteId, quoteId);
+    assert.equal(persisted.justiceSureOrderId, null);
+    assert.equal(quoteCreate.mock.callCount(), 1);
+    assert.equal(createOrder.mock.callCount(), 0);
+    const confirmation = { ...payload, quoteId };
+    const recoveredSnapshot = { ...snapshot };
+    // Replays use the public projection, excluding internal comparison facts.
+    for (const key of ["fxSnapshotId", "lines", "fulfillment"]) delete recoveredSnapshot[key];
+
+    await t.test("a lost quote response and reload recover the same immutable attempt", async () => {
+      // Ignore the original body as a browser would after losing the response.
+      // The HttpOnly cookie is the proof retained across a page reload.
+      for (let retry = 0; retry < 3; retry += 1) {
+        const recovered = await post("quote", payload, cookie);
+        assert.equal(recovered.status, 200);
+        assert.deepEqual(await jsonObject(recovered), recoveredSnapshot);
+        assert.equal(recovered.headers.get("set-cookie"), null, "Recovery must not rotate ownership");
+      }
+      const attempts = await db.select().from(commerceCheckoutAttemptsTable);
+      assert.equal(attempts.length, 1);
+      assert.equal(attempts[0].id, attemptId);
+      assert.equal(attempts[0].orderIdempotencyKey, `order_${payload.checkoutOperationId}`);
+      assert.equal(attempts[0].paymentIdempotencyKey, `payment_${payload.checkoutOperationId}_${quoteId.slice(0, 8)}`);
+      assert.equal(quoteCreate.mock.callCount(), 1);
+      assert.equal(createOrder.mock.callCount(), 0);
+      assert.equal(session.mock.callCount(), 0);
+    });
+
+    await t.test("an interrupted quote preparation cannot be resumed by another browser", async () => {
+      try {
+        await db.update(commerceCheckoutAttemptsTable).set({ quoteSnapshot: null })
+          .where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+        const denied = await post("quote", payload);
+        assert.equal(denied.status, 403);
+        assert.equal(denied.headers.get("set-cookie"), null);
+        assert.equal(quoteCreate.mock.callCount(), 1);
+        assert.equal((await db.select().from(commerceCheckoutAttemptsTable)).length, 1);
+      } finally {
+        await db.update(commerceCheckoutAttemptsTable).set({ quoteSnapshot: snapshot })
+          .where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      }
+    });
+
+    await t.test("a lost or forged cookie cannot claim the operation or read its quote", async () => {
+      for (const owner of [undefined, `${cookie}tampered`, `soso_checkout_owner=${crypto.randomUUID()}.forged`]) {
+        for (let retry = 0; retry < 2; retry += 1) {
+          const denied = await post("quote", payload, owner);
+          assert.equal(denied.status, 403);
+          assert.equal(denied.headers.get("set-cookie"), null);
+          assert.equal((await jsonObject(denied)).id, undefined);
+        }
+      }
+      const attempts = await db.select().from(commerceCheckoutAttemptsTable);
+      assert.equal(attempts.length, 1);
+      assert.equal(attempts[0].ownershipTokenHash, persisted.ownershipTokenHash);
+      assert.equal(quoteCreate.mock.callCount(), 1);
+      assert.equal(createOrder.mock.callCount(), 0);
+      assert.equal(session.mock.callCount(), 0);
+    });
+
+    await t.test("recovery rejects edited intent and expired quotes without replacing the attempt", async () => {
+      assert.equal((await post("quote", { ...payload, notes: "Changed" }, cookie)).status, 409);
+      try {
+        await db.update(commerceCheckoutAttemptsTable).set({
+          quoteSnapshot: { ...snapshot, expiresAt: "2000-01-01T00:00:00.000Z" },
+        }).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+        const expired = await post("quote", payload, cookie);
+        assert.equal(expired.status, 410);
+        assert.equal((await jsonObject(expired)).code, "QUOTE_EXPIRED_REQUOTE_REQUIRED");
+      } finally {
+        await db.update(commerceCheckoutAttemptsTable).set({ quoteSnapshot: snapshot })
+          .where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      }
+      assert.equal((await db.select().from(commerceCheckoutAttemptsTable)).length, 1);
+      assert.equal(quoteCreate.mock.callCount(), 1);
+    });
+
+    await t.test("previously persisted quote-specific order keys remain recoverable only by their owner", async () => {
+      try {
+        await db.update(commerceCheckoutAttemptsTable).set({
+          orderIdempotencyKey: `order_${payload.checkoutOperationId}_${quoteId.slice(0, 8)}`,
+        }).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+        const denied = await post("quote", payload);
+        assert.equal(denied.status, 403);
+        assert.equal(denied.headers.get("set-cookie"), null);
+        const recovered = await post("quote", payload, cookie);
+        assert.equal(recovered.status, 200);
+        assert.deepEqual(await jsonObject(recovered), recoveredSnapshot);
+        assert.equal((await db.select().from(commerceCheckoutAttemptsTable)).length, 1);
+        assert.equal(quoteCreate.mock.callCount(), 1);
+      } finally {
+        await db.update(commerceCheckoutAttemptsTable).set({
+          orderIdempotencyKey: `order_${payload.checkoutOperationId}`,
+        }).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      }
+    });
+
+    await t.test("missing or forged cookies and changed checkout details cannot create an order", async () => {
+      for (const owner of [undefined, `${cookie}tampered`, `soso_checkout_owner=${crypto.randomUUID()}.forged`]) {
+        assert.equal((await post("initiate", confirmation, owner)).status, 403);
+      }
+      assert.equal((await post("initiate", { ...confirmation, notes: "Changed" }, cookie)).status, 409);
+      assert.equal((await fetch(`${base}/api/payment/status/${attemptId}`)).status, 404);
+      assert.equal(createOrder.mock.callCount(), 0);
+      assert.equal(session.mock.callCount(), 0);
+    });
+
+    await t.test("immutable money, line, expiry, currency, FX and fulfilment changes fail before provider writes", async () => {
+      const mutations: Partial<JusticeSureQuote>[] = [
+        { amounts: { ...immutableQuote.amounts, totalMinor: "10001" } },
+        { expiresAt: "2099-01-02T00:00:00.000Z" },
+        { displayCurrency: "USD" }, { chargeCurrency: "USD" }, { settlementCurrency: "USD" },
+        { fxSnapshotId: crypto.randomUUID() },
+        { lines: [{ ...immutableQuote.lines![0], quantity: 2 }] },
+        { fulfillment: { ...immutableQuote.fulfillment!, locationId: crypto.randomUUID() } },
+      ];
+      for (const mutation of mutations) {
+        currentQuote = { ...structuredClone(immutableQuote), ...mutation };
+        const rejected = await post("initiate", confirmation, cookie);
+        assert.equal(rejected.status, 409);
+        assert.equal((await jsonObject(rejected)).code, "QUOTE_EXPIRED_REQUOTE_REQUIRED");
+      }
+      assert.equal(createOrder.mock.callCount(), 0);
+      assert.equal(session.mock.callCount(), 0);
+      currentQuote = structuredClone(immutableQuote);
+    });
+
+    await t.test("session failure preserves durable intent and retry reuses the existing remote order", async () => {
+      const failed = await post("initiate", confirmation, cookie);
+      assert.equal(failed.status, 503);
+      assert.equal((await jsonObject(failed)).noPaymentTaken, true);
+      const [failedAttempt] = await db.select().from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      assert.equal(failedAttempt.justiceSureOrderId, remoteOrder.id);
+      assert.equal(failedAttempt.checkoutUrl, null);
+      assert.equal(failedAttempt.lastErrorCode, "PROVIDER_UNAVAILABLE");
+      assert.deepEqual(failedAttempt.paymentSessionRequestBody, session.mock.calls[0].arguments[0].body);
+      failSession = false;
+      const confirmed = await post("initiate", confirmation, cookie);
+      assert.equal(confirmed.status, 200);
+      assert.deepEqual(await confirmed.json(), { attemptId, checkoutUrl: "https://checkout.example.test/payment" });
+      assert.equal(createOrder.mock.callCount(), 1);
+      assert.deepEqual(session.mock.calls[1].arguments, session.mock.calls[0].arguments);
+      const replay = await post("initiate", confirmation, cookie);
+      assert.equal(replay.status, 200);
+      assert.equal(createOrder.mock.callCount(), 1);
+      assert.equal(session.mock.callCount(), 2);
+    });
+
+    await t.test("overlapping owned confirmations share durable intent and one recoverable session", { timeout: 15_000 }, async (concurrent) => {
+      const concurrentQuoteId = crypto.randomUUID();
+      const concurrentAttemptId = crypto.randomUUID();
+      const concurrentPaymentAttemptId = crypto.randomUUID();
+      const concurrentPaymentIntentId = crypto.randomUUID();
+      const operationId = `concurrent-${crypto.randomUUID()}`;
+      const concurrentPayload = { ...payload, checkoutOperationId: operationId, quoteId: concurrentQuoteId };
+      const concurrentQuote = { ...structuredClone(immutableQuote), id: concurrentQuoteId };
+      const concurrentOrder = { ...structuredClone(remoteOrder), id: crypto.randomUUID(), number: `JS-${operationId}` };
+      const orderKey = `order_${operationId}_${concurrentQuoteId.slice(0, 8)}`;
+      const paymentKey = `payment_${operationId}_${concurrentQuoteId.slice(0, 8)}`;
+      const orderBody = { ...persisted.orderRequestBody as Record<string, unknown>, quoteId: concurrentQuoteId };
+      const paymentBody = { provider: "paystack", email: payload.customer.email, redirectUrl: environment.SOSO_PAYMENT_RETURN_URL };
+      const concurrentCookie = cookie.replace(persisted.id, concurrentAttemptId);
+      await db.insert(commerceCheckoutAttemptsTable).values({
+        ...persisted, id: concurrentAttemptId, quoteId: concurrentQuoteId,
+        requestHash: checkoutRequestHash(concurrentPayload),
+        quoteSnapshot: { ...persisted.quoteSnapshot as Record<string, unknown>, id: concurrentQuoteId },
+        orderRequestBody: orderBody, orderIdempotencyKey: orderKey, paymentIdempotencyKey: paymentKey,
+      });
+      const orderEntered = providerGate();
+      const releaseOrder = providerGate();
+      const sessionEntered = providerGate();
+      const releaseSession = providerGate();
+      const secondConfirmationEntered = providerGate();
+      const originalTransaction = checkoutInitiationLockDb.transaction.bind(checkoutInitiationLockDb);
+      concurrent.mock.method(checkoutInitiationLockDb, "transaction", async (
+        callback: Parameters<typeof checkoutInitiationLockDb.transaction>[0],
+        config?: Parameters<typeof checkoutInitiationLockDb.transaction>[1],
+      ) => {
+        return originalTransaction(async (tx) => {
+          const originalExecute = tx.execute.bind(tx);
+          concurrent.mock.method(tx, "execute", async (query: Parameters<typeof tx.execute>[0]) => {
+            const result = await originalExecute(query);
+            if (result.rows[0]?.acquired === false) secondConfirmationEntered.resolve();
+            return result;
+          });
+          return callback(tx);
+        }, config);
+      });
+      concurrent.mock.method(client, "getPriceQuote", async () => structuredClone(concurrentQuote));
+      const concurrentCreate = concurrent.mock.method(client, "createOrder", async (input: Parameters<typeof client.createOrder>[0]) => {
+        assert.deepEqual(input, { body: orderBody, idempotencyKey: orderKey });
+        orderEntered.resolve();
+        await releaseOrder.promise;
+        return { order: structuredClone(concurrentOrder), replayed: false };
+      });
+      const concurrentSession = concurrent.mock.method(client, "createPaymentSession", async (input: Parameters<typeof client.createPaymentSession>[0]) => {
+        assert.deepEqual(input, { orderId: concurrentOrder.id, body: paymentBody, idempotencyKey: paymentKey });
+        const [intent] = await db.select().from(commerceCheckoutAttemptsTable)
+          .where(eq(commerceCheckoutAttemptsTable.id, concurrentAttemptId));
+        assert.equal(intent.justiceSureOrderId, concurrentOrder.id);
+        assert.deepEqual(intent.orderRequestBody, orderBody);
+        assert.deepEqual(intent.paymentSessionRequestBody, paymentBody);
+        assert.equal(intent.orderIdempotencyKey, orderKey);
+        assert.equal(intent.paymentIdempotencyKey, paymentKey);
+        const number = concurrentSession.mock.callCount();
+        sessionEntered.resolve();
+        await releaseSession.promise;
+        // Deliberately different per call: a second provider call must not be
+        // hidden by an unrealistically idempotent mock.
+        return { provider: "paystack" as const, reference: `concurrent-reference-${number}`,
+          attemptId: concurrentPaymentAttemptId, paymentIntentId: concurrentPaymentIntentId,
+          checkoutUrl: `https://checkout.example.test/concurrent/${number}`, replayed: false };
+      });
+      const requests: Promise<Response>[] = [];
+      try {
+        requests.push(post("initiate", concurrentPayload, concurrentCookie));
+        await waitForGate(orderEntered.promise);
+        requests.push(post("initiate", concurrentPayload, concurrentCookie));
+        // Confirm real overlap, not merely two fast sequential HTTP requests:
+        // the second request must try the held lock while the first provider
+        // promise is unresolved. Do not depend on arbitrary sleep durations.
+        await waitForGate(secondConfirmationEntered.promise);
+        assert.equal(concurrentCreate.mock.callCount(), 1);
+        const [beforeOrder] = await db.select().from(commerceCheckoutAttemptsTable)
+          .where(eq(commerceCheckoutAttemptsTable.id, concurrentAttemptId));
+        assert.deepEqual(beforeOrder.orderRequestBody, orderBody);
+        assert.equal(beforeOrder.justiceSureOrderId, null);
+        releaseOrder.resolve();
+        await waitForGate(sessionEntered.promise);
+        assert.equal(concurrentSession.mock.callCount(), 1);
+        releaseSession.resolve();
+        const responses = await Promise.all(requests);
+        for (const response of responses) {
+          assert.equal(response.status, 200);
+          assert.deepEqual(await response.json(), {
+            attemptId: concurrentAttemptId, checkoutUrl: "https://checkout.example.test/concurrent/1",
+          });
+        }
+        const [completed] = await db.select().from(commerceCheckoutAttemptsTable)
+          .where(eq(commerceCheckoutAttemptsTable.id, concurrentAttemptId));
+        assert.equal(completed.justiceSureOrderId, concurrentOrder.id);
+        assert.equal(completed.justiceSurePaymentAttemptId, concurrentPaymentAttemptId);
+        assert.equal(completed.justiceSurePaymentIntentId, concurrentPaymentIntentId);
+        assert.equal(completed.paymentReference, "concurrent-reference-1");
+        assert.deepEqual(completed.orderRequestBody, orderBody);
+        assert.deepEqual(completed.paymentSessionRequestBody, paymentBody);
+        assert.equal(completed.orderIdempotencyKey, orderKey);
+        assert.equal(completed.paymentIdempotencyKey, paymentKey);
+        assert.equal(completed.checkoutUrl, "https://checkout.example.test/concurrent/1");
+        const projected = await db.select().from(ordersTable).where(eq(ordersTable.orderNumber, concurrentOrder.number!));
+        assert.equal(projected.length, 1);
+        assert.equal(projected[0].id, completed.localOrderId);
+        assert.equal(projected[0].paymentReference, completed.paymentReference);
+        const lines = await db.select().from(orderItemsTable).where(eq(orderItemsTable.orderId, completed.localOrderId!));
+        assert.equal(lines.length, 1);
+        assert.equal(lines[0].commerceProductId, productId);
+        const replay = await post("initiate", concurrentPayload, concurrentCookie);
+        assert.equal(replay.status, 200);
+        assert.deepEqual(await replay.json(), { attemptId: concurrentAttemptId, checkoutUrl: completed.checkoutUrl });
+        assert.equal((await post("initiate", concurrentPayload, `${concurrentCookie}forged`)).status, 403);
+        assert.equal((await post("initiate", { ...concurrentPayload, notes: "Changed" }, concurrentCookie)).status, 409);
+        assert.equal(concurrentCreate.mock.callCount(), 1);
+        assert.equal(concurrentSession.mock.callCount(), 1);
+      } finally {
+        releaseOrder.resolve();
+        releaseSession.resolve();
+        await Promise.allSettled(requests);
+      }
+    });
+
+    await t.test("distinct confirmations saturate lock capacity without starving durable checkout work", { timeout: 15_000 }, async (burst) => {
+      assert.notEqual(checkoutInitiationLockPool, pool);
+      const capacity = pool.options.max!;
+      assert.ok(checkoutInitiationLockPool.options.max! >= capacity);
+      const fixtures = Array.from({ length: capacity + 2 }, () => {
+        const id = crypto.randomUUID();
+        const quoteId = crypto.randomUUID();
+        const operationId = `burst-${crypto.randomUUID()}`;
+        const body = { ...payload, checkoutOperationId: operationId, quoteId };
+        const remote = { ...structuredClone(remoteOrder), id: crypto.randomUUID(), number: `JS-${operationId}` };
+        return {
+          id, quoteId, body, remote, cookie: cookie.replace(persisted.id, id),
+          paymentAttemptId: crypto.randomUUID(),
+          orderKey: `order_${operationId}_${quoteId.slice(0, 8)}`,
+          paymentKey: `payment_${operationId}_${quoteId.slice(0, 8)}`,
+          checkoutUrl: `https://checkout.example.test/burst/${id}`,
+        };
+      });
+      await db.insert(commerceCheckoutAttemptsTable).values(fixtures.map((fixture) => ({
+        ...persisted, id: fixture.id, quoteId: fixture.quoteId,
+        requestHash: checkoutRequestHash(fixture.body),
+        quoteSnapshot: { ...persisted.quoteSnapshot as Record<string, unknown>, id: fixture.quoteId },
+        orderRequestBody: { ...persisted.orderRequestBody as Record<string, unknown>, quoteId: fixture.quoteId },
+        orderIdempotencyKey: fixture.orderKey, paymentIdempotencyKey: fixture.paymentKey,
+      })));
+      const saturated = providerGate();
+      const releaseProviders = providerGate();
+      let providerEntries = 0;
+      burst.mock.method(client, "getPriceQuote", async (quoteId: string) => {
+        assert.ok(fixtures.some((fixture) => fixture.quoteId === quoteId));
+        return { ...structuredClone(immutableQuote), id: quoteId };
+      });
+      const create = burst.mock.method(client, "createOrder", async (input: Parameters<typeof client.createOrder>[0]) => {
+        const fixture = fixtures.find(({ quoteId }) => quoteId === input.body.quoteId);
+        assert.ok(fixture);
+        assert.equal(input.idempotencyKey, fixture.orderKey);
+        if (++providerEntries >= capacity) saturated.resolve();
+        await releaseProviders.promise;
+        return { order: structuredClone(fixture.remote), replayed: false };
+      });
+      const sessions = burst.mock.method(client, "createPaymentSession", async (input: Parameters<typeof client.createPaymentSession>[0]) => {
+        const fixture = fixtures.find(({ remote }) => remote.id === input.orderId);
+        assert.ok(fixture);
+        assert.equal(input.idempotencyKey, fixture.paymentKey);
+        assert.deepEqual(input.body, {
+          provider: "paystack", email: payload.customer.email, redirectUrl: environment.SOSO_PAYMENT_RETURN_URL,
+        });
+        return { provider: "paystack" as const, reference: `burst-${fixture.id}`,
+          attemptId: fixture.paymentAttemptId, checkoutUrl: fixture.checkoutUrl, replayed: false };
+      });
+      const requests = fixtures.map((fixture) => post("initiate", fixture.body, fixture.cookie));
+      try {
+        // At least as many distinct locks as the entire data-pool capacity are
+        // held over unresolved provider calls. A shared lock/data pool deadlocks
+        // before reaching this barrier; a separate pool keeps reads available.
+        await waitForGate(saturated.promise);
+        await waitForGate(db.execute(sql`select 1`).then(() => undefined));
+        releaseProviders.resolve();
+        const responses = await Promise.all(requests);
+        for (const [index, response] of responses.entries()) {
+          const fixture = fixtures[index];
+          assert.equal(response.status, 200);
+          assert.deepEqual(await response.json(), { attemptId: fixture.id, checkoutUrl: fixture.checkoutUrl });
+        }
+        const completed = await db.select().from(commerceCheckoutAttemptsTable)
+          .where(inArray(commerceCheckoutAttemptsTable.id, fixtures.map(({ id }) => id)));
+        assert.equal(completed.length, fixtures.length);
+        assert.equal(new Set(completed.map(({ localOrderId }) => localOrderId)).size, fixtures.length);
+        for (const attempt of completed) {
+          const fixture = fixtures.find(({ id }) => id === attempt.id)!;
+          assert.ok(attempt.localOrderId);
+          assert.equal(attempt.justiceSureOrderId, fixture.remote.id);
+          assert.equal(attempt.justiceSurePaymentAttemptId, fixture.paymentAttemptId);
+          assert.equal(attempt.orderIdempotencyKey, fixture.orderKey);
+          assert.equal(attempt.paymentIdempotencyKey, fixture.paymentKey);
+          assert.equal(attempt.checkoutUrl, fixture.checkoutUrl);
+        }
+        const projections = await db.select().from(ordersTable)
+          .where(inArray(ordersTable.orderNumber, fixtures.map(({ remote }) => remote.number!)));
+        assert.equal(projections.length, fixtures.length);
+        assert.equal(create.mock.callCount(), fixtures.length);
+        assert.equal(sessions.mock.callCount(), fixtures.length);
+      } finally {
+        releaseProviders.resolve();
+        await Promise.allSettled(requests);
+      }
+    });
+
+    await t.test("owned status verifies and reconciles pending payments with a persisted cooldown", async () => {
+      const status = () => fetch(`${base}/api/payment/status/${attemptId}`, { headers: { cookie } });
+      const pending = await status();
+      assert.equal(pending.status, 200);
+      assert.equal((await jsonObject(pending)).status, "payment_pending");
+      assert.equal(verify.mock.callCount(), 1);
+      assert.equal(reconcile.mock.callCount(), 1);
+      assert.equal((await status()).status, 200);
+      assert.equal(verify.mock.callCount(), 1);
+      const [pendingAttempt] = await db.select().from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      assert.ok(pendingAttempt.paymentRecoveryCheckedAt);
+      assert.equal(pendingAttempt.justiceSurePaymentAttemptId, remoteAttemptId);
+      await db.update(commerceCheckoutAttemptsTable).set({ paymentRecoveryCheckedAt: new Date(0) }).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      remoteOrder = { ...remoteOrder, payment: { ...remoteOrder.payment, status: "paid" },
+        amounts: { ...remoteOrder.amounts, paidKobo: 10000, outstandingKobo: 0 } };
+      verify.mock.mockImplementation(async () => ({ attemptId: remoteAttemptId, status: "succeeded", paymentStatus: "paid" }));
+      const paid = await status();
+      assert.equal(paid.status, 200);
+      assert.equal((await jsonObject(paid)).status, "paid");
+      assert.equal(verify.mock.callCount(), 2);
+      assert.equal(reconcile.mock.callCount(), 1);
+      const [paidAttempt] = await db.select().from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      assert.equal(paidAttempt.status, "paid");
+      const [localOrder] = await db.select().from(ordersTable).where(eq(ordersTable.id, paidAttempt.localOrderId!));
+      assert.equal(localOrder.status, "paid");
+      assert.equal((await status()).status, 200);
+      assert.equal(verify.mock.callCount(), 2);
+    });
+
+    await t.test("recovery failures never mark a pending local order as paid", async () => {
+      remoteOrder.payment.status = "pending";
+      remoteOrder.amounts.paidKobo = 0;
+      remoteOrder.amounts.outstandingKobo = 10000;
+      const [attempt] = await db.select().from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      await db.update(ordersTable).set({ status: "payment_pending" }).where(eq(ordersTable.id, attempt.localOrderId!));
+      await db.update(commerceCheckoutAttemptsTable).set({ status: "payment_pending", paymentRecoveryCheckedAt: new Date(0) })
+        .where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      verify.mock.mockImplementation(async () => { throw new JusticeSureRequestError("Mock verification failure", 503); });
+      const failed = await fetch(`${base}/api/payment/status/${attemptId}`, { headers: { cookie } });
+      assert.equal(failed.status, 503);
+      const [failedAttempt] = await db.select().from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      assert.equal(failedAttempt.status, "payment_pending");
+      const [localOrder] = await db.select().from(ordersTable).where(eq(ordersTable.id, attempt.localOrderId!));
+      assert.equal(localOrder.status, "payment_pending");
+      assert.equal(reconcile.mock.callCount(), 1);
+      assert.ok(failedAttempt.paymentRecoveryCheckedAt, "Failed provider reads must also retain the retry cooldown");
+    });
+
+    await t.test("invalid recovery IDs fail closed and simulated attempts never invoke live verification", async () => {
+      const calls = verify.mock.callCount();
+      await db.update(commerceCheckoutAttemptsTable).set({ justiceSurePaymentAttemptId: "not-a-uuid", paymentRecoveryCheckedAt: new Date(0) })
+        .where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      assert.equal((await fetch(`${base}/api/payment/status/${attemptId}`, { headers: { cookie } })).status, 502);
+      assert.equal(verify.mock.callCount(), calls);
+      await db.update(commerceCheckoutAttemptsTable).set({ provider: "simulated", justiceSurePaymentAttemptId: remoteAttemptId })
+        .where(eq(commerceCheckoutAttemptsTable.id, attemptId!));
+      const simulated = await fetch(`${base}/api/payment/status/${attemptId}`, { headers: { cookie } });
+      assert.equal(simulated.status, 200);
+      assert.equal((await jsonObject(simulated)).status, "payment_pending");
+      assert.equal(verify.mock.callCount(), calls);
+      assert.equal(reconcile.mock.callCount(), 1);
+    });
+  } finally {
+    if (server) await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
+    // All fixture rows are removed by the isolated-schema runner, including
+    // order projections and content; never touch a shared schema here.
+  }
 });
 
 test("signed catalogue webhooks persist idempotently and drive authenticated Staff invalidations", async () => {

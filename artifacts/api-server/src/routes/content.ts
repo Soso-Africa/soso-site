@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import { normalizeStorefrontTitle } from "@workspace/api-zod";
 import { createHash } from "node:crypto";
 import {
   CreateAccessoryLaunchNotificationBody,
@@ -26,12 +25,13 @@ import {
 import { and, desc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { currentPrivacyPolicyVersion, recordPrivacyPolicyVersion } from "../lib/privacyPolicy";
 import { PlatformContentSchema } from "../lib/platform-content";
-import { publicCatalogueContent } from "../lib/public-catalogue-checkout";
 import { commerceActivationEnabled } from "../lib/commerce-activation";
 import { readPublicPlatformSnapshot } from "../lib/public-platform-cache";
+import { createPublicContentResponses } from "../lib/public-content-responses";
 import { ACCESSORY_LAUNCH_NOTIFICATION_POLICY_VERSION, isPublishedUnavailableAccessory } from "../lib/accessory-launch-notifications";
 
 const router: IRouter = Router();
+const publicResponses = createPublicContentResponses();
 const ENQUIRY_RATE_WINDOW_MS = 60_000;
 const MAX_ENQUIRIES_PER_IP_WINDOW = 8;
 const PRIVACY_REQUEST_RATE_WINDOW_MS = 60 * 60_000;
@@ -212,7 +212,8 @@ router.get("/content/site", async (_req, res): Promise<void> => {
     return;
   }
   res.set("Cache-Control", "no-store");
-  res.json({ content: snapshot.content.site });
+  const response = publicResponses.site(snapshot);
+  res.type("application/json").set("ETag", response.etag).send(response.body);
 });
 
 router.get("/content/platform", async (_req, res): Promise<void> => {
@@ -225,17 +226,8 @@ router.get("/content/platform", async (_req, res): Promise<void> => {
   // Do not CDN-cache the response: activation is checked live even when the
   // large, version-verified editorial snapshot is reused in this process.
   res.set("Cache-Control", "no-store");
-  const publicContent = publicCatalogueContent(snapshot.content, checkoutEnabled);
-  const oldTitle = publicContent.homepage.seo.title;
-  const currentTitle = normalizeStorefrontTitle(oldTitle);
-  res.json({
-    content: currentTitle === oldTitle ? publicContent : {
-      ...publicContent,
-      homepage: { ...publicContent.homepage, seo: { ...publicContent.homepage.seo, title: currentTitle } },
-    },
-    publishedAt: snapshot.publishedAt,
-    checkoutEnabled,
-  });
+  const response = publicResponses.platform(snapshot, checkoutEnabled);
+  res.type("application/json").set("ETag", response.etag).send(response.body);
 });
 
 router.get("/journal/:slug", async (req, res): Promise<void> => {

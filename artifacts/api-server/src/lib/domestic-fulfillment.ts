@@ -66,6 +66,9 @@ export function fulfillmentUnavailable(
 
 export function deliveryQuoteMatches(actual: Record<string, unknown>, expected: JusticeSureFulfillment): boolean {
   if (expected.type !== "delivery") return true;
+  if (expected.deliveryQuoteToken) {
+    return actual.destinationCountry === "NG" && actual.address === expected.address;
+  }
   if (actual.destinationCountry !== "NG" || !actual.shippingAddress || typeof actual.shippingAddress !== "object") return false;
   const address = actual.shippingAddress as Record<string, unknown>;
   const fields = expected.shippingAddress!;

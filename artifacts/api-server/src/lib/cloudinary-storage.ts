@@ -63,6 +63,21 @@ function requiredCloudinaryConfig(): CloudinaryConfig {
   return { cloudName, apiKey, apiSecret };
 }
 
+// Admin usage is read-only. Credentials stay in the server-side configuration
+// and Authorization header, never a URL, browser response, or log.
+export function cloudinaryUsageConfigFingerprint(): string {
+  return createHash("sha256").update(JSON.stringify(requiredCloudinaryConfig())).digest("hex");
+}
+
+export async function requestCloudinaryUsage(): Promise<Response> {
+  const config = requiredCloudinaryConfig();
+  return fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/usage`, {
+    headers: { Authorization: `Basic ${Buffer.from(`${config.apiKey}:${config.apiSecret}`).toString("base64")}` },
+    redirect: "error",
+    signal: AbortSignal.timeout(10_000),
+  });
+}
+
 function extensionForContentType(contentType: string): string {
   const extensions: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -143,12 +158,32 @@ export function cloudinaryDeliveryUrlForPath(
   return `https://res.cloudinary.com/${encodeURIComponent(cloudName)}/${resourceType}/upload/${encodeCloudinaryPath(publicIdWithFormat)}`;
 }
 
-async function inspectDeliveryUrl(url: string): Promise<CloudinaryMediaInspection> {
+const inspectedMedia = new Map<string, { etag: string; inspection: CloudinaryMediaInspection }>();
+const MAX_INSPECTION_CACHE_ENTRIES = 512;
+
+export async function inspectDeliveryUrl(url: string): Promise<CloudinaryMediaInspection> {
+  const cached = inspectedMedia.get(url);
   const response = await fetch(url, {
-    headers: { Range: `bytes=0-${MAX_HERO_POSTER_BYTES}` },
+    headers: {
+      Range: `bytes=0-${MAX_HERO_POSTER_BYTES}`,
+      ...(cached ? { "If-None-Match": cached.etag } : {}),
+    },
     redirect: "follow",
     signal: AbortSignal.timeout(20_000),
   });
+  if (response.status === 304) {
+    const confirmedEtag = response.headers.get("etag");
+    const declaredContentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
+    if (!cached || (confirmedEtag && confirmedEtag !== cached.etag)
+      || (declaredContentType && declaredContentType !== cached.inspection.declaredContentType)) {
+      inspectedMedia.delete(url);
+      throw new Error("Cloudinary returned an unverified unchanged media response");
+    }
+    return { ...cached.inspection };
+  }
+  // Never serve an old inspection when the provider changed, withdrew or
+  // failed to validate the resource. This is bandwidth reuse, not a TTL cache.
+  inspectedMedia.delete(url);
   if (response.status === 404) throw new MediaNotFoundError();
   if (!response.ok) throw new Error(`Cloudinary media inspection failed (${response.status})`);
   const bytes = Buffer.from(await response.arrayBuffer());
@@ -159,13 +194,22 @@ async function inspectDeliveryUrl(url: string): Promise<CloudinaryMediaInspectio
   const declaredContentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
   const contentType = detectMediaContentType(bytes) ?? "";
   const dimensions = imageDimensions(bytes, contentType);
-  return {
+  const inspection: CloudinaryMediaInspection = {
     contentType,
     declaredContentType,
     size,
     animated: contentType.startsWith("image/") && isAnimatedImage(bytes, contentType),
     ...(dimensions ?? {}),
   };
+  const etag = response.headers.get("etag");
+  // Only strong byte validators can authorize reuse of MIME/animation checks.
+  if (etag && /^"[^"\r\n]+"$/.test(etag)) {
+    inspectedMedia.set(url, { etag, inspection: { ...inspection } });
+    if (inspectedMedia.size > MAX_INSPECTION_CACHE_ENTRIES) {
+      inspectedMedia.delete(inspectedMedia.keys().next().value!);
+    }
+  }
+  return inspection;
 }
 
 async function cloudinaryAdminRequest(

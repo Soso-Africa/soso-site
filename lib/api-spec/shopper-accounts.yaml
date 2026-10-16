@@ -1,0 +1,265 @@
+paths:
+  /account/profile:
+    get:
+      operationId: getShopperProfile
+      responses:
+        "200":
+          description: Private profile and capabilities
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperProfileResponse" }
+    patch:
+      operationId: updateShopperProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopperProfileInput" }
+      responses:
+        "200":
+          description: Updated private profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperProfileResponse" }
+  /account/link:
+    post:
+      operationId: linkShopperProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopperProfileInput" }
+      responses:
+        "200":
+          description: Linked verified account
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperProfileResponse" }
+  /account/orders:
+    get:
+      operationId: getShopperOrders
+      parameters:
+        - { name: offset, in: query, schema: { type: number, multipleOf: 1, minimum: 0 } }
+      responses:
+        "200":
+          description: Owned paginated order summaries
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperOrders" }
+  /account/orders/{orderId}:
+    get:
+      operationId: getShopperOrder
+      parameters:
+        - { name: orderId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Owned online order
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperOrderResponse" }
+  /account/production:
+    get:
+      operationId: getShopperProduction
+      responses:
+        "200":
+          description: Customer-safe recent production
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperProduction" }
+  /account/measurements:
+    get:
+      operationId: getShopperMeasurements
+      responses:
+        "200":
+          description: Fashion capability measurement profiles
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperMeasurements" }
+    post:
+      operationId: createShopperMeasurement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopperMeasurementInput" }
+      responses:
+        "200":
+          description: Exact provider revision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperMeasurementRevision" }
+  /account/measurements/{profileId}:
+    put:
+      operationId: updateShopperMeasurement
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopperMeasurementUpdate" }
+      responses:
+        "200":
+          description: Exact provider revision
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ShopperMeasurementRevision" }
+    delete:
+      operationId: deleteShopperMeasurement
+      parameters:
+        - { name: profileId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ShopperMeasurementDelete" }
+      responses:
+        "200":
+          description: Deleted owned profile
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties: { deleted: { type: boolean } }
+components:
+  schemas:
+    ShopperProfileInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        phone: { type: [string, "null"], maxLength: 50 }
+        address: { type: [string, "null"], maxLength: 2000 }
+    ShopperCustomer:
+      type: object
+      required: [id, externalId, name, email, verifiedEmail, phone, address]
+      properties:
+        id: { type: string }
+        externalId: { type: string }
+        name: { type: string }
+        email: { type: [string, "null"] }
+        verifiedEmail: { type: string }
+        phone: { type: [string, "null"] }
+        address: { type: [string, "null"] }
+    ShopperProfileResponse:
+      type: object
+      required: [customer]
+      properties:
+        customer: { $ref: "#/components/schemas/ShopperCustomer" }
+        capabilities:
+          type: object
+          required: [measurements]
+          properties: { measurements: { type: boolean } }
+    ShopperOrder:
+      type: object
+      properties:
+        id: { type: string }
+        number: { type: [string, "null"] }
+        status: { type: string }
+        createdAt: { type: string }
+        currency: { type: string }
+        source: { type: [string, "null"] }
+        amounts: { type: object, additionalProperties: true }
+        payment: { type: object, additionalProperties: true }
+        items: { type: array, items: { type: object, additionalProperties: true } }
+        fulfillment: { type: object, additionalProperties: true }
+        delivery: { type: object, additionalProperties: true }
+        originalCharge: { type: object, additionalProperties: true }
+    ShopperOrders:
+      type: object
+      required: [orders, hasMore, nextOffset]
+      properties:
+        orders: { type: array, items: { $ref: "#/components/schemas/ShopperOrder" } }
+        hasMore: { type: boolean }
+        nextOffset: { type: [number, "null"], multipleOf: 1 }
+    ShopperOrderResponse:
+      type: object
+      required: [order]
+      properties: { order: { $ref: "#/components/schemas/ShopperOrder" } }
+    ShopperProductionJob:
+      type: object
+      properties:
+        id: { type: string }
+        number: { type: [string, "null"] }
+        garmentName: { type: [string, "null"] }
+        status: { type: string }
+        currentStage: { type: string }
+        dueDate: { type: [string, "null"] }
+        completedAt: { type: [string, "null"] }
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              at: { type: [string, "null"] }
+              fromStage: { type: [string, "null"] }
+              toStage: { type: [string, "null"] }
+    ShopperProduction:
+      type: object
+      required: [enabled, stages, jobs, orders]
+      properties:
+        enabled: { type: boolean }
+        stages: { type: array, items: { type: string } }
+        jobs: { type: array, items: { $ref: "#/components/schemas/ShopperProductionJob" } }
+        orders: { type: array, items: { $ref: "#/components/schemas/ShopperProductionJob" } }
+        hasMore: { type: boolean }
+    ShopperMeasurementEntry:
+      type: object
+      additionalProperties: false
+      required: [field, label, value]
+      properties:
+        field: { type: string, pattern: "^[A-Za-z][A-Za-z0-9_ -]{0,99}$" }
+        label: { type: string, minLength: 1, maxLength: 150 }
+        value: { type: string, pattern: "^\\d{1,3}(\\.\\d{1,2})?$" }
+    ShopperMeasurementInput:
+      type: object
+      additionalProperties: false
+      required: [name, unit, entries]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        unit: { type: string, enum: [inches, cm] }
+        entries: { type: array, minItems: 1, maxItems: 60, items: { $ref: "#/components/schemas/ShopperMeasurementEntry" } }
+    ShopperMeasurementUpdate:
+      allOf:
+        - { $ref: "#/components/schemas/ShopperMeasurementInput" }
+        - type: object
+          required: [revision]
+          properties: { revision: { type: number, multipleOf: 1, minimum: 1 } }
+    ShopperMeasurementDelete:
+      type: object
+      additionalProperties: false
+      required: [revision]
+      properties: { revision: { type: number, multipleOf: 1, minimum: 1 } }
+    ShopperMeasurementRevision:
+      type: object
+      required: [id, revision]
+      properties:
+        id: { type: string }
+        revision: { type: number, multipleOf: 1, minimum: 1 }
+    ShopperMeasurementProfile:
+      allOf:
+        - { $ref: "#/components/schemas/ShopperMeasurementInput" }
+        - type: object
+          required: [id, editable, revision]
+          properties:
+            id: { type: string }
+            editable: { type: boolean }
+            revision: { type: [number, "null"], multipleOf: 1 }
+            created_at: { type: string }
+            updated_at: { type: [string, "null"] }
+    ShopperMeasurements:
+      type: object
+      required: [fields, units, profiles, hasMore]
+      properties:
+        fields:
+          type: array
+          items:
+            type: object
+            required: [field, label]
+            properties:
+              field: { type: string }
+              label: { type: string }
+        units: { type: array, items: { type: string, enum: [inches, cm] } }
+        profiles: { type: array, items: { $ref: "#/components/schemas/ShopperMeasurementProfile" } }
+        hasMore: { type: boolean }

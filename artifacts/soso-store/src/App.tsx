@@ -15,7 +15,7 @@ import { PwaInstallPopup } from '@/components/PwaInstallPopup';
 import { Seo } from '@/components/Seo';
 import { getRedirect, isPrivateStorefrontPath } from '@workspace/api-client-react';
 import { customFetch } from '@workspace/api-client-react';
-import { usePlatformContent } from '@/data/platformContent';
+import { PreviewContentIndicator, usePlatformContent } from '@/data/platformContent';
 import { legacyRedirectByPath } from '@/data/legacy-redirects';
 import { lazyPage } from '@/lib/lazyPage';
 import { StorefrontNavigation } from '@/components/StorefrontNavigation';
@@ -41,6 +41,8 @@ const Shop = lazyPage(loadShopPage);
 const SignIn = lazyPage(() => import('@/pages/SignIn'));
 const NewsletterLink = lazyPage(() => import('@/pages/NewsletterLink'));
 const Staff = lazyPage(() => import('@/pages/Staff'));
+const AccountApp = lazyPage(() => import('@/pages/account/AccountApp'));
+const ShopperAccount = lazyPage(() => import('@/pages/ShopperAccount'));
 
 const queryClient = new QueryClient();
 
@@ -79,6 +81,9 @@ function Router() {
           <Route path="/newsletter/confirm" component={NewsletterLink} />
           <Route path="/newsletter/unsubscribe" component={NewsletterLink} />
           <Route path="/sign-up/*?"><Redirect to="/sign-in" /></Route>
+          {/* Original measurements/atelier dashboard, standalone with its own provider; must precede the /account nest. */}
+          <Route path="/account/atelier/*?" component={ShopperAccount} />
+          <Route path="/account" nest component={AccountApp} />
           <Route path="/staff" component={StaffGate} />
           <Route component={NotFound} />
         </Switch>
@@ -140,7 +145,11 @@ function App() {
 function AppShell() {
   const [location] = useLocation();
   const platform = usePlatformContent();
+  const [privacyOpenRequest, openPrivacyPanel] = useState(0);
+  // Shopper account pages are private (noindex, no pixels) but keep the storefront chrome; they are not Staff.
+  const accountSurface = /^\/account(?:\/|$)/i.test(location);
   const staffOrAuthSurface = isPrivateStorefrontPath(location)
+    && !accountSurface
     && !/^\/newsletter\/(?:confirm|unsubscribe)(?:\/|$)/i.test(location);
 
   useEffect(() => {
@@ -154,6 +163,9 @@ function AppShell() {
       {platform.data && <a href="#main-content" className="soso-skip-link">{platform.data.content.site.skipLinkLabel}</a>}
       <div className="flex flex-col min-h-screen">
         {!staffOrAuthSurface && <Navbar />}
+        {accountSurface && (
+          <Seo title="Your account | SOSO Africa" description="Your private SOSO Africa account." noIndex />
+        )}
         {staffOrAuthSurface && (
           <Seo
             title="Staff access | SOSO Africa"
@@ -164,13 +176,14 @@ function AppShell() {
         <main id="main-content" className="flex-1" tabIndex={-1}>
           <RedirectGuard><Router /></RedirectGuard>
         </main>
-        {!staffOrAuthSurface && <Footer />}
+        {!staffOrAuthSurface && <Footer onOpenPrivacy={() => openPrivacyPanel((request) => request + 1)} />}
+        {!staffOrAuthSurface && <PreviewContentIndicator />}
       </div>
       {!staffOrAuthSurface && (
         <>
           <CartDrawer />
-          <ConsentManager />
-          <PwaInstallPopup contentReady={Boolean(platform.data)} />
+          <ConsentManager openRequest={privacyOpenRequest} />
+          {!accountSurface && <PwaInstallPopup contentReady={Boolean(platform.data)} />}
         </>
       )}
     </>

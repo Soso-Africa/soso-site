@@ -6,6 +6,8 @@ import { logger } from "./lib/logger";
 import { ensurePlatformContent } from "./lib/platform-content";
 import { requireSameOriginForWrites } from "./middlewares/sameOriginWrite";
 import { loadStaffSession } from "./middlewares/staff";
+import { loadShopperSession } from "./lib/shopper-auth-session";
+import { requireShopperOrigin } from "./middlewares/shopperOrigin";
 
 const app: Express = express();
 let initialization: Promise<void> | null = null;
@@ -41,6 +43,8 @@ app.use(
   }),
 );
 app.use(cookieParser());
+// Opaque shopper sessions are independent of Staff sessions and do not need Clerk.
+app.use(["/api/account", "/api/shopper", "/api/payment/quote", "/api/payment/initiate"], loadShopperSession, requireShopperOrigin);
 function preserveRawBody(req: express.Request, _res: express.Response, buffer: Buffer) {
   (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
 }

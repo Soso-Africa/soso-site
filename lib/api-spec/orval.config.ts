@@ -17,7 +17,7 @@ export default defineConfig({
   "api-client-react": {
     input: {
       target: "./openapi.yaml",
-      parserOptions: { externalRefs: { allow: ["./mail.openapi.yaml"] } },
+      parserOptions: { externalRefs: { allow: ["./mail.openapi.yaml", "./shopper-accounts.yaml", "./cloudinary-usage.yaml", "./shopper.openapi.yaml", "./shopper-auth.yaml"] } },
       override: {
         transformer: titleTransformer,
       },
@@ -44,7 +44,7 @@ export default defineConfig({
   zod: {
     input: {
       target: "./openapi.yaml",
-      parserOptions: { externalRefs: { allow: ["./mail.openapi.yaml"] } },
+      parserOptions: { externalRefs: { allow: ["./mail.openapi.yaml", "./shopper-accounts.yaml", "./cloudinary-usage.yaml", "./shopper.openapi.yaml", "./shopper-auth.yaml"] } },
       override: {
         transformer: titleTransformer,
       },

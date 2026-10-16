@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play } from "lucide-react";
 import type { PlatformContent } from "@/data/platformContent";
 import { selectHeroMedia, type HeroMotionEnvironment } from "@/lib/heroMedia";
+import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
+import { useDocumentVisible } from "@/hooks/use-document-visible";
 
 type Hero = PlatformContent["homepage"]["hero"];
 type NetworkInformation = EventTarget & {
@@ -25,6 +27,11 @@ function readEnvironment(): HeroMotionEnvironment {
 
 export function HomeHeroMedia({ hero }: { hero: Hero }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const manuallyPaused = useRef(false);
+  const documentVisible = useDocumentVisible();
+  const [inViewport, setInViewport] = useState(false);
+  const [activatedVideoUrl, setActivatedVideoUrl] = useState<string>();
   const [environment, setEnvironment] = useState<HeroMotionEnvironment>(() => readEnvironment());
   const [failed, setFailed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -34,6 +41,23 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
     environment,
     (mimeType) => document.createElement("video").canPlayType(mimeType) !== "",
   ), [environment, hero]);
+  const shouldPlay = selected.motionAllowed && inViewport && documentVisible && !failed && !manuallyPaused.current;
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") {
+      setInViewport(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => setInViewport(entry.isIntersecting), { threshold: 0 });
+    if (containerRef.current) observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (selected.motionAllowed && inViewport && documentVisible && !failed) {
+      setActivatedVideoUrl(selected.videoUrl);
+    }
+  }, [selected.videoUrl, selected.motionAllowed, inViewport, documentVisible, failed]);
 
   useEffect(() => {
     const viewport = window.matchMedia("(max-width: 767px)");
@@ -51,13 +75,18 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
   }, []);
 
   useEffect(() => {
+    manuallyPaused.current = false;
     setFailed(false);
     setIsPlaying(false);
   }, [selected.videoUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !selected.motionAllowed) return;
+    if (!video) return;
+    if (!shouldPlay) {
+      video.pause();
+      return;
+    }
     // Set both properties before requesting playback. Safari may reject muted
     // autoplay when only React's property update has happened.
     video.muted = true;
@@ -66,28 +95,34 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
       // Autoplay can still be blocked by OS/browser policy; keep manual play.
       if (videoRef.current === video) setIsPlaying(false);
     });
-  }, [selected.videoUrl, selected.motionAllowed]);
+  }, [selected.videoUrl, shouldPlay, activatedVideoUrl]);
 
-  const videoEnabled = selected.motionAllowed && !failed && selected.videoUrl && selected.mimeType;
+  // Keep an activated source mounted across visibility changes; resetting src
+  // when scrolling back can cause another download of the same footage.
+  const videoEnabled = selected.motionAllowed && !failed && selected.videoUrl && selected.mimeType
+    && activatedVideoUrl === selected.videoUrl;
   const togglePlayback = async () => {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
+      manuallyPaused.current = false;
       try {
         await video.play();
       } catch {
         setIsPlaying(false);
       }
     } else {
+      manuallyPaused.current = true;
       video.pause();
     }
   };
 
-  return <div className="absolute inset-0 bg-neutral-800" data-testid="home-hero-media">
+  return <div ref={containerRef} className="absolute inset-0 bg-neutral-800" data-testid="home-hero-media">
     {selected.posterUrl && <picture className="block h-full w-full">
-      <source media="(max-width: 767px)" srcSet={hero.mobileImageUrl} />
+      <source media="(max-width: 767px)" srcSet={responsiveProductPhoto(hero.mobileImageUrl, "100vw").srcSet ?? hero.mobileImageUrl} sizes="100vw" />
       <img
         src={hero.imageUrl}
+        {...responsiveProductPhoto(hero.imageUrl, "100vw")}
         alt={hero.imageAlt}
         className="h-full w-full object-cover object-top opacity-85"
         loading="eager"
@@ -104,8 +139,8 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
         muted
         loop
         playsInline
-        autoPlay
-        preload="auto"
+        autoPlay={shouldPlay}
+        preload={shouldPlay ? "metadata" : "none"}
         aria-hidden="true"
         tabIndex={-1}
         data-testid="home-hero-video"

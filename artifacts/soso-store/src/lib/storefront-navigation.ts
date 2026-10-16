@@ -13,7 +13,7 @@ let cancelRestoration = () => {};
 const newKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
 export function isImmediateStorefrontRoute(path: string) {
-  return /^\/$|^\/(?:shop|women|about|faq|policies|privacy|cookies|terms|delivery-returns|delivery|returns|care|checkout|staff)\/?$|^\/(?:product|collections|journal|about|policies)\/[^/]+\/?$|^\/checkout\/return\/?$|^\/(?:sign-in|sign-up)(?:\/.*)?$|^\/newsletter\/(?:confirm|unsubscribe)\/?$/.test(path);
+  return /^\/$|^\/(?:shop|women|about|faq|policies|privacy|cookies|terms|delivery-returns|delivery|returns|care|checkout|staff)\/?$|^\/(?:product|collections|journal|about|policies)\/[^/]+\/?$|^\/checkout\/return\/?$|^\/(?:sign-in|sign-up)(?:\/.*)?$|^\/account(?:\/.*)?$|^\/newsletter\/(?:confirm|unsubscribe)\/?$/.test(path);
 }
 export function isHistoryReturn() { return returning; }
 function entry(): Entry | undefined {

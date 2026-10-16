@@ -6,7 +6,7 @@ import { createVersionCheckedCache } from "./version-checked-cache";
 // Catalogue webhooks can change published JSON without changing publishedAt.
 // A DB-side fingerprint covers those changes too, with a tiny wire result.
 const fingerprint = sql<string>`md5(${siteContentTable.published}::text)`;
-type PublicSnapshot = { content: PlatformContent; publishedAt: Date };
+export type PublicSnapshot = { content: PlatformContent; publishedAt: Date };
 const versionOf = (hash: string, publishedAt: Date) => `${hash}:${publishedAt.toISOString()}`;
 
 /**

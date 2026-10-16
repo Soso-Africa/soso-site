@@ -26,6 +26,7 @@ import type {
   AnalyticsQualityReport,
   CatalogueMappingPreview,
   CatalogueMappingPreviewInput,
+  CloudinaryUsageView,
   CommerceCatalog,
   CommerceCheckoutInput,
   CommerceDiscovery,
@@ -44,6 +45,7 @@ import type {
   CustomerMeasurement,
   CustomerMeasurementInput,
   CustomerMeasurements,
+  DeleteShopperMeasurement200,
   Enquiry,
   EnquiryInput,
   ExportStaffAccessoryLaunchNotificationSummaryParams,
@@ -54,6 +56,7 @@ import type {
   GetCommerceDiscoveryParams,
   GetNewsletterSignupStatus200,
   GetRedirectParams,
+  GetShopperOrdersParams,
   GetSiteContent200,
   GetStaffAccessoryLaunchNotificationSummaryParams,
   GetStaffAnalyticsMetricsParams,
@@ -62,6 +65,7 @@ import type {
   GetStaffMailboxSettings200,
   GetStaffOverviewParams,
   GetStorageObjectParams,
+  GetVerifiedShopperOrdersParams,
   HealthStatus,
   JournalPost,
   ListStaffAuditEventsParams,
@@ -106,6 +110,29 @@ import type {
   SaveStaffMailboxSettings200,
   SendStaffMailboxMessage200,
   SendStaffNewsletterCampaignBatch200,
+  ShopperAuthMessage,
+  ShopperAuthSession,
+  ShopperAuthTokenInput,
+  ShopperDeviceSessions,
+  ShopperIdentityInput,
+  ShopperLoginInput,
+  ShopperMeasurementDelete,
+  ShopperMeasurementInput,
+  ShopperMeasurementRevision,
+  ShopperMeasurementUpdate,
+  ShopperMeasurements,
+  ShopperOrderDetail,
+  ShopperOrderResponse,
+  ShopperOrders,
+  ShopperPasswordResetInput,
+  ShopperProduction,
+  ShopperProfile,
+  ShopperProfileInput,
+  ShopperProfileResponse,
+  ShopperRecoveryInput,
+  ShopperRegistrationInput,
+  ShopperSessionRevocationInput,
+  ShopperSessionsRevocationInput,
   StaffAccessInput,
   StaffAccessMapping,
   StaffAccessUpdate,
@@ -144,7 +171,9 @@ import type {
   UnsubscribeStaffNewsletterSubscriber200,
   UploadUrlRequest,
   UploadUrlResponse,
-  VerifiedPurchaseReceipt
+  VerifiedPurchaseReceipt,
+  VerifiedShopperOrders,
+  VerifiedShopperProfileInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -173,6 +202,1849 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getListShopperSessionsUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/sessions`
+}
+
+export const listShopperSessions = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperDeviceSessions> => {
+
+  return customFetch<ShopperDeviceSessions>(getListShopperSessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListShopperSessionsQueryKey = () => {
+    return [
+    `/api/shopper-auth/sessions`
+    ] as const;
+    }
+
+
+export const getListShopperSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listShopperSessions>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listShopperSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListShopperSessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShopperSessions>>> = ({ signal }) => listShopperSessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShopperSessions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListShopperSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listShopperSessions>>>
+export type ListShopperSessionsQueryError = ErrorType<void>
+
+
+
+export function useListShopperSessions<TData = Awaited<ReturnType<typeof listShopperSessions>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listShopperSessions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListShopperSessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRevokeShopperSessionUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/sessions/revoke`
+}
+
+export const revokeShopperSession = async (shopperSessionRevocationInput: ShopperSessionRevocationInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperDeviceSessions> => {
+
+  return customFetch<ShopperDeviceSessions>(getRevokeShopperSessionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperSessionRevocationInput)
+  }
+);}
+
+
+
+
+
+export const getRevokeShopperSessionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeShopperSession>>, TError,{data: BodyType<ShopperSessionRevocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeShopperSession>>, TError,{data: BodyType<ShopperSessionRevocationInput>}, TContext> => {
+
+const mutationKey = ['revokeShopperSession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeShopperSession>>, {data: BodyType<ShopperSessionRevocationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  revokeShopperSession(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeShopperSessionMutationResult = NonNullable<Awaited<ReturnType<typeof revokeShopperSession>>>
+    export type RevokeShopperSessionMutationBody = BodyType<ShopperSessionRevocationInput>
+    export type RevokeShopperSessionMutationError = ErrorType<void>
+
+    export const useRevokeShopperSession = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeShopperSession>>, TError,{data: BodyType<ShopperSessionRevocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeShopperSession>>,
+        TError,
+        {data: BodyType<ShopperSessionRevocationInput>},
+        TContext
+      > => {
+      return useMutation(getRevokeShopperSessionMutationOptions(options));
+    }
+
+export const getRevokeShopperSessionsUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/sessions/revoke-many`
+}
+
+export const revokeShopperSessions = async (shopperSessionsRevocationInput: ShopperSessionsRevocationInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperDeviceSessions> => {
+
+  return customFetch<ShopperDeviceSessions>(getRevokeShopperSessionsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperSessionsRevocationInput)
+  }
+);}
+
+
+
+
+
+export const getRevokeShopperSessionsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeShopperSessions>>, TError,{data: BodyType<ShopperSessionsRevocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeShopperSessions>>, TError,{data: BodyType<ShopperSessionsRevocationInput>}, TContext> => {
+
+const mutationKey = ['revokeShopperSessions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeShopperSessions>>, {data: BodyType<ShopperSessionsRevocationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  revokeShopperSessions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeShopperSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof revokeShopperSessions>>>
+    export type RevokeShopperSessionsMutationBody = BodyType<ShopperSessionsRevocationInput>
+    export type RevokeShopperSessionsMutationError = ErrorType<void>
+
+    export const useRevokeShopperSessions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeShopperSessions>>, TError,{data: BodyType<ShopperSessionsRevocationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeShopperSessions>>,
+        TError,
+        {data: BodyType<ShopperSessionsRevocationInput>},
+        TContext
+      > => {
+      return useMutation(getRevokeShopperSessionsMutationOptions(options));
+    }
+
+export const getGetShopperAuthSessionUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/session`
+}
+
+export const getShopperAuthSession = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthSession> => {
+
+  return customFetch<ShopperAuthSession>(getGetShopperAuthSessionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShopperAuthSessionQueryKey = () => {
+    return [
+    `/api/shopper-auth/session`
+    ] as const;
+    }
+
+
+export const getGetShopperAuthSessionQueryOptions = <TData = Awaited<ReturnType<typeof getShopperAuthSession>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperAuthSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShopperAuthSessionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShopperAuthSession>>> = ({ signal }) => getShopperAuthSession({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShopperAuthSession>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetShopperAuthSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getShopperAuthSession>>>
+export type GetShopperAuthSessionQueryError = ErrorType<unknown>
+
+
+
+export function useGetShopperAuthSession<TData = Awaited<ReturnType<typeof getShopperAuthSession>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperAuthSession>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetShopperAuthSessionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRegisterShopperAuthUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/register`
+}
+
+export const registerShopperAuth = async (shopperRegistrationInput: ShopperRegistrationInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthMessage> => {
+
+  return customFetch<ShopperAuthMessage>(getRegisterShopperAuthUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperRegistrationInput)
+  }
+);}
+
+
+
+
+
+export const getRegisterShopperAuthMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerShopperAuth>>, TError,{data: BodyType<ShopperRegistrationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerShopperAuth>>, TError,{data: BodyType<ShopperRegistrationInput>}, TContext> => {
+
+const mutationKey = ['registerShopperAuth'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerShopperAuth>>, {data: BodyType<ShopperRegistrationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerShopperAuth(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterShopperAuthMutationResult = NonNullable<Awaited<ReturnType<typeof registerShopperAuth>>>
+    export type RegisterShopperAuthMutationBody = BodyType<ShopperRegistrationInput>
+    export type RegisterShopperAuthMutationError = ErrorType<unknown>
+
+    export const useRegisterShopperAuth = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerShopperAuth>>, TError,{data: BodyType<ShopperRegistrationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerShopperAuth>>,
+        TError,
+        {data: BodyType<ShopperRegistrationInput>},
+        TContext
+      > => {
+      return useMutation(getRegisterShopperAuthMutationOptions(options));
+    }
+
+export const getLoginShopperAuthUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/login`
+}
+
+export const loginShopperAuth = async (shopperLoginInput: ShopperLoginInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthSession> => {
+
+  return customFetch<ShopperAuthSession>(getLoginShopperAuthUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperLoginInput)
+  }
+);}
+
+
+
+
+
+export const getLoginShopperAuthMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginShopperAuth>>, TError,{data: BodyType<ShopperLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof loginShopperAuth>>, TError,{data: BodyType<ShopperLoginInput>}, TContext> => {
+
+const mutationKey = ['loginShopperAuth'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof loginShopperAuth>>, {data: BodyType<ShopperLoginInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  loginShopperAuth(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LoginShopperAuthMutationResult = NonNullable<Awaited<ReturnType<typeof loginShopperAuth>>>
+    export type LoginShopperAuthMutationBody = BodyType<ShopperLoginInput>
+    export type LoginShopperAuthMutationError = ErrorType<unknown>
+
+    export const useLoginShopperAuth = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof loginShopperAuth>>, TError,{data: BodyType<ShopperLoginInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof loginShopperAuth>>,
+        TError,
+        {data: BodyType<ShopperLoginInput>},
+        TContext
+      > => {
+      return useMutation(getLoginShopperAuthMutationOptions(options));
+    }
+
+export const getLogoutShopperAuthUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/logout`
+}
+
+export const logoutShopperAuth = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthMessage> => {
+
+  return customFetch<ShopperAuthMessage>(getLogoutShopperAuthUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLogoutShopperAuthMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutShopperAuth>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logoutShopperAuth>>, TError,void, TContext> => {
+
+const mutationKey = ['logoutShopperAuth'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logoutShopperAuth>>, void> = () => {
+
+
+          return  logoutShopperAuth(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogoutShopperAuthMutationResult = NonNullable<Awaited<ReturnType<typeof logoutShopperAuth>>>
+
+    export type LogoutShopperAuthMutationError = ErrorType<unknown>
+
+    export const useLogoutShopperAuth = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logoutShopperAuth>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logoutShopperAuth>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLogoutShopperAuthMutationOptions(options));
+    }
+
+export const getResendShopperVerificationUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/resend-verification`
+}
+
+export const resendShopperVerification = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthMessage> => {
+
+  return customFetch<ShopperAuthMessage>(getResendShopperVerificationUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResendShopperVerificationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendShopperVerification>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendShopperVerification>>, TError,void, TContext> => {
+
+const mutationKey = ['resendShopperVerification'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendShopperVerification>>, void> = () => {
+
+
+          return  resendShopperVerification(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendShopperVerificationMutationResult = NonNullable<Awaited<ReturnType<typeof resendShopperVerification>>>
+
+    export type ResendShopperVerificationMutationError = ErrorType<unknown>
+
+    export const useResendShopperVerification = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendShopperVerification>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resendShopperVerification>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getResendShopperVerificationMutationOptions(options));
+    }
+
+export const getVerifyShopperEmailUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/verify-email`
+}
+
+export const verifyShopperEmail = async (shopperAuthTokenInput: ShopperAuthTokenInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthMessage> => {
+
+  return customFetch<ShopperAuthMessage>(getVerifyShopperEmailUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperAuthTokenInput)
+  }
+);}
+
+
+
+
+
+export const getVerifyShopperEmailMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyShopperEmail>>, TError,{data: BodyType<ShopperAuthTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyShopperEmail>>, TError,{data: BodyType<ShopperAuthTokenInput>}, TContext> => {
+
+const mutationKey = ['verifyShopperEmail'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyShopperEmail>>, {data: BodyType<ShopperAuthTokenInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyShopperEmail(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyShopperEmailMutationResult = NonNullable<Awaited<ReturnType<typeof verifyShopperEmail>>>
+    export type VerifyShopperEmailMutationBody = BodyType<ShopperAuthTokenInput>
+    export type VerifyShopperEmailMutationError = ErrorType<unknown>
+
+    export const useVerifyShopperEmail = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyShopperEmail>>, TError,{data: BodyType<ShopperAuthTokenInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyShopperEmail>>,
+        TError,
+        {data: BodyType<ShopperAuthTokenInput>},
+        TContext
+      > => {
+      return useMutation(getVerifyShopperEmailMutationOptions(options));
+    }
+
+export const getRequestShopperPasswordResetUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/forgot-password`
+}
+
+export const requestShopperPasswordReset = async (shopperRecoveryInput: ShopperRecoveryInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthMessage> => {
+
+  return customFetch<ShopperAuthMessage>(getRequestShopperPasswordResetUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperRecoveryInput)
+  }
+);}
+
+
+
+
+
+export const getRequestShopperPasswordResetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestShopperPasswordReset>>, TError,{data: BodyType<ShopperRecoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestShopperPasswordReset>>, TError,{data: BodyType<ShopperRecoveryInput>}, TContext> => {
+
+const mutationKey = ['requestShopperPasswordReset'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestShopperPasswordReset>>, {data: BodyType<ShopperRecoveryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestShopperPasswordReset(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestShopperPasswordResetMutationResult = NonNullable<Awaited<ReturnType<typeof requestShopperPasswordReset>>>
+    export type RequestShopperPasswordResetMutationBody = BodyType<ShopperRecoveryInput>
+    export type RequestShopperPasswordResetMutationError = ErrorType<unknown>
+
+    export const useRequestShopperPasswordReset = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestShopperPasswordReset>>, TError,{data: BodyType<ShopperRecoveryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestShopperPasswordReset>>,
+        TError,
+        {data: BodyType<ShopperRecoveryInput>},
+        TContext
+      > => {
+      return useMutation(getRequestShopperPasswordResetMutationOptions(options));
+    }
+
+export const getResetShopperPasswordUrl = () => {
+
+
+
+
+  return `/api/shopper-auth/reset-password`
+}
+
+export const resetShopperPassword = async (shopperPasswordResetInput: ShopperPasswordResetInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperAuthMessage> => {
+
+  return customFetch<ShopperAuthMessage>(getResetShopperPasswordUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperPasswordResetInput)
+  }
+);}
+
+
+
+
+
+export const getResetShopperPasswordMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetShopperPassword>>, TError,{data: BodyType<ShopperPasswordResetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resetShopperPassword>>, TError,{data: BodyType<ShopperPasswordResetInput>}, TContext> => {
+
+const mutationKey = ['resetShopperPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetShopperPassword>>, {data: BodyType<ShopperPasswordResetInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resetShopperPassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetShopperPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetShopperPassword>>>
+    export type ResetShopperPasswordMutationBody = BodyType<ShopperPasswordResetInput>
+    export type ResetShopperPasswordMutationError = ErrorType<unknown>
+
+    export const useResetShopperPassword = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetShopperPassword>>, TError,{data: BodyType<ShopperPasswordResetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resetShopperPassword>>,
+        TError,
+        {data: BodyType<ShopperPasswordResetInput>},
+        TContext
+      > => {
+      return useMutation(getResetShopperPasswordMutationOptions(options));
+    }
+
+export const getGetVerifiedShopperProfileUrl = () => {
+
+
+
+
+  return `/api/shopper/profile`
+}
+
+export const getVerifiedShopperProfile = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperProfile> => {
+
+  return customFetch<ShopperProfile>(getGetVerifiedShopperProfileUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVerifiedShopperProfileQueryKey = () => {
+    return [
+    `/api/shopper/profile`
+    ] as const;
+    }
+
+
+export const getGetVerifiedShopperProfileQueryOptions = <TData = Awaited<ReturnType<typeof getVerifiedShopperProfile>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVerifiedShopperProfileQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVerifiedShopperProfile>>> = ({ signal }) => getVerifiedShopperProfile({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVerifiedShopperProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getVerifiedShopperProfile>>>
+export type GetVerifiedShopperProfileQueryError = ErrorType<unknown>
+
+
+
+export function useGetVerifiedShopperProfile<TData = Awaited<ReturnType<typeof getVerifiedShopperProfile>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVerifiedShopperProfileQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateVerifiedShopperProfileUrl = () => {
+
+
+
+
+  return `/api/shopper/profile`
+}
+
+export const updateVerifiedShopperProfile = async (verifiedShopperProfileInput: VerifiedShopperProfileInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperProfile> => {
+
+  return customFetch<ShopperProfile>(getUpdateVerifiedShopperProfileUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(verifiedShopperProfileInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVerifiedShopperProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVerifiedShopperProfile>>, TError,{data: BodyType<VerifiedShopperProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVerifiedShopperProfile>>, TError,{data: BodyType<VerifiedShopperProfileInput>}, TContext> => {
+
+const mutationKey = ['updateVerifiedShopperProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVerifiedShopperProfile>>, {data: BodyType<VerifiedShopperProfileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateVerifiedShopperProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVerifiedShopperProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateVerifiedShopperProfile>>>
+    export type UpdateVerifiedShopperProfileMutationBody = BodyType<VerifiedShopperProfileInput>
+    export type UpdateVerifiedShopperProfileMutationError = ErrorType<unknown>
+
+    export const useUpdateVerifiedShopperProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVerifiedShopperProfile>>, TError,{data: BodyType<VerifiedShopperProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateVerifiedShopperProfile>>,
+        TError,
+        {data: BodyType<VerifiedShopperProfileInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateVerifiedShopperProfileMutationOptions(options));
+    }
+
+export const getLinkVerifiedShopperProfileUrl = () => {
+
+
+
+
+  return `/api/shopper/link`
+}
+
+export const linkVerifiedShopperProfile = async (shopperIdentityInput: ShopperIdentityInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperProfile> => {
+
+  return customFetch<ShopperProfile>(getLinkVerifiedShopperProfileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperIdentityInput)
+  }
+);}
+
+
+
+
+
+export const getLinkVerifiedShopperProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkVerifiedShopperProfile>>, TError,{data: BodyType<ShopperIdentityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkVerifiedShopperProfile>>, TError,{data: BodyType<ShopperIdentityInput>}, TContext> => {
+
+const mutationKey = ['linkVerifiedShopperProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkVerifiedShopperProfile>>, {data: BodyType<ShopperIdentityInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  linkVerifiedShopperProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkVerifiedShopperProfileMutationResult = NonNullable<Awaited<ReturnType<typeof linkVerifiedShopperProfile>>>
+    export type LinkVerifiedShopperProfileMutationBody = BodyType<ShopperIdentityInput>
+    export type LinkVerifiedShopperProfileMutationError = ErrorType<unknown>
+
+    export const useLinkVerifiedShopperProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkVerifiedShopperProfile>>, TError,{data: BodyType<ShopperIdentityInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkVerifiedShopperProfile>>,
+        TError,
+        {data: BodyType<ShopperIdentityInput>},
+        TContext
+      > => {
+      return useMutation(getLinkVerifiedShopperProfileMutationOptions(options));
+    }
+
+export const getGetVerifiedShopperOrdersUrl = (params?: GetVerifiedShopperOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/shopper/orders?${stringifiedParams}` : `/api/shopper/orders`
+}
+
+export const getVerifiedShopperOrders = async (params?: GetVerifiedShopperOrdersParams, options?: Parameters<typeof customFetch>[1]): Promise<VerifiedShopperOrders> => {
+
+  return customFetch<VerifiedShopperOrders>(getGetVerifiedShopperOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVerifiedShopperOrdersQueryKey = (params?: GetVerifiedShopperOrdersParams,) => {
+    return [
+    `/api/shopper/orders`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetVerifiedShopperOrdersQueryOptions = <TData = Awaited<ReturnType<typeof getVerifiedShopperOrders>>, TError = ErrorType<unknown>>(params?: GetVerifiedShopperOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVerifiedShopperOrdersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVerifiedShopperOrders>>> = ({ signal }) => getVerifiedShopperOrders(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperOrders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVerifiedShopperOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof getVerifiedShopperOrders>>>
+export type GetVerifiedShopperOrdersQueryError = ErrorType<unknown>
+
+
+
+export function useGetVerifiedShopperOrders<TData = Awaited<ReturnType<typeof getVerifiedShopperOrders>>, TError = ErrorType<unknown>>(
+ params?: GetVerifiedShopperOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVerifiedShopperOrdersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetVerifiedShopperOrderUrl = (id: string,) => {
+
+
+
+
+  return `/api/shopper/orders/${id}`
+}
+
+export const getVerifiedShopperOrder = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ShopperOrderDetail> => {
+
+  return customFetch<ShopperOrderDetail>(getGetVerifiedShopperOrderUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVerifiedShopperOrderQueryKey = (id: string,) => {
+    return [
+    `/api/shopper/orders/${id}`
+    ] as const;
+    }
+
+
+export const getGetVerifiedShopperOrderQueryOptions = <TData = Awaited<ReturnType<typeof getVerifiedShopperOrder>>, TError = ErrorType<unknown>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVerifiedShopperOrderQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVerifiedShopperOrder>>> = ({ signal }) => getVerifiedShopperOrder(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVerifiedShopperOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getVerifiedShopperOrder>>>
+export type GetVerifiedShopperOrderQueryError = ErrorType<unknown>
+
+
+
+export function useGetVerifiedShopperOrder<TData = Awaited<ReturnType<typeof getVerifiedShopperOrder>>, TError = ErrorType<unknown>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVerifiedShopperOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVerifiedShopperOrderQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStaffCloudinaryUsageUrl = () => {
+
+
+
+
+  return `/api/storage/usage`
+}
+
+/**
+ * @summary Read Cloudinary usage (editorial Staff only, shared bounded refresh)
+ */
+export const getStaffCloudinaryUsage = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudinaryUsageView> => {
+
+  return customFetch<CloudinaryUsageView>(getGetStaffCloudinaryUsageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffCloudinaryUsageQueryKey = () => {
+    return [
+    `/api/storage/usage`
+    ] as const;
+    }
+
+
+export const getGetStaffCloudinaryUsageQueryOptions = <TData = Awaited<ReturnType<typeof getStaffCloudinaryUsage>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffCloudinaryUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffCloudinaryUsageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffCloudinaryUsage>>> = ({ signal }) => getStaffCloudinaryUsage({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffCloudinaryUsage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffCloudinaryUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffCloudinaryUsage>>>
+export type GetStaffCloudinaryUsageQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read Cloudinary usage (editorial Staff only, shared bounded refresh)
+ */
+
+export function useGetStaffCloudinaryUsage<TData = Awaited<ReturnType<typeof getStaffCloudinaryUsage>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffCloudinaryUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffCloudinaryUsageQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetShopperProfileUrl = () => {
+
+
+
+
+  return `/api/account/profile`
+}
+
+export const getShopperProfile = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperProfileResponse> => {
+
+  return customFetch<ShopperProfileResponse>(getGetShopperProfileUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShopperProfileQueryKey = () => {
+    return [
+    `/api/account/profile`
+    ] as const;
+    }
+
+
+export const getGetShopperProfileQueryOptions = <TData = Awaited<ReturnType<typeof getShopperProfile>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShopperProfileQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShopperProfile>>> = ({ signal }) => getShopperProfile({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShopperProfile>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetShopperProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getShopperProfile>>>
+export type GetShopperProfileQueryError = ErrorType<unknown>
+
+
+
+export function useGetShopperProfile<TData = Awaited<ReturnType<typeof getShopperProfile>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetShopperProfileQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateShopperProfileUrl = () => {
+
+
+
+
+  return `/api/account/profile`
+}
+
+export const updateShopperProfile = async (shopperProfileInput: ShopperProfileInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperProfileResponse> => {
+
+  return customFetch<ShopperProfileResponse>(getUpdateShopperProfileUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperProfileInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateShopperProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShopperProfile>>, TError,{data: BodyType<ShopperProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateShopperProfile>>, TError,{data: BodyType<ShopperProfileInput>}, TContext> => {
+
+const mutationKey = ['updateShopperProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateShopperProfile>>, {data: BodyType<ShopperProfileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateShopperProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateShopperProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateShopperProfile>>>
+    export type UpdateShopperProfileMutationBody = BodyType<ShopperProfileInput>
+    export type UpdateShopperProfileMutationError = ErrorType<unknown>
+
+    export const useUpdateShopperProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShopperProfile>>, TError,{data: BodyType<ShopperProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateShopperProfile>>,
+        TError,
+        {data: BodyType<ShopperProfileInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateShopperProfileMutationOptions(options));
+    }
+
+export const getLinkShopperProfileUrl = () => {
+
+
+
+
+  return `/api/account/link`
+}
+
+export const linkShopperProfile = async (shopperProfileInput: ShopperProfileInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperProfileResponse> => {
+
+  return customFetch<ShopperProfileResponse>(getLinkShopperProfileUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperProfileInput)
+  }
+);}
+
+
+
+
+
+export const getLinkShopperProfileMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkShopperProfile>>, TError,{data: BodyType<ShopperProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof linkShopperProfile>>, TError,{data: BodyType<ShopperProfileInput>}, TContext> => {
+
+const mutationKey = ['linkShopperProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof linkShopperProfile>>, {data: BodyType<ShopperProfileInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  linkShopperProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LinkShopperProfileMutationResult = NonNullable<Awaited<ReturnType<typeof linkShopperProfile>>>
+    export type LinkShopperProfileMutationBody = BodyType<ShopperProfileInput>
+    export type LinkShopperProfileMutationError = ErrorType<unknown>
+
+    export const useLinkShopperProfile = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof linkShopperProfile>>, TError,{data: BodyType<ShopperProfileInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof linkShopperProfile>>,
+        TError,
+        {data: BodyType<ShopperProfileInput>},
+        TContext
+      > => {
+      return useMutation(getLinkShopperProfileMutationOptions(options));
+    }
+
+export const getGetShopperOrdersUrl = (params?: GetShopperOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/account/orders?${stringifiedParams}` : `/api/account/orders`
+}
+
+export const getShopperOrders = async (params?: GetShopperOrdersParams, options?: Parameters<typeof customFetch>[1]): Promise<ShopperOrders> => {
+
+  return customFetch<ShopperOrders>(getGetShopperOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShopperOrdersQueryKey = (params?: GetShopperOrdersParams,) => {
+    return [
+    `/api/account/orders`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetShopperOrdersQueryOptions = <TData = Awaited<ReturnType<typeof getShopperOrders>>, TError = ErrorType<unknown>>(params?: GetShopperOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShopperOrdersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShopperOrders>>> = ({ signal }) => getShopperOrders(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShopperOrders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetShopperOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof getShopperOrders>>>
+export type GetShopperOrdersQueryError = ErrorType<unknown>
+
+
+
+export function useGetShopperOrders<TData = Awaited<ReturnType<typeof getShopperOrders>>, TError = ErrorType<unknown>>(
+ params?: GetShopperOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetShopperOrdersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetShopperOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/account/orders/${orderId}`
+}
+
+export const getShopperOrder = async (orderId: string, options?: Parameters<typeof customFetch>[1]): Promise<ShopperOrderResponse> => {
+
+  return customFetch<ShopperOrderResponse>(getGetShopperOrderUrl(orderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShopperOrderQueryKey = (orderId: string,) => {
+    return [
+    `/api/account/orders/${orderId}`
+    ] as const;
+    }
+
+
+export const getGetShopperOrderQueryOptions = <TData = Awaited<ReturnType<typeof getShopperOrder>>, TError = ErrorType<unknown>>(orderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShopperOrderQueryKey(orderId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShopperOrder>>> = ({ signal }) => getShopperOrder(orderId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orderId !== null && orderId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShopperOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetShopperOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getShopperOrder>>>
+export type GetShopperOrderQueryError = ErrorType<unknown>
+
+
+
+export function useGetShopperOrder<TData = Awaited<ReturnType<typeof getShopperOrder>>, TError = ErrorType<unknown>>(
+ orderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetShopperOrderQueryOptions(orderId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetShopperProductionUrl = () => {
+
+
+
+
+  return `/api/account/production`
+}
+
+export const getShopperProduction = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperProduction> => {
+
+  return customFetch<ShopperProduction>(getGetShopperProductionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShopperProductionQueryKey = () => {
+    return [
+    `/api/account/production`
+    ] as const;
+    }
+
+
+export const getGetShopperProductionQueryOptions = <TData = Awaited<ReturnType<typeof getShopperProduction>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperProduction>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShopperProductionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShopperProduction>>> = ({ signal }) => getShopperProduction({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShopperProduction>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetShopperProductionQueryResult = NonNullable<Awaited<ReturnType<typeof getShopperProduction>>>
+export type GetShopperProductionQueryError = ErrorType<unknown>
+
+
+
+export function useGetShopperProduction<TData = Awaited<ReturnType<typeof getShopperProduction>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperProduction>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetShopperProductionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetShopperMeasurementsUrl = () => {
+
+
+
+
+  return `/api/account/measurements`
+}
+
+export const getShopperMeasurements = async ( options?: Parameters<typeof customFetch>[1]): Promise<ShopperMeasurements> => {
+
+  return customFetch<ShopperMeasurements>(getGetShopperMeasurementsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShopperMeasurementsQueryKey = () => {
+    return [
+    `/api/account/measurements`
+    ] as const;
+    }
+
+
+export const getGetShopperMeasurementsQueryOptions = <TData = Awaited<ReturnType<typeof getShopperMeasurements>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperMeasurements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShopperMeasurementsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShopperMeasurements>>> = ({ signal }) => getShopperMeasurements({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShopperMeasurements>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetShopperMeasurementsQueryResult = NonNullable<Awaited<ReturnType<typeof getShopperMeasurements>>>
+export type GetShopperMeasurementsQueryError = ErrorType<unknown>
+
+
+
+export function useGetShopperMeasurements<TData = Awaited<ReturnType<typeof getShopperMeasurements>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getShopperMeasurements>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetShopperMeasurementsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateShopperMeasurementUrl = () => {
+
+
+
+
+  return `/api/account/measurements`
+}
+
+export const createShopperMeasurement = async (shopperMeasurementInput: ShopperMeasurementInput, options?: Parameters<typeof customFetch>[1]): Promise<ShopperMeasurementRevision> => {
+
+  return customFetch<ShopperMeasurementRevision>(getCreateShopperMeasurementUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperMeasurementInput)
+  }
+);}
+
+
+
+
+
+export const getCreateShopperMeasurementMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShopperMeasurement>>, TError,{data: BodyType<ShopperMeasurementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createShopperMeasurement>>, TError,{data: BodyType<ShopperMeasurementInput>}, TContext> => {
+
+const mutationKey = ['createShopperMeasurement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createShopperMeasurement>>, {data: BodyType<ShopperMeasurementInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createShopperMeasurement(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateShopperMeasurementMutationResult = NonNullable<Awaited<ReturnType<typeof createShopperMeasurement>>>
+    export type CreateShopperMeasurementMutationBody = BodyType<ShopperMeasurementInput>
+    export type CreateShopperMeasurementMutationError = ErrorType<unknown>
+
+    export const useCreateShopperMeasurement = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShopperMeasurement>>, TError,{data: BodyType<ShopperMeasurementInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createShopperMeasurement>>,
+        TError,
+        {data: BodyType<ShopperMeasurementInput>},
+        TContext
+      > => {
+      return useMutation(getCreateShopperMeasurementMutationOptions(options));
+    }
+
+export const getUpdateShopperMeasurementUrl = (profileId: string,) => {
+
+
+
+
+  return `/api/account/measurements/${profileId}`
+}
+
+export const updateShopperMeasurement = async (profileId: string,
+    shopperMeasurementUpdate: ShopperMeasurementUpdate, options?: Parameters<typeof customFetch>[1]): Promise<ShopperMeasurementRevision> => {
+
+  return customFetch<ShopperMeasurementRevision>(getUpdateShopperMeasurementUrl(profileId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperMeasurementUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateShopperMeasurementMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShopperMeasurement>>, TError,{profileId: string;data: BodyType<ShopperMeasurementUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateShopperMeasurement>>, TError,{profileId: string;data: BodyType<ShopperMeasurementUpdate>}, TContext> => {
+
+const mutationKey = ['updateShopperMeasurement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateShopperMeasurement>>, {profileId: string;data: BodyType<ShopperMeasurementUpdate>}> = (props) => {
+          const {profileId,data} = props ?? {};
+
+          return  updateShopperMeasurement(profileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateShopperMeasurementMutationResult = NonNullable<Awaited<ReturnType<typeof updateShopperMeasurement>>>
+    export type UpdateShopperMeasurementMutationBody = BodyType<ShopperMeasurementUpdate>
+    export type UpdateShopperMeasurementMutationError = ErrorType<unknown>
+
+    export const useUpdateShopperMeasurement = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateShopperMeasurement>>, TError,{profileId: string;data: BodyType<ShopperMeasurementUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateShopperMeasurement>>,
+        TError,
+        {profileId: string;data: BodyType<ShopperMeasurementUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateShopperMeasurementMutationOptions(options));
+    }
+
+export const getDeleteShopperMeasurementUrl = (profileId: string,) => {
+
+
+
+
+  return `/api/account/measurements/${profileId}`
+}
+
+export const deleteShopperMeasurement = async (profileId: string,
+    shopperMeasurementDelete: ShopperMeasurementDelete, options?: Parameters<typeof customFetch>[1]): Promise<DeleteShopperMeasurement200> => {
+
+  return customFetch<DeleteShopperMeasurement200>(getDeleteShopperMeasurementUrl(profileId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(shopperMeasurementDelete)
+  }
+);}
+
+
+
+
+
+export const getDeleteShopperMeasurementMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteShopperMeasurement>>, TError,{profileId: string;data: BodyType<ShopperMeasurementDelete>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteShopperMeasurement>>, TError,{profileId: string;data: BodyType<ShopperMeasurementDelete>}, TContext> => {
+
+const mutationKey = ['deleteShopperMeasurement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteShopperMeasurement>>, {profileId: string;data: BodyType<ShopperMeasurementDelete>}> = (props) => {
+          const {profileId,data} = props ?? {};
+
+          return  deleteShopperMeasurement(profileId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteShopperMeasurementMutationResult = NonNullable<Awaited<ReturnType<typeof deleteShopperMeasurement>>>
+    export type DeleteShopperMeasurementMutationBody = BodyType<ShopperMeasurementDelete>
+    export type DeleteShopperMeasurementMutationError = ErrorType<unknown>
+
+    export const useDeleteShopperMeasurement = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteShopperMeasurement>>, TError,{profileId: string;data: BodyType<ShopperMeasurementDelete>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteShopperMeasurement>>,
+        TError,
+        {profileId: string;data: BodyType<ShopperMeasurementDelete>},
+        TContext
+      > => {
+      return useMutation(getDeleteShopperMeasurementMutationOptions(options));
+    }
 
 export const getGetStaffMailboxSettingsUrl = () => {
 

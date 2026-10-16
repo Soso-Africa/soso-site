@@ -2,6 +2,7 @@ import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
+import { livePublicPreviewPlugin } from './scripts/live-public-preview';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
@@ -30,11 +31,17 @@ function normalizedPublicSiteUrl(value: string | undefined) {
   }
 }
 
-export default defineConfig({
+export default defineConfig(async ({ command, isPreview }) => {
+  const livePublicPreview = command === "serve" && !isPreview && Boolean(process.env.REPL_ID);
+  return {
   base: basePath,
+  define: {
+    "__SOSO_LIVE_PUBLIC_PREVIEW__": JSON.stringify(livePublicPreview),
+  },
   plugins: [
     react(),
-    tailwindcss(),
+    tailwindcss({ optimize: false }),
+    ...(livePublicPreview ? [livePublicPreviewPlugin(basePath)] : []),
     ...(process.env.NODE_ENV !== 'production' ? [runtimeErrorOverlay()] : []),
     ...(process.env.NODE_ENV !== 'production' &&
     process.env.REPL_ID !== undefined
@@ -84,4 +91,5 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
   },
+  };
 });

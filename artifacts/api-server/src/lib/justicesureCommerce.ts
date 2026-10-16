@@ -12,6 +12,7 @@ export type JusticeSureFulfillment = {
   type: "pickup" | "delivery";
   locationId?: string;
   address?: string;
+  deliveryQuoteToken?: string;
   destinationCountry?: string;
   shippingAddress?: {
     country: string; region: string; city: string; postalCode: string; addressLines: string[];
@@ -61,6 +62,7 @@ export type JusticeSureQuoteFulfillment = {
   shippingAddress: Record<string, unknown> | null; corridor?: Record<string, unknown>;
 };
 export type JusticeSureOrderRequestBody = {
+  customerExternalId?: string;
   customer: { name: string; email: string; phone?: string };
   items: JusticeSureLineItem[];
   fulfillment: JusticeSureFulfillment;
@@ -329,6 +331,16 @@ export class JusticeSureCommerceClient {
   }
   async createPriceQuote(input: { items: JusticeSureLineItem[]; fulfillment: JusticeSureFulfillment; displayCurrency?: string; paymentMethod?: JusticeSurePaymentMethod; provider?: JusticeSureProvider; customerCountry?: string }): Promise<JusticeSureQuote> {
     const { body } = await this.request("/price-quotes", { method: "POST", body: JSON.stringify(input) }); return this.parseQuote(data(body), true);
+  }
+  async createDomesticDeliveryQuote(input: { items: JusticeSureLineItem[]; address: string; locationId?: string }): Promise<{ quoteToken: string; feeKobo: number }> {
+    const { body } = await this.request("/delivery-quotes", { method: "POST", body: JSON.stringify(input) });
+    const result = data(body);
+    if (typeof result.quoteToken !== "string" || result.quoteToken.length < 20 || result.quoteToken.length > 4000
+      || typeof result.feeKobo !== "number" || !Number.isSafeInteger(result.feeKobo) || result.feeKobo < 0
+      || typeof result.cartSubtotalKobo !== "number" || !Number.isSafeInteger(result.cartSubtotalKobo) || result.cartSubtotalKobo < 0) {
+      throw new JusticeSureRequestError("JusticeSure returned an invalid domestic delivery quote.", 502);
+    }
+    return { quoteToken: result.quoteToken, feeKobo: result.feeKobo };
   }
   async getPriceQuote(quoteId: string): Promise<JusticeSureQuote> {
     const { body } = await this.request(`/price-quotes/${encodeURIComponent(uuid(quoteId, "quote id"))}`); return this.parseQuote(data(body), false);

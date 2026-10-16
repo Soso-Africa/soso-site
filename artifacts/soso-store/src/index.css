@@ -1,3 +1,4 @@
+@layer theme, base, clerk, components, utilities;
 @import '@fontsource/montserrat/latin-400.css';
 @import '@fontsource/montserrat/latin-500.css';
 @import '@fontsource/montserrat/latin-600.css';
@@ -291,3 +292,14 @@ html { scroll-behavior: smooth; }
     transform: none !important;
   }
 }
+
+/* Shopper account: Clerk pseudo-states (outside layers so they win). */
+.cl-formButtonPrimary:hover { background-color: #b8923a !important; color: #1f1b16 !important; }
+.cl-formFieldInput:focus { border-color: #262626 !important; box-shadow: 0 0 0 3px rgba(184, 146, 58, 0.18) !important; }
+.cl-formFieldInput::placeholder { color: rgba(38, 38, 38, 0.45); opacity: 1; }
+.cl-footerActionLink:hover { color: #8a6a22 !important; }
+.soso-account-input { display:block; width:100%; background:transparent; border:1px solid hsl(var(--border)); padding:0.85rem 1rem; outline:none; transition:border-color .2s ease; }
+.soso-account-input:focus { border-color: hsl(var(--foreground)); }
+.soso-account-input:read-only { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+@keyframes soso-rise { from { opacity:0; transform: translateY(10px);} to { opacity:1; transform:none; } }
+.soso-rise { animation: soso-rise .7s cubic-bezier(.16,1,.3,1) both; }
