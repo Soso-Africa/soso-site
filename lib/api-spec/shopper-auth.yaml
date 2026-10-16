@@ -1,0 +1,237 @@
+openapi: 3.1.0
+info:
+  title: SOSO-owned shopper authentication
+  version: 1.0.0
+paths:
+  /shopper-auth/sessions:
+    get:
+      operationId: listShopperSessions
+      responses:
+        "200":
+          $ref: "#/components/responses/Sessions"
+        "401": { description: Shopper session ended }
+        "429": { description: Too many requests }
+  /shopper-auth/sessions/revoke:
+    post:
+      operationId: revokeShopperSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopperSessionRevocationInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Sessions"
+        "400": { description: Invalid input }
+        "401": { description: Shopper session ended }
+        "403": { description: Same-origin proof required }
+        "404": { description: Other session not found }
+        "429": { description: Too many requests }
+  /shopper-auth/sessions/revoke-many:
+    post:
+      operationId: revokeShopperSessions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopperSessionsRevocationInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Sessions"
+        "400": { description: Invalid input }
+        "401": { description: Shopper session ended }
+        "403": { description: Same-origin or fresh password proof required }
+        "429": { description: Too many attempts }
+  /shopper-auth/session:
+    get:
+      operationId: getShopperAuthSession
+      responses:
+        "200":
+          description: Current private session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopperAuthSession"
+  /shopper-auth/register:
+    post:
+      operationId: registerShopperAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopperRegistrationInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Message"
+  /shopper-auth/login:
+    post:
+      operationId: loginShopperAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopperLoginInput"
+      responses:
+        "200":
+          description: New session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopperAuthSession"
+  /shopper-auth/logout:
+    post:
+      operationId: logoutShopperAuth
+      responses:
+        "200":
+          $ref: "#/components/responses/Message"
+  /shopper-auth/resend-verification:
+    post:
+      operationId: resendShopperVerification
+      responses:
+        "200":
+          $ref: "#/components/responses/Message"
+  /shopper-auth/verify-email:
+    post:
+      operationId: verifyShopperEmail
+      requestBody:
+        $ref: "#/components/requestBodies/Token"
+      responses:
+        "200":
+          $ref: "#/components/responses/Message"
+  /shopper-auth/forgot-password:
+    post:
+      operationId: requestShopperPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopperRecoveryInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Message"
+  /shopper-auth/reset-password:
+    post:
+      operationId: resetShopperPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopperPasswordResetInput"
+      responses:
+        "200":
+          $ref: "#/components/responses/Message"
+components:
+  schemas:
+    ShopperDeviceSession:
+      type: object
+      required: [id, deviceLabel, createdAt, lastActiveAt, expiresAt, current]
+      properties:
+        id: { type: string }
+        deviceLabel: { type: string }
+        createdAt: { type: string }
+        lastActiveAt: { type: string }
+        expiresAt: { type: string }
+        current: { type: boolean }
+    ShopperDeviceSessions:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShopperDeviceSession"
+    ShopperSessionRevocationInput:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id: { type: string, pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' }
+    ShopperSessionsRevocationInput:
+      type: object
+      additionalProperties: false
+      required: [scope, password]
+      properties:
+        scope: { type: string, enum: [others, all] }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    ShopperRegistrationInput:
+      type: object
+      additionalProperties: false
+      required: [name, email, password]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: string, maxLength: 254 }
+        password: { type: string, minLength: 12, maxLength: 128 }
+    ShopperLoginInput:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, maxLength: 254 }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    ShopperRecoveryInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, maxLength: 254 }
+    ShopperAuthTokenInput:
+      type: object
+      additionalProperties: false
+      required: [token, password]
+      properties:
+        token: { type: string, minLength: 43, maxLength: 43 }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    ShopperPasswordResetInput:
+      type: object
+      additionalProperties: false
+      required: [token, password]
+      properties:
+        token: { type: string, minLength: 43, maxLength: 43 }
+        password: { type: string, minLength: 12, maxLength: 128 }
+    ShopperAuthUser:
+      type: object
+      required: [id, email, name, emailVerified]
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        emailVerified: { type: boolean }
+    ShopperAuthSession:
+      type: object
+      required: [user]
+      properties:
+        user:
+          anyOf:
+            - $ref: "#/components/schemas/ShopperAuthUser"
+            - type: "null"
+    ShopperAuthMessage:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+  responses:
+    Sessions:
+      description: Private active sessions, with no authentication secrets
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ShopperDeviceSessions"
+    Message:
+      description: Result without exposing account existence
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ShopperAuthMessage"
+  requestBodies:
+    Token:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ShopperAuthTokenInput"

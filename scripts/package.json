@@ -8,6 +8,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.2.45",
+    "@playwright/test": "1.55.1",
     "@types/node": "catalog:",
     "tsx": "catalog:"
   }

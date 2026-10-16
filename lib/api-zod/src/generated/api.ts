@@ -8,6 +8,612 @@
 import * as zod from 'zod';
 
 
+export const ListShopperSessionsResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.string(),
+  "deviceLabel": zod.string(),
+  "createdAt": zod.string(),
+  "lastActiveAt": zod.string(),
+  "expiresAt": zod.string(),
+  "current": zod.boolean()
+}))
+})
+
+
+export const revokeShopperSessionBodyIdRegExp = new RegExp('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+
+export const RevokeShopperSessionBody = zod.object({
+  "id": zod.string().regex(revokeShopperSessionBodyIdRegExp)
+})
+
+export const RevokeShopperSessionResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.string(),
+  "deviceLabel": zod.string(),
+  "createdAt": zod.string(),
+  "lastActiveAt": zod.string(),
+  "expiresAt": zod.string(),
+  "current": zod.boolean()
+}))
+})
+
+
+export const revokeShopperSessionsBodyPasswordMax = 128;
+
+
+
+export const RevokeShopperSessionsBody = zod.object({
+  "scope": zod.enum(['others', 'all']),
+  "password": zod.string().min(1).max(revokeShopperSessionsBodyPasswordMax)
+})
+
+export const RevokeShopperSessionsResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.string(),
+  "deviceLabel": zod.string(),
+  "createdAt": zod.string(),
+  "lastActiveAt": zod.string(),
+  "expiresAt": zod.string(),
+  "current": zod.boolean()
+}))
+})
+
+
+export const GetShopperAuthSessionResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "emailVerified": zod.boolean()
+}),zod.null()])
+})
+
+
+export const registerShopperAuthBodyNameMax = 100;
+
+export const registerShopperAuthBodyEmailMax = 254;
+
+export const registerShopperAuthBodyPasswordMin = 12;
+export const registerShopperAuthBodyPasswordMax = 128;
+
+
+
+export const RegisterShopperAuthBody = zod.object({
+  "name": zod.string().min(1).max(registerShopperAuthBodyNameMax),
+  "email": zod.string().max(registerShopperAuthBodyEmailMax),
+  "password": zod.string().min(registerShopperAuthBodyPasswordMin).max(registerShopperAuthBodyPasswordMax)
+})
+
+export const RegisterShopperAuthResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const loginShopperAuthBodyEmailMax = 254;
+
+export const loginShopperAuthBodyPasswordMax = 128;
+
+
+
+export const LoginShopperAuthBody = zod.object({
+  "email": zod.string().max(loginShopperAuthBodyEmailMax),
+  "password": zod.string().min(1).max(loginShopperAuthBodyPasswordMax)
+})
+
+export const LoginShopperAuthResponse = zod.object({
+  "user": zod.union([zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string(),
+  "emailVerified": zod.boolean()
+}),zod.null()])
+})
+
+
+export const LogoutShopperAuthResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const ResendShopperVerificationResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const verifyShopperEmailBodyTokenMin = 43;
+export const verifyShopperEmailBodyTokenMax = 43;
+
+export const verifyShopperEmailBodyPasswordMax = 128;
+
+
+
+export const VerifyShopperEmailBody = zod.object({
+  "token": zod.string().min(verifyShopperEmailBodyTokenMin).max(verifyShopperEmailBodyTokenMax),
+  "password": zod.string().min(1).max(verifyShopperEmailBodyPasswordMax)
+})
+
+export const VerifyShopperEmailResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const requestShopperPasswordResetBodyEmailMax = 254;
+
+
+
+export const RequestShopperPasswordResetBody = zod.object({
+  "email": zod.string().max(requestShopperPasswordResetBodyEmailMax)
+})
+
+export const RequestShopperPasswordResetResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const resetShopperPasswordBodyTokenMin = 43;
+export const resetShopperPasswordBodyTokenMax = 43;
+
+export const resetShopperPasswordBodyPasswordMin = 12;
+export const resetShopperPasswordBodyPasswordMax = 128;
+
+
+
+export const ResetShopperPasswordBody = zod.object({
+  "token": zod.string().min(resetShopperPasswordBodyTokenMin).max(resetShopperPasswordBodyTokenMax),
+  "password": zod.string().min(resetShopperPasswordBodyPasswordMin).max(resetShopperPasswordBodyPasswordMax)
+})
+
+export const ResetShopperPasswordResponse = zod.object({
+  "message": zod.string()
+})
+
+
+export const GetVerifiedShopperProfileResponse = zod.object({
+  "name": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "linked": zod.boolean()
+})
+
+
+export const updateVerifiedShopperProfileBodyNameMax = 255;
+
+export const updateVerifiedShopperProfileBodyPhoneMax = 50;
+
+export const updateVerifiedShopperProfileBodyAddressMax = 2000;
+
+
+
+export const UpdateVerifiedShopperProfileBody = zod.object({
+  "name": zod.string().min(1).max(updateVerifiedShopperProfileBodyNameMax),
+  "phone": zod.string().max(updateVerifiedShopperProfileBodyPhoneMax).nullable(),
+  "address": zod.string().max(updateVerifiedShopperProfileBodyAddressMax).nullable()
+})
+
+export const UpdateVerifiedShopperProfileResponse = zod.object({
+  "name": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "linked": zod.boolean()
+})
+
+
+export const linkVerifiedShopperProfileBodyNameMax = 255;
+
+
+
+export const LinkVerifiedShopperProfileBody = zod.object({
+  "name": zod.string().min(1).max(linkVerifiedShopperProfileBodyNameMax).optional()
+})
+
+export const LinkVerifiedShopperProfileResponse = zod.object({
+  "name": zod.string(),
+  "email": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable(),
+  "linked": zod.boolean()
+})
+
+
+export const getVerifiedShopperOrdersQueryOffsetMin = 0;
+export const getVerifiedShopperOrdersQueryOffsetMax = 100000;
+
+
+
+export const GetVerifiedShopperOrdersQueryParams = zod.object({
+  "offset": zod.coerce.number().int().min(getVerifiedShopperOrdersQueryOffsetMin).max(getVerifiedShopperOrdersQueryOffsetMax).optional()
+})
+
+export const getVerifiedShopperOrdersResponseOrdersItemTotalMinorRegExp = new RegExp('^[0-9]+$');
+export const getVerifiedShopperOrdersResponseOrdersItemPaidMinorRegExp = new RegExp('^[0-9]+$');
+export const getVerifiedShopperOrdersResponseNextOffsetMin = 0;
+export const getVerifiedShopperOrdersResponseNextOffsetMax = 100000;
+
+
+
+export const GetVerifiedShopperOrdersResponse = zod.object({
+  "orders": zod.array(zod.object({
+  "id": zod.string(),
+  "number": zod.string().nullable(),
+  "status": zod.string(),
+  "createdAt": zod.string().nullable(),
+  "currency": zod.string(),
+  "totalMinor": zod.string().regex(getVerifiedShopperOrdersResponseOrdersItemTotalMinorRegExp),
+  "paidMinor": zod.string().regex(getVerifiedShopperOrdersResponseOrdersItemPaidMinorRegExp),
+  "paymentStatus": zod.string().nullable(),
+  "source": zod.string().nullable()
+})),
+  "hasMore": zod.boolean(),
+  "nextOffset": zod.number().min(getVerifiedShopperOrdersResponseNextOffsetMin).max(getVerifiedShopperOrdersResponseNextOffsetMax).nullable()
+})
+
+
+export const getVerifiedShopperOrderPathIdRegExp = new RegExp('^[0-9a-fA-F-]{36}$');
+
+
+export const GetVerifiedShopperOrderParams = zod.object({
+  "id": zod.coerce.string().regex(getVerifiedShopperOrderPathIdRegExp)
+})
+
+export const getVerifiedShopperOrderResponseOrderTotalMinorRegExp = new RegExp('^[0-9]+$');
+export const getVerifiedShopperOrderResponseOrderPaidMinorRegExp = new RegExp('^[0-9]+$');
+
+
+export const GetVerifiedShopperOrderResponse = zod.object({
+  "order": zod.object({
+  "id": zod.string(),
+  "number": zod.string().nullable(),
+  "status": zod.string(),
+  "createdAt": zod.string().nullable(),
+  "currency": zod.string(),
+  "totalMinor": zod.string().regex(getVerifiedShopperOrderResponseOrderTotalMinorRegExp),
+  "paidMinor": zod.string().regex(getVerifiedShopperOrderResponseOrderPaidMinorRegExp),
+  "paymentStatus": zod.string().nullable(),
+  "source": zod.string().nullable()
+}),
+  "items": zod.array(zod.object({
+  "name": zod.string(),
+  "quantity": zod.number(),
+  "totalMinor": zod.string()
+})),
+  "fulfillmentStatus": zod.string().nullable(),
+  "deliveryStatus": zod.string().nullable(),
+  "trackingReference": zod.string().nullable()
+})
+
+
+/**
+ * @summary Read Cloudinary usage (editorial Staff only, shared bounded refresh)
+ */
+export const GetStaffCloudinaryUsageResponse = zod.object({
+  "status": zod.enum(['available', 'stale', 'unavailable']),
+  "snapshot": zod.union([zod.object({
+  "plan": zod.string().nullable(),
+  "fetchedAt": zod.string(),
+  "providerUpdatedAt": zod.string().nullable(),
+  "dateRequested": zod.string().nullable(),
+  "windowStart": zod.string().nullable(),
+  "windowEnd": zod.string().nullable(),
+  "credits": zod.object({
+  "usage": zod.number().nullable(),
+  "limit": zod.number().nullable(),
+  "usedPercent": zod.number().nullable()
+}),
+  "storage": zod.object({
+  "usage": zod.number().nullable(),
+  "limit": zod.number().nullable(),
+  "usedPercent": zod.number().nullable()
+}),
+  "bandwidth": zod.object({
+  "usage": zod.number().nullable(),
+  "limit": zod.number().nullable(),
+  "usedPercent": zod.number().nullable()
+}),
+  "transformations": zod.object({
+  "usage": zod.number().nullable(),
+  "limit": zod.number().nullable(),
+  "usedPercent": zod.number().nullable()
+}),
+  "adminLimit": zod.number().nullable(),
+  "adminRemaining": zod.number().nullable(),
+  "adminResetAt": zod.string().nullable()
+}),zod.null()]),
+  "message": zod.string().nullable(),
+  "nextRefreshAt": zod.string()
+})
+
+
+export const GetShopperProfileResponse = zod.object({
+  "customer": zod.object({
+  "id": zod.string(),
+  "externalId": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "verifiedEmail": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+}),
+  "capabilities": zod.object({
+  "measurements": zod.boolean()
+}).optional()
+})
+
+
+export const updateShopperProfileBodyNameMax = 255;
+
+export const updateShopperProfileBodyPhoneMax = 50;
+
+export const updateShopperProfileBodyAddressMax = 2000;
+
+
+
+export const UpdateShopperProfileBody = zod.object({
+  "name": zod.string().min(1).max(updateShopperProfileBodyNameMax).optional(),
+  "phone": zod.string().max(updateShopperProfileBodyPhoneMax).nullish(),
+  "address": zod.string().max(updateShopperProfileBodyAddressMax).nullish()
+})
+
+export const UpdateShopperProfileResponse = zod.object({
+  "customer": zod.object({
+  "id": zod.string(),
+  "externalId": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "verifiedEmail": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+}),
+  "capabilities": zod.object({
+  "measurements": zod.boolean()
+}).optional()
+})
+
+
+export const linkShopperProfileBodyNameMax = 255;
+
+export const linkShopperProfileBodyPhoneMax = 50;
+
+export const linkShopperProfileBodyAddressMax = 2000;
+
+
+
+export const LinkShopperProfileBody = zod.object({
+  "name": zod.string().min(1).max(linkShopperProfileBodyNameMax).optional(),
+  "phone": zod.string().max(linkShopperProfileBodyPhoneMax).nullish(),
+  "address": zod.string().max(linkShopperProfileBodyAddressMax).nullish()
+})
+
+export const LinkShopperProfileResponse = zod.object({
+  "customer": zod.object({
+  "id": zod.string(),
+  "externalId": zod.string(),
+  "name": zod.string(),
+  "email": zod.string().nullable(),
+  "verifiedEmail": zod.string(),
+  "phone": zod.string().nullable(),
+  "address": zod.string().nullable()
+}),
+  "capabilities": zod.object({
+  "measurements": zod.boolean()
+}).optional()
+})
+
+
+export const getShopperOrdersQueryOffsetMin = 0;
+export const getShopperOrdersQueryOffsetMultipleOf = 1;
+
+
+
+export const GetShopperOrdersQueryParams = zod.object({
+  "offset": zod.coerce.number().min(getShopperOrdersQueryOffsetMin).multipleOf(getShopperOrdersQueryOffsetMultipleOf).optional()
+})
+
+export const getShopperOrdersResponseNextOffsetMultipleOf = 1;
+
+
+
+export const GetShopperOrdersResponse = zod.object({
+  "orders": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "number": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "createdAt": zod.string().optional(),
+  "currency": zod.string().optional(),
+  "source": zod.string().nullish(),
+  "amounts": zod.record(zod.string(), zod.unknown()).optional(),
+  "payment": zod.record(zod.string(), zod.unknown()).optional(),
+  "items": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "fulfillment": zod.record(zod.string(), zod.unknown()).optional(),
+  "delivery": zod.record(zod.string(), zod.unknown()).optional(),
+  "originalCharge": zod.record(zod.string(), zod.unknown()).optional()
+})),
+  "hasMore": zod.boolean(),
+  "nextOffset": zod.number().multipleOf(getShopperOrdersResponseNextOffsetMultipleOf).nullable()
+})
+
+
+export const GetShopperOrderParams = zod.object({
+  "orderId": zod.coerce.string()
+})
+
+export const GetShopperOrderResponse = zod.object({
+  "order": zod.object({
+  "id": zod.string().optional(),
+  "number": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "createdAt": zod.string().optional(),
+  "currency": zod.string().optional(),
+  "source": zod.string().nullish(),
+  "amounts": zod.record(zod.string(), zod.unknown()).optional(),
+  "payment": zod.record(zod.string(), zod.unknown()).optional(),
+  "items": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "fulfillment": zod.record(zod.string(), zod.unknown()).optional(),
+  "delivery": zod.record(zod.string(), zod.unknown()).optional(),
+  "originalCharge": zod.record(zod.string(), zod.unknown()).optional()
+})
+})
+
+
+export const GetShopperProductionResponse = zod.object({
+  "enabled": zod.boolean(),
+  "stages": zod.array(zod.string()),
+  "jobs": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "number": zod.string().nullish(),
+  "garmentName": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "currentStage": zod.string().optional(),
+  "dueDate": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "history": zod.array(zod.object({
+  "at": zod.string().nullish(),
+  "fromStage": zod.string().nullish(),
+  "toStage": zod.string().nullish()
+})).optional()
+})),
+  "orders": zod.array(zod.object({
+  "id": zod.string().optional(),
+  "number": zod.string().nullish(),
+  "garmentName": zod.string().nullish(),
+  "status": zod.string().optional(),
+  "currentStage": zod.string().optional(),
+  "dueDate": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "history": zod.array(zod.object({
+  "at": zod.string().nullish(),
+  "fromStage": zod.string().nullish(),
+  "toStage": zod.string().nullish()
+})).optional()
+})),
+  "hasMore": zod.boolean().optional()
+})
+
+
+export const getShopperMeasurementsResponseProfilesItemOneNameMax = 100;
+
+export const getShopperMeasurementsResponseProfilesItemOneEntriesItemFieldRegExp = new RegExp('^[A-Za-z][A-Za-z0-9_ -]{0,99}$');
+export const getShopperMeasurementsResponseProfilesItemOneEntriesItemLabelMax = 150;
+
+export const getShopperMeasurementsResponseProfilesItemOneEntriesItemValueRegExp = new RegExp('^\\d{1,3}(\\.\\d{1,2})?$');
+export const getShopperMeasurementsResponseProfilesItemOneEntriesMax = 60;
+
+export const getShopperMeasurementsResponseProfilesItemTwoRevisionMultipleOf = 1;
+
+
+
+export const GetShopperMeasurementsResponse = zod.object({
+  "fields": zod.array(zod.object({
+  "field": zod.string(),
+  "label": zod.string()
+})),
+  "units": zod.array(zod.enum(['inches', 'cm'])),
+  "profiles": zod.array(zod.object({
+  "name": zod.string().min(1).max(getShopperMeasurementsResponseProfilesItemOneNameMax),
+  "unit": zod.enum(['inches', 'cm']),
+  "entries": zod.array(zod.object({
+  "field": zod.string().regex(getShopperMeasurementsResponseProfilesItemOneEntriesItemFieldRegExp),
+  "label": zod.string().min(1).max(getShopperMeasurementsResponseProfilesItemOneEntriesItemLabelMax),
+  "value": zod.string().regex(getShopperMeasurementsResponseProfilesItemOneEntriesItemValueRegExp)
+})).min(1).max(getShopperMeasurementsResponseProfilesItemOneEntriesMax)
+}).and(zod.object({
+  "id": zod.string(),
+  "editable": zod.boolean(),
+  "revision": zod.number().multipleOf(getShopperMeasurementsResponseProfilesItemTwoRevisionMultipleOf).nullable(),
+  "created_at": zod.string().optional(),
+  "updated_at": zod.string().nullish()
+}))),
+  "hasMore": zod.boolean()
+})
+
+
+export const createShopperMeasurementBodyNameMax = 100;
+
+export const createShopperMeasurementBodyEntriesItemFieldRegExp = new RegExp('^[A-Za-z][A-Za-z0-9_ -]{0,99}$');
+export const createShopperMeasurementBodyEntriesItemLabelMax = 150;
+
+export const createShopperMeasurementBodyEntriesItemValueRegExp = new RegExp('^\\d{1,3}(\\.\\d{1,2})?$');
+export const createShopperMeasurementBodyEntriesMax = 60;
+
+
+
+export const CreateShopperMeasurementBody = zod.object({
+  "name": zod.string().min(1).max(createShopperMeasurementBodyNameMax),
+  "unit": zod.enum(['inches', 'cm']),
+  "entries": zod.array(zod.object({
+  "field": zod.string().regex(createShopperMeasurementBodyEntriesItemFieldRegExp),
+  "label": zod.string().min(1).max(createShopperMeasurementBodyEntriesItemLabelMax),
+  "value": zod.string().regex(createShopperMeasurementBodyEntriesItemValueRegExp)
+})).min(1).max(createShopperMeasurementBodyEntriesMax)
+})
+
+export const createShopperMeasurementResponseRevisionMultipleOf = 1;
+
+
+
+export const CreateShopperMeasurementResponse = zod.object({
+  "id": zod.string(),
+  "revision": zod.number().min(1).multipleOf(createShopperMeasurementResponseRevisionMultipleOf)
+})
+
+
+export const UpdateShopperMeasurementParams = zod.object({
+  "profileId": zod.coerce.string()
+})
+
+export const updateShopperMeasurementBodyOneNameMax = 100;
+
+export const updateShopperMeasurementBodyOneEntriesItemFieldRegExp = new RegExp('^[A-Za-z][A-Za-z0-9_ -]{0,99}$');
+export const updateShopperMeasurementBodyOneEntriesItemLabelMax = 150;
+
+export const updateShopperMeasurementBodyOneEntriesItemValueRegExp = new RegExp('^\\d{1,3}(\\.\\d{1,2})?$');
+export const updateShopperMeasurementBodyOneEntriesMax = 60;
+
+export const updateShopperMeasurementBodyTwoRevisionMultipleOf = 1;
+
+
+
+export const UpdateShopperMeasurementBody = zod.object({
+  "name": zod.string().min(1).max(updateShopperMeasurementBodyOneNameMax),
+  "unit": zod.enum(['inches', 'cm']),
+  "entries": zod.array(zod.object({
+  "field": zod.string().regex(updateShopperMeasurementBodyOneEntriesItemFieldRegExp),
+  "label": zod.string().min(1).max(updateShopperMeasurementBodyOneEntriesItemLabelMax),
+  "value": zod.string().regex(updateShopperMeasurementBodyOneEntriesItemValueRegExp)
+})).min(1).max(updateShopperMeasurementBodyOneEntriesMax)
+}).and(zod.object({
+  "revision": zod.number().min(1).multipleOf(updateShopperMeasurementBodyTwoRevisionMultipleOf)
+}))
+
+export const updateShopperMeasurementResponseRevisionMultipleOf = 1;
+
+
+
+export const UpdateShopperMeasurementResponse = zod.object({
+  "id": zod.string(),
+  "revision": zod.number().min(1).multipleOf(updateShopperMeasurementResponseRevisionMultipleOf)
+})
+
+
+export const DeleteShopperMeasurementParams = zod.object({
+  "profileId": zod.coerce.string()
+})
+
+export const deleteShopperMeasurementBodyRevisionMultipleOf = 1;
+
+
+
+export const DeleteShopperMeasurementBody = zod.object({
+  "revision": zod.number().min(1).multipleOf(deleteShopperMeasurementBodyRevisionMultipleOf)
+})
+
+export const DeleteShopperMeasurementResponse = zod.object({
+  "deleted": zod.boolean()
+})
+
+
 export const getStaffMailboxSettingsResponseVersionMultipleOf = 1;
 
 export const getStaffMailboxSettingsResponseSettingsSmtpHostMin = 4;

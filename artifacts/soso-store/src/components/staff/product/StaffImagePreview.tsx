@@ -1,5 +1,6 @@
 import { ImageOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
 
 export function StaffImagePreview({
   src,
@@ -39,7 +40,10 @@ export function StaffImagePreview({
         ) : (
           <img
             src={src}
+            {...responsiveProductPhoto(src, "(max-width: 767px) 100vw, 480px")}
             alt={alt || "Uploaded product image preview"}
+            loading="lazy"
+            decoding="async"
             className="max-h-80 w-full object-contain"
             onError={() => setFailed(true)}
           />

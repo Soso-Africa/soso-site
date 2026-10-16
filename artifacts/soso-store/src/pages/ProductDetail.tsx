@@ -40,8 +40,10 @@ function FallbackGallery({
             <div key={i} className="flex-[0_0_100%] min-w-0 relative overflow-hidden">
                 <img
                   src={g.src}
-                  {...(zoomed ? {} : responsiveProductPhoto(g.src, "(max-width: 767px) 100vw, 80vw"))}
+                  {...(zoomed && i === img ? {} : responsiveProductPhoto(g.src, "(max-width: 767px) 100vw, 80vw"))}
                   alt={g.label}
+                  loading={i === img ? "eager" : "lazy"}
+                  decoding="async"
                   className="w-full aspect-[2/3] object-contain transition-transform duration-500"
                   style={{ transform: zoomed && i === img ? "scale(1.8)" : "scale(1)" }}
                 />
@@ -92,7 +94,7 @@ function FallbackGallery({
             aria-label={`${productCopy.viewProductLabel}: ${g.label}`}
             aria-current={i === img}
           >
-            <img src={g.src} alt={g.label} className="aspect-[3/4] object-contain w-full" />
+            <img src={g.src} {...responsiveProductPhoto(g.src, "96px")} alt={g.label} loading="lazy" decoding="async" className="aspect-[3/4] object-contain w-full" />
           </button>
         ))}
       </div>

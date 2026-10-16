@@ -8,6 +8,9 @@ import { CurrencySelector } from "./CurrencySelector";
 import { PwaInstall } from "./PwaInstall";
 import { NewsletterSignup } from "./NewsletterSignup";
 
+const isStaffLoginLink = (link: { href: string; label: string }) =>
+  /^\/(?:sign-in|staff)(?:[/?#]|$)/i.test(link.href.trim()) || /^\s*staff\s+log\s*-?in\s*$/i.test(link.label);
+
 const footerLinkClass = "py-1 text-[13px] text-secondary hover:text-foreground hover:underline underline-offset-4";
 
 function FooterLink({ href, label, className = footerLinkClass }: { href: string; label: string; className?: string }) {
@@ -42,7 +45,7 @@ function FooterAccordion({ title, children }: { title: string; children: React.R
   );
 }
 
-export function Footer() {
+export function Footer({ onOpenPrivacy }: { onOpenPrivacy?: () => void } = {}) {
   const { data } = usePlatformContent();
   const site = data?.content.site;
   if (!site) return null;
@@ -137,7 +140,7 @@ export function Footer() {
           </div>
 
           <div className="flex flex-wrap gap-x-6 gap-y-3 text-[11px] tracking-[0.1em] font-medium text-secondary">
-            {site.footer.legalLinks.map((link) => (
+            {site.footer.legalLinks.filter((link) => !isStaffLoginLink(link)).map((link) => (
               <FooterLink
                 key={`${link.label}-${link.href}`}
                 href={link.href}
@@ -145,7 +148,8 @@ export function Footer() {
                 className="hover:text-foreground hover:underline underline-offset-4"
               />
             ))}
-            <button type="button" onClick={openPrivacyChoices} className="hover:text-foreground hover:underline underline-offset-4">{site.footer.cookieChoicesLabel}</button>
+            <button type="button" onClick={onOpenPrivacy ?? openPrivacyChoices} className="hover:text-foreground hover:underline underline-offset-4">{site.footer.cookieChoicesLabel}</button>
+            <Link href="/account" className="hover:text-foreground hover:underline underline-offset-4" data-testid="link-footer-my-account">My account</Link>
             <Link href="/sign-in" className="hover:text-foreground hover:underline underline-offset-4" data-testid="link-footer-staff-login">Staff login</Link>
           </div>
         </div>

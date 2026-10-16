@@ -23,6 +23,9 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
   const isUnavailable = product.fulfilmentState === "unavailable";
   const primaryImage = product.images?.[0];
   const secondaryImage = product.images?.[1];
+  const [requestedSecondarySrc, setRequestedSecondarySrc] = useState<string>();
+  const [readySecondarySrc, setReadySecondarySrc] = useState<string>();
+  const secondaryReady = Boolean(secondaryImage && readySecondarySrc === secondaryImage.src);
   const [quickShopOpen, setQuickShopOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const { addItem } = useCart();
@@ -66,6 +69,12 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
             className="block h-full"
             aria-label={productCopy ? `${productCopy.viewProductLabel}: ${product.name}` : undefined}
             data-testid={`link-${testIdPrefix}-${product.slug}`}
+            onPointerEnter={(event) => {
+              if (event.pointerType === "mouse" && secondaryImage) setRequestedSecondarySrc(secondaryImage.src);
+            }}
+            onFocus={(event) => {
+              if (event.currentTarget.matches(":focus-visible") && secondaryImage) setRequestedSecondarySrc(secondaryImage.src);
+            }}
           >
             <img
               src={primaryImage?.src ?? product.img}
@@ -73,18 +82,20 @@ export function ProductCard({ product, ctaLabel, onClickCta, testIdPrefix = "pro
               alt={primaryImage?.alt ?? product.name}
               width={900}
               height={1200}
-              className={`w-full h-full object-contain ${secondaryImage ? "group-hover:opacity-0 group-focus-within:opacity-0" : ""}`}
+              className={`w-full h-full object-contain ${secondaryReady ? "group-hover:opacity-0 group-focus-within:opacity-0" : ""}`}
               loading="lazy"
             />
-            {secondaryImage && (
+            {secondaryImage && requestedSecondarySrc === secondaryImage.src && (
               <img
                 src={secondaryImage.src}
                  {...responsiveProductPhoto(secondaryImage.src)}
                 alt={secondaryImage.alt}
                 width={900}
                 height={1200}
-                className="absolute inset-0 w-full h-full object-contain opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                className={`absolute inset-0 w-full h-full object-contain opacity-0 ${secondaryReady ? "group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
                 loading="lazy"
+                onLoad={() => setReadySecondarySrc(secondaryImage.src)}
+                onError={() => setReadySecondarySrc(undefined)}
               />
             )}
 

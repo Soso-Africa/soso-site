@@ -14,6 +14,11 @@ const privacy = JSON.parse(await readFile(resolve(root, "visual/fixtures/privacy
 const product = platform.content.products.find((item) => item.slug === "vault");
 assert(product, "The visual fixture needs a real product photo.");
 const originalSrc = product.images?.[0]?.src ?? product.img;
+const firstPhoto = product.images?.[0] ?? { src: originalSrc, alt: product.name };
+product.images = [
+  firstPhoto,
+  { ...firstPhoto, src: `${originalSrc}?synthetic-back=1`, alt: "Synthetic back photo" },
+];
 const otherSources = platform.content.products.filter((item) => item.slug !== product.slug).map((item) => item.images?.[0]?.src ?? item.img);
 const whiteSrc = otherSources[0];
 const greenSrc = otherSources[1];
@@ -87,8 +92,15 @@ try {
   const card = page.locator(`.soso-card:has([href="/product/${product.slug}"]) img`).first();
   await card.waitFor();
   assert.equal(new URL(await card.getAttribute("src"), origin).pathname, originalSrc);
+  const cardPhotos = page.locator(`.soso-card:has([href="/product/${product.slug}"]) img`);
+  assert.equal(await cardPhotos.count(), 1, "Hidden back photos must not download before interaction.");
   await card.hover();
-  assert.deepEqual(await card.evaluate((img) => {
+  await cardPhotos.nth(1).waitFor();
+  await page.waitForFunction((slug) => {
+    const images = document.querySelector(`.soso-card[data-soso-product-anchor="${slug}"]`)?.querySelectorAll("img");
+    return images?.[1]?.complete && images[1].naturalWidth > 0 && getComputedStyle(images[1]).opacity === "1";
+  }, product.slug);
+  assert.deepEqual(await cardPhotos.nth(1).evaluate((img) => {
     const style = getComputedStyle(img);
     return [style.objectFit, style.filter, style.transform, style.opacity];
   }), ["contain", "none", "none", "1"], "Catalogue images must not crop, grey, blur or enlarge.");

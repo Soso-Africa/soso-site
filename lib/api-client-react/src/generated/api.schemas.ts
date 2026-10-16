@@ -2592,6 +2592,436 @@ export interface StaffExport {
   rows: StaffExportRowsItem[];
 }
 
+export interface ShopperDeviceSession {
+  id: string;
+  deviceLabel: string;
+  createdAt: string;
+  lastActiveAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
+export interface ShopperDeviceSessions {
+  sessions: ShopperDeviceSession[];
+}
+
+export interface ShopperSessionRevocationInput {
+  /** @pattern ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ */
+  id: string;
+}
+
+export type ShopperSessionsRevocationInputScope = typeof ShopperSessionsRevocationInputScope[keyof typeof ShopperSessionsRevocationInputScope];
+
+
+export const ShopperSessionsRevocationInputScope = {
+  others: 'others',
+  all: 'all',
+} as const;
+
+export interface ShopperSessionsRevocationInput {
+  scope: ShopperSessionsRevocationInputScope;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export interface ShopperRegistrationInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 12
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export interface ShopperLoginInput {
+  /** @maxLength 254 */
+  email: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export interface ShopperRecoveryInput {
+  /** @maxLength 254 */
+  email: string;
+}
+
+export interface ShopperAuthTokenInput {
+  /**
+     * @minLength 43
+     * @maxLength 43
+     */
+  token: string;
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export interface ShopperPasswordResetInput {
+  /**
+     * @minLength 43
+     * @maxLength 43
+     */
+  token: string;
+  /**
+     * @minLength 12
+     * @maxLength 128
+     */
+  password: string;
+}
+
+export interface ShopperAuthUser {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+}
+
+export interface ShopperAuthSession {
+  user: ShopperAuthUser | null;
+}
+
+export interface ShopperAuthMessage {
+  message: string;
+}
+
+export interface ShopperIdentityInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name?: string;
+}
+
+export interface VerifiedShopperProfileInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name: string;
+  /**
+     * @maxLength 50
+     * @nullable
+     */
+  phone: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  address: string | null;
+}
+
+export interface ShopperProfile {
+  name: string;
+  email: string;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  address: string | null;
+  linked: boolean;
+}
+
+export interface ShopperOrderSummary {
+  id: string;
+  /** @nullable */
+  number: string | null;
+  status: string;
+  /** @nullable */
+  createdAt: string | null;
+  currency: string;
+  /** @pattern ^[0-9]+$ */
+  totalMinor: string;
+  /** @pattern ^[0-9]+$ */
+  paidMinor: string;
+  /** @nullable */
+  paymentStatus: string | null;
+  /** @nullable */
+  source: string | null;
+}
+
+export interface VerifiedShopperOrders {
+  orders: ShopperOrderSummary[];
+  hasMore: boolean;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     * @nullable
+     */
+  nextOffset: number | null;
+}
+
+export interface ShopperOrderItem {
+  name: string;
+  quantity: number;
+  totalMinor: string;
+}
+
+export interface ShopperOrderDetail {
+  order: ShopperOrderSummary;
+  items: ShopperOrderItem[];
+  /** @nullable */
+  fulfillmentStatus: string | null;
+  /** @nullable */
+  deliveryStatus: string | null;
+  /** @nullable */
+  trackingReference: string | null;
+}
+
+export interface CloudinaryUsageMetric {
+  /** @nullable */
+  usage: number | null;
+  /** @nullable */
+  limit: number | null;
+  /** @nullable */
+  usedPercent: number | null;
+}
+
+export interface CloudinaryUsageSnapshot {
+  /** @nullable */
+  plan: string | null;
+  fetchedAt: string;
+  /** @nullable */
+  providerUpdatedAt: string | null;
+  /** @nullable */
+  dateRequested: string | null;
+  /** @nullable */
+  windowStart: string | null;
+  /** @nullable */
+  windowEnd: string | null;
+  credits: CloudinaryUsageMetric;
+  storage: CloudinaryUsageMetric;
+  bandwidth: CloudinaryUsageMetric;
+  transformations: CloudinaryUsageMetric;
+  /** @nullable */
+  adminLimit: number | null;
+  /** @nullable */
+  adminRemaining: number | null;
+  /** @nullable */
+  adminResetAt: string | null;
+}
+
+export type CloudinaryUsageViewStatus = typeof CloudinaryUsageViewStatus[keyof typeof CloudinaryUsageViewStatus];
+
+
+export const CloudinaryUsageViewStatus = {
+  available: 'available',
+  stale: 'stale',
+  unavailable: 'unavailable',
+} as const;
+
+export interface CloudinaryUsageView {
+  status: CloudinaryUsageViewStatus;
+  snapshot: CloudinaryUsageSnapshot | null;
+  /** @nullable */
+  message: string | null;
+  nextRefreshAt: string;
+}
+
+export interface ShopperProfileInput {
+  /**
+     * @minLength 1
+     * @maxLength 255
+     */
+  name?: string;
+  /**
+     * @maxLength 50
+     * @nullable
+     */
+  phone?: string | null;
+  /**
+     * @maxLength 2000
+     * @nullable
+     */
+  address?: string | null;
+}
+
+export interface ShopperCustomer {
+  id: string;
+  externalId: string;
+  name: string;
+  /** @nullable */
+  email: string | null;
+  verifiedEmail: string;
+  /** @nullable */
+  phone: string | null;
+  /** @nullable */
+  address: string | null;
+}
+
+export type ShopperProfileResponseCapabilities = {
+  measurements: boolean;
+};
+
+export interface ShopperProfileResponse {
+  customer: ShopperCustomer;
+  capabilities?: ShopperProfileResponseCapabilities;
+}
+
+export type ShopperOrderAmounts = { [key: string]: unknown };
+
+export type ShopperOrderPayment = { [key: string]: unknown };
+
+export type ShopperOrderItemsItem = { [key: string]: unknown };
+
+export type ShopperOrderFulfillment = { [key: string]: unknown };
+
+export type ShopperOrderDelivery = { [key: string]: unknown };
+
+export type ShopperOrderOriginalCharge = { [key: string]: unknown };
+
+export interface ShopperOrder {
+  id?: string;
+  /** @nullable */
+  number?: string | null;
+  status?: string;
+  createdAt?: string;
+  currency?: string;
+  /** @nullable */
+  source?: string | null;
+  amounts?: ShopperOrderAmounts;
+  payment?: ShopperOrderPayment;
+  items?: ShopperOrderItemsItem[];
+  fulfillment?: ShopperOrderFulfillment;
+  delivery?: ShopperOrderDelivery;
+  originalCharge?: ShopperOrderOriginalCharge;
+}
+
+export interface ShopperOrders {
+  orders: ShopperOrder[];
+  hasMore: boolean;
+  /** @nullable */
+  nextOffset: number | null;
+}
+
+export interface ShopperOrderResponse {
+  order: ShopperOrder;
+}
+
+export type ShopperProductionJobHistoryItem = {
+  /** @nullable */
+  at?: string | null;
+  /** @nullable */
+  fromStage?: string | null;
+  /** @nullable */
+  toStage?: string | null;
+};
+
+export interface ShopperProductionJob {
+  id?: string;
+  /** @nullable */
+  number?: string | null;
+  /** @nullable */
+  garmentName?: string | null;
+  status?: string;
+  currentStage?: string;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  history?: ShopperProductionJobHistoryItem[];
+}
+
+export interface ShopperProduction {
+  enabled: boolean;
+  stages: string[];
+  jobs: ShopperProductionJob[];
+  orders: ShopperProductionJob[];
+  hasMore?: boolean;
+}
+
+export interface ShopperMeasurementEntry {
+  /** @pattern ^[A-Za-z][A-Za-z0-9_ -]{0,99}$ */
+  field: string;
+  /**
+     * @minLength 1
+     * @maxLength 150
+     */
+  label: string;
+  /** @pattern ^\d{1,3}(\.\d{1,2})?$ */
+  value: string;
+}
+
+export type ShopperMeasurementInputUnit = typeof ShopperMeasurementInputUnit[keyof typeof ShopperMeasurementInputUnit];
+
+
+export const ShopperMeasurementInputUnit = {
+  inches: 'inches',
+  cm: 'cm',
+} as const;
+
+export interface ShopperMeasurementInput {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  unit: ShopperMeasurementInputUnit;
+  /**
+     * @minItems 1
+     * @maxItems 60
+     */
+  entries: ShopperMeasurementEntry[];
+}
+
+export type ShopperMeasurementUpdate = ShopperMeasurementInput & {
+  /** @minimum 1 */
+  revision: number;
+};
+
+export interface ShopperMeasurementDelete {
+  /** @minimum 1 */
+  revision: number;
+}
+
+export interface ShopperMeasurementRevision {
+  id: string;
+  /** @minimum 1 */
+  revision: number;
+}
+
+export type ShopperMeasurementProfile = ShopperMeasurementInput & ({
+  id: string;
+  editable: boolean;
+  /** @nullable */
+  revision: number | null;
+  created_at?: string;
+  /** @nullable */
+  updated_at?: string | null;
+});
+
+export type ShopperMeasurementsFieldsItem = {
+  field: string;
+  label: string;
+};
+
+export type ShopperMeasurementsUnitsItem = typeof ShopperMeasurementsUnitsItem[keyof typeof ShopperMeasurementsUnitsItem];
+
+
+export const ShopperMeasurementsUnitsItem = {
+  inches: 'inches',
+  cm: 'cm',
+} as const;
+
+export interface ShopperMeasurements {
+  fields: ShopperMeasurementsFieldsItem[];
+  units: ShopperMeasurementsUnitsItem[];
+  profiles: ShopperMeasurementProfile[];
+  hasMore: boolean;
+}
+
 /**
  * @pattern ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$
  */
@@ -2728,6 +3158,25 @@ export type RedirectExpectedRevisionParameter = string;
 export type StaffDateFromParameter = string;
 
 export type StaffDateToParameter = string;
+
+export type GetVerifiedShopperOrdersParams = {
+/**
+ * @minimum 0
+ * @maximum 100000
+ */
+offset?: number;
+};
+
+export type GetShopperOrdersParams = {
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type DeleteShopperMeasurement200 = {
+  deleted: boolean;
+};
 
 export type GetStaffMailboxSettings200 = {
   configured: boolean;

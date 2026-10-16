@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { checkVerifiedPurchase, clearPurchaserSuppression } from "@/lib/purchase-conversions";
 import { useLocation } from "wouter";
+import { isPrivateStorefrontPath } from "@workspace/api-client-react";
 import { usePlatformContent } from "@/data/platformContent";
 import {
   getGetPublicMarketingPixelsQueryKey,
@@ -329,6 +330,7 @@ function sendEvent(
   properties?: Record<string, unknown>,
   options?: SendEventOptions,
 ) {
+  if (isPrivateStorefrontPath(options?.path ?? window.location.pathname)) return;
   const attribution = firstTouchAttribution();
   const safeProperties = boundedProperties({
     ...(properties ?? {}),
@@ -424,6 +426,7 @@ function useActiveTimeHeartbeat(consent: ConsentState | null, enabled: boolean, 
   const reportedRef = useRef(0);
 
   useEffect(() => {
+    if (isPrivateStorefrontPath(pathname)) return;
     if (!enabled || (consent !== "analytics" && consent !== "marketing")) return;
     const heartbeatMs = 60_000;
     const minimumReportMs = 15_000;
@@ -477,6 +480,7 @@ function useActiveTimeHeartbeat(consent: ConsentState | null, enabled: boolean, 
 /** Scroll-depth tracker: fires at 25 / 50 / 75 / 90% once per public page. */
 function useScrollDepth(consent: ConsentState | null, pathname: string) {
   useEffect(() => {
+    if (isPrivateStorefrontPath(pathname)) return;
     if (consent !== "analytics" && consent !== "marketing") return;
 
     const storageKey = `${SCROLL_DEPTHS_KEY}:${pathname}`;
@@ -511,7 +515,7 @@ function useScrollDepth(consent: ConsentState | null, pathname: string) {
   }, [consent, pathname]);
 }
 
-export function ConsentManager() {
+export function ConsentManager({ openRequest = 0 }: { openRequest?: number } = {}) {
   const platform = usePlatformContent();
   const [consent, setConsent] = useState<ConsentState | null>(() => consentSource);
   const [visible, setVisible] = useState(false);
@@ -616,7 +620,7 @@ export function ConsentManager() {
     const hasMeasurementConsent = consent === "analytics" || consent === "marketing";
     if (!hasMeasurementConsent) return;
 
-    if (pageViewNeedsRecording(pathname)) {
+    if (!isPrivateStorefrontPath(pathname) && pageViewNeedsRecording(pathname)) {
       const sendSucceeded = sendConsentedEvent("page_view");
       recordPageView(pathname, sendSucceeded);
       if (!sendSucceeded) {
@@ -660,6 +664,9 @@ export function ConsentManager() {
     window.addEventListener("soso:open-privacy-choices", reopen);
     return () => window.removeEventListener("soso:open-privacy-choices", reopen);
   }, []);
+  useEffect(() => {
+    if (openRequest > 0) setVisible(true);
+  }, [openRequest]);
 
   // Active-time heartbeat
   useActiveTimeHeartbeat(consent, true, pathname);
@@ -748,6 +755,7 @@ export function ConsentManager() {
   };
 
   useEffect(() => {
+    if (openRequest > 0) return;
     const persisted = persistedConsent();
     const saved = reconcileConsentSource();
     setConsent(saved);
@@ -790,7 +798,7 @@ export function ConsentManager() {
     });
 
     return () => controller.abort();
-  }, [regionResolutionRequest]);
+  }, [regionResolutionRequest, openRequest]);
 
   if (!visible || !platform.data) return null;
   const copy = platform.data.content.site.consent;

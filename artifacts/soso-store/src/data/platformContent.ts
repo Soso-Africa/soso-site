@@ -326,10 +326,37 @@ export type PublishedPlatformContent = { content: PlatformContent; publishedAt: 
 
 export const platformContentQueryKey = ["platform-content"] as const;
 
+declare const __SOSO_LIVE_PUBLIC_PREVIEW__: boolean;
+const livePublicPreviewAvailable = typeof __SOSO_LIVE_PUBLIC_PREVIEW__ !== "undefined" && __SOSO_LIVE_PUBLIC_PREVIEW__;
+// Keep a selected source consistent across client-side navigation. Switching
+// source reloads the page and never changes the API's database connection.
+const livePublicPreview = livePublicPreviewAvailable && (
+  typeof window === "undefined" || new URLSearchParams(window.location.search).get("previewContent") !== "development"
+);
+
+export function PreviewContentIndicator() {
+  if (!livePublicPreviewAvailable || typeof window === "undefined") return null;
+  const destination = new URL(window.location.href);
+  if (livePublicPreview) destination.searchParams.set("previewContent", "development");
+  else destination.searchParams.delete("previewContent");
+  return createElement(
+    "aside",
+    { "aria-label": "Preview content source", "data-testid": "preview-content-source", className: "fixed bottom-28 md:bottom-4 left-4 z-30 max-w-[calc(100vw-2rem)] flex flex-wrap items-center gap-x-3 gap-y-1 border border-border bg-white px-3 py-2 text-[11px] text-foreground shadow-sm" },
+    createElement("span", null, livePublicPreview ? "Live published content" : "Development content"),
+    createElement("a", { href: destination.toString(), className: "underline underline-offset-2" }, livePublicPreview ? "View development content" : "View live content"),
+  );
+}
+
 export function usePlatformContent() {
   return useQuery<PublishedPlatformContent>({
-    queryKey: platformContentQueryKey,
-    queryFn: () => customFetch("/api/content/platform", { responseType: "json" }),
+    queryKey: livePublicPreview ? [...platformContentQueryKey, "live-preview"] : platformContentQueryKey,
+    queryFn: async () => {
+      if (!livePublicPreview) return customFetch("/api/content/platform", { responseType: "json" });
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const response = await fetch(`${base}/__soso_live_preview/content`, { credentials: "omit", cache: "no-store" });
+      if (!response.ok) throw new Error("Live published content is unavailable. Please retry.");
+      return response.json();
+    },
     staleTime: 60_000,
     gcTime: 30 * 60_000,
     refetchOnWindowFocus: true,

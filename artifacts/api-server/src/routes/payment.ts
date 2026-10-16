@@ -1,6 +1,10 @@
 import crypto from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
+import { setTimeout as delay } from "node:timers/promises";
 import { Router, type IRouter, type Request, type Response } from "express";
+import { checkoutShopper } from "../lib/shopperIdentity";
+import { ShopperError } from "../lib/justicesureCustomers";
+import { checkoutInitiationLockDb } from "../lib/checkout-initiation-lock";
 import { and, eq, inArray, lt, ne, or, sql } from "drizzle-orm";
 import {
   commerceCheckoutAttemptsTable,
@@ -87,6 +91,7 @@ type CheckoutItem = {
 };
 
 type CheckoutBody = {
+  customerExternalId?: string;
   checkoutOperationId: string;
   customer: { name: string; email: string; phone: string };
   items: CheckoutItem[];
@@ -214,6 +219,7 @@ function isUniqueViolation(error: unknown): boolean {
 function checkoutBody(value: unknown): CheckoutBody | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const body = value as Record<string, unknown>;
+  if (body.notes !== undefined && (typeof body.notes !== "string" || body.notes.length > 1_000)) return null;
   const customer = body.customer as Record<string, unknown> | undefined;
   const fulfillment = body.fulfillment as Record<string, unknown> | undefined;
   const checkoutOperationId = stringValue(body.checkoutOperationId, 56);
@@ -305,6 +311,7 @@ function toNaira(kobo: number): string {
 
 export function checkoutRequestHash(body: CheckoutBody): string {
   return hash(JSON.stringify({
+    ...(body.customerExternalId ? { customerExternalId: body.customerExternalId } : {}),
     customer: body.customer,
     items: body.items.map(({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour }) =>
       ({ productId, variantId, quantity, selectedColourId, selectedColourLabel, selectedColourHex, customColour })),
@@ -440,7 +447,12 @@ async function syncLocalOrder(
         .where(and(eq(orderItemsTable.orderId, localOrderId!), eq(orderItemsTable.selectionType, "custom")));
       if (customItems.length) {
         await tx.insert(measurementRequestsTable)
-          .values(customItems.map(({ id }) => ({ orderItemId: id })))
+          .values(customItems.map(({ id }) => ({
+            orderItemId: id,
+            // Shopper instructions are not confirmed fit. Retain them in the
+            // Staff measurement queue without advancing the "needed" status.
+            customerNote: attempt.notes ?? null,
+          })))
           .onConflictDoNothing({ target: measurementRequestsTable.orderItemId });
       }
     } else if (status === "cancelled" || status === "refunded") {
@@ -526,6 +538,10 @@ function publicStatus(order: JusticeSureOrder, attempt: typeof commerceCheckoutA
 }
 
 function errorResponse(res: Response, error: unknown): void {
+  if (error instanceof ShopperError) {
+    res.status(error.status).json({ error: error.message, code: error.code, noPaymentTaken: true });
+    return;
+  }
   if (error instanceof JusticeSureConfigurationError) {
     res.status(503).json({ error: error.message, noPaymentTaken: true });
     return;
@@ -592,12 +608,23 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
     res.status(400).json({ error: "Provide live items, fulfilment details, and a ready payment method to create a quote." });
     return;
   }
+
   try {
+    Object.assign(body, await checkoutShopper(req, body.customer.email));
     const requestHash = checkoutRequestHash(body);
     const orderIdempotencyKey = `order_${body.checkoutOperationId}`;
     const paymentIdempotencyKey = `payment_${body.checkoutOperationId}`;
     let [attempt] = await db.select().from(commerceCheckoutAttemptsTable)
-      .where(eq(commerceCheckoutAttemptsTable.orderIdempotencyKey, orderIdempotencyKey)).limit(1);
+      .where(or(
+        eq(commerceCheckoutAttemptsTable.orderIdempotencyKey, orderIdempotencyKey),
+        // Recover quotes persisted before the operation lookup key was made
+        // stable. Compare the exact suffix, not a prefix containing user input.
+        sql`${commerceCheckoutAttemptsTable.orderIdempotencyKey} = ${orderIdempotencyKey} || '_' || left(${commerceCheckoutAttemptsTable.quoteId}::text, 8)`,
+      )).limit(1);
+    if (attempt && !hasOwnership(req, attempt.id, attempt.ownershipTokenHash)) {
+      res.status(403).json({ error: "Checkout ownership is not valid. Start a new checkout if the browser ownership cookie was lost." });
+      return;
+    }
     if (attempt && attempt.requestHash !== requestHash) {
       res.status(409).json({ error: "This checkout operation belongs to different quote details. Edit the checkout and create a new quote." });
       return;
@@ -656,6 +683,7 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
       const fulfillment: JusticeSureFulfillment = body.fulfillment;
       // Persist the exact request intent before the quote/network boundary.
       const orderRequestBody = {
+        ...(body.customerExternalId ? { customerExternalId: body.customerExternalId } : {}),
         customer: body.customer, items, fulfillment, paymentMethod: body.paymentProvider,
         displayCurrency: body.displayCurrency,
         ...(body.notes === undefined ? {} : { notes: body.notes }),
@@ -677,12 +705,22 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
     }
     if (!attempt) throw new Error("Checkout quote operation was not persisted.");
     const items: JusticeSureLineItem[] = (attempt.items as CheckoutItem[]).map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
-    const fulfillment: JusticeSureFulfillment = body.fulfillment;
+    const deliveryQuote = body.fulfillment.type === "delivery"
+      ? await client.createDomesticDeliveryQuote({ items, address: body.fulfillment.address! })
+      : undefined;
+    // Use the Nigerian token contract; the structured form remains local
+    // validation input, not the international shipping/package contract.
+    const fulfillment: JusticeSureFulfillment = deliveryQuote
+      ? { type: "delivery", destinationCountry: "NG", address: body.fulfillment.address, deliveryQuoteToken: deliveryQuote.quoteToken }
+      : body.fulfillment;
     const quote = await client.createPriceQuote({
       items, fulfillment, provider: body.paymentProvider, paymentMethod: body.paymentMethod,
       ...(body.displayCurrency ? { displayCurrency: body.displayCurrency } : {}),
     });
     if (!quote.payment) throw new JusticeSureRequestError("JusticeSure did not return quote payment authority.", 502);
+    if (deliveryQuote && quote.amounts.shippingMinor !== String(deliveryQuote.feeKobo)) {
+      throw new JusticeSureRequestError("The payable quote does not match the signed domestic delivery fee. Create a new quote.", 409);
+    }
     if (quote.payment.provider !== body.paymentProvider || quote.payment.method !== body.paymentMethod) {
       throw new JusticeSureRequestError("JusticeSure returned quote payment authority different from the requested ready provider and method.", 502);
     }
@@ -721,6 +759,7 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
       currencyMinorUnitExponents,
     };
     const orderRequestBody = {
+      ...(body.customerExternalId ? { customerExternalId: body.customerExternalId } : {}),
       customer: body.customer, items, fulfillment, paymentMethod: quote.payment.provider,
       quoteId: quote.id, displayCurrency: quote.displayCurrency,
       ...(body.notes === undefined ? {} : { notes: body.notes }),
@@ -728,8 +767,9 @@ router.post("/payment/quote", async (req, res): Promise<void> => {
     await db.update(commerceCheckoutAttemptsTable).set({
       quoteId: quote.id, quoteSnapshot: snapshot, provider: quote.payment.provider, paymentMethod: quote.payment.method,
       displayCurrency: quote.displayCurrency, orderRequestBody,
-      // A payment operation is never reused across immutable quotes.
-      orderIdempotencyKey: `order_${body.checkoutOperationId}_${quote.id.slice(0, 8)}`,
+      // Keep the unique order key as the durable operation reservation so a
+      // lost response cannot create another attempt. An operation is bound to
+      // one immutable quote; expiry or edited details require a new operation.
       paymentIdempotencyKey: `payment_${body.checkoutOperationId}_${quote.id.slice(0, 8)}`,
     }).where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
     res.status(201).json(snapshot);
@@ -746,18 +786,49 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
     return;
   }
 
-  const requestHash = checkoutRequestHash(body);
-  let [attempt] = await db
-    .select()
-    .from(commerceCheckoutAttemptsTable)
-    .where(eq(commerceCheckoutAttemptsTable.quoteId, body.quoteId))
-    .limit(1);
+  try {
+    Object.assign(body, await checkoutShopper(req, body.customer.email));
+  } catch (error) {
+    errorResponse(res, error);
+    return;
+  }
+  try {
+    const deadline = Date.now() + 30_000;
+    for (;;) {
+      const completed = await checkoutInitiationLockDb.transaction(async (tx) => {
+        // Coordinate across instances, but do not let waiting requests occupy
+        // all pool connections needed for durable writes by the active request.
+        const lock = await tx.execute(sql`select pg_try_advisory_xact_lock(hashtext(${`soso-checkout-initiate:${body.quoteId}`})) as acquired`);
+        if (lock.rows[0]?.acquired !== true) return false;
+        // Re-read after locking. Keep writes outside this lock-only transaction
+        // so provider failures cannot roll back durable recovery information.
+        await initiateOwnedCheckout(req, res, body, config);
+        return true;
+      });
+      if (completed) break;
+      if (Date.now() >= deadline) {
+        throw new JusticeSureRequestError("Checkout is still being prepared. Retry to recover the existing session.", 503);
+      }
+      await delay(25);
+    }
+  } catch (error) {
+    errorResponse(res, error);
+  }
+});
 
+async function initiateOwnedCheckout(
+  req: Request,
+  res: Response,
+  body: CheckoutBody,
+  config: ReturnType<typeof justiceSureConfig>,
+): Promise<void> {
+  const requestHash = checkoutRequestHash(body);
+  const [attempt] = await db.select().from(commerceCheckoutAttemptsTable)
+    .where(eq(commerceCheckoutAttemptsTable.quoteId, body.quoteId!)).limit(1);
   if (attempt && attempt.requestHash !== requestHash) {
     res.status(409).json({ error: "This checkout operation belongs to different order details. Start a new checkout attempt." });
     return;
   }
-
   if (!attempt) {
     res.status(409).json({ error: "Create and review a quote before starting payment." });
     return;
@@ -770,12 +841,10 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
     res.status(409).json({ error: "This quote is no longer bound to the checkout details. Create a new quote." });
     return;
   }
-
   if (attempt.checkoutUrl && !(attempt.provider === "simulated" && !attempt.justiceSurePaymentAttemptId)) {
     res.json(InitiateCommerceCheckoutResponse.parse({ attemptId: attempt.id, checkoutUrl: attempt.checkoutUrl }));
     return;
   }
-
   if (!(await commerceActivationEnabled())) {
     res.status(409).json({ error: "Checkout is paused or the secure payment runtime is not ready. No payment has been taken.", noPaymentTaken: true });
     return;
@@ -790,7 +859,6 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
     ));
     return;
   }
-
   try {
     const client = new JusticeSureCommerceClient(config);
     const [availableFulfillment, locations] = await Promise.all([
@@ -809,7 +877,7 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
       throw new JusticeSureRequestError("The persisted quote is missing payment authority.", 502);
     }
     // Re-read the immutable quote before ordering; never recalculate its money locally.
-    const currentQuote = await client.getPriceQuote(body.quoteId);
+    const currentQuote = await client.getPriceQuote(body.quoteId!);
     if (!sameImmutableQuote(currentQuote, quoteSnapshot)) {
       throw new JusticeSureRequestError("The immutable quote no longer matches this checkout. Create a new quote.", 409, "QUOTE_EXPIRED_REQUOTE_REQUIRED");
     }
@@ -871,7 +939,7 @@ router.post("/payment/initiate", async (req, res): Promise<void> => {
       .where(eq(commerceCheckoutAttemptsTable.id, attempt.id));
     errorResponse(res, error);
   }
-});
+}
 
 router.get("/payment/status/:attemptId", async (req, res): Promise<void> => {
   const params = GetCommercePaymentStatusParams.safeParse(req.params);
@@ -879,11 +947,8 @@ router.get("/payment/status/:attemptId", async (req, res): Promise<void> => {
     res.status(404).json({ error: "Checkout attempt not found." });
     return;
   }
-  const [attempt] = await db
-    .select()
-    .from(commerceCheckoutAttemptsTable)
-    .where(eq(commerceCheckoutAttemptsTable.id, params.data.attemptId))
-    .limit(1);
+  const [attempt] = await db.select().from(commerceCheckoutAttemptsTable)
+    .where(eq(commerceCheckoutAttemptsTable.id, params.data.attemptId)).limit(1);
   if (!attempt || !hasOwnership(req, attempt.id, attempt.ownershipTokenHash)) {
     res.status(404).json({ error: "Checkout attempt not found." });
     return;
@@ -938,15 +1003,19 @@ router.get("/payment/measurements", async (req, res): Promise<void> => {
     await syncLocalOrder(attempt.id, remoteOrder);
     const paymentStatus = remoteStatus(remoteOrder);
     if (!shouldActivateMeasurements(paymentStatus) || !attempt.localOrderId) {
-      const [refreshed] = await db.select({ localOrderId: commerceCheckoutAttemptsTable.localOrderId })
-        .from(commerceCheckoutAttemptsTable).where(eq(commerceCheckoutAttemptsTable.id, attempt.id)).limit(1);
+    const [refreshed] = await db.select({ localOrderId: commerceCheckoutAttemptsTable.localOrderId })
+      .from(commerceCheckoutAttemptsTable)
+      .where(eq(commerceCheckoutAttemptsTable.id, attempt.id))
+      .limit(1);
       if (!shouldActivateMeasurements(paymentStatus) || !refreshed?.localOrderId) {
         res.status(409).json({ error: "Measurements are available only for a paid order." });
         return;
       }
     }
-    const [refreshed] = await db.select().from(commerceCheckoutAttemptsTable)
-      .where(eq(commerceCheckoutAttemptsTable.id, attempt.id)).limit(1);
+    const [refreshed] = await db.select({ localOrderId: commerceCheckoutAttemptsTable.localOrderId })
+      .from(commerceCheckoutAttemptsTable)
+      .where(eq(commerceCheckoutAttemptsTable.id, attempt.id))
+      .limit(1);
     const rows = await db.select({ request: measurementRequestsTable, item: orderItemsTable })
       .from(measurementRequestsTable)
       .innerJoin(orderItemsTable, eq(measurementRequestsTable.orderItemId, orderItemsTable.id))

@@ -1,0 +1,57 @@
+openapi: 3.1.0
+info:
+  title: CloudinaryUsage
+  version: 1.0.0
+paths:
+  /storage/usage:
+    get:
+      operationId: getStaffCloudinaryUsage
+      tags: [storage]
+      summary: Read Cloudinary usage (editorial Staff only, shared bounded refresh)
+      responses:
+        "200":
+          description: Sanitized usage snapshot or explicit unavailable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudinaryUsageView"
+        "401": { description: Staff authentication required }
+        "403": { description: Editorial Staff role required }
+        "503": { description: Shared usage cache unavailable }
+components:
+  schemas:
+    CloudinaryUsageMetric:
+      type: object
+      required: [usage, limit, usedPercent]
+      properties:
+        usage: { type: [number, "null"] }
+        limit: { type: [number, "null"] }
+        usedPercent: { type: [number, "null"] }
+    CloudinaryUsageSnapshot:
+      type: object
+      required: [plan, fetchedAt, providerUpdatedAt, dateRequested, windowStart, windowEnd, credits, storage, bandwidth, transformations, adminLimit, adminRemaining, adminResetAt]
+      properties:
+        plan: { type: [string, "null"] }
+        fetchedAt: { type: string }
+        providerUpdatedAt: { type: [string, "null"] }
+        dateRequested: { type: [string, "null"] }
+        windowStart: { type: [string, "null"] }
+        windowEnd: { type: [string, "null"] }
+        credits: { $ref: "#/components/schemas/CloudinaryUsageMetric" }
+        storage: { $ref: "#/components/schemas/CloudinaryUsageMetric" }
+        bandwidth: { $ref: "#/components/schemas/CloudinaryUsageMetric" }
+        transformations: { $ref: "#/components/schemas/CloudinaryUsageMetric" }
+        adminLimit: { type: [number, "null"] }
+        adminRemaining: { type: [number, "null"] }
+        adminResetAt: { type: [string, "null"] }
+    CloudinaryUsageView:
+      type: object
+      required: [status, snapshot, message, nextRefreshAt]
+      properties:
+        status: { type: string, enum: [available, stale, unavailable] }
+        snapshot:
+          oneOf:
+            - $ref: "#/components/schemas/CloudinaryUsageSnapshot"
+            - type: "null"
+        message: { type: [string, "null"] }
+        nextRefreshAt: { type: string }

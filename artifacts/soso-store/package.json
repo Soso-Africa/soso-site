@@ -8,8 +8,9 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts && pnpm --dir ../../scripts exec tsx ../artifacts/soso-store/scripts/generate-seo-assets.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "test": "pnpm --dir ../../scripts exec tsx --test ../artifacts/soso-store/src/**/*.test.ts ../artifacts/soso-store/src/**/*.test.tsx",
+    "test": "pnpm --dir ../../scripts exec tsx --tsconfig ../artifacts/soso-store/tsconfig.json --test ../artifacts/soso-store/src/**/*.test.ts ../artifacts/soso-store/src/**/*.test.tsx",
     "test:pwa": "pnpm run build && node scripts/test-pwa.mjs",
+    "test:hero-preparation": "node scripts/test-hero-preparation.mjs && pnpm --dir ../../scripts exec tsx --test ../artifacts/soso-store/src/lib/heroPreparation.test.ts ../artifacts/soso-store/src/components/staff/HeroVideoPreparation.test.tsx ../artifacts/soso-store/src/lib/heroMedia.test.ts",
     "test:homepage-merchandising": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-homepage-merchandising.mjs",
     "test:product-photo-browser": "node scripts/test-product-photo-browser.mjs",
     "test:accessory-demand-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-accessory-demand-browser.mjs",
@@ -22,8 +23,8 @@
     "validate:commerce-webhook-route": "node scripts/validate-commerce-webhook-route.mjs",
     "validate:seo": "node scripts/validate-seo-production.mjs",
     "validate:performance": "node scripts/validate-performance.mjs",
-    "validate:client-review": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:product-photo-browser && node scripts/validate-release.mjs",
-    "validate:release": "pnpm run typecheck && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:homepage-merchandising && pnpm run test:product-photo-browser && pnpm run test:accessory-demand-browser && pnpm run test:catalogue-mapping-browser && pnpm run test:catalogue-actions-browser && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
+    "validate:client-review": "pnpm -w run validate:checkout:hosted && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:product-photo-browser && node scripts/validate-release.mjs",
+    "validate:release": "pnpm -w run validate:checkout && pnpm run validate:performance && pnpm run validate:visual && pnpm run test:homepage-merchandising && pnpm run test:product-photo-browser && pnpm run test:accessory-demand-browser && pnpm run test:catalogue-mapping-browser && pnpm run test:catalogue-actions-browser && node scripts/validate-release.mjs && node scripts/validate-journal-approval-gate.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs"
   },
   "devDependencies": {

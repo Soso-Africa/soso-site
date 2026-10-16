@@ -86,6 +86,15 @@ for (const path of sourcePaths) {
         /const videoEnabled = selected\.motionAllowed\b/,
         `${relative(packageRoot, path)} preloads video outside the motion gate.`,
       );
+    } else if (/\bpreload=\{shouldPlay \? "metadata" : "none"\}/.test(tag)) {
+      assert.equal(
+        relative(packageRoot, path),
+        "src/components/HomeHeroMedia.tsx",
+        `${relative(packageRoot, path)} conditionally preloads video outside the governed hero.`,
+      );
+      assert.match(source, /const shouldPlay = selected\.motionAllowed && inViewport && documentVisible && !failed && !manuallyPaused\.current/);
+      assert.match(source, /activatedVideoUrl === selected\.videoUrl/);
+      assert.match(tag, /\bautoPlay=\{shouldPlay\}/);
     } else {
       assert.match(tag, /\bpreload="none"/, `${relative(packageRoot, path)} has video without an approved preload policy.`);
     }

@@ -1,10 +1,14 @@
-import React, { FormEvent, useEffect, useMemo, useState } from "react";
+import React, { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
+import { OwnedShopperAuthProvider } from "@/components/account/OwnedShopperAuthProvider";
+import { CheckoutAccountPanel } from "@/components/account/CheckoutAccountPanel";
 import { ChevronLeft, LockKeyhole, MessageCircle } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { CurrencyNotice } from "@/components/CurrencySelector";
 import { QuoteReview } from "@/components/checkout/QuoteReview";
 import { DomesticDeliveryFields } from "@/components/checkout/DomesticDeliveryFields";
+import { CustomSizingFields } from "@/components/checkout/CustomSizingFields";
+import { customSizingOrderNotes } from "@/lib/custom-sizing";
 import { deliveryFromForm } from "@/lib/domestic-delivery";
 import { useCart } from "@/context/CartContext";
 import { clearCheckoutOperation, commerceGateway, CommerceRemoteError, savePaymentAttempt, type CommerceDiscovery, type CommerceQuote, type PickupLocation } from "@/lib/commerce";
@@ -22,7 +26,19 @@ function moneyFromMinor(minor: string, currency: string, minorUnitExponent = 2) 
     return `${currency} ${minor}`;
   }
 }
+
 export default function Checkout() {
+  // Guest checkout never waits on a remote profile; the session only enriches it.
+  return (
+    <OwnedShopperAuthProvider>
+      <CheckoutContent />
+    </OwnedShopperAuthProvider>
+  );
+}
+
+function CheckoutContent() {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [accountReady, setAccountReady] = useState(false);
   const { items, cartTotal, openDrawer } = useCart();
   const [state, setState] = useState<CheckoutState>("ready");
   const [message, setMessage] = useState("");
@@ -90,6 +106,7 @@ export default function Checkout() {
 
   const startCheckout = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!accountReady) return;
     if (!fulfillmentReady) {
       setState("payment-unavailable");
       setMessage("Selected fulfilment is unavailable. No payment has been taken.");
@@ -107,9 +124,17 @@ export default function Checkout() {
       setMessage(copy.paymentUnavailableMessage);
       return;
     }
+    const form = new FormData(event.currentTarget);
+    let notes: string;
+    try {
+      notes = customSizingOrderNotes(form, items.some((item) => item.size === "Custom"));
+    } catch (error) {
+      setState("ready");
+      setMessage(error instanceof Error ? error.message : "Check your custom sizing instructions.");
+      return;
+    }
     setState("processing");
     setMessage("");
-    const form = new FormData(event.currentTarget);
     trackStorefrontEvent("checkout_started", {
       itemIds: items.map((item) => item.commerceVariantId ?? item.commerceProductId ?? item.slug),
       value: cartTotal,
@@ -130,7 +155,7 @@ export default function Checkout() {
             fulfillment: fulfillmentType === "pickup"
               ? { type: "pickup", locationId }
               : deliveryFromForm(form),
-            notes: String(form.get("deliveryNote") || ""),
+            notes,
           items,
           displayCurrency: currency,
           paymentProvider: provider,
@@ -192,7 +217,15 @@ export default function Checkout() {
                <Link href={copy.emptyCta.href} className="inline-block mt-5 text-sm text-foreground underline underline-offset-4">{copy.emptyCta.label}</Link>
             </div>
           ) : (
-            <form className="mt-10 space-y-5" onSubmit={startCheckout} onChange={invalidateQuote}>
+            <>
+            <CheckoutAccountPanel
+              formRef={formRef}
+              fulfillmentType={fulfillmentType}
+              onReadyChange={setAccountReady}
+              onIdentityChange={() => { setQuote(null); setState((current) => current === "reviewing" ? "ready" : current); }}
+            />
+            <form ref={formRef} className="mt-6 space-y-5" onSubmit={startCheckout} onChange={invalidateQuote}>
+              {items.some((item) => item.size === "Custom") && <CustomSizingFields />}
               <div className="grid sm:grid-cols-2 gap-5">
                 <label className="text-sm">
                   {copy.nameLabel}
@@ -236,7 +269,7 @@ export default function Checkout() {
                {!canPickup && !canDeliver && <p role="alert" className="text-sm text-destructive">Fulfilment is unavailable. Checkout is paused; no payment has been taken.</p>}
               <label className="text-sm block">
                  {copy.notesLabel} <span className="opacity-60">({copy.optionalLabel})</span>
-                <textarea name="deliveryNote" rows={3} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
+                <textarea name="deliveryNote" maxLength={650} rows={3} className="mt-2 w-full bg-transparent border border-border px-4 py-3.5 outline-none focus:border-foreground" />
               </label>
                <p className="text-xs leading-relaxed text-secondary">
                  {fulfillmentType === "pickup" ? "We will confirm collection details after payment." : copy.deliveryNote}
@@ -288,7 +321,7 @@ export default function Checkout() {
                    </div>
                 </div>
               )}
-               <button disabled={state === "processing" || !discovery || !readyProviders.length || !fulfillmentReady} className="w-full py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70 bg-foreground text-background transition-colors hover:opacity-90">
+               <button disabled={!accountReady || state === "processing" || !discovery || !readyProviders.length || !fulfillmentReady} className="w-full py-4 text-[13px] uppercase tracking-[.2em] font-bold disabled:opacity-70 bg-foreground text-background transition-colors hover:opacity-90">
                 <LockKeyhole size={16} className="inline mr-2" />
                   {state === "processing" ? copy.processingLabel : state === "reviewing" ? "Confirm secure quote" : `${copy.paymentLabel} — ${naira(cartTotal)}`}
               </button>
@@ -298,6 +331,7 @@ export default function Checkout() {
                  <button type="button" onClick={() => setStylistOpen(true)} className="underline underline-offset-4 hover:text-foreground">{copy.stylistLabel}</button>
               </div>
             </form>
+            </>
           )}
         </section>
 

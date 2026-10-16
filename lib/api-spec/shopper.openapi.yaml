@@ -1,0 +1,158 @@
+openapi: 3.1.0
+info:
+  title: Shopper
+  version: 1.0.0
+paths:
+  /shopper/profile:
+    get:
+      operationId: getVerifiedShopperProfile
+      responses:
+        "200":
+          description: The authenticated shopper's linked profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopperProfile"
+    patch:
+      operationId: updateVerifiedShopperProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifiedShopperProfileInput"
+      responses:
+        "200":
+          description: Saved profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopperProfile"
+  /shopper/link:
+    post:
+      operationId: linkVerifiedShopperProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopperIdentityInput"
+      responses:
+        "200":
+          description: Verified identity linked to the merchant customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopperProfile"
+  /shopper/orders:
+    get:
+      operationId: getVerifiedShopperOrders
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100000
+      responses:
+        "200":
+          description: Own online and physical order history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifiedShopperOrders"
+  /shopper/orders/{id}:
+    get:
+      operationId: getVerifiedShopperOrder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9a-fA-F-]{36}$"
+      responses:
+        "200":
+          description: Owned online order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopperOrderDetail"
+components:
+  schemas:
+    ShopperIdentityInput:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+    VerifiedShopperProfileInput:
+      type: object
+      additionalProperties: false
+      required: [name, phone, address]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        phone:
+          type: [string, "null"]
+          maxLength: 50
+        address:
+          type: [string, "null"]
+          maxLength: 2000
+    ShopperProfile:
+      type: object
+      additionalProperties: false
+      required: [name, email, phone, address, linked]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        phone: { type: [string, "null"] }
+        address: { type: [string, "null"] }
+        linked: { type: boolean }
+    ShopperOrderSummary:
+      type: object
+      required: [id, number, status, createdAt, currency, totalMinor, paidMinor, paymentStatus, source]
+      properties:
+        id: { type: string }
+        number: { type: [string, "null"] }
+        status: { type: string }
+        createdAt: { type: [string, "null"] }
+        currency: { type: string }
+        totalMinor: { type: string, pattern: "^[0-9]+$" }
+        paidMinor: { type: string, pattern: "^[0-9]+$" }
+        paymentStatus: { type: [string, "null"] }
+        source: { type: [string, "null"] }
+    VerifiedShopperOrders:
+      type: object
+      required: [orders, hasMore, nextOffset]
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShopperOrderSummary"
+        hasMore: { type: boolean }
+        nextOffset: { type: [number, "null"], minimum: 0, maximum: 100000 }
+    ShopperOrderItem:
+      type: object
+      required: [name, quantity, totalMinor]
+      properties:
+        name: { type: string }
+        quantity: { type: number }
+        totalMinor: { type: string }
+    ShopperOrderDetail:
+      type: object
+      required: [order, items, fulfillmentStatus, deliveryStatus, trackingReference]
+      properties:
+        order:
+          $ref: "#/components/schemas/ShopperOrderSummary"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShopperOrderItem"
+        fulfillmentStatus: { type: [string, "null"] }
+        deliveryStatus: { type: [string, "null"] }
+        trackingReference: { type: [string, "null"] }

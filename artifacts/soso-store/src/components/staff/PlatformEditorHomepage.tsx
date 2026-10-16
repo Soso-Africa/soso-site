@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, AlertCircle, ImageUp, Star, Trash2 } from "lucide-react";
 import type { CatalogProduct, PlatformContent } from "../../data/platformContent";
 import { productFrames } from "../../lib/homepageProducts";
+import { HeroVideoPreparation } from "./HeroVideoPreparation";
 
 type Homepage = PlatformContent["homepage"];
 
@@ -50,6 +51,8 @@ export function PlatformEditorHomepage({
 }) {
   const [uploadingCategory, setUploadingCategory] = useState<number | null>(null);
   const [mediaStatus, setMediaStatus] = useState("");
+  const latest = useRef({ data, onChange });
+  latest.current = { data, onChange };
   const update = <K extends keyof Homepage>(key: K, value: Homepage[K]) => onChange({ ...data, [key]: value });
   const move = <T,>(items: T[], from: number, to: number, commit: (next: T[]) => void) => {
     if (to < 0 || to >= items.length) return;
@@ -121,6 +124,16 @@ export function PlatformEditorHomepage({
           <Field label="Campaign ends (ISO timestamp)" value={data.hero.campaignCta.endsAt} onChange={(endsAt) => update("hero", { ...data.hero, campaignCta: { ...data.hero.campaignCta!, endsAt } })} />
         </>}
       </div>
+      {data.hero.mediaMode === "video" && (["desktop", "mobile"] as const).map((target) => {
+        const key = target === "desktop" ? "videoUrl" : "mobileVideoUrl";
+        const currentPath = data.hero[key] ?? "";
+        return <HeroVideoPreparation key={`${target}:${currentPath}`} target={target} currentPath={currentPath} onUploadMedia={onUploadMedia} onAdopt={(path) => {
+          const current = latest.current;
+          // Never let a late upload replace a newer edit or switch image-mode artwork.
+          if (current.data.hero.mediaMode !== "video" || (current.data.hero[key] ?? "") !== currentPath) return;
+          current.onChange({ ...current.data, hero: { ...current.data.hero, [key]: path } });
+        }} />;
+      })}
       <div className="mt-4"><p className={labelClass}>Hero assurances (ordered)</p>{data.hero.assurances.map((assurance, index) => <div key={index} className="mt-2 flex gap-2"><input className="staff-input" value={assurance} onChange={(event) => { const assurances = [...data.hero.assurances]; assurances[index] = event.target.value; update("hero", { ...data.hero, assurances }); }} /><MoveButtons index={index} length={data.hero.assurances.length} move={(from, to) => move(data.hero.assurances, from, to, (assurances) => update("hero", { ...data.hero, assurances }))} /><button type="button" disabled={data.hero.assurances.length <= 1} onClick={() => update("hero", { ...data.hero, assurances: data.hero.assurances.filter((_, itemIndex) => itemIndex !== index) })} className="border border-border px-3 text-xs disabled:opacity-30">Remove</button></div>)}<button type="button" onClick={() => update("hero", { ...data.hero, assurances: [...data.hero.assurances, ""] })} className="mt-2 border border-border px-3 py-2 text-xs">Add assurance</button></div>
     </details>
 

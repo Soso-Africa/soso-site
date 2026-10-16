@@ -16,8 +16,16 @@ test("staff overview response includes legacy counters and metric cards", () => 
 
   assert.equal(parsed.ordersTotal, 3);
   assert.equal(parsed.metrics[0]?.value, parsed.ordersTotal);
+  assert.equal(parsed.metrics[0]?.label, "Verified orders");
+  assert.equal(parsed.paymentIsLive, false);
 });
 
+test("staff overview uses the resolved checkout readiness rather than a hardcoded disabled flag", () => {
+  const values = { ordersTotal: 0, ordersInProduction: 0, openEnquiries: 0, storefrontEvents7d: 0 };
+  const range = { from: "2026-10-01", to: "2026-10-14" };
+  assert.equal(staffOverviewView(values, range, new Date(), true).paymentIsLive, true);
+  assert.equal(staffOverviewView(values, range, new Date(), false).paymentIsLive, false);
+});
 test("redirect lifecycle uses PUT updates and explicit publication mutations", () => {
   const routes = (staffRouter as unknown as {
     stack: Array<{ route?: { path: string; methods: Record<string, boolean> } }>;

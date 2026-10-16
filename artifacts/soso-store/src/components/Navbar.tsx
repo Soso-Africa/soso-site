@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/data/platformContent";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, UserRound } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
 import { BrandLockup } from "./BrandLockup";
 import { CurrencySelector } from "./CurrencySelector";
@@ -320,6 +320,15 @@ export function Navbar() {
         
         <div className="flex min-w-0 items-center justify-self-end gap-1 xl:gap-6">
           <HeaderSearch buttonClassName={headerControlClass} />
+          <Link
+            href="/account"
+            aria-label="My account"
+            data-testid="link-header-account"
+            className={`flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-2 text-[12px] uppercase tracking-[0.12em] transition-colors duration-300 ${headerControlClass}`}
+          >
+            <span className="hidden xl:inline font-medium">My account</span>
+            <UserRound size={20} strokeWidth={1.5} />
+          </Link>
           <button
             onClick={openDrawer} 
             className={`flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-2 text-[12px] tracking-[0.12em] uppercase transition-colors duration-300 relative ${headerControlClass}`}
@@ -374,6 +383,14 @@ export function Navbar() {
 
             {/* Regular Navigation */}
             <nav className="flex flex-col gap-5 pt-4 pb-8 border-t border-border">
+              <Link
+                href="/account"
+                className="text-lg soso-display tracking-[0.15em] text-foreground/90 hover:text-foreground transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+                data-testid="link-mobile-account"
+              >
+                My account
+              </Link>
               {filteredMobileNavigation.map((link) => (
                 <Link
                   key={`${link.href}-${link.label}`}

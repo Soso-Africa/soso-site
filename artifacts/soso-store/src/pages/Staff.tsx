@@ -11,6 +11,7 @@ import { platformActionError } from "../components/staff/platform-action-error";
 import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
 import { CommerceActivationPanel } from "../components/staff/CommerceActivationPanel";
 import { StaffMailSection } from "../components/staff/StaffMailSection";
+import { CloudinaryUsagePanel } from "../components/staff/CloudinaryUsagePanel";
 import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
 import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
@@ -182,7 +183,7 @@ function formatDateSafe(value: string | Date | null | undefined, pattern: string
   return Number.isNaN(date.getTime()) ? fallback : format(date, pattern);
 }
 
-type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "media-cleanup" | "redirects" | "marketing-pixels" | "analytics" | "staff" | "commerce-activation" | "email";
+type StaffTab = "overview" | "orders" | "enquiries" | "privacy" | "accessory-launch-notifications" | "journal" | "platform" | "faq" | "policies" | "media-cleanup" | "media-usage" | "redirects" | "marketing-pixels" | "analytics" | "staff" | "commerce-activation" | "email";
 type StaffNavGroup = {
   label: string;
   items: { id: StaffTab; label: string; icon: React.ElementType }[];
@@ -230,7 +231,7 @@ export default function Staff() {
   if (canManagePrivacy) availableTabs.add("privacy");
   if (canReviewAccessoryLaunchNotifications) availableTabs.add("accessory-launch-notifications");
   if (isEditorial) {
-    availableTabs.add("journal"); availableTabs.add("platform"); availableTabs.add("faq"); availableTabs.add("policies"); availableTabs.add("media-cleanup");
+    availableTabs.add("journal"); availableTabs.add("platform"); availableTabs.add("faq"); availableTabs.add("policies"); availableTabs.add("media-cleanup"); availableTabs.add("media-usage");
   }
   if (profile?.role === "owner" || profile?.role === "administrator" || profile?.role === "operations") availableTabs.add("redirects");
   if (profile?.role === "owner" || profile?.role === "administrator") availableTabs.add("marketing-pixels");
@@ -279,6 +280,7 @@ export default function Staff() {
       staffNavItem("commerce-activation", "Checkout activation", Power),
       ...(isEditorial ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
       ...(isEditorial ? [staffNavItem("media-cleanup", "Media cleanup", Images)] : []),
+      ...(isEditorial ? [staffNavItem("media-usage", "Cloudinary usage", Activity)] : []),
       ...((profile.role === "owner" || profile.role === "administrator" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
       ...((profile.role === "owner" || profile.role === "administrator") ? [staffNavItem("marketing-pixels", "Marketing pixels", Target)] : []),
     ] },
@@ -370,6 +372,7 @@ export default function Staff() {
         {activeTab === "faq" && <FaqManagementSection />}
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
         {activeTab === "media-cleanup" && <MediaCleanupSection />}
+        {activeTab === "media-usage" && isEditorial && <CloudinaryUsagePanel key={`${profile.id}:${profile.role}`} staffId={profile.id} role={profile.role} />}
         {activeTab === "redirects" && <RedirectsManagementSection />}
         {activeTab === "marketing-pixels" && <MarketingPixelsSection />}
         {activeTab === "analytics" && (
@@ -1046,7 +1049,7 @@ function PlatformContentManagementSection() {
           onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
           onUploadMedia={async (file) => {
             const path = await uploadStaffMedia(file);
-            setStatus("Category photo uploaded and added to the draft. Save the draft, review it, then publish.");
+            setStatus("Homepage media uploaded. Save the draft, review it, then publish.");
             return path;
           }}
         />;
@@ -1259,7 +1262,7 @@ function Pulse({ overview, loading }: { overview: StaffOverview | undefined; loa
       {!overview.paymentIsLive && (
         <div className="mt-4 flex gap-3 border border-destructive/25 bg-destructive/5 p-4 text-sm text-destructive">
           <AlertCircle className="mt-0.5 shrink-0" size={18} />
-          <p><strong>Payments are not live.</strong> No checkout confirmation should be treated as a verified order until the payment workflow is enabled.</p>
+          <p><strong>Live checkout is paused or not ready.</strong> Review Checkout activation for setup requirements. Only provider-confirmed payments count as verified orders; a checkout redirect is not payment confirmation.</p>
         </div>
       )}
     </section>

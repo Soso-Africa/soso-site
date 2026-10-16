@@ -117,14 +117,23 @@ export async function readyNewsletter(): Promise<MailSettings> {
   }
   return row.settings;
 }
+/** Security mail uses the existing mailbox, independently of marketing consent. */
+export async function readyAccountMail(): Promise<MailSettings> {
+  const row = await configuration();
+  if (!row.settings.policyConfirmed || row.settings.hourlyLimit < 1) {
+    throw new MailError("An owner must approve the hosting email allowance in Staff before shopper verification and recovery can send.", 503);
+  }
+  return row.settings;
+}
 export async function deliverMail(input: {
   id: string; to: string; subject: string; text: string; staffId?: string;
-  kind: "direct" | "confirmation" | "newsletter"; campaignId?: string; subscriberId?: string; unsubscribeUrl?: string;
+  kind: "direct" | "confirmation" | "newsletter" | "account"; campaignId?: string; subscriberId?: string; unsubscribeUrl?: string;
   inReplyTo?: string;
 }) {
   const row = await configuration();
   if (input.staffId) await freshMailPermission(input.staffId);
-  if (input.kind !== "direct") await readyNewsletter();
+  if (input.kind === "confirmation" || input.kind === "newsletter") await readyNewsletter();
+  if (input.kind === "account") await readyAccountMail();
   // The durable reservation prevents duplicate sends and conservatively counts uncertain attempts.
   const reservation = await mailTransaction(async (connection) => {
     await connection.query("SELECT pg_advisory_xact_lock(hashtext('soso-mail-send-quota'))");

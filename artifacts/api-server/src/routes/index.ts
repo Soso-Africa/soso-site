@@ -15,8 +15,13 @@ import staffActivationRouter from "./staff-activation";
 import staffContentRouter from "./staff-content";
 import staffRouter from "./staff";
 import storageRouter from "./storage";
+import shopperAccountsRouter from "./shopper-accounts";
+import shopperRouter from "./shopper";
+import shopperAuthRouter from "./shopper-auth";
 
 const router: IRouter = Router();
+router.use(shopperAuthRouter);
+router.use(shopperAccountsRouter);
 
 router.use(displayPricesRouter);
 router.use(healthRouter);
@@ -34,5 +39,6 @@ router.use(staffRouter);
 router.use(staffActivationRouter);
 router.use(staffContentRouter);
 router.use(storageRouter);
+router.use(shopperRouter);
 
 export default router;

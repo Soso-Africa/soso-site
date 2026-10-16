@@ -7,7 +7,9 @@ import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
   RetryPendingMediaCleanupResponse,
+  GetStaffCloudinaryUsageResponse,
 } from "@workspace/api-zod";
+import { getCloudinaryUsage } from "../lib/cloudinary-usage";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { CloudinaryStorageService, MediaNotFoundError } from "../lib/cloudinary-storage";
 import {
@@ -28,6 +30,17 @@ const router: IRouter = Router();
 const storage = new CloudinaryStorageService();
 const SAFE_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$/;
 export { detectMediaContentType, parseMediaByteRange } from "../lib/media-files";
+
+router.get("/storage/usage", requireStaff, requireStaffRoles("owner", "administrator", "editor"),
+  async (_req: Request, res: Response): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store");
+    try {
+      res.json(GetStaffCloudinaryUsageResponse.parse(await getCloudinaryUsage()));
+    } catch {
+      // Fail closed if durable refresh coordination is unavailable.
+      res.status(503).json({ error: "Cloudinary usage cannot be loaded safely right now. Try again later." });
+    }
+  });
 
 function inspectionIssue(
   relativePath: string,

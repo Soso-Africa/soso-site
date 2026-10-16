@@ -297,7 +297,7 @@ if (journalApproved) for (const article of articles) {
 if (new Set(routes.map((route) => route.path)).size !== routes.length) {
   throw new Error("Refusing to generate duplicate crawler routes.");
 }
-await writeFile(robotsPath, `User-agent: *\nAllow: /\nDisallow: /checkout\nDisallow: /staff\nDisallow: /sign-in\nDisallow: /sign-up\nDisallow: /journal/preview\nSitemap: ${siteUrl}/sitemap.xml\n`);
+await writeFile(robotsPath, `User-agent: *\nAllow: /\nDisallow: /checkout\nDisallow: /staff\nDisallow: /account\nDisallow: /sign-in\nDisallow: /sign-up\nDisallow: /journal/preview\nSitemap: ${siteUrl}/sitemap.xml\n`);
 await writeFile(resolve(out, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${routes.map((r) => `  <url><loc>${xml(absolute(r.path))}</loc><lastmod>${iso(r.lastmod)}</lastmod></url>`).join("\n")}\n</urlset>\n`);
 const feedItems = articles.map((a) => ({ id: absolute(`/journal/${a.slug}`), url: absolute(`/journal/${a.slug}`), title: a.title, content_text: a.bodyText || a.excerpt, summary: a.description, date_published: a.publishedAt, date_modified: a.updatedAt, authors: [{ name: a.authorName }] }));
 if (journalApproved) {
