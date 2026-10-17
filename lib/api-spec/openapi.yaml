@@ -1797,6 +1797,42 @@ components:
         r2Usage:
           allOf: [{ $ref: "#/components/schemas/R2StorageUsage" }]
           nullable: true
+        r2Operations:
+          allOf: [{ $ref: "#/components/schemas/R2MediaOperations" }]
+          nullable: true
+    R2MediaOperations:
+      type: object
+      additionalProperties: false
+      required: [version, reportedAt, delivery, backup]
+      properties:
+        version: { type: number, enum: [1] }
+        reportedAt: { type: string }
+        delivery:
+          type: object
+          required: [status, checkedAt, checkedCases, privateDenial, message]
+          properties:
+            status: { type: string, enum: [healthy, failed] }
+            checkedAt: { type: string }
+            checkedCases: { type: number }
+            privateDenial: { type: boolean }
+            message: { type: string, nullable: true }
+        backup:
+          type: object
+          nullable: true
+          required: [status, lastAttemptAt, lastSuccessAt, pending, reservedBytes, dailyByteLimit, totalByteLimit, attemptedBytes, messages]
+          properties:
+            status: { type: string, enum: [running, healthy, warning, failed] }
+            lastAttemptAt: { type: string, nullable: true }
+            lastSuccessAt: { type: string, nullable: true }
+            pending: { type: number, nullable: true }
+            reservedBytes: { type: number }
+            dailyByteLimit: { type: number }
+            totalByteLimit: { type: number }
+            attemptedBytes: { type: number }
+            messages:
+              type: array
+              maxItems: 3
+              items: { type: string }
     UploadUrlRequest:
       type: object
       additionalProperties: false

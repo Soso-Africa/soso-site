@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useGetStaffMediaStorageStatus } from "@workspace/api-client-react";
 import { CloudinaryUsagePanel } from "./CloudinaryUsagePanel";
+import { MediaOperationsPanel } from "./MediaOperationsPanel";
 
 export function MediaStoragePanel({ staffId, role }: { staffId: string; role: string }) {
   const [now, setNow] = useState(Date.now);
@@ -10,10 +11,11 @@ export function MediaStoragePanel({ staffId, role }: { staffId: string; role: st
   }, []);
   const query = useGetStaffMediaStorageStatus({ query: {
     queryKey: ["staff-media-storage-status", staffId, role], staleTime: 60 * 60_000,
+    refetchInterval: 60 * 60_000, refetchIntervalInBackground: false,
     retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false,
   } });
   if (query.isError) return <section className="mt-6 border border-border p-5">
-    <p role="alert">Media storage status could not be loaded. No current capacity or billing information is available.</p>
+    <p role="alert">Media storage status could not be loaded. Current capacity and backup/delivery protection reports are unavailable; billing information is not available here.</p>
     <button type="button" onClick={() => void query.refetch()} disabled={query.isFetching} className="mt-3 border border-border px-3 py-2">Retry status</button>
   </section>;
   if (!query.data) return <p role="status" className="mt-6">Loading media storage status…</p>;
@@ -45,5 +47,6 @@ export function MediaStoragePanel({ staffId, role }: { staffId: string; role: st
     <button type="button" onClick={() => void query.refetch()} disabled={refreshBlocked} className="mt-4 min-h-10 border border-border px-3 text-xs font-semibold uppercase tracking-wider disabled:opacity-50">
       {query.isFetching ? "Loading" : "Refresh storage"}
     </button>
+    <MediaOperationsPanel report={query.data.r2Operations} now={now} />
   </section>;
 }

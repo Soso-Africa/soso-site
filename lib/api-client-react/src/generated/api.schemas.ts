@@ -112,9 +112,63 @@ export const MediaStorageStatusProvider = {
   r2: 'r2',
 } as const;
 
+export type R2MediaOperationsVersion = typeof R2MediaOperationsVersion[keyof typeof R2MediaOperationsVersion];
+
+
+export const R2MediaOperationsVersion = {
+  NUMBER_1: 1,
+} as const;
+
+export type R2MediaOperationsDeliveryStatus = typeof R2MediaOperationsDeliveryStatus[keyof typeof R2MediaOperationsDeliveryStatus];
+
+
+export const R2MediaOperationsDeliveryStatus = {
+  healthy: 'healthy',
+  failed: 'failed',
+} as const;
+
+export type R2MediaOperationsBackupStatus = typeof R2MediaOperationsBackupStatus[keyof typeof R2MediaOperationsBackupStatus];
+
+
+export const R2MediaOperationsBackupStatus = {
+  running: 'running',
+  healthy: 'healthy',
+  warning: 'warning',
+  failed: 'failed',
+} as const;
+
+export type R2MediaOperationsDelivery = {
+  status: R2MediaOperationsDeliveryStatus;
+  checkedAt: string;
+  checkedCases: number;
+  privateDenial: boolean;
+  message: string | null;
+};
+
+export type R2MediaOperationsBackup = {
+  status: R2MediaOperationsBackupStatus;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  pending: number | null;
+  reservedBytes: number;
+  dailyByteLimit: number;
+  totalByteLimit: number;
+  attemptedBytes: number;
+  /** @maxItems 3 */
+  messages: string[];
+} | null;
+
+export interface R2MediaOperations {
+  version: R2MediaOperationsVersion;
+  reportedAt: string;
+  delivery: R2MediaOperationsDelivery;
+  backup: R2MediaOperationsBackup;
+}
+
 export interface MediaStorageStatus {
   provider: MediaStorageStatusProvider;
   r2Usage: R2StorageUsage | null;
+  r2Operations?: R2MediaOperations | null;
 }
 
 export type UploadUrlRequestContentType = typeof UploadUrlRequestContentType[keyof typeof UploadUrlRequestContentType];

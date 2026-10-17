@@ -4263,6 +4263,8 @@ export const getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePublicBytesM
 
 export const getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePublicObjectsMin = 0;
 
+export const getStaffMediaStorageStatusResponseR2OperationsOneBackupMessagesMax = 3;
+
 
 
 export const GetStaffMediaStorageStatusResponse = zod.object({
@@ -4278,7 +4280,29 @@ export const GetStaffMediaStorageStatusResponse = zod.object({
 }).nullable(),
   "nextRefreshAt": zod.string(),
   "message": zod.string().nullable()
+}).nullable(),
+  "r2Operations": zod.object({
+  "version": zod.literal(1),
+  "reportedAt": zod.string(),
+  "delivery": zod.object({
+  "status": zod.enum(['healthy', 'failed']),
+  "checkedAt": zod.string(),
+  "checkedCases": zod.number(),
+  "privateDenial": zod.boolean(),
+  "message": zod.string().nullable()
+}),
+  "backup": zod.object({
+  "status": zod.enum(['running', 'healthy', 'warning', 'failed']),
+  "lastAttemptAt": zod.string().nullable(),
+  "lastSuccessAt": zod.string().nullable(),
+  "pending": zod.number().nullable(),
+  "reservedBytes": zod.number(),
+  "dailyByteLimit": zod.number(),
+  "totalByteLimit": zod.number(),
+  "attemptedBytes": zod.number(),
+  "messages": zod.array(zod.string()).max(getStaffMediaStorageStatusResponseR2OperationsOneBackupMessagesMax)
 }).nullable()
+}).nullish()
 })
 
 

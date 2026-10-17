@@ -6,9 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MediaStorageStatusProvider } from './mediaStorageStatusProvider';
+import type { R2MediaOperations } from './r2MediaOperations';
 import type { R2StorageUsage } from './r2StorageUsage';
 
 export interface MediaStorageStatus {
   provider: MediaStorageStatusProvider;
   r2Usage: R2StorageUsage | null;
+  r2Operations?: R2MediaOperations | null;
 }
