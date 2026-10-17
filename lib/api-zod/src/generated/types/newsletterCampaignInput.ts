@@ -17,4 +17,10 @@ export interface NewsletterCampaignInput {
      * @maxLength 24000
      */
   text: string;
+  /**
+     * Null or omitted means all confirmed subscribers.
+     * @nullable
+     * @pattern ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$
+     */
+  groupId?: string | null;
 }

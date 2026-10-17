@@ -24,6 +24,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "imapflow": "^2.2.11",
     "ipaddr.js": "^2.5.0",

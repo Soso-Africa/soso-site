@@ -77,6 +77,16 @@ paths:
     $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1history"
   /staff/newsletter/subscribers:
     $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1subscribers"
+  /staff/newsletter/subscribers/export:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1subscribers~1export"
+  /staff/newsletter/groups:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1groups"
+  /staff/newsletter/groups/{id}:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1groups~1{id}"
+  /staff/newsletter/groups/{id}/members:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1groups~1{id}~1members"
+  /staff/newsletter/campaigns/{id}/audience:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1campaigns~1{id}~1audience"
   /staff/newsletter/subscribers/{id}/confirmation:
     $ref: "./mail.openapi.yaml#/paths/~1staff~1newsletter~1subscribers~1{id}~1confirmation"
   /staff/newsletter/subscribers/{id}/unsubscribe:

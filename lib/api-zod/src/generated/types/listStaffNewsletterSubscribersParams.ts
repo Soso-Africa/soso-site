@@ -11,4 +11,5 @@ import type { MailIdentifier } from './mailIdentifier';
 export type ListStaffNewsletterSubscribersParams = {
 status?: ListStaffNewsletterSubscribersStatus;
 before?: MailIdentifier;
+groupId?: MailIdentifier;
 };

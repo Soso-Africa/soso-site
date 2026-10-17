@@ -2,9 +2,10 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Mail, RefreshCw, Send, Inbox, Settings, Users, FileText, History, ShieldAlert } from "lucide-react";
 import {
-  mailApi, useMailCampaigns, useMailDetail, useMailHistory, useMailList, useMailSettings, useSubscribers,
-  type MailStatus,
+  mailApi, setCampaignAudience, useAudienceCampaigns, useMailDetail, useMailHistory, useMailList, useMailSettings, useSubscriberGroups,
+  errorStatus, type MailStatus, type SubscriberGroup,
 } from "@/lib/staff-mail-api";
+import { SubscriberGroupsPanel } from "./SubscriberGroupsPanel";
 
 type Folder = "inbox" | "sent";
 type Panel = "inbox" | "sent" | "compose" | "history" | "subscribers" | "campaigns" | "settings";
@@ -55,7 +56,7 @@ export function StaffMailSection({ role, actor }: { role: string; actor: string 
       {(panel === "inbox" || panel === "sent") && <Messages key={panel} actor={actor} folder={panel} onReply={(d) => { setDraft(d); setPanel("compose"); }} />}
       {panel === "compose" && <Compose actor={actor} draft={draft} setDraft={setDraft} />}
       {panel === "history" && <HistoryPanel actor={actor} />}
-      {panel === "subscribers" && <Subscribers actor={actor} />}
+      {panel === "subscribers" && <SubscriberGroupsPanel actor={actor} />}
       {panel === "campaigns" && <Campaigns actor={actor} />}
       {panel === "settings" && isOwner && <SettingsPanel actor={actor} />}
     </div>
@@ -140,41 +141,19 @@ function HistoryPanel({ actor }: { actor: string }) {
   </div>;
 }
 
-function Subscribers({ actor }: { actor: string }) {
-  const qc = useQueryClient();
-  const [status, setStatus] = useState("all");
-  const [stack, setStack] = useState<string[]>([]);
-  const before = stack[stack.length - 1];
-  const q = useSubscribers(actor, status, before);
-  const [note, setNote] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState("");
-  const act = async (id: string, kind: "confirmation" | "unsubscribe", email: string) => {
-    if (kind === "unsubscribe" && !window.confirm(`Unsubscribe ${email}? They will stop receiving newsletters.`)) return;
-    setBusy(id); setError(""); setNote("");
-    try { await mailApi(`/staff/newsletter/subscribers/${id}/${kind}`, {}); setNote(kind === "confirmation" ? `Confirmation email requested for ${email}.` : `${email} unsubscribed.`); }
-    catch (e) { setError(msg(e, "The action failed.")); }
-    finally { setBusy(""); for (const k of ["staff-newsletter-subscribers", "staff-mail-history"]) void qc.invalidateQueries({ queryKey: [k], refetchType: "active" }); }
-  };
-  return <div className="border border-border bg-card">
-    <div className="flex flex-wrap items-center gap-3 border-b border-border p-3"><Lbl label="Status"><select className="staff-input ml-2 inline-block w-auto" value={status} onChange={(e) => { setStatus(e.target.value); setStack([]); }}>{["all", "pending", "confirmed", "unsubscribed"].map((s) => <option key={s} value={s}>{s}</option>)}</select></Lbl></div>
-    <div className="px-3"><Err>{error}</Err><Note>{note}</Note></div>
-    {q.isLoading ? <Skeleton /> : q.isError ? <div className="p-4"><Err>{msg(q.error, "Subscribers could not be loaded.")}</Err><button type="button" className={`${btn} mt-3`} onClick={() => void q.refetch()}>Retry</button></div> : !q.data?.subscribers.length ? <Empty label="No subscribers match this status." /> :
-      <ul className="divide-y divide-border">{q.data.subscribers.map((s) => <li key={s.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="break-all text-sm font-medium">{s.email}</p><p className="text-xs text-muted-foreground">{s.status} - consented {when(s.consented_at)}{s.confirmed_at ? ` - confirmed ${when(s.confirmed_at)}` : ""}{s.unsubscribed_at ? ` - unsubscribed ${when(s.unsubscribed_at)}` : ""}</p></div>
-        <div className="flex gap-2">{s.status === "pending" && <button type="button" className={btn} disabled={busy === s.id} onClick={() => void act(s.id, "confirmation", s.email)}>Resend confirmation</button>}
-          {s.status !== "unsubscribed" && <button type="button" className={btn} disabled={busy === s.id} onClick={() => void act(s.id, "unsubscribe", s.email)}>Unsubscribe</button>}</div></li>)}</ul>}
-    <div className="flex justify-between border-t border-border p-3"><button type="button" className={btn} disabled={!stack.length} onClick={() => setStack(stack.slice(0, -1))}>Previous</button>
-      <button type="button" className={btn} disabled={!q.data?.nextCursor} onClick={() => q.data?.nextCursor && setStack([...stack, q.data.nextCursor])}>Next</button></div>
-  </div>;
-}
-
 function Campaigns({ actor }: { actor: string }) {
   const qc = useQueryClient();
-  const c = useMailCampaigns(actor);
+  const c = useAudienceCampaigns(actor);
+  const g = useSubscriberGroups(actor);
+  const groups = g.data?.groups ?? [];
+  const [audience, setAudience] = useState("");
+  const [editAud, setEditAud] = useState<{ id: string; value: string } | null>(null);
   const [subject, setSubject] = useState(""); const [text, setText] = useState(""); const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(""); const [error, setError] = useState(""); const [note, setNote] = useState("");
-  const refresh = () => { for (const k of ["staff-newsletter-campaigns", "staff-mail-history", "staff-newsletter-subscribers"]) void qc.invalidateQueries({ queryKey: [k], refetchType: "active" }); };
+  const refresh = () => { for (const k of ["staff-newsletter-campaigns", "staff-mail-history", "staff-newsletter-subscribers", "staff-newsletter-groups"]) void qc.invalidateQueries({ queryKey: [k], refetchType: "active" }); };
   const create = async (e: FormEvent) => {
     e.preventDefault(); setBusy("create"); setError(""); setNote("");
-    try { await mailApi("/staff/newsletter/campaigns", { subject, text }); setSubject(""); setText(""); setPreview(false); setNote("Draft created. Nothing has been sent."); }
+    try { await mailApi("/staff/newsletter/campaigns", { subject, text, groupId: audience || null }); setSubject(""); setText(""); setAudience(""); setPreview(false); setNote("Draft created. Nothing has been sent."); }
     catch (err) { setError(msg(err, "Draft could not be created.")); } finally { setBusy(""); refresh(); }
   };
   const send = async (id: string) => {
@@ -184,12 +163,19 @@ function Campaigns({ actor }: { actor: string }) {
     catch (err) { setError(`${msg(err, "Batch failed.")} Part of the batch may still have been sent, even after a failure. Review progress and Send history before sending another batch.`); }
     finally { setBusy(""); refresh(); }
   };
+  const saveAudience = async (id: string, value: string) => {
+    setBusy(`aud-${id}`); setError(""); setNote("");
+    try { await setCampaignAudience(id, value || null); setEditAud(null); setNote("Audience updated. Remaining now reflects that audience."); }
+    catch (err) { setError(errorStatus(err) === 409 ? "This campaign has already attempted a send, so its audience is locked to keep the record consistent." : msg(err, "Audience could not be changed.")); }
+    finally { setBusy(""); refresh(); }
+  };
   return <div className="grid gap-4 lg:grid-cols-2">
     <form onSubmit={(e) => void create(e)} className={`${box} space-y-3`}>
       <h2 className="text-xl soso-display">New campaign draft</h2>
       <p className="text-xs text-muted-foreground">Newsletter mail needs a current tested, enabled configuration with newsletter sending allowed by the host. Creating a draft sends nothing.</p>
       <Lbl label="Subject"><input required maxLength={200} className="staff-input mt-1" value={subject} onChange={(e) => setSubject(e.target.value)} /></Lbl>
       <Lbl label="Body (plain text)"><textarea required rows={9} className="staff-input mt-1" value={text} onChange={(e) => setText(e.target.value)} /></Lbl>
+      <AudienceSelect groups={groups} value={audience} onChange={setAudience} />
       {preview && <div className="border border-dashed border-border p-4" aria-label="Plain text preview"><p className="text-sm font-semibold break-words">{subject || "(No subject)"}</p><pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm">{text}</pre></div>}
       <div className="flex gap-3"><button type="button" className={btn} onClick={() => setPreview(!preview)}>{preview ? "Hide preview" : "Preview"}</button><button type="submit" disabled={busy === "create"} className={btnSolid}>{busy === "create" && <Loader2 size={14} className="animate-spin" />}Create draft</button></div>
       <Err>{error}</Err><Note>{note}</Note>
@@ -197,11 +183,20 @@ function Campaigns({ actor }: { actor: string }) {
     <div className="border border-border bg-card">
       <div className="border-b border-border p-3"><p className="text-xs font-semibold uppercase tracking-wider">Campaigns</p></div>
       {c.isLoading ? <Skeleton /> : c.isError ? <div className="p-4"><Err>{msg(c.error, "Campaigns could not be loaded.")}</Err><button type="button" className={`${btn} mt-3`} onClick={() => void c.refetch()}>Retry</button></div> : !c.data?.campaigns.length ? <Empty label="No campaigns yet." /> :
-        <ul className="divide-y divide-border">{c.data.campaigns.map((x) => <li key={x.id} className="p-4"><p className="text-sm font-medium break-words">{x.subject}</p><p className="text-xs text-muted-foreground">{when(x.created_at)}</p>
+        <ul className="divide-y divide-border">{c.data.campaigns.map((x) => <li key={x.id} className="p-4"><p className="text-sm font-medium break-words">{x.subject}</p><p className="text-xs text-muted-foreground">{when(x.created_at)} - Audience: {x.group_id ? `group "${x.group_name ?? "Unknown"}" (confirmed members only)` : "all confirmed subscribers"}</p>
           <p className="mt-2 text-xs">Attempted {x.attempted} - Accepted {x.accepted} - Uncertain {x.uncertain} - Remaining {x.remaining}</p>
-          <button type="button" className={`${btn} mt-3`} disabled={busy === x.id || x.remaining === 0} onClick={() => void send(x.id)}>{busy === x.id && <Loader2 size={13} className="animate-spin" />}{x.remaining === 0 ? "No recipients remaining" : "Send next batch (up to 3)"}</button></li>)}</ul>}
+          <button type="button" className={`${btn} mt-3`} disabled={busy === x.id || x.remaining === 0} onClick={() => void send(x.id)}>{busy === x.id && <Loader2 size={13} className="animate-spin" />}{x.remaining === 0 ? "No recipients remaining" : "Send next batch (up to 3)"}</button>
+          {x.attempted === 0 && (editAud?.id === x.id ? <div className="mt-3 space-y-2 border border-dashed border-border p-3"><AudienceSelect groups={groups} value={editAud.value} onChange={(v) => setEditAud({ id: x.id, value: v })} />
+            <div className="flex gap-2"><button type="button" className={btnSolid} disabled={busy === `aud-${x.id}`} onClick={() => void saveAudience(x.id, editAud.value)}>Save audience</button><button type="button" className={btn} onClick={() => setEditAud(null)}>Cancel</button></div></div>
+            : <button type="button" data-testid={`button-edit-audience-${x.id}`} className={`${btn} ml-2 mt-3`} onClick={() => setEditAud({ id: x.id, value: x.group_id ?? "" })}>Change audience</button>)}</li>)}</ul>}
     </div>
   </div>;
+}
+
+function AudienceSelect({ groups, value, onChange }: { groups: SubscriberGroup[]; value: string; onChange: (v: string) => void }) {
+  return <div><Lbl label="Audience"><select data-testid="select-audience" className="staff-input mt-1" value={value} onChange={(e) => onChange(e.target.value)}>
+    <option value="">All confirmed subscribers</option>{groups.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.confirmed} confirmed of {x.total})</option>)}</select></Lbl>
+    <p className="mt-1 text-[11px] text-muted-foreground">Only confirmed subscribers receive campaigns; a group never grants consent. Group membership can change while a campaign is in progress, and Remaining counts currently confirmed members not yet sent to. The audience can be changed only before the first send attempt.</p></div>;
 }
 
 type Form = { smtpHost: string; smtpPort: 465 | 587; imapHost: string; username: string; fromName: string; publicOrigin: string; enabled: boolean; newsletterEnabled: boolean; policyConfirmed: boolean; hourlyLimit: number; password: string };

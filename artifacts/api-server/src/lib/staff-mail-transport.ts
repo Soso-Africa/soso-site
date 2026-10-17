@@ -128,6 +128,7 @@ export async function readyAccountMail(): Promise<MailSettings> {
 export async function deliverMail(input: {
   id: string; to: string; subject: string; text: string; staffId?: string;
   kind: "direct" | "confirmation" | "newsletter" | "account"; campaignId?: string; subscriberId?: string; unsubscribeUrl?: string;
+  expectedGroupId?: string | null;
   inReplyTo?: string;
 }) {
   const row = await configuration();
@@ -149,6 +150,15 @@ export async function deliverMail(input: {
       return { status: existing.status, replayed: true };
     }
     if (input.kind === "newsletter") {
+      const campaign = (await connection.query("SELECT group_id FROM soso_mail_campaigns WHERE id=$1 FOR UPDATE", [input.campaignId])).rows[0];
+      if (!campaign || campaign.group_id !== input.expectedGroupId) throw new MailError("The campaign audience changed. Refresh before sending another batch.", 409);
+      if (campaign.group_id) {
+        // Membership removal and reservation serialize through the same group
+        // row. A change after reservation cannot retract an accepted SMTP send.
+        await connection.query("SELECT id FROM soso_newsletter_groups WHERE id=$1 FOR SHARE", [campaign.group_id]);
+        const member = await connection.query("SELECT 1 FROM soso_newsletter_group_members WHERE group_id=$1 AND subscriber_id=$2", [campaign.group_id, input.subscriberId]);
+        if (!member.rowCount) throw new MailError("This subscriber is no longer in the campaign group. Refresh the campaign.", 409);
+      }
       const subscriber = (await connection.query("SELECT status FROM soso_newsletter_subscribers WHERE id=$1 FOR UPDATE", [input.subscriberId])).rows[0];
       if (subscriber?.status !== "confirmed") throw new MailError("This subscriber no longer consents to newsletters.", 409);
     }
