@@ -71,8 +71,18 @@ export async function checkDelivery(env, request = fetch) {
             await range.body?.cancel();
             throw new Error("Photo byte-range delivery failed");
           }
-          const rangeBytes = await range.arrayBuffer();
-          if (rangeBytes.byteLength !== 8) throw new Error("Photo range length changed");
+           const rangeReader = range.body.getReader();
+           let rangeSize = 0;
+           for (;;) {
+             const chunk = await rangeReader.read();
+             if (chunk.done) break;
+             rangeSize += chunk.value.byteLength;
+             if (rangeSize > 8) {
+               await rangeReader.cancel();
+               throw new Error("Photo range length changed");
+             }
+           }
+           if (rangeSize !== 8) throw new Error("Photo range length changed");
         }
       }
     }

@@ -152,3 +152,29 @@ test("later DNS, access, rendition, MIME and privacy failures never report healt
     assert.ok(result.message);
   }
 });
+
+test("an oversized range body is cancelled before another chunk is requested", async () => {
+  const source = new Bucket();
+  await source.put("uploads/test.jpg", Buffer.alloc(32));
+  const identity = createHash("sha256").update("uploads/uploads/test.jpg").digest("hex");
+  await source.put(`renditions/${identity}/manifest.json`, JSON.stringify({ renditions: [] }));
+  let cancelled = false;
+  let reads = 0;
+  const request = async (url, options = {}) => {
+    if (url.endsWith("/api/content/platform")) return Response.json({ src: "/api/storage/objects/uploads/test.jpg" });
+    if (options.headers?.Range) return {
+      status: 206, headers: new Headers({ "Content-Range": "bytes 0-7/32" }),
+      body: { getReader: () => ({
+        async read() { reads++; assert.equal(reads, 1); return { done: false, value: new Uint8Array(1024) }; },
+        async cancel() { cancelled = true; },
+      }) },
+    };
+    if (url.includes("/api/storage/")) return new Response(null, { status: 302, headers: { Location: "https://media.shopsoso.co/uploads/test.jpg" } });
+    return new Response(null, { headers: { "Content-Type": "image/jpeg", "Content-Length": "32" } });
+  };
+  const result = await checkDelivery({ SOURCE: source }, request);
+  assert.equal(result.status, "failed");
+  assert.match(result.message, /range length changed/);
+  assert.equal(cancelled, true);
+  assert.equal(reads, 1);
+});
