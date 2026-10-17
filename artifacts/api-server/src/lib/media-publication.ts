@@ -6,7 +6,9 @@ import type { MediaStorage } from "./media-storage-types";
 
 /**
  * Run inside the existing media transaction lock, only for the role-checked,
- * validated publication candidate. Never copy the unrelated saved draft.
+ * validated publication candidate. This is READ ONLY: a database transaction
+ * can still fail after this function returns. Public copies are prepared only
+ * by committed-media-delivery after a separate committed-approval check.
  */
 export async function prepareMediaForPublication(
   candidate: unknown, previouslyPublished?: unknown, storage: MediaStorage = createMediaStorageService(),
@@ -15,28 +17,20 @@ export async function prepareMediaForPublication(
   if (!(storage instanceof R2StorageService)) throw new Error("R2 publication storage is unavailable");
   const previous = managedMediaReferences(previouslyPublished);
   const changed = [...managedMediaReferences(candidate)].filter(([identity]) => !previous.has(identity)).map(([, reference]) => reference);
-  // Preflight every required rendition before exposing any new original.
+  // Preflight every required rendition without changing public visibility.
   let next = 0;
-  const worker = async (copy: boolean): Promise<void> => {
+  const worker = async (): Promise<void> => {
     while (next < changed.length) {
       const reference = changed[next++]!;
       if (/\.(?:jpg|png)$/.test(reference.path)) {
-        if (copy) await storage.stageApprovedRenditions(reference.path, reference.area);
-        else await readR2RenditionManifest(storage, reference.path, reference.area);
+        await readR2RenditionManifest(storage, reference.path, reference.area);
       }
-      if (copy) await storage.stageApprovedOriginal(reference.path, reference.area);
-      else {
-        const inspected = reference.area === "uploads"
-          ? await storage.inspectUploadedMedia(reference.path) : await storage.inspectPublicMedia(reference.path);
-        if (!inspected.contentType || inspected.contentType !== inspected.declaredContentType) throw new Error("Publication media bytes could not be verified");
-      }
+      const inspected = reference.area === "uploads"
+        ? await storage.inspectUploadedMedia(reference.path) : await storage.inspectPublicMedia(reference.path);
+      if (!inspected.contentType || inspected.contentType !== inspected.declaredContentType) throw new Error("Publication media bytes could not be verified");
     }
   };
-  const preflight = await Promise.allSettled(Array.from({ length: Math.min(4, changed.length) }, () => worker(false)));
+  const preflight = await Promise.allSettled(Array.from({ length: Math.min(4, changed.length) }, () => worker()));
   const failedPreflight = preflight.find((result) => result.status === "rejected");
   if (failedPreflight?.status === "rejected") throw failedPreflight.reason;
-  next = 0;
-  const copies = await Promise.allSettled(Array.from({ length: Math.min(4, changed.length) }, () => worker(true)));
-  const failedCopy = copies.find((result) => result.status === "rejected");
-  if (failedCopy?.status === "rejected") throw failedCopy.reason;
 }

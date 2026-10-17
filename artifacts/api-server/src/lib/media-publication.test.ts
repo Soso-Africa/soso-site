@@ -26,7 +26,7 @@ test("managed references include embedded Journal URLs but exclude external look
   assert.deepEqual([...refs.keys()], ["uploads/uploads/photo.jpg", "public/posts/cover.png"]);
 });
 
-test("publication touches only references absent from the previously published candidate", async () => {
+test("publication preflights only changed references and never makes public copies before commit", async () => {
   const s = storage();
   const inspected: string[] = [];
   const copied: string[] = [];
@@ -36,7 +36,7 @@ test("publication touches only references absent from the previously published c
   const candidate = { old: previous, src: "/api/storage/objects/uploads/new.webp" };
   await prepareMediaForPublication(candidate, previous, s);
   assert.deepEqual(inspected, ["uploads/new.webp"]);
-  assert.deepEqual(copied, ["uploads/new.webp"]);
+  assert.deepEqual(copied, []);
 });
 
 test("failed preflight exposes no new copies and awaits other in-flight validations", async () => {
@@ -57,19 +57,18 @@ test("failed preflight exposes no new copies and awaits other in-flight validati
   assert.equal(copies, 0);
 });
 
-test("a copy failure does not release publication while another approved copy is still running", async () => {
+test("a later revision write or commit failure cannot expose a preflighted draft", async () => {
   const s = storage();
-  let settled = false;
+  let copies = 0;
   s.inspectUploadedMedia = async () => photo;
-  s.stageApprovedOriginal = async (path) => {
-    if (path.includes("bad")) throw new Error("copy failed");
-    await new Promise((resolve) => setTimeout(resolve, 15));
-    settled = true;
-  };
-  await assert.rejects(prepareMediaForPublication([
-    "/api/storage/objects/uploads/bad.webp", "/api/storage/objects/uploads/other.webp",
-  ], undefined, s), /copy failed/);
-  assert.equal(settled, true);
+  s.stageApprovedOriginal = async () => { copies++; throw new Error("copy failure"); };
+  for (const failure of ["revision write failed", "transaction commit failed"]) {
+    await assert.rejects((async () => {
+      await prepareMediaForPublication(["/api/storage/objects/uploads/draft.webp"], undefined, s);
+      throw new Error(failure);
+    })(), new RegExp(failure));
+    assert.equal(copies, 0);
+  }
 });
 
 test("a responsive manifest cannot be trusted without a strong source validator", async () => {

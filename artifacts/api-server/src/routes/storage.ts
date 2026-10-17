@@ -14,6 +14,8 @@ import {
 } from "@workspace/api-zod";
 import { getCloudinaryUsage } from "../lib/cloudinary-usage";
 import { getR2StorageUsage } from "../lib/r2-storage-usage";
+import { resolveCommittedMediaDelivery } from "../lib/committed-media-delivery";
+import { withCommittedMediaApproval } from "../lib/committed-media-approval";
 import { R2StorageService } from "../lib/r2-storage";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { MediaNotFoundError } from "../lib/cloudinary-storage";
@@ -214,9 +216,9 @@ router.get("/storage/objects/*path", async (req: Request, res: Response): Promis
     }
     const raw = req.params.path;
     const relativePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const delivery = await storage.resolveDelivery(relativePath, "uploads", {
+    const delivery = await resolveCommittedMediaDelivery(storage, { path: relativePath, area: "uploads" }, {
       width, allowPrivate: !!req.staff && ["owner", "administrator", "editor"].includes(req.staff.role),
-    });
+    }, withCommittedMediaApproval);
     const inspected = await storage.inspectUploadedMedia(relativePath);
     const issue = inspectionIssue(relativePath, inspected);
     if (issue) {
@@ -240,9 +242,9 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
   try {
     const raw = req.params.filePath;
     const relativePath = Array.isArray(raw) ? raw.join("/") : raw;
-    const delivery = await storage.resolveDelivery(relativePath, "public", {
+    const delivery = await resolveCommittedMediaDelivery(storage, { path: relativePath, area: "public" }, {
       allowPrivate: !!req.staff && ["owner", "administrator", "editor"].includes(req.staff.role),
-    });
+    }, withCommittedMediaApproval);
     const inspected = await storage.inspectPublicMedia(relativePath);
     const issue = inspectionIssue(relativePath, inspected);
     if (issue) {
