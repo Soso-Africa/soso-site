@@ -54,6 +54,27 @@ paths:
         - { name: uidValidity, in: query, required: true, schema: { type: string, pattern: '^\d+$' } }
         - { name: folder, in: query, schema: { type: string, enum: [inbox, sent], default: inbox } }
       responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/mail/messages/{uid}/attachments/{index}:
+    get:
+      operationId: downloadStaffMailboxAttachment
+      tags: [mail]
+      description: Owner/admin only, explicit download. Revalidates mailbox UID validity and Staff access. Message limit 4 MB, individual download limit 2 MB. Always returns an attachment with no-store and nosniff; no remote content is fetched.
+      parameters:
+        - { name: uid, in: path, required: true, schema: { type: number, multipleOf: 1, minimum: 1, maximum: 4294967295 } }
+        - { name: index, in: path, required: true, schema: { type: number, multipleOf: 1, minimum: 0, maximum: 999 } }
+        - { name: uidValidity, in: query, required: true, schema: { type: string, pattern: '^\d+$' } }
+        - { name: folder, in: query, schema: { type: string, enum: [inbox, sent], default: inbox } }
+      responses:
+        "200":
+          description: Explicit private attachment download
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { description: Staff sign-in required }
+        "403": { description: Current owner/admin access required }
+        "404": { description: Message or attachment unavailable }
+        "409": { description: Mailbox changed; refresh before downloading }
+        "413": { description: Message or attachment exceeds the preview limit }
   /staff/mail/send:
     post:
       operationId: sendStaffMailboxMessage
@@ -256,6 +277,12 @@ components:
         to: { $ref: "#/components/schemas/MailboxEmail" }
         subject: { type: string, minLength: 1, maxLength: 200 }
         text: { type: string, minLength: 1, maxLength: 24000 }
+        html: { type: string, maxLength: 100000, description: Optional formatted body. Sanitized on the server; the plain-text alternative is derived from the sanitized HTML. }
+        attachments:
+          type: array
+          maxItems: 3
+          description: Transient attachments. Maximum 1 MB each and 2 MB combined. PDF, PNG, JPEG, TXT and CSV only. Never persisted to the database.
+          items: { $ref: "#/components/schemas/MailboxAttachmentInput" }
         reply:
           type: object
           required: [uid, uidValidity, folder]
@@ -263,6 +290,13 @@ components:
             uid: { type: number, multipleOf: 1, minimum: 1 }
             uidValidity: { type: string, pattern: '^\d+$' }
             folder: { type: string, enum: [inbox, sent] }
+    MailboxAttachmentInput:
+      type: object
+      additionalProperties: false
+      required: [name, contentBase64]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 180 }
+        contentBase64: { type: string, minLength: 4, maxLength: 1333336 }
     NewsletterCampaignInput:
       type: object
       required: [subject, text]
@@ -270,6 +304,7 @@ components:
       properties:
         subject: { type: string, minLength: 1, maxLength: 200 }
         text: { type: string, minLength: 1, maxLength: 24000 }
+        html: { type: string, maxLength: 100000, description: Optional sanitized HTML. Unsubscribe information is appended to both HTML and plain-text alternatives. For campaign files use download links rather than attachments. }
         groupId: { type: [string, "null"], pattern: '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$', default: null, description: Null or omitted means all confirmed subscribers. }
     NewsletterGroupInput:
       type: object

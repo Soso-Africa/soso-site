@@ -17,14 +17,16 @@ export type MailList = {
 export type MailDetail = {
   uid: number; uidValidity: string; folder: "inbox" | "sent"; subject: string;
   from: string; replyTo: string; text: string; date: string | null;
-  attachments: { name: string; size: number }[];
+  /** Server-sanitized HTML (no remote images/CSS/resources) or null for plain mail. */
+  html: string | null;
+  attachments: { index: number; name: string; size: number }[];
 };
 export type Subscriber = {
   id: string; email: string; status: "pending" | "confirmed" | "unsubscribed";
   policy_version: string; consented_at: string; confirmed_at: string | null; unsubscribed_at: string | null;
 };
 export type Campaign = {
-  id: string; subject: string; body_text: string; created_at: string;
+  id: string; subject: string; body_text: string; body_html?: string | null; created_at: string;
   attempted: number; accepted: number; uncertain: number; remaining: number;
 };
 export function mailApi<T>(path: string, body?: unknown, method = body === undefined ? "GET" : "POST") {
@@ -98,6 +100,19 @@ export async function exportSubscribers(status: string, groupId: string, groupNa
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = exportFileName(status, groupName);
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export type OutgoingAttachment = { name: string; size: number; contentBase64: string };
+/** Fetches one incoming attachment only when staff explicitly asks for it, then saves it locally. */
+export async function downloadMailAttachment(ref: { uid: number; uidValidity: string; folder: "inbox" | "sent" }, index: number, name: string) {
+  const q = new URLSearchParams({ folder: ref.folder, uidValidity: ref.uidValidity });
+  const blob = await customFetch<Blob>(`/api/staff/mail/messages/${ref.uid}/attachments/${index}?${q}`, { method: "GET", responseType: "blob" });
+  if (!(blob instanceof Blob)) throw new Error("The attachment response was invalid.");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name || `attachment-${index}`; a.rel = "noopener";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

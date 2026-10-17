@@ -50,6 +50,7 @@ import type {
   CustomerMeasurements,
   DeleteShopperMeasurement200,
   DeleteStaffNewsletterGroup200,
+  DownloadStaffMailboxAttachmentParams,
   Enquiry,
   EnquiryInput,
   ExportStaffAccessoryLaunchNotificationSummaryParams,
@@ -2415,6 +2416,97 @@ export function useReadStaffMailboxMessage<TData = Awaited<ReturnType<typeof rea
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getReadStaffMailboxMessageQueryOptions(uid,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadStaffMailboxAttachmentUrl = (uid: number,
+    index: number,
+    params: DownloadStaffMailboxAttachmentParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/mail/messages/${uid}/attachments/${index}?${stringifiedParams}` : `/api/staff/mail/messages/${uid}/attachments/${index}`
+}
+
+/**
+ * Owner/admin only, explicit download. Revalidates mailbox UID validity and Staff access. Message limit 4 MB, individual download limit 2 MB. Always returns an attachment with no-store and nosniff; no remote content is fetched.
+ */
+export const downloadStaffMailboxAttachment = async (uid: number,
+    index: number,
+    params: DownloadStaffMailboxAttachmentParams, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadStaffMailboxAttachmentUrl(uid,index,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadStaffMailboxAttachmentQueryKey = (uid: number,
+    index: number,
+    params?: DownloadStaffMailboxAttachmentParams,) => {
+    return [
+    `/api/staff/mail/messages/${uid}/attachments/${index}`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getDownloadStaffMailboxAttachmentQueryOptions = <TData = Awaited<ReturnType<typeof downloadStaffMailboxAttachment>>, TError = ErrorType<void>>(uid: number,
+    index: number,
+    params: DownloadStaffMailboxAttachmentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadStaffMailboxAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadStaffMailboxAttachmentQueryKey(uid,index,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadStaffMailboxAttachment>>> = ({ signal }) => downloadStaffMailboxAttachment(uid,index,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: uid !== null && uid !== undefined && index !== null && index !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadStaffMailboxAttachment>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadStaffMailboxAttachmentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadStaffMailboxAttachment>>>
+export type DownloadStaffMailboxAttachmentQueryError = ErrorType<void>
+
+
+
+export function useDownloadStaffMailboxAttachment<TData = Awaited<ReturnType<typeof downloadStaffMailboxAttachment>>, TError = ErrorType<void>>(
+ uid: number,
+    index: number,
+    params: DownloadStaffMailboxAttachmentParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadStaffMailboxAttachment>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadStaffMailboxAttachmentQueryOptions(uid,index,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

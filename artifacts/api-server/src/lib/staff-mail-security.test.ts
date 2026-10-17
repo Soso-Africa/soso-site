@@ -42,7 +42,8 @@ test("local, private, metadata, multicast and mapped-private IP targets are bloc
 test("direct mail validates one recipient, header safety, size and idempotency identifiers", () => {
   const input = { idempotencyKey: randomUUID(), to: "synthetic@example.test", subject: "A test", text: "Plain text" };
   assert(messageInput.safeParse(input).success);
-  for (const change of [{to:"a@example.test,b@example.test"},{subject:"Hi\nBcc: attacker@example.test"},{idempotencyKey:"not-an-id"},{text:"x".repeat(24001)},{html:"<script>bad()</script>"},{reply:{uid:1,folder:"inbox"}}]) {
+  assert(messageInput.safeParse({ ...input, html: "<p><strong>Hello</strong></p>" }).success);
+  for (const change of [{to:"a@example.test,b@example.test"},{subject:"Hi\nBcc: attacker@example.test"},{idempotencyKey:"not-an-id"},{text:"x".repeat(24001)},{html:"x".repeat(100001)},{attachments:[{name:"file.txt",path:"/etc/passwd"}]},{reply:{uid:1,folder:"inbox"}}]) {
     assert(!messageInput.safeParse({...input,...change}).success);
   }
 });

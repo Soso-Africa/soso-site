@@ -8,6 +8,7 @@ import mailRouter from "./staff-mail";
 import { ensureMailSchema } from "../lib/staff-mail-store";
 import { campaignAudienceSQL } from "../lib/newsletter-audience";
 import { deliverMail } from "../lib/staff-mail-transport";
+import { decodeMailAttachments, mailBodyHash, mailContent } from "../lib/staff-mail-content";
 
 // This suite is deliberately refused outside the disposable-schema runner.
 const schema = (await pool.query("SELECT current_schema() AS name")).rows[0].name;
@@ -143,5 +144,34 @@ test("groups, full XLSX export, campaign targeting and reservation safeguards", 
     await pool.query("UPDATE soso_mail_settings SET settings=jsonb_set(settings,'{hourlyLimit}','1')");
     await assert.rejects(deliverMail(input), /hourly sending allowance is exhausted/);
     assert.equal((await pool.query("SELECT count(*) FROM soso_mail_sends")).rows[0].count, "1");
+  });
+  await t.test("rich campaign drafts persist sanitized HTML and authoritative text without changing subscribers", async () => {
+    const before = (await pool.query("SELECT count(*) FROM soso_newsletter_subscribers")).rows[0].count;
+    const response = await call("/campaigns", "POST", {
+      subject: "Formatted", text: "not the canonical body", html: '<p><b>Hello</b> <a href="https://example.test/shop">Shop</a><img src="https://tracker.test/pixel"><script>bad()</script></p>',
+    });
+    assert.equal(response.status, 201);
+    const id = (await response.json()).id;
+    const row = (await pool.query("SELECT body_text,body_html FROM soso_mail_campaigns WHERE id=$1", [id])).rows[0];
+    assert.match(row.body_html, /<b>Hello<\/b>/);
+    assert.doesNotMatch(row.body_html, /script|img|tracker/);
+    assert.match(row.body_text, /https:\/\/example.test\/shop/);
+    assert.doesNotMatch(row.body_text, /not the canonical/);
+    const listed = (await (await call("/campaigns")).json()).campaigns.find((c: any) => c.id === id);
+    assert.equal(listed.body_html, row.body_html);
+    assert.equal((await pool.query("SELECT count(*) FROM soso_newsletter_subscribers")).rows[0].count, before);
+  });
+  await t.test("rich direct replays cannot discard uncertainty or change attachment bytes under the same identity", async () => {
+    const input = {
+      id: randomUUID(), staffId: owner, to: "synthetic@example.test", subject: "Rich replay",
+      ...mailContent("fallback", "<p><b>Hi</b></p>"), kind: "direct" as const,
+      attachments: decodeMailAttachments([{ name: "note.txt", contentBase64: Buffer.from("first").toString("base64") }]),
+    };
+    await pool.query("INSERT INTO soso_mail_sends(id,recipient,subject,kind,created_by,body_hash,status) VALUES($1,$2,$3,'direct',$4,$5,'uncertain')",
+      [input.id, input.to, input.subject, owner, mailBodyHash(input)]);
+    assert.deepEqual(await deliverMail(input), { status: "uncertain", replayed: true });
+    await assert.rejects(deliverMail({ ...input, html: "<p>Hi</p>" }), /another request/);
+    await assert.rejects(deliverMail({ ...input, attachments: decodeMailAttachments([{ name: "note.txt", contentBase64: Buffer.from("second").toString("base64") }]) }), /another request/);
+    assert.equal((await pool.query("SELECT status FROM soso_mail_sends WHERE id=$1", [input.id])).rows[0].status, "uncertain");
   });
 });

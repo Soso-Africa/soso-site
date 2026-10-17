@@ -3294,6 +3294,19 @@ export type MailboxMessageInputReply = {
   folder: MailboxMessageInputReplyFolder;
 };
 
+export interface MailboxAttachmentInput {
+  /**
+     * @minLength 1
+     * @maxLength 180
+     */
+  name: string;
+  /**
+     * @minLength 4
+     * @maxLength 1333336
+     */
+  contentBase64: string;
+}
+
 export interface MailboxMessageInput {
   idempotencyKey: MailIdentifier;
   to: MailboxEmail;
@@ -3307,6 +3320,16 @@ export interface MailboxMessageInput {
      * @maxLength 24000
      */
   text: string;
+  /**
+     * Optional formatted body. Sanitized on the server; the plain-text alternative is derived from the sanitized HTML.
+     * @maxLength 100000
+     */
+  html?: string;
+  /**
+     * Transient attachments. Maximum 1 MB each and 2 MB combined. PDF, PNG, JPEG, TXT and CSV only. Never persisted to the database.
+     * @maxItems 3
+     */
+  attachments?: MailboxAttachmentInput[];
   reply?: MailboxMessageInputReply;
 }
 
@@ -3321,6 +3344,11 @@ export interface NewsletterCampaignInput {
      * @maxLength 24000
      */
   text: string;
+  /**
+     * Optional sanitized HTML. Unsubscribe information is appended to both HTML and plain-text alternatives. For campaign files use download links rather than attachments.
+     * @maxLength 100000
+     */
+  html?: string;
   /**
      * Null or omitted means all confirmed subscribers.
      * @nullable
@@ -3447,6 +3475,22 @@ export const ReadStaffMailboxMessageFolder = {
 } as const;
 
 export type ReadStaffMailboxMessage200 = { [key: string]: unknown };
+
+export type DownloadStaffMailboxAttachmentParams = {
+/**
+ * @pattern ^\d+$
+ */
+uidValidity: string;
+folder?: DownloadStaffMailboxAttachmentFolder;
+};
+
+export type DownloadStaffMailboxAttachmentFolder = typeof DownloadStaffMailboxAttachmentFolder[keyof typeof DownloadStaffMailboxAttachmentFolder];
+
+
+export const DownloadStaffMailboxAttachmentFolder = {
+  inbox: 'inbox',
+  sent: 'sent',
+} as const;
 
 export type SendStaffMailboxMessage200 = { [key: string]: unknown };
 
