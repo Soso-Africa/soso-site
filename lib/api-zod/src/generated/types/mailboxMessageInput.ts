@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MailboxAttachmentInput } from './mailboxAttachmentInput';
 import type { MailboxEmail } from './mailboxEmail';
 import type { MailboxMessageInputReply } from './mailboxMessageInputReply';
 import type { MailIdentifier } from './mailIdentifier';
@@ -22,5 +23,15 @@ export interface MailboxMessageInput {
      * @maxLength 24000
      */
   text: string;
+  /**
+     * Optional formatted body. Sanitized on the server; the plain-text alternative is derived from the sanitized HTML.
+     * @maxLength 100000
+     */
+  html?: string;
+  /**
+     * Transient attachments. Maximum 1 MB each and 2 MB combined. PDF, PNG, JPEG, TXT and CSV only. Never persisted to the database.
+     * @maxItems 3
+     */
+  attachments?: MailboxAttachmentInput[];
   reply?: MailboxMessageInputReply;
 }

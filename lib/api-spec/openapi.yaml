@@ -71,6 +71,8 @@ paths:
     $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1messages"
   /staff/mail/messages/{uid}:
     $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1messages~1{uid}"
+  /staff/mail/messages/{uid}/attachments/{index}:
+    $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1messages~1{uid}~1attachments~1{index}"
   /staff/mail/send:
     $ref: "./mail.openapi.yaml#/paths/~1staff~1mail~1send"
   /staff/mail/history:

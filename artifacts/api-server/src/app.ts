@@ -52,6 +52,10 @@ function preserveRawBody(req: express.Request, _res: express.Response, buffer: B
 // The complete-document escape hatch retains its bounded allowance.
 // Scoped section and product writes use the default smaller JSON budget.
 app.put("/api/staff/content/platform", express.json({ limit: "1mb", verify: preserveRawBody }));
+// Only direct correspondence accepts bounded transient attachment bytes.
+// Keep all other JSON endpoints at their existing smaller limits.
+app.post("/api/staff/mail/send", express.json({ limit: "3mb" }));
+app.post("/api/staff/newsletter/campaigns", express.json({ limit: "160kb" }));
 app.use(express.json({ verify: preserveRawBody }));
 app.use(express.urlencoded({ extended: true }));
 app.use(loadStaffSession);
@@ -66,7 +70,9 @@ app.use((error: unknown, req: express.Request, res: express.Response, next: expr
         ? "This complete draft exceeds the 1 MB save limit. Save products or sections individually; uploaded photos do not need to be re-uploaded."
         : req.path.startsWith("/api/staff/content/platform/")
           ? "This section or product exceeds the request limit. Remove embedded content; uploaded photos do not need to be re-uploaded."
-          : "Request body is too large.",
+          : req.path === "/api/staff/mail/send"
+            ? "Email is too large. Attach at most three files, 1 MB each and 2 MB in total."
+            : "Request body is too large.",
     });
     return;
   }

@@ -18,6 +18,11 @@ export interface NewsletterCampaignInput {
      */
   text: string;
   /**
+     * Optional sanitized HTML. Unsubscribe information is appended to both HTML and plain-text alternatives. For campaign files use download links rather than attachments.
+     * @maxLength 100000
+     */
+  html?: string;
+  /**
      * Null or omitted means all confirmed subscribers.
      * @nullable
      * @pattern ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$

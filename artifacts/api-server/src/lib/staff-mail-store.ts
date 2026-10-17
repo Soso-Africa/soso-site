@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS soso_newsletter_group_members (
 );
 CREATE INDEX IF NOT EXISTS soso_newsletter_members_subscriber_idx ON soso_newsletter_group_members(subscriber_id);
 ALTER TABLE soso_mail_campaigns ADD COLUMN IF NOT EXISTS group_id uuid REFERENCES soso_newsletter_groups(id) ON DELETE RESTRICT;
+ALTER TABLE soso_mail_campaigns ADD COLUMN IF NOT EXISTS body_html text;
 `;
 let initialization: Promise<void> | undefined;
 export async function ensureMailSchema() {

@@ -5,7 +5,8 @@ import { pool } from "@workspace/db";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { MailError, campaignInput, mailSettingsInput, messageInput, resolveMailHost } from "../lib/staff-mail-security";
 import { ensureMailSchema, freshMailPermission, mailTransaction, newsletterLink, rateLimit, saveMailSettings, storedMail, useNewsletterLink } from "../lib/staff-mail-store";
-import { confirmationMail, deliverMail, listMail, readMail, readyNewsletter, sendStaffMessage, testMailConnection } from "../lib/staff-mail-transport";
+import { confirmationMail, deliverMail, listMail, readMail, readMailAttachment, readyNewsletter, sendStaffMessage, testMailConnection } from "../lib/staff-mail-transport";
+import { mailContent } from "../lib/staff-mail-content";
 import newsletterGroups from "./newsletter-groups";
 import { audienceInput, campaignAudienceSQL, subscriberFilters } from "../lib/newsletter-audience";
 
@@ -61,6 +62,19 @@ router.get("/staff/mail/messages/:uid", requireStaff, mailRoles, endpoint(async 
 router.post("/staff/mail/send", requireStaff, mailRoles, endpoint(async (req, res) => {
   res.json(await sendStaffMessage(req.staff.id, messageInput.parse(req.body)));
 }));
+router.get("/staff/mail/messages/:uid/attachments/:index", requireStaff, mailRoles, endpoint(async (req, res) => {
+  const uid = z.coerce.number().int().positive().max(4294967295).parse(req.params.uid);
+  const index = z.coerce.number().int().min(0).max(999).parse(req.params.index);
+  const validity = z.string().regex(/^\d+$/).parse(req.query.uidValidity);
+  const folder = z.enum(["inbox", "sent"]).default("inbox").parse(req.query.folder);
+  await rateLimit(`mail-read:${req.staff.id}`, 60, 60);
+  const file = await readMailAttachment(req.staff.id, folder, uid, validity, index);
+  res.set("Content-Type", "application/octet-stream");
+  res.set("Content-Disposition", `attachment; filename="attachment"; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16)}`)}`);
+  res.set("X-Content-Type-Options", "nosniff");
+  res.set("Content-Security-Policy", "default-src 'none'; sandbox");
+  res.send(file.content);
+}));
 router.get("/staff/mail/history", requireStaff, mailRoles, endpoint(async (req, res) => {
   await freshMailPermission(req.staff.id); await ensureMailSchema();
   res.json({ sends: (await pool.query(`SELECT id,recipient,subject,kind,
@@ -102,7 +116,7 @@ router.post("/staff/newsletter/subscribers/:id/unsubscribe", requireStaff, mailR
 }));
 router.get("/staff/newsletter/campaigns", requireStaff, mailRoles, endpoint(async (req, res) => {
   await freshMailPermission(req.staff.id); await ensureMailSchema();
-  res.json({ campaigns: (await pool.query(`SELECT c.id,c.subject,c.body_text,c.created_at,c.group_id,g.name AS group_name,
+  res.json({ campaigns: (await pool.query(`SELECT c.id,c.subject,c.body_text,c.body_html,c.created_at,c.group_id,g.name AS group_name,
     (SELECT count(*)::int FROM soso_mail_sends s WHERE s.campaign_id=c.id) AS attempted,
     (SELECT count(*)::int FROM soso_mail_sends s WHERE s.campaign_id=c.id AND s.status='accepted') AS accepted,
     (SELECT count(*)::int FROM soso_mail_sends s WHERE s.campaign_id=c.id AND s.status IN ('uncertain','sending')) AS uncertain,
@@ -113,8 +127,9 @@ router.get("/staff/newsletter/campaigns", requireStaff, mailRoles, endpoint(asyn
 router.post("/staff/newsletter/campaigns", requireStaff, mailRoles, endpoint(async (req, res) => {
   await freshMailPermission(req.staff.id); await ensureMailSchema();
   const input = campaignInput.parse(req.body);
+  const content = mailContent(input.text, input.html);
   if (input.groupId && !(await pool.query("SELECT id FROM soso_newsletter_groups WHERE id=$1", [input.groupId])).rowCount) throw new MailError("Group not found. Refresh the audience list.", 404);
-  const result = await pool.query("INSERT INTO soso_mail_campaigns(subject,body_text,created_by,group_id) VALUES($1,$2,$3,$4) RETURNING id", [input.subject, input.text, req.staff.id, input.groupId]);
+  const result = await pool.query("INSERT INTO soso_mail_campaigns(subject,body_text,body_html,created_by,group_id) VALUES($1,$2,$3,$4,$5) RETURNING id", [input.subject, content.text, content.html ?? null, req.staff.id, input.groupId]);
   res.status(201).json(result.rows[0]);
 }));
 router.patch("/staff/newsletter/campaigns/:id/audience", requireStaff, mailRoles, endpoint(async (req, res) => {
@@ -136,8 +151,9 @@ router.post("/staff/newsletter/campaigns/:id/send", requireStaff, mailRoles, end
   await freshMailPermission(req.staff.id);
   const settings = await readyNewsletter();
   const id = uuid.parse(req.params.id);
-  const campaign = (await pool.query("SELECT subject,body_text,group_id FROM soso_mail_campaigns WHERE id=$1", [id])).rows[0];
+  const campaign = (await pool.query("SELECT subject,body_text,body_html,group_id FROM soso_mail_campaigns WHERE id=$1", [id])).rows[0];
   if (!campaign) throw new MailError("Campaign not found.", 404);
+  const content = mailContent(campaign.body_text, campaign.body_html);
   // A single short batch is explicit; no fire-and-forget work in serverless handlers.
   const recipients = (await pool.query(`SELECT n.id,n.email FROM soso_newsletter_subscribers n JOIN soso_mail_campaigns c ON c.id=$1 WHERE n.status='confirmed'
     AND ${campaignAudienceSQL}
@@ -149,7 +165,8 @@ router.post("/staff/newsletter/campaigns/:id/send", requireStaff, mailRoles, end
     const url = `${settings.publicOrigin}/newsletter/unsubscribe?token=${token}`;
     await deliverMail({
       id: randomUUID(), staffId: req.staff.id, to: recipient.email,
-      subject: campaign.subject, text: `${campaign.body_text}\n\n—\nSOSO Africa\nYou confirmed your subscription to SOSO news, collections and offers.\nUnsubscribe: ${url}`,
+      subject: campaign.subject, text: `${content.text}\n\n—\nSOSO Africa\nYou confirmed your subscription to SOSO news, collections and offers.\nUnsubscribe: ${url}`,
+      ...(content.html ? { html: `${content.html}<hr><p>SOSO Africa<br>You confirmed your subscription to SOSO news, collections and offers.<br><a href="${url}" target="_blank" rel="noopener noreferrer">Unsubscribe</a></p>` } : {}),
       kind: "newsletter", subscriberId: recipient.id, campaignId: id, unsubscribeUrl: url,
       expectedGroupId: campaign.group_id,
     });

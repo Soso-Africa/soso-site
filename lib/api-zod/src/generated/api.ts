@@ -739,6 +739,34 @@ export const ReadStaffMailboxMessageQueryParams = zod.object({
 export const ReadStaffMailboxMessageResponse = zod.record(zod.string(), zod.unknown())
 
 
+/**
+ * Owner/admin only, explicit download. Revalidates mailbox UID validity and Staff access. Message limit 4 MB, individual download limit 2 MB. Always returns an attachment with no-store and nosniff; no remote content is fetched.
+ */
+export const downloadStaffMailboxAttachmentPathUidMax = 4294967295;
+export const downloadStaffMailboxAttachmentPathUidMultipleOf = 1;
+
+export const downloadStaffMailboxAttachmentPathIndexMin = 0;
+export const downloadStaffMailboxAttachmentPathIndexMax = 999;
+export const downloadStaffMailboxAttachmentPathIndexMultipleOf = 1;
+
+
+
+export const DownloadStaffMailboxAttachmentParams = zod.object({
+  "uid": zod.coerce.number().min(1).max(downloadStaffMailboxAttachmentPathUidMax).multipleOf(downloadStaffMailboxAttachmentPathUidMultipleOf),
+  "index": zod.coerce.number().min(downloadStaffMailboxAttachmentPathIndexMin).max(downloadStaffMailboxAttachmentPathIndexMax).multipleOf(downloadStaffMailboxAttachmentPathIndexMultipleOf)
+})
+
+export const downloadStaffMailboxAttachmentQueryUidValidityRegExp = new RegExp('^\\d+$');
+export const downloadStaffMailboxAttachmentQueryFolderDefault = `inbox`;
+
+export const DownloadStaffMailboxAttachmentQueryParams = zod.object({
+  "uidValidity": zod.coerce.string().regex(downloadStaffMailboxAttachmentQueryUidValidityRegExp),
+  "folder": zod.enum(['inbox', 'sent']).default(downloadStaffMailboxAttachmentQueryFolderDefault)
+})
+
+export const DownloadStaffMailboxAttachmentResponse = zod.unknown()
+
+
 export const sendStaffMailboxMessageBodyIdempotencyKeyRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
 export const sendStaffMailboxMessageBodyToMax = 254;
 
@@ -747,6 +775,15 @@ export const sendStaffMailboxMessageBodyToRegExp = new RegExp('^[^\\s@]+@[^\\s@]
 export const sendStaffMailboxMessageBodySubjectMax = 200;
 
 export const sendStaffMailboxMessageBodyTextMax = 24000;
+
+export const sendStaffMailboxMessageBodyHtmlMax = 100000;
+
+export const sendStaffMailboxMessageBodyAttachmentsItemNameMax = 180;
+
+export const sendStaffMailboxMessageBodyAttachmentsItemContentBase64Min = 4;
+export const sendStaffMailboxMessageBodyAttachmentsItemContentBase64Max = 1333336;
+
+export const sendStaffMailboxMessageBodyAttachmentsMax = 3;
 
 export const sendStaffMailboxMessageBodyReplyUidMultipleOf = 1;
 
@@ -758,6 +795,11 @@ export const SendStaffMailboxMessageBody = zod.object({
   "to": zod.string().max(sendStaffMailboxMessageBodyToMax).regex(sendStaffMailboxMessageBodyToRegExp),
   "subject": zod.string().min(1).max(sendStaffMailboxMessageBodySubjectMax),
   "text": zod.string().min(1).max(sendStaffMailboxMessageBodyTextMax),
+  "html": zod.string().max(sendStaffMailboxMessageBodyHtmlMax).optional().describe('Optional formatted body. Sanitized on the server; the plain-text alternative is derived from the sanitized HTML.'),
+  "attachments": zod.array(zod.object({
+  "name": zod.string().min(1).max(sendStaffMailboxMessageBodyAttachmentsItemNameMax),
+  "contentBase64": zod.string().min(sendStaffMailboxMessageBodyAttachmentsItemContentBase64Min).max(sendStaffMailboxMessageBodyAttachmentsItemContentBase64Max)
+})).max(sendStaffMailboxMessageBodyAttachmentsMax).optional().describe('Transient attachments. Maximum 1 MB each and 2 MB combined. PDF, PNG, JPEG, TXT and CSV only. Never persisted to the database.'),
   "reply": zod.object({
   "uid": zod.number().min(1).multipleOf(sendStaffMailboxMessageBodyReplyUidMultipleOf),
   "uidValidity": zod.string().regex(sendStaffMailboxMessageBodyReplyUidValidityRegExp),
@@ -912,6 +954,8 @@ export const createStaffNewsletterCampaignBodySubjectMax = 200;
 
 export const createStaffNewsletterCampaignBodyTextMax = 24000;
 
+export const createStaffNewsletterCampaignBodyHtmlMax = 100000;
+
 export const createStaffNewsletterCampaignBodyGroupIdDefault = null;
 export const createStaffNewsletterCampaignBodyGroupIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
 
@@ -919,6 +963,7 @@ export const createStaffNewsletterCampaignBodyGroupIdRegExp = new RegExp('^[0-9a
 export const CreateStaffNewsletterCampaignBody = zod.object({
   "subject": zod.string().min(1).max(createStaffNewsletterCampaignBodySubjectMax),
   "text": zod.string().min(1).max(createStaffNewsletterCampaignBodyTextMax),
+  "html": zod.string().max(createStaffNewsletterCampaignBodyHtmlMax).optional().describe('Optional sanitized HTML. Unsubscribe information is appended to both HTML and plain-text alternatives. For campaign files use download links rather than attachments.'),
   "groupId": zod.string().regex(createStaffNewsletterCampaignBodyGroupIdRegExp).nullish().default(createStaffNewsletterCampaignBodyGroupIdDefault).describe('Null or omitted means all confirmed subscribers.')
 })
 

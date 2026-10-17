@@ -70,10 +70,16 @@ export const messageInput = z.object({
   to: z.string().trim().email().max(254),
   subject: z.string().trim().min(1).max(200).regex(/^[^\r\n]+$/),
   text: z.string().trim().min(1).max(24000),
+  html: z.string().max(100000).optional(),
+  attachments: z.array(z.object({
+    name: z.string().min(1).max(180),
+    contentBase64: z.string().min(4).max(1333336),
+  }).strict()).max(3).optional(),
   reply: z.object({ uid: z.number().int().positive(), uidValidity: z.string().regex(/^\d+$/), folder: z.enum(["inbox", "sent"]) }).strict().optional(),
 }).strict();
 export const campaignInput = z.object({
   subject: messageInput.shape.subject,
   text: messageInput.shape.text,
+  html: messageInput.shape.html,
   groupId: z.string().uuid().nullable().default(null),
 }).strict();

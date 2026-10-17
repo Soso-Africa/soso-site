@@ -1,11 +1,12 @@
 import nodemailer from "nodemailer";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { pool } from "@workspace/db";
 import { MailError, resolveMailHost, unlockPassword, type MailSettings, type messageInput } from "./staff-mail-security";
 import { freshMailPermission, mailTransaction, storedMail, type StoredMail } from "./staff-mail-store";
 import type { z } from "zod";
+import { buildMailMime, decodeMailAttachments, mailBodyHash, mailContent, safeAttachmentName, safeMailHtml } from "./staff-mail-content";
 
 async function configuration(allowDisabled = false) {
   const row = await storedMail();
@@ -85,7 +86,7 @@ export async function listMail(staffId: string, folder: "inbox" | "sent") {
     } finally { lock.release(); }
   });
 }
-export async function readMail(staffId: string, folder: "inbox" | "sent", uid: number, uidValidity: string) {
+async function parsedMail(staffId: string, folder: "inbox" | "sent", uid: number, uidValidity: string) {
   await freshMailPermission(staffId);
   return withMailbox(await configuration(), async (client) => {
     const lock = await client.getMailboxLock(await folderPath(client, folder));
@@ -93,22 +94,32 @@ export async function readMail(staffId: string, folder: "inbox" | "sent", uid: n
       if (!client.mailbox || client.mailbox.uidValidity.toString() !== uidValidity) throw new MailError("The mailbox changed. Refresh its message list.", 409);
       const metadata = await client.fetchOne(uid, { size: true }, { uid: true });
       if (!metadata) throw new MailError("This message is no longer available.", 404);
-      if (metadata.size === undefined || metadata.size > 2_000_000) throw new MailError("This message is too large or its size is unknown. Open it in webmail.", 413);
+      if (metadata.size === undefined || metadata.size > 4_000_000) throw new MailError("This message is too large or its size is unknown. Open it in webmail.", 413);
       const message = await client.fetchOne(uid, { source: true }, { uid: true });
       if (!message || !message.source) throw new MailError("Message content is unavailable.", 404);
-      if (message.source.length > 2_000_000) throw new MailError("This message is too large for Staff preview. Open it in webmail.", 413);
-      const parsed = await simpleParser(message.source, { skipHtmlToText: false, skipImageLinks: true });
+      if (message.source.length > 4_000_000) throw new MailError("This message is too large for Staff preview. Open it in webmail.", 413);
+      return simpleParser(message.source, { skipHtmlToText: false, skipImageLinks: true, skipTextToHtml: true });
+    } finally { lock.release(); }
+  });
+}
+export async function readMail(staffId: string, folder: "inbox" | "sent", uid: number, uidValidity: string) {
+      const parsed = await parsedMail(staffId, folder, uid, uidValidity);
       return {
         uid, uidValidity, folder, subject: parsed.subject ?? "(No subject)",
         from: parsed.from?.value[0]?.address ?? "", replyTo: parsed.replyTo?.value[0]?.address ?? parsed.from?.value[0]?.address ?? "",
         text: (parsed.text ?? "This email has no readable text. Open it in webmail.").slice(0, 100000),
+        html: parsed.html && parsed.html.length <= 100000 ? safeMailHtml(parsed.html) : null,
         date: parsed.date?.toISOString() ?? null,
         messageId: parsed.messageId && !/[\r\n]/.test(parsed.messageId) ? parsed.messageId.slice(0, 500) : undefined,
-        // Remote HTML, scripts, tracking images and attachments are never rendered.
-        attachments: parsed.attachments.map((item) => ({ name: item.filename ?? "Attachment", size: item.size })),
+        attachments: parsed.attachments.map((item, index) => ({ index, name: safeAttachmentName(item.filename ?? "Attachment"), size: item.size })),
       };
-    } finally { lock.release(); }
-  });
+}
+export async function readMailAttachment(staffId: string, folder: "inbox" | "sent", uid: number, uidValidity: string, index: number) {
+  const parsed = await parsedMail(staffId, folder, uid, uidValidity);
+  const attachment = parsed.attachments[index];
+  if (!attachment) throw new MailError("This attachment is no longer available. Refresh the message.", 404);
+  if (attachment.size > 2_000_000) throw new MailError("This attachment is too large for Staff download. Open it in webmail.", 413);
+  return { name: safeAttachmentName(attachment.filename ?? "Attachment"), content: attachment.content };
 }
 export async function readyNewsletter(): Promise<MailSettings> {
   const row = await configuration();
@@ -130,6 +141,8 @@ export async function deliverMail(input: {
   kind: "direct" | "confirmation" | "newsletter" | "account"; campaignId?: string; subscriberId?: string; unsubscribeUrl?: string;
   expectedGroupId?: string | null;
   inReplyTo?: string;
+  html?: string;
+  attachments?: ReturnType<typeof decodeMailAttachments>;
 }) {
   const row = await configuration();
   if (input.staffId) await freshMailPermission(input.staffId);
@@ -143,7 +156,7 @@ export async function deliverMail(input: {
     if (!current || current.version !== row.version || !current.settings.enabled || current.tested_version !== current.version) {
       throw new MailError("Mail settings changed. Refresh and try again.", 409);
     }
-    const bodyHash = createHash("sha256").update(JSON.stringify([input.text, input.kind, input.campaignId, input.subscriberId, input.inReplyTo])).digest("hex");
+    const bodyHash = mailBodyHash(input);
     const existing = (await connection.query("SELECT status,created_by,recipient,subject,body_hash FROM soso_mail_sends WHERE id=$1", [input.id])).rows[0];
     if (existing) {
       if (existing.created_by !== (input.staffId ?? null) || existing.recipient !== input.to || existing.subject !== input.subject || existing.body_hash !== bodyHash) throw new MailError("This send identifier belongs to another request.", 409);
@@ -173,15 +186,7 @@ export async function deliverMail(input: {
   let transport: ReturnType<typeof nodemailer.createTransport> | undefined;
   try {
     transport = await smtp(row);
-    const headers = input.unsubscribeUrl ? { "List-Unsubscribe": `<${input.unsubscribeUrl}>` } : undefined;
-    const mime = await nodemailer.createTransport({ streamTransport: true, buffer: true, newline: "unix" }).sendMail({
-      from: { name: row.settings.fromName, address: row.settings.username },
-      to: input.to, subject: input.subject, text: input.text, headers,
-      ...(input.inReplyTo ? { inReplyTo: input.inReplyTo, references: input.inReplyTo } : {}),
-      messageId: `<${input.id}@${row.settings.username.split("@")[1]}>`,
-    });
-    if (!Buffer.isBuffer(mime.message)) throw new MailError("Email content could not be prepared.", 503);
-    const raw = mime.message;
+    const raw = await buildMailMime({ ...input, from: { name: row.settings.fromName, address: row.settings.username } });
     const info = await transport.sendMail({ envelope: { from: row.settings.username, to: [input.to] }, raw });
     if (!info.accepted?.length) throw new Error("SMTP did not accept the recipient");
     await pool.query("UPDATE soso_mail_sends SET status='accepted' WHERE id=$1", [input.id]);
@@ -200,13 +205,15 @@ export async function deliverMail(input: {
   } finally { transport?.close(); }
 }
 export async function sendStaffMessage(staffId: string, input: z.infer<typeof messageInput>) {
+  const content = mailContent(input.text, input.html);
+  const attachments = decodeMailAttachments(input.attachments);
   let inReplyTo: string | undefined;
   if (input.reply) {
     const original = await readMail(staffId, input.reply.folder, input.reply.uid, input.reply.uidValidity);
     if (original.replyTo.toLowerCase() !== input.to.toLowerCase()) throw new MailError("The reply recipient does not match the original message.");
     inReplyTo = original.messageId;
   }
-  return deliverMail({ id: input.idempotencyKey, to: input.to, subject: input.subject, text: input.text, staffId, kind: "direct", inReplyTo });
+  return deliverMail({ id: input.idempotencyKey, to: input.to, subject: input.subject, ...content, attachments, staffId, kind: "direct", inReplyTo });
 }
 export async function confirmationMail(id: string, email: string, token: string) {
   const settings = await readyNewsletter();

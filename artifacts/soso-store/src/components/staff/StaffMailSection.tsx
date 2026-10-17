@@ -1,16 +1,19 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Mail, RefreshCw, Send, Inbox, Settings, Users, FileText, History, ShieldAlert } from "lucide-react";
+import { Download, Loader2, Mail, RefreshCw, Send, Inbox, Settings, Users, FileText, History, ShieldAlert } from "lucide-react";
 import {
   mailApi, setCampaignAudience, useAudienceCampaigns, useMailDetail, useMailHistory, useMailList, useMailSettings, useSubscriberGroups,
-  errorStatus, type MailStatus, type SubscriberGroup,
+  errorStatus, downloadMailAttachment, type MailStatus, type OutgoingAttachment, type SubscriberGroup,
 } from "@/lib/staff-mail-api";
 import { SubscriberGroupsPanel } from "./SubscriberGroupsPanel";
+import { AttachmentPicker, RichEditor, SafeHtmlFrame } from "./StaffMailEditor";
+import { MAIL_LIMITS, attachmentProblem, sendSignature, textToHtml } from "@/lib/staff-mail-html";
 
 type Folder = "inbox" | "sent";
 type Panel = "inbox" | "sent" | "compose" | "history" | "subscribers" | "campaigns" | "settings";
 type Ref = { uid: number; uidValidity: string; folder: Folder };
-type Draft = { to: string; subject: string; text: string; reply?: Ref };
+type Draft = { to: string; subject: string; text: string; html: string; attachments: OutgoingAttachment[]; reply?: Ref };
+const emptyDraft: Draft = { to: "", subject: "", text: "", html: "", attachments: [] };
 
 const btn = "inline-flex min-h-10 items-center justify-center gap-2 border border-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary hover:bg-primary/5 disabled:opacity-50";
 const btnSolid = "inline-flex min-h-10 items-center justify-center gap-2 bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground disabled:opacity-50";
@@ -38,7 +41,10 @@ export function StaffMailSection({ role, actor }: { role: string; actor: string 
   const isOwner = role === "owner";
   const allowed = isOwner || role === "administrator";
   const [panel, setPanel] = useState<Panel>("inbox");
-  const [draft, setDraft] = useState<Draft>({ to: "", subject: "", text: "" });
+  const [draft, setDraft] = useState<Draft>(emptyDraft);
+  // Idempotency key lives with the draft so tab switches never mint a new identity after an ambiguous send.
+  const sendKey = useRef<{ id: string; sig: string } | null>(null);
+  const [sending, setSending] = useState(false);
   if (!allowed) {
     return <section className="mt-6 flex max-w-xl items-start gap-3 border border-border bg-card p-5"><ShieldAlert size={18} className="mt-0.5 text-primary" /><p className="text-sm">Customer correspondence is available to owners and administrators only.</p></section>;
   }
@@ -50,11 +56,11 @@ export function StaffMailSection({ role, actor }: { role: string; actor: string 
   ];
   return <section className="mt-6" aria-label="Customer correspondence">
     <div role="tablist" aria-label="Correspondence panels" className="flex flex-wrap gap-1 border-b border-border">
-      {tabs.map((t) => { const I = t.icon; return <button key={t.id} role="tab" type="button" aria-selected={panel === t.id} onClick={() => setPanel(t.id)} className={`inline-flex min-h-10 items-center gap-2 border-b-2 px-3 text-xs font-medium ${panel === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}><I size={14} />{t.label}</button>; })}
+      {tabs.map((t) => { const I = t.icon; return <button key={t.id} role="tab" type="button" aria-selected={panel === t.id} disabled={sending && panel !== t.id} title={sending && panel !== t.id ? "Wait for the send to finish" : undefined} onClick={() => { if (!sending) setPanel(t.id); }} className={`inline-flex min-h-10 items-center gap-2 border-b-2 px-3 text-xs font-medium ${panel === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}><I size={14} />{t.label}</button>; })}
     </div>
     <div className="mt-5" role="tabpanel">
       {(panel === "inbox" || panel === "sent") && <Messages key={panel} actor={actor} folder={panel} onReply={(d) => { setDraft(d); setPanel("compose"); }} />}
-      {panel === "compose" && <Compose actor={actor} draft={draft} setDraft={setDraft} />}
+      {panel === "compose" && <Compose actor={actor} draft={draft} setDraft={setDraft} sendKey={sendKey} busy={sending} setBusy={setSending} />}
       {panel === "history" && <HistoryPanel actor={actor} />}
       {panel === "subscribers" && <SubscriberGroupsPanel actor={actor} />}
       {panel === "campaigns" && <Campaigns actor={actor} />}
@@ -83,49 +89,91 @@ function Messages({ actor, folder, onReply }: { actor: string; folder: Folder; o
         })}</ul>}
     </div>
     <div className="min-h-48 border border-border bg-card p-5">
-      {!sel ? <Empty label="Select a message to read it as plain text." /> : detail.isLoading ? <Skeleton /> : detail.isError ? <><Err>{msg(detail.error, "This message could not be opened. The mailbox may have changed; refresh the list.")}</Err></> : d && <article>
+      {!sel ? <Empty label="Select a message to read it." /> : detail.isLoading ? <Skeleton /> : detail.isError ? <><Err>{msg(detail.error, "This message could not be opened. The mailbox may have changed; refresh the list.")}</Err></> : d && <article>
         <h2 className="text-xl soso-display break-words">{d.subject || "(No subject)"}</h2>
         <dl className="mt-3 space-y-1 text-xs text-muted-foreground"><div>From: {d.from}</div>{d.replyTo && <div>Reply-to: {d.replyTo}</div>}<div>{when(d.date)}</div></dl>
-        <pre className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap break-words border-t border-border pt-4 font-sans text-sm">{d.text || "This message has no plain-text content."}</pre>
-        {d.attachments.length > 0 && <div className="mt-4 border-t border-border pt-3"><p className="text-xs font-semibold uppercase tracking-wider">Attachments (not downloadable here)</p>
-          <ul className="mt-2 space-y-1 text-xs">{d.attachments.map((a, i) => <li key={i} className="break-all">{a.name} - {Math.max(1, Math.round(a.size / 1024))} KB</li>)}</ul></div>}
-        {d.folder === "inbox" && <button type="button" className={`${btnSolid} mt-5`} onClick={() => onReply({ to: d.replyTo || d.from, subject: /^re:/i.test(d.subject) ? d.subject : `Re: ${d.subject}`, text: "", reply: { uid: d.uid, uidValidity: d.uidValidity, folder: d.folder } })}>Reply</button>}
+        <MessageBody key={`${d.uid}-${d.uidValidity}`} html={d.html} text={d.text} />
+        {d.attachments.length > 0 && <Attachments msgRef={{ uid: d.uid, uidValidity: d.uidValidity, folder: d.folder }} items={d.attachments} />}
+        {d.folder === "inbox" && <button type="button" data-testid="button-reply" className={`${btnSolid} mt-5`} onClick={() => onReply({ ...emptyDraft, to: d.replyTo || d.from, subject: /^re:/i.test(d.subject) ? d.subject : `Re: ${d.subject}`, reply: { uid: d.uid, uidValidity: d.uidValidity, folder: d.folder } })}>Reply</button>}
       </article>}
     </div>
   </div>;
 }
 
-function Compose({ actor, draft, setDraft }: { actor: string; draft: Draft; setDraft: (d: Draft) => void }) {
+function MessageBody({ html, text }: { html: string | null; text: string }) {
+  const [mode, setMode] = useState<"html" | "text">(html ? "html" : "text");
+  return <div className="mt-4 border-t border-border pt-4">
+    {html && <div className="mb-3 flex flex-wrap items-center gap-2"><div role="group" aria-label="Message format" className="flex gap-1">
+      {(["html", "text"] as const).map((m) => <button key={m} type="button" aria-pressed={mode === m} data-testid={`button-view-${m}`} onClick={() => setMode(m)} className={`${btn} ${mode === m ? "bg-primary/10" : ""}`}>{m === "html" ? "Formatted" : "Plain text"}</button>)}</div>
+      <p className="text-[11px] text-muted-foreground">Formatted view is isolated: remote images, stylesheets and tracking pixels are blocked, scripts and forms cannot run, links open in a new tab.</p></div>}
+    {html && mode === "html" ? <SafeHtmlFrame html={html} title="Message content" height={420} />
+      : <pre data-testid="text-mail-body" className="max-h-96 overflow-auto whitespace-pre-wrap break-words font-sans text-sm">{text || "This message has no plain-text content."}</pre>}
+  </div>;
+}
+
+function Attachments({ msgRef, items }: { msgRef: Ref; items: { index: number; name: string; size: number }[] }) {
+  const [state, setState] = useState<Record<number, { busy?: boolean; error?: string }>>({});
+  const get = async (a: { index: number; name: string }) => {
+    setState((p) => ({ ...p, [a.index]: { busy: true } }));
+    try { await downloadMailAttachment(msgRef, a.index, a.name); setState((p) => ({ ...p, [a.index]: {} })); }
+    catch (e) { setState((p) => ({ ...p, [a.index]: { error: msg(e, "Download failed. The mailbox may have changed; refresh and try again.") } })); }
+  };
+  return <div className="mt-4 border-t border-border pt-3"><p className="text-xs font-semibold uppercase tracking-wider">Attachments</p>
+    <p className="text-[11px] text-muted-foreground">Nothing is downloaded until you ask. Attachments are not antivirus scanned; only open files you trust from this sender.</p>
+    <ul className="mt-2 space-y-2 text-xs">{items.map((a) => { const st = state[a.index] ?? {}; return <li key={a.index} className="flex flex-wrap items-center justify-between gap-2">
+      <span className="min-w-0 break-all">{a.name} - {Math.max(1, Math.round(a.size / 1024))} KB</span>
+      <button type="button" data-testid={`button-download-attachment-${a.index}`} disabled={st.busy} className={btn} onClick={() => void get(a)}>{st.busy ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}{st.busy ? "Downloading" : "Download"}</button>
+      {st.error && <p role="alert" className="w-full text-destructive">{st.error}</p>}</li>; })}</ul></div>;
+}
+
+type SendResult = { status?: string; replayed?: boolean; sentFolderCopySaved?: boolean };
+function Compose({ actor, draft, setDraft, sendKey: key, busy, setBusy }: { actor: string; draft: Draft; setDraft: React.Dispatch<React.SetStateAction<Draft>>; sendKey: React.MutableRefObject<{ id: string; sig: string } | null>; busy: boolean; setBusy: (b: boolean) => void }) {
   const qc = useQueryClient();
-  const key = useRef<{ id: string; sig: string } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [warn, setWarn] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
-  const sig = JSON.stringify(draft);
+  const inFlight = useRef(false);
   const submit = async (e: FormEvent, fresh = false) => {
     e.preventDefault();
-    if (busy) return;
+    if (busy || inFlight.current) return;
+    if (reading) { setError("Wait for the attachments to finish loading."); return; }
+    if (!draft.text.trim()) { setError("Write a message before sending."); return; }
+    if (draft.html.length > MAIL_LIMITS.maxHtml) { setError("The formatted message is too long (100,000 characters of HTML). Shorten it."); return; }
+    const problem = attachmentProblem(draft.attachments); if (problem) { setError(problem); return; }
+    const sig = sendSignature(draft);
     if (fresh || !key.current || key.current.sig !== sig) key.current = { id: crypto.randomUUID(), sig };
-    setBusy(true); setError(""); setDone("");
+    inFlight.current = true; setBusy(true); setError(""); setDone(""); setWarn("");
     try {
-      await mailApi("/staff/mail/send", { idempotencyKey: key.current.id, to: draft.to.trim(), subject: draft.subject, text: draft.text, ...(draft.reply ? { reply: draft.reply } : {}) });
-      key.current = null; setDraft({ to: "", subject: "", text: "" });
-      setDone("Accepted by the mail server for delivery. This is SMTP acceptance, not confirmed delivery.");
+      const res = await mailApi<SendResult>("/staff/mail/send", { idempotencyKey: key.current.id, to: draft.to.trim(), subject: draft.subject, text: draft.text, ...(draft.html ? { html: draft.html } : {}), ...(draft.attachments.length ? { attachments: draft.attachments.map((a) => ({ name: a.name, contentBase64: a.contentBase64 })) } : {}), ...(draft.reply ? { reply: draft.reply } : {}) });
+      if (res?.status === "accepted") {
+        key.current = null; setDraft(emptyDraft);
+        setDone(res.replayed
+          ? "This message had already been accepted by the mail server earlier; it was not sent again."
+          : `Accepted by the mail server for delivery. This is SMTP acceptance, not confirmed delivery.${res.sentFolderCopySaved === false ? " A copy could not be saved to the Sent folder; Send history still records it." : ""}`);
+      } else {
+        setWarn(`The send outcome is ${res?.status === "sending" ? "still in progress" : "uncertain"}. Your draft and message identity were kept. Check Send history before doing anything; pressing Send again reuses the same identity and will not duplicate.`);
+      }
     } catch (err) {
       setError(`${msg(err, "The send outcome is unknown.")} Check Send history before sending again. Pressing Send reuses the same message identity so it cannot duplicate; use "Send as new message" only after confirming nothing was sent.`);
     } finally {
-      setBusy(false);
+      inFlight.current = false; setBusy(false);
       for (const k of ["staff-mail-history", "staff-mail-list"]) void qc.invalidateQueries({ queryKey: [k], refetchType: "active" });
     }
   };
-  return <form onSubmit={(e) => void submit(e)} className={`${box} max-w-3xl space-y-3`}>
+  return <form onSubmit={(e) => void submit(e)} aria-busy={busy} className={`${box} max-w-3xl space-y-3`}>
     <h2 className="text-xl soso-display">Write to a customer</h2>
-    {draft.reply && <p className="text-xs text-muted-foreground">Replying to a message in {draft.reply.folder}. <button type="button" className="underline" onClick={() => setDraft({ ...draft, reply: undefined })}>Send as a new email instead</button></p>}
-    <Lbl label="To"><input required type="email" className="staff-input mt-1" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })} /></Lbl>
-    <Lbl label="Subject"><input required maxLength={200} className="staff-input mt-1" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} /></Lbl>
-    <Lbl label="Message (plain text)"><textarea required rows={10} className="staff-input mt-1" value={draft.text} onChange={(e) => setDraft({ ...draft, text: e.target.value })} /></Lbl>
-    <Err>{error}</Err><Note>{done}</Note>
-    <div className="flex flex-wrap gap-3"><button type="submit" disabled={busy} className={btnSolid}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}{busy ? "Sending" : error ? "Retry same message" : "Send"}</button>
+    <fieldset disabled={busy || reading} className="space-y-3">
+    {draft.reply && <p className="text-xs text-muted-foreground">Replying to a message in {draft.reply.folder}. <button type="button" className="underline" onClick={() => setDraft((d) => ({ ...d, reply: undefined }))}>Send as a new email instead</button></p>}
+    <Lbl label="To"><input required type="email" className="staff-input mt-1" value={draft.to} onChange={(e) => { const v = e.target.value; setDraft((d) => ({ ...d, to: v })); }} /></Lbl>
+    <Lbl label="Subject"><input required maxLength={200} className="staff-input mt-1" value={draft.subject} onChange={(e) => { const v = e.target.value; setDraft((d) => ({ ...d, subject: v })); }} /></Lbl>
+    </fieldset>
+    <RichEditor id="compose-body" label="Message" html={draft.html} disabled={busy || reading} onChange={(html, text) => setDraft((d) => ({ ...d, html, text }))} />
+    <AttachmentPicker value={draft.attachments} disabled={busy} onReadingChange={setReading} onChange={(attachments) => setDraft((d) => ({ ...d, attachments }))} />
+    {reading && <p role="status" className="text-xs text-muted-foreground">Loading attachments - editing and sending resume when they are ready.</p>}
+    {busy && <p role="status" className="text-xs text-muted-foreground">Sending - editing is paused until the mail server answers.</p>}
+    <Err>{error}</Err>{warn && <p role="alert" data-testid="status-send-uncertain" className="mt-3 border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-800">{warn}</p>}<Note>{done}</Note>
+    <div className="flex flex-wrap gap-3"><button type="submit" data-testid="button-send-mail" disabled={busy || reading} className={btnSolid}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}{busy ? "Sending" : error || warn ? "Retry same message" : "Send"}</button>
       {error && <button type="button" disabled={busy} className={btn} onClick={(e) => void submit(e as unknown as FormEvent, true)}>Send as new message</button>}</div>
   </form>;
 }
@@ -148,12 +196,15 @@ function Campaigns({ actor }: { actor: string }) {
   const groups = g.data?.groups ?? [];
   const [audience, setAudience] = useState("");
   const [editAud, setEditAud] = useState<{ id: string; value: string } | null>(null);
-  const [subject, setSubject] = useState(""); const [text, setText] = useState(""); const [preview, setPreview] = useState(false);
+  const [subject, setSubject] = useState(""); const [text, setText] = useState(""); const [html, setHtml] = useState(""); const [openPreview, setOpenPreview] = useState<string | null>(null); const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(""); const [error, setError] = useState(""); const [note, setNote] = useState("");
   const refresh = () => { for (const k of ["staff-newsletter-campaigns", "staff-mail-history", "staff-newsletter-subscribers", "staff-newsletter-groups"]) void qc.invalidateQueries({ queryKey: [k], refetchType: "active" }); };
   const create = async (e: FormEvent) => {
-    e.preventDefault(); setBusy("create"); setError(""); setNote("");
-    try { await mailApi("/staff/newsletter/campaigns", { subject, text, groupId: audience || null }); setSubject(""); setText(""); setAudience(""); setPreview(false); setNote("Draft created. Nothing has been sent."); }
+    e.preventDefault(); if (busy) return;
+    if (!text.trim()) { setError("Write the campaign body first."); return; }
+    if (html.length > MAIL_LIMITS.maxHtml) { setError("The formatted body is too long (100,000 characters of HTML)."); return; }
+    setBusy("create"); setError(""); setNote("");
+    try { await mailApi("/staff/newsletter/campaigns", { subject, text, ...(html ? { html } : {}), groupId: audience || null }); setSubject(""); setText(""); setHtml(""); setAudience(""); setPreview(false); setNote("Draft created. Nothing has been sent."); }
     catch (err) { setError(msg(err, "Draft could not be created.")); } finally { setBusy(""); refresh(); }
   };
   const send = async (id: string) => {
@@ -174,9 +225,10 @@ function Campaigns({ actor }: { actor: string }) {
       <h2 className="text-xl soso-display">New campaign draft</h2>
       <p className="text-xs text-muted-foreground">Newsletter mail needs a current tested, enabled configuration with newsletter sending allowed by the host. Creating a draft sends nothing.</p>
       <Lbl label="Subject"><input required maxLength={200} className="staff-input mt-1" value={subject} onChange={(e) => setSubject(e.target.value)} /></Lbl>
-      <Lbl label="Body (plain text)"><textarea required rows={9} className="staff-input mt-1" value={text} onChange={(e) => setText(e.target.value)} /></Lbl>
+      <RichEditor id="campaign-body" label="Body" html={html} disabled={busy === "create"} onChange={(h, t) => { setHtml(h); setText(t); }} />
+      <p className="text-[11px] text-muted-foreground">Campaigns cannot carry attachments: bulk mail with files is often filtered as spam and every subscriber would download them. Link to a page or hosted file instead. The unsubscribe footer is added automatically by the server.</p>
       <AudienceSelect groups={groups} value={audience} onChange={setAudience} />
-      {preview && <div className="border border-dashed border-border p-4" aria-label="Plain text preview"><p className="text-sm font-semibold break-words">{subject || "(No subject)"}</p><pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm">{text}</pre></div>}
+      {preview && <div className="border border-dashed border-border p-4" aria-label="Campaign preview"><p className="text-sm font-semibold break-words">{subject || "(No subject)"}</p><div className="mt-2"><SafeHtmlFrame html={html || textToHtml(text)} title="Campaign draft preview" /></div><p className="mt-1 text-[11px] text-muted-foreground">Unsubscribe footer appended by the server on send.</p></div>}
       <div className="flex gap-3"><button type="button" className={btn} onClick={() => setPreview(!preview)}>{preview ? "Hide preview" : "Preview"}</button><button type="submit" disabled={busy === "create"} className={btnSolid}>{busy === "create" && <Loader2 size={14} className="animate-spin" />}Create draft</button></div>
       <Err>{error}</Err><Note>{note}</Note>
     </form>
@@ -184,6 +236,8 @@ function Campaigns({ actor }: { actor: string }) {
       <div className="border-b border-border p-3"><p className="text-xs font-semibold uppercase tracking-wider">Campaigns</p></div>
       {c.isLoading ? <Skeleton /> : c.isError ? <div className="p-4"><Err>{msg(c.error, "Campaigns could not be loaded.")}</Err><button type="button" className={`${btn} mt-3`} onClick={() => void c.refetch()}>Retry</button></div> : !c.data?.campaigns.length ? <Empty label="No campaigns yet." /> :
         <ul className="divide-y divide-border">{c.data.campaigns.map((x) => <li key={x.id} className="p-4"><p className="text-sm font-medium break-words">{x.subject}</p><p className="text-xs text-muted-foreground">{when(x.created_at)} - Audience: {x.group_id ? `group "${x.group_name ?? "Unknown"}" (confirmed members only)` : "all confirmed subscribers"}</p>
+          <button type="button" data-testid={`button-preview-campaign-${x.id}`} aria-expanded={openPreview === x.id} className="mt-2 text-xs underline" onClick={() => setOpenPreview(openPreview === x.id ? null : x.id)}>{openPreview === x.id ? "Hide content" : x.body_html ? "Show formatted content" : "Show content"}</button>
+          {openPreview === x.id && <div className="mt-2"><SafeHtmlFrame html={x.body_html || textToHtml(x.body_text)} title={`Campaign ${x.subject}`} height={260} /></div>}
           <p className="mt-2 text-xs">Attempted {x.attempted} - Accepted {x.accepted} - Uncertain {x.uncertain} - Remaining {x.remaining}</p>
           <button type="button" className={`${btn} mt-3`} disabled={busy === x.id || x.remaining === 0} onClick={() => void send(x.id)}>{busy === x.id && <Loader2 size={13} className="animate-spin" />}{x.remaining === 0 ? "No recipients remaining" : "Send next batch (up to 3)"}</button>
           {x.attempted === 0 && (editAud?.id === x.id ? <div className="mt-3 space-y-2 border border-dashed border-border p-3"><AudienceSelect groups={groups} value={editAud.value} onChange={(v) => setEditAud({ id: x.id, value: v })} />
