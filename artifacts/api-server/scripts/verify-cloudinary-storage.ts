@@ -1,25 +1,26 @@
-import { CloudinaryStorageService } from "../src/lib/cloudinary-storage";
+import { createMediaStorageService } from "../src/lib/media-storage";
 
 async function main(): Promise<void> {
   if (process.env.VERCEL_ENV !== "production") {
-    console.log("Cloudinary production storage diagnostic skipped outside Vercel production.");
+    console.log("Production media storage diagnostic skipped outside Vercel production.");
     return;
   }
 
-  const inspected = await new CloudinaryStorageService().runDiagnostic();
+  const storage = createMediaStorageService();
+  const inspected = await storage.runDiagnostic();
   if (
     inspected.contentType !== "image/png"
     || inspected.declaredContentType !== "image/png"
     || !Number.isSafeInteger(inspected.size)
     || inspected.size < 1
   ) {
-    throw new Error("Cloudinary production storage diagnostic returned invalid media metadata");
+    throw new Error("Production media storage diagnostic returned invalid media metadata");
   }
 
-  console.log("Cloudinary production storage diagnostic passed and cleaned up.");
+  console.log(`${storage.provider} production storage diagnostic passed and cleaned up.`);
 }
 
 void main().catch((error) => {
-  console.error(error instanceof Error ? error.message : "Cloudinary production storage diagnostic failed");
+  console.error(error instanceof Error ? error.message : "Production media storage diagnostic failed");
   process.exit(1);
 });

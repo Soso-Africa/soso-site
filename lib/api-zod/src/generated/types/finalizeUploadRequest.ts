@@ -7,6 +7,11 @@
  */
 
 export interface FinalizeUploadRequest {
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  finalizeToken?: string;
   /** @pattern ^/api/storage/objects/uploads/ */
   objectPath: string;
 }

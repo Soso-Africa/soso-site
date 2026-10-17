@@ -4253,6 +4253,36 @@ export const ListStaffRedirectHistoryResponse = zod.array(ListStaffRedirectHisto
 
 
 /**
+ * @summary Read the active media provider and bounded application-bucket R2 storage inventory
+ */
+export const getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePrivateBytesMin = 0;
+
+export const getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePrivateObjectsMin = 0;
+
+export const getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePublicBytesMin = 0;
+
+export const getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePublicObjectsMin = 0;
+
+
+
+export const GetStaffMediaStorageStatusResponse = zod.object({
+  "provider": zod.enum(['cloudinary', 'r2']),
+  "r2Usage": zod.object({
+  "status": zod.enum(['available', 'stale', 'unavailable']),
+  "snapshot": zod.object({
+  "fetchedAt": zod.string(),
+  "privateBytes": zod.number().min(getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePrivateBytesMin),
+  "privateObjects": zod.number().min(getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePrivateObjectsMin),
+  "publicBytes": zod.number().min(getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePublicBytesMin),
+  "publicObjects": zod.number().min(getStaffMediaStorageStatusResponseR2UsageOneSnapshotOnePublicObjectsMin)
+}).nullable(),
+  "nextRefreshAt": zod.string(),
+  "message": zod.string().nullable()
+}).nullable()
+})
+
+
+/**
  * @summary Request a signed direct-upload URL for staff-managed storefront media
  */
 export const requestUploadUrlBodyNameMax = 160;
@@ -4270,24 +4300,73 @@ export const RequestUploadUrlBody = zod.object({
 })
 
 
+export const requestUploadUrlResponseFinalizeTokenMax = 4096;
+
 export const requestUploadUrlResponseObjectPathRegExp = new RegExp('^/api/storage/objects/uploads');
 
 
 export const RequestUploadUrlResponse = zod.object({
   "uploadURL": zod.string().min(1),
-  "uploadMethod": zod.enum(['POST']),
+  "uploadMethod": zod.enum(['POST', 'PUT']),
   "uploadFields": zod.record(zod.string(), zod.string()),
+  "uploadHeaders": zod.record(zod.string(), zod.string()).optional(),
+  "finalizeToken": zod.string().min(1).max(requestUploadUrlResponseFinalizeTokenMax).optional(),
+  "requiresRenditions": zod.boolean().optional(),
   "objectPath": zod.string().regex(requestUploadUrlResponseObjectPathRegExp)
 })
 
 
 /**
- * @summary Verify a completed Cloudinary upload before it can be persisted
+ * @summary Authorize bounded responsive copies of an owned, verified private photo
  */
+export const requestMediaRenditionUploadsBodyObjectPathRegExp = new RegExp('^/api/storage/objects/uploads');
+export const requestMediaRenditionUploadsBodyFinalizeTokenMax = 4096;
+
+export const requestMediaRenditionUploadsBodyRenditionsItemSizeMax = 12582912;
+
+export const requestMediaRenditionUploadsBodyRenditionsMin = 4;
+export const requestMediaRenditionUploadsBodyRenditionsMax = 4;
+
+
+
+export const RequestMediaRenditionUploadsBody = zod.object({
+  "objectPath": zod.string().regex(requestMediaRenditionUploadsBodyObjectPathRegExp),
+  "finalizeToken": zod.string().min(1).max(requestMediaRenditionUploadsBodyFinalizeTokenMax),
+  "renditions": zod.array(zod.object({
+  "width": zod.union([zod.literal(480),zod.literal(768),zod.literal(1280),zod.literal(1600)]),
+  "size": zod.number().min(1).max(requestMediaRenditionUploadsBodyRenditionsItemSizeMax),
+  "contentType": zod.enum(['image/jpeg', 'image/png'])
+})).min(requestMediaRenditionUploadsBodyRenditionsMin).max(requestMediaRenditionUploadsBodyRenditionsMax)
+})
+
+
+export const requestMediaRenditionUploadsResponseUploadsMin = 4;
+export const requestMediaRenditionUploadsResponseUploadsMax = 4;
+
+export const requestMediaRenditionUploadsResponseFinalizeTokenMax = 4096;
+
+
+
+export const RequestMediaRenditionUploadsResponse = zod.object({
+  "uploads": zod.array(zod.object({
+  "width": zod.union([zod.literal(480),zod.literal(768),zod.literal(1280),zod.literal(1600)]),
+  "uploadURL": zod.string().min(1),
+  "uploadHeaders": zod.record(zod.string(), zod.string())
+})).min(requestMediaRenditionUploadsResponseUploadsMin).max(requestMediaRenditionUploadsResponseUploadsMax),
+  "finalizeToken": zod.string().min(1).max(requestMediaRenditionUploadsResponseFinalizeTokenMax)
+})
+
+
+/**
+ * @summary Verify a completed managed upload and its required responsive copies before persistence
+ */
+export const finalizeStorageUploadBodyFinalizeTokenMax = 4096;
+
 export const finalizeStorageUploadBodyObjectPathRegExp = new RegExp('^/api/storage/objects/uploads');
 
 
 export const FinalizeStorageUploadBody = zod.object({
+  "finalizeToken": zod.string().min(1).max(finalizeStorageUploadBodyFinalizeTokenMax).optional(),
   "objectPath": zod.string().regex(finalizeStorageUploadBodyObjectPathRegExp)
 })
 

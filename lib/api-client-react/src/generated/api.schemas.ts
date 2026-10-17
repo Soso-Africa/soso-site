@@ -76,6 +76,47 @@ export interface VerifiedPurchaseReceipt {
   currency: VerifiedPurchaseReceiptCurrency;
 }
 
+export interface R2StorageSnapshot {
+  fetchedAt: string;
+  /** @minimum 0 */
+  privateBytes: number;
+  /** @minimum 0 */
+  privateObjects: number;
+  /** @minimum 0 */
+  publicBytes: number;
+  /** @minimum 0 */
+  publicObjects: number;
+}
+
+export type R2StorageUsageStatus = typeof R2StorageUsageStatus[keyof typeof R2StorageUsageStatus];
+
+
+export const R2StorageUsageStatus = {
+  available: 'available',
+  stale: 'stale',
+  unavailable: 'unavailable',
+} as const;
+
+export interface R2StorageUsage {
+  status: R2StorageUsageStatus;
+  snapshot: R2StorageSnapshot | null;
+  nextRefreshAt: string;
+  message: string | null;
+}
+
+export type MediaStorageStatusProvider = typeof MediaStorageStatusProvider[keyof typeof MediaStorageStatusProvider];
+
+
+export const MediaStorageStatusProvider = {
+  cloudinary: 'cloudinary',
+  r2: 'r2',
+} as const;
+
+export interface MediaStorageStatus {
+  provider: MediaStorageStatusProvider;
+  r2Usage: R2StorageUsage | null;
+}
+
 export type UploadUrlRequestContentType = typeof UploadUrlRequestContentType[keyof typeof UploadUrlRequestContentType];
 
 
@@ -108,20 +149,110 @@ export type UploadUrlResponseUploadMethod = typeof UploadUrlResponseUploadMethod
 
 export const UploadUrlResponseUploadMethod = {
   POST: 'POST',
+  PUT: 'PUT',
 } as const;
 
 export type UploadUrlResponseUploadFields = {[key: string]: string};
+
+export type UploadUrlResponseUploadHeaders = {[key: string]: string};
 
 export interface UploadUrlResponse {
   /** @minLength 1 */
   uploadURL: string;
   uploadMethod: UploadUrlResponseUploadMethod;
   uploadFields: UploadUrlResponseUploadFields;
+  uploadHeaders?: UploadUrlResponseUploadHeaders;
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  finalizeToken?: string;
+  requiresRenditions?: boolean;
   /** @pattern ^/api/storage/objects/uploads/ */
   objectPath: string;
 }
 
+export type RenditionUploadMetadataWidth = typeof RenditionUploadMetadataWidth[keyof typeof RenditionUploadMetadataWidth];
+
+
+export const RenditionUploadMetadataWidth = {
+  NUMBER_480: 480,
+  NUMBER_768: 768,
+  NUMBER_1280: 1280,
+  NUMBER_1600: 1600,
+} as const;
+
+export type RenditionUploadMetadataContentType = typeof RenditionUploadMetadataContentType[keyof typeof RenditionUploadMetadataContentType];
+
+
+export const RenditionUploadMetadataContentType = {
+  'image/jpeg': 'image/jpeg',
+  'image/png': 'image/png',
+} as const;
+
+export interface RenditionUploadMetadata {
+  width: RenditionUploadMetadataWidth;
+  /**
+     * @minimum 1
+     * @maximum 12582912
+     */
+  size: number;
+  contentType: RenditionUploadMetadataContentType;
+}
+
+export interface RenditionAuthorizationInput {
+  /** @pattern ^/api/storage/objects/uploads/ */
+  objectPath: string;
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  finalizeToken: string;
+  /**
+     * @minItems 4
+     * @maxItems 4
+     */
+  renditions: RenditionUploadMetadata[];
+}
+
+export type RenditionUploadAuthorizationWidth = typeof RenditionUploadAuthorizationWidth[keyof typeof RenditionUploadAuthorizationWidth];
+
+
+export const RenditionUploadAuthorizationWidth = {
+  NUMBER_480: 480,
+  NUMBER_768: 768,
+  NUMBER_1280: 1280,
+  NUMBER_1600: 1600,
+} as const;
+
+export type RenditionUploadAuthorizationUploadHeaders = {[key: string]: string};
+
+export interface RenditionUploadAuthorization {
+  width: RenditionUploadAuthorizationWidth;
+  /** @minLength 1 */
+  uploadURL: string;
+  uploadHeaders: RenditionUploadAuthorizationUploadHeaders;
+}
+
+export interface RenditionAuthorizationResponse {
+  /**
+     * @minItems 4
+     * @maxItems 4
+     */
+  uploads: RenditionUploadAuthorization[];
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  finalizeToken: string;
+}
+
 export interface FinalizeUploadRequest {
+  /**
+     * @minLength 1
+     * @maxLength 4096
+     */
+  finalizeToken?: string;
   /** @pattern ^/api/storage/objects/uploads/ */
   objectPath: string;
 }

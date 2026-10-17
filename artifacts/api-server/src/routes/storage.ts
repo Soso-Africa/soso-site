@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { responsivePhotoDelivery, RESPONSIVE_PHOTO_WIDTHS } from "../lib/responsive-media";
+import { RESPONSIVE_PHOTO_WIDTHS } from "../lib/responsive-media";
 import {
   FinalizeStorageUploadBody,
   FinalizeStorageUploadResponse,
@@ -8,10 +8,17 @@ import {
   RequestUploadUrlResponse,
   RetryPendingMediaCleanupResponse,
   GetStaffCloudinaryUsageResponse,
+  RequestMediaRenditionUploadsBody,
+  RequestMediaRenditionUploadsResponse,
+  GetStaffMediaStorageStatusResponse,
 } from "@workspace/api-zod";
 import { getCloudinaryUsage } from "../lib/cloudinary-usage";
+import { getR2StorageUsage } from "../lib/r2-storage-usage";
+import { R2StorageService } from "../lib/r2-storage";
 import { requireStaff, requireStaffRoles } from "../middlewares/staff";
-import { CloudinaryStorageService, MediaNotFoundError } from "../lib/cloudinary-storage";
+import { MediaNotFoundError } from "../lib/cloudinary-storage";
+import { createMediaStorageService } from "../lib/media-storage";
+import type { MediaInspection } from "../lib/media-storage-types";
 import {
   listPendingCollectionCoverCleanup,
   processPendingCollectionCoverCleanup,
@@ -27,13 +34,27 @@ import {
 } from "../lib/media-files";
 
 const router: IRouter = Router();
-const storage = new CloudinaryStorageService();
+const storage = createMediaStorageService();
 const SAFE_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$/;
 export { detectMediaContentType, parseMediaByteRange } from "../lib/media-files";
+
+router.get("/storage/status", requireStaff, requireStaffRoles("owner", "administrator", "editor"),
+  async (_req: Request, res: Response): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store");
+    try {
+      res.json(GetStaffMediaStorageStatusResponse.parse({
+        provider: storage.provider, r2Usage: storage instanceof R2StorageService ? await getR2StorageUsage(storage) : null,
+      }));
+    } catch { res.status(503).json({ error: "Media storage status could not be loaded safely" }); }
+  });
 
 router.get("/storage/usage", requireStaff, requireStaffRoles("owner", "administrator", "editor"),
   async (_req: Request, res: Response): Promise<void> => {
     res.setHeader("Cache-Control", "private, no-store");
+    if (storage.provider !== "cloudinary") {
+      res.status(409).json({ error: "Cloudinary is not the active media provider. Reload Staff for current storage status." });
+      return;
+    }
     try {
       res.json(GetStaffCloudinaryUsageResponse.parse(await getCloudinaryUsage()));
     } catch {
@@ -44,7 +65,7 @@ router.get("/storage/usage", requireStaff, requireStaffRoles("owner", "administr
 
 function inspectionIssue(
   relativePath: string,
-  inspected: Awaited<ReturnType<CloudinaryStorageService["inspectUploadedMedia"]>>,
+  inspected: MediaInspection,
 ): string | null {
   const expectedType = mediaMimeTypeForPath(relativePath);
   const maxBytes = expectedType?.startsWith("video/") ? MAX_HERO_VIDEO_BYTES : MAX_UPLOADED_IMAGE_BYTES;
@@ -85,10 +106,12 @@ router.post(
       return;
     }
     try {
-      const result = await storage.createMediaUpload(parsed.data.name, parsed.data.contentType);
+      const result = await storage.createMediaUpload(parsed.data.name, parsed.data.contentType, {
+        size: parsed.data.size, ownerId: req.staff!.id,
+      });
       res.json(RequestUploadUrlResponse.parse(result));
     } catch (error) {
-      req.log.error({ err: error }, "Failed to create Cloudinary upload authorization");
+      req.log.error({ err: error }, "Failed to create managed media upload authorization");
       res.status(500).json({ error: "Failed to create upload URL" });
     }
   },
@@ -109,6 +132,33 @@ router.get(
 );
 
 router.post(
+  "/storage/uploads/renditions/request-urls",
+  requireStaff,
+  requireStaffRoles("owner", "administrator", "editor"),
+  async (req: Request, res: Response): Promise<void> => {
+    res.setHeader("Cache-Control", "private, no-store");
+    if (!storage.createRenditionUploads) {
+      res.status(409).json({ error: "The active storage provider does not accept separate responsive uploads" });
+      return;
+    }
+    const parsed = RequestMediaRenditionUploadsBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Provide the owned upload authorization and four bounded responsive copies" });
+      return;
+    }
+    try {
+      const signed = await storage.createRenditionUploads(
+        parsed.data.objectPath, parsed.data.finalizeToken, req.staff!.id, parsed.data.renditions,
+      );
+      res.json(RequestMediaRenditionUploadsResponse.parse(signed));
+    } catch (error) {
+      req.log.warn({ err: error }, "Responsive upload authorization refused");
+      res.status(400).json({ error: "The source photo or responsive upload metadata could not be verified" });
+    }
+  },
+);
+
+router.post(
   "/storage/uploads/finalize",
   requireStaff,
   requireStaffRoles("owner", "administrator", "editor"),
@@ -122,16 +172,18 @@ router.post(
     }
     const relativePath = objectPath.slice(uploadedPrefix.length);
     try {
+      await storage.verifyFinalization?.(objectPath, parsed.success ? parsed.data.finalizeToken : undefined, req.staff!.id);
       const inspected = await storage.inspectUploadedMedia(relativePath);
       if (inspectionIssue(relativePath, inspected)) {
         await storage.deleteUploadedMedia(relativePath);
         res.status(400).json({ error: "Uploaded media did not pass SOSO publishing checks" });
         return;
       }
+      await storage.finalizeRenditions?.(objectPath, parsed.success ? parsed.data.finalizeToken : undefined, req.staff!.id);
       res.json(FinalizeStorageUploadResponse.parse({ objectPath }));
     } catch (error) {
       if (!(error instanceof MediaNotFoundError)) {
-        req.log.error({ err: error }, "Failed to finalize Cloudinary upload");
+        req.log.error({ err: error }, "Failed to finalize managed media upload");
       }
       res.status(400).json({ error: "Uploaded media could not be verified" });
     }
@@ -162,15 +214,18 @@ router.get("/storage/objects/*path", async (req: Request, res: Response): Promis
     }
     const raw = req.params.path;
     const relativePath = Array.isArray(raw) ? raw.join("/") : raw;
+    const delivery = await storage.resolveDelivery(relativePath, "uploads", {
+      width, allowPrivate: !!req.staff && ["owner", "administrator", "editor"].includes(req.staff.role),
+    });
     const inspected = await storage.inspectUploadedMedia(relativePath);
     const issue = inspectionIssue(relativePath, inspected);
     if (issue) {
       res.status(415).json({ error: issue });
       return;
     }
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    const original = storage.uploadedDeliveryUrl(relativePath);
-    res.redirect(302, width === undefined ? original : responsivePhotoDelivery(original, width));
+    res.setHeader("Cache-Control", delivery.cacheControl);
+    if (storage.provider === "r2") res.setHeader("Vary", "Cookie");
+    res.redirect(302, delivery.url);
   } catch (error) {
     if (error instanceof MediaNotFoundError) {
       res.status(404).json({ error: "Object not found" });
@@ -185,14 +240,18 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
   try {
     const raw = req.params.filePath;
     const relativePath = Array.isArray(raw) ? raw.join("/") : raw;
+    const delivery = await storage.resolveDelivery(relativePath, "public", {
+      allowPrivate: !!req.staff && ["owner", "administrator", "editor"].includes(req.staff.role),
+    });
     const inspected = await storage.inspectPublicMedia(relativePath);
     const issue = inspectionIssue(relativePath, inspected);
     if (issue) {
       res.status(415).json({ error: issue });
       return;
     }
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    res.redirect(302, storage.publicDeliveryUrl(relativePath));
+    res.setHeader("Cache-Control", delivery.cacheControl);
+    if (storage.provider === "r2") res.setHeader("Vary", "Cookie");
+    res.redirect(302, delivery.url);
   } catch (error) {
     if (error instanceof MediaNotFoundError) {
       res.status(404).json({ error: "Object not found" });

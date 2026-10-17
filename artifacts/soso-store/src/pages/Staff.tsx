@@ -11,7 +11,7 @@ import { platformActionError } from "../components/staff/platform-action-error";
 import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
 import { CommerceActivationPanel } from "../components/staff/CommerceActivationPanel";
 import { StaffMailSection } from "../components/staff/StaffMailSection";
-import { CloudinaryUsagePanel } from "../components/staff/CloudinaryUsagePanel";
+import { MediaStoragePanel } from "../components/staff/MediaStoragePanel";
 import { PlatformEditorHomepage } from "../components/staff/PlatformEditorHomepage";
 import { PlatformEditorPages } from "../components/staff/PlatformEditorPages";
 import {
@@ -109,12 +109,7 @@ const AnalyticsDashboard = lazy(() =>
 );
 
 
-type SignedMediaUpload = {
-  uploadURL: string;
-  uploadMethod: "POST";
-  uploadFields: Record<string, string>;
-  objectPath: string;
-};
+type SignedMediaUpload = import("@workspace/api-client-react").UploadUrlResponse;
 
 async function uploadStaffMedia(file: File): Promise<string> {
   const signed = await customFetch<SignedMediaUpload>("/api/storage/uploads/request-url", {
@@ -123,15 +118,42 @@ async function uploadStaffMedia(file: File): Promise<string> {
     body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
     responseType: "json",
   });
-  const form = new FormData();
-  Object.entries(signed.uploadFields).forEach(([key, value]) => form.append(key, value));
-  form.append("file", file);
-  const uploaded = await fetch(signed.uploadURL, { method: signed.uploadMethod, body: form });
+  let body: BodyInit = file;
+  if (signed.uploadMethod === "POST") {
+    const form = new FormData();
+    Object.entries(signed.uploadFields).forEach(([key, value]) => form.append(key, value));
+    form.append("file", file);
+    body = form;
+  }
+  const uploaded = await fetch(signed.uploadURL, {
+    method: signed.uploadMethod, body, headers: signed.uploadHeaders,
+  });
   if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
+  let finalizeToken = signed.finalizeToken;
+  if (signed.requiresRenditions) {
+    const { createStaffPhotoRenditions } = await import("../lib/staff-media-renditions");
+    const renditions = await createStaffPhotoRenditions(file);
+    const authorized = await customFetch<import("@workspace/api-client-react").RenditionAuthorizationResponse>(
+      "/api/storage/uploads/renditions/request-urls", {
+        method: "POST", headers: { "content-type": "application/json" }, responseType: "json",
+        body: JSON.stringify({
+          objectPath: signed.objectPath, finalizeToken,
+          renditions: renditions.map((r) => ({ width: r.width, size: r.blob.size, contentType: r.contentType })),
+        }),
+      },
+    );
+    for (const upload of authorized.uploads) {
+      const rendition = renditions.find((r) => r.width === upload.width);
+      if (!rendition) throw new Error("Responsive photo authorization returned an unexpected width.");
+      const response = await fetch(upload.uploadURL, { method: "PUT", headers: upload.uploadHeaders, body: rendition.blob });
+      if (!response.ok) throw new Error(`Responsive photo upload failed (${response.status}).`);
+    }
+    finalizeToken = authorized.finalizeToken;
+  }
   const finalized = await customFetch<{ objectPath: string }>("/api/storage/uploads/finalize", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ objectPath: signed.objectPath }),
+    body: JSON.stringify({ objectPath: signed.objectPath, finalizeToken }),
     responseType: "json",
   });
   return finalized.objectPath;
@@ -280,7 +302,7 @@ export default function Staff() {
       staffNavItem("commerce-activation", "Checkout activation", Power),
       ...(isEditorial ? [staffNavItem("policies", "Policies", ClipboardCheck)] : []),
       ...(isEditorial ? [staffNavItem("media-cleanup", "Media cleanup", Images)] : []),
-      ...(isEditorial ? [staffNavItem("media-usage", "Cloudinary usage", Activity)] : []),
+      ...(isEditorial ? [staffNavItem("media-usage", "Media storage", Activity)] : []),
       ...((profile.role === "owner" || profile.role === "administrator" || profile.role === "operations") ? [staffNavItem("redirects", "Redirects", ChevronRight)] : []),
       ...((profile.role === "owner" || profile.role === "administrator") ? [staffNavItem("marketing-pixels", "Marketing pixels", Target)] : []),
     ] },
@@ -372,7 +394,7 @@ export default function Staff() {
         {activeTab === "faq" && <FaqManagementSection />}
         {activeTab === "policies" && <PolicyManagementSection role={profile.role} />}
         {activeTab === "media-cleanup" && <MediaCleanupSection />}
-        {activeTab === "media-usage" && isEditorial && <CloudinaryUsagePanel key={`${profile.id}:${profile.role}`} staffId={profile.id} role={profile.role} />}
+        {activeTab === "media-usage" && isEditorial && <MediaStoragePanel key={`${profile.id}:${profile.role}`} staffId={profile.id} role={profile.role} />}
         {activeTab === "redirects" && <RedirectsManagementSection />}
         {activeTab === "marketing-pixels" && <MarketingPixelsSection />}
         {activeTab === "analytics" && (
@@ -996,7 +1018,7 @@ function PlatformContentManagementSection() {
     setUploadedObjectPath("");
     try {
       setUploadedObjectPath(await uploadStaffMedia(file));
-      setStatus("Media uploaded to Cloudinary. Copy or insert its durable path, then save the document.");
+      setStatus("Media uploaded and verified. Copy or insert its durable path, then save the document.");
     } catch (error) {
       setStatus(errorMessage(error, "Media could not be uploaded."));
     } finally {
@@ -1105,7 +1127,7 @@ function PlatformContentManagementSection() {
           <li>Add product-specific composition, care, delivery, and returns copy when the piece needs guidance beyond the shared defaults.</li>
           <li>Use readyNowSizes only for Standard sizes physically ready now. An empty list stays purchasable when fulfilmentState is made_immediately.</li>
           <li>Use unavailable only when SOSO genuinely cannot fulfil the piece, and keep dispatchMessage about dispatch rather than delivery.</li>
-          <li>Keep image alt text and provenance with every approved primary or alternate image, include the primary img in images, and use only verified bundled or SOSO Cloudinary image paths.</li>
+          <li>Keep image alt text and provenance with every approved primary or alternate image, include the primary img in images, and use only verified bundled or SOSO-managed image paths.</li>
           <li>Configure relatedProductSlugs with unique published product slugs only; do not reference the same piece.</li>
           <li>When commerceProductId is present, map every eligible Standard size and Custom choice to its current commerce variant ID. Never map unavailable or ineligible choices.</li>
         </ul>
@@ -1758,7 +1780,7 @@ function JournalManagementSection() {
     try {
       const objectPath = await uploadStaffMedia(file);
       setArticle((current) => ({ ...current, coverImageUrl: objectPath }));
-      setNotice("Cover image uploaded to Cloudinary.");
+      setNotice("Cover image uploaded and verified.");
     } catch (error) {
       setNotice(errorMessage(error, "Cover image could not be uploaded."));
     } finally {
@@ -1768,7 +1790,7 @@ function JournalManagementSection() {
 
   return (
     <section className="mt-12 border-t border-border pt-10">
-      <SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, archive, and revise approved editorial. Cover images are stored durably in SOSO Cloudinary." />
+      <SectionHeading icon={PenLine} title="Journal management" description="Draft, publish, archive, and revise approved editorial. Cover images use SOSO’s governed media storage." />
       <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
         {/* Article list */}
         <div className="border border-border bg-card">
@@ -2382,7 +2404,7 @@ const ROLE_CAPABILITIES: Record<string, { summary: string; actions: string[] }> 
     summary: "You manage SOSO Journal content — articles, editorial metadata, and cover images.",
     actions: [
       "Create and edit journal articles, including draft and published states",
-      "Upload cover images via the Cloudinary upload widget",
+      "Upload cover images through the Staff media uploader",
       "Set per-article SEO title, description, tags, category, and reading time",
     ],
   },

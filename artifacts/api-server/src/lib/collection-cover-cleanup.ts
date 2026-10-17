@@ -1,6 +1,7 @@
-import { auditLogsTable, db, siteContentTable } from "@workspace/db";
+import { auditLogsTable, db, siteContentTable, siteContentRevisionsTable, journalPostsTable, journalPostRevisionsTable } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { CloudinaryStorageService, MediaNotFoundError } from "./cloudinary-storage";
+import { MediaNotFoundError } from "./cloudinary-storage";
+import { createMediaStorageService } from "./media-storage";
 
 export const PLATFORM_CONTENT_MEDIA_LOCK = "soso-platform-content-media";
 const MANAGED_UPLOAD_PREFIX = "/api/storage/objects/";
@@ -125,7 +126,11 @@ export async function listPendingCollectionCoverCleanup(): Promise<ManagedMediaC
 }
 
 export async function processPendingCollectionCoverCleanup(
-  storage = new CloudinaryStorageService(),
+  storage: {
+    provider?: string;
+    deleteUploadedMedia(path: string): Promise<void>;
+    deleteUnreferencedUploadedMedia?(path: string): Promise<void>;
+  } = createMediaStorageService(),
 ): Promise<{ deleted: number; deferred: number; failed: number }> {
   const summary = { deleted: 0, deferred: 0, failed: 0 };
   for (const pending of await pendingCleanupPaths()) {
@@ -144,7 +149,33 @@ export async function processPendingCollectionCoverCleanup(
         draft: siteContentTable.draft,
         published: siteContentTable.published,
       }).from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
+      let retainedReference = false;
+      if (storage.provider === "r2") {
+        const needle = `${MANAGED_UPLOAD_PREFIX}${pending.path}`;
+        // Conservative text containment also catches embedded Journal/body URLs
+        // and query suffixes. False positives defer; they must never delete.
+        const found = await tx.execute<{ referenced: boolean }>(sql`
+          select exists(
+            select 1 from ${siteContentTable}
+              where strpos(coalesce(${siteContentTable.draft}::text, ''), ${needle}) > 0
+                 or strpos(coalesce(${siteContentTable.published}::text, ''), ${needle}) > 0
+            union all
+            select 1 from ${siteContentRevisionsTable}
+              where strpos(coalesce(${siteContentRevisionsTable.snapshot}::text, ''), ${needle}) > 0
+            union all
+            select 1 from ${journalPostsTable}
+              where strpos(coalesce(${journalPostsTable.coverImageUrl}, ''), ${needle}) > 0
+                 or strpos(coalesce(${journalPostsTable.body}, ''), ${needle}) > 0
+            union all
+            select 1 from ${journalPostRevisionsTable}
+              where strpos(coalesce(${journalPostRevisionsTable.snapshot}::text, ''), ${needle}) > 0
+          ) as referenced
+        `);
+        retainedReference = found.rows[0]?.referenced !== false;
+      }
       if (
+        retainedReference
+        ||
         contentReferencesManagedUpload(platform?.draft, pending.path)
         || contentReferencesManagedUpload(platform?.published, pending.path)
       ) {
@@ -158,7 +189,10 @@ export async function processPendingCollectionCoverCleanup(
         return "deferred" as const;
       }
       try {
-        await storage.deleteUploadedMedia(pending.path);
+        if (storage.provider === "r2") {
+          if (!storage.deleteUnreferencedUploadedMedia) throw new Error("Retained-reference-aware R2 cleanup is unavailable");
+          await storage.deleteUnreferencedUploadedMedia(pending.path);
+        } else await storage.deleteUploadedMedia(pending.path);
         await tx.insert(auditLogsTable).values({
           actorClerkUserId: pending.actorClerkUserId,
           action: "platform_media.cleanup_deleted",
