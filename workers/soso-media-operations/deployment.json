@@ -1,0 +1,17 @@
+{
+  "accountId": "00b768389a4e032055f29b53483b3934",
+  "compatibilityDate": "2026-10-17",
+  "executor": "soso-media-backup-executor",
+  "coordinator": "soso-media-operations",
+  "dailyCron": "15 3 * * *",
+  "hourlyCron": "0 * * * *",
+  "sourceBucket": "soso-media-private",
+  "backupBucket": "soso-media-backup",
+  "backupPrefix": "r2-runtime/v1",
+  "statusKey": "operations/media-operations.json",
+  "workersDevEnabled": false,
+  "publicRoutes": [],
+  "httpBehavior": "Always 404; backup RPC is accessible through a private service binding only",
+  "modules": ["index.mjs", "backup.mjs", "coordinator.mjs", "delivery.mjs"],
+  "baselineCommand": "node scripts/seed-r2-independent-backup.mjs --seed"
+}

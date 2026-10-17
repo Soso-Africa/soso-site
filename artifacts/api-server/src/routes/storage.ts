@@ -14,6 +14,7 @@ import {
 } from "@workspace/api-zod";
 import { getCloudinaryUsage } from "../lib/cloudinary-usage";
 import { getR2StorageUsage } from "../lib/r2-storage-usage";
+import { getR2MediaOperations } from "../lib/r2-media-operations";
 import { resolveCommittedMediaDelivery } from "../lib/committed-media-delivery";
 import { withCommittedMediaApproval } from "../lib/committed-media-approval";
 import { R2StorageService } from "../lib/r2-storage";
@@ -46,6 +47,7 @@ router.get("/storage/status", requireStaff, requireStaffRoles("owner", "administ
     try {
       res.json(GetStaffMediaStorageStatusResponse.parse({
         provider: storage.provider, r2Usage: storage instanceof R2StorageService ? await getR2StorageUsage(storage) : null,
+        r2Operations: storage instanceof R2StorageService ? await getR2MediaOperations(storage) : null,
       }));
     } catch { res.status(503).json({ error: "Media storage status could not be loaded safely" }); }
   });
