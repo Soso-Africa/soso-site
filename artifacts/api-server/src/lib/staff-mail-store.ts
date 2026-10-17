@@ -34,6 +34,18 @@ CREATE INDEX IF NOT EXISTS soso_mail_sends_hour_idx ON soso_mail_sends(created_a
 CREATE TABLE IF NOT EXISTS soso_mail_rate_limits (
  key text PRIMARY KEY, count integer NOT NULL, reset_at timestamptz NOT NULL
 );
+CREATE TABLE IF NOT EXISTS soso_newsletter_groups (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL CHECK(length(name) BETWEEN 1 AND 80),
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS soso_newsletter_groups_name_idx ON soso_newsletter_groups(lower(name));
+CREATE TABLE IF NOT EXISTS soso_newsletter_group_members (
+ group_id uuid NOT NULL REFERENCES soso_newsletter_groups(id) ON DELETE CASCADE,
+ subscriber_id uuid NOT NULL REFERENCES soso_newsletter_subscribers(id) ON DELETE CASCADE,
+ PRIMARY KEY(group_id,subscriber_id)
+);
+CREATE INDEX IF NOT EXISTS soso_newsletter_members_subscriber_idx ON soso_newsletter_group_members(subscriber_id);
+ALTER TABLE soso_mail_campaigns ADD COLUMN IF NOT EXISTS group_id uuid REFERENCES soso_newsletter_groups(id) ON DELETE RESTRICT;
 `;
 let initialization: Promise<void> | undefined;
 export async function ensureMailSchema() {

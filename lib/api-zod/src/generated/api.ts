@@ -773,14 +773,116 @@ export const ListStaffMailboxSendHistoryResponse = zod.record(zod.string(), zod.
 
 export const listStaffNewsletterSubscribersQueryStatusDefault = `all`;
 export const listStaffNewsletterSubscribersQueryBeforeRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+export const listStaffNewsletterSubscribersQueryGroupIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
 
 
 export const ListStaffNewsletterSubscribersQueryParams = zod.object({
   "status": zod.enum(['all', 'pending', 'confirmed', 'unsubscribed']).default(listStaffNewsletterSubscribersQueryStatusDefault),
-  "before": zod.coerce.string().regex(listStaffNewsletterSubscribersQueryBeforeRegExp).optional()
+  "before": zod.coerce.string().regex(listStaffNewsletterSubscribersQueryBeforeRegExp).optional(),
+  "groupId": zod.coerce.string().regex(listStaffNewsletterSubscribersQueryGroupIdRegExp).optional()
 })
 
 export const ListStaffNewsletterSubscribersResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * Owner/administrator only. Downloads all matching subscribers, not only the visible page, as a literal-string XLSX workbook including consent status and UTC timestamps. Maximum 50,000 rows; larger requests fail explicitly.
+ */
+export const exportStaffNewsletterSubscribersQueryStatusDefault = `all`;
+export const exportStaffNewsletterSubscribersQueryGroupIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const ExportStaffNewsletterSubscribersQueryParams = zod.object({
+  "status": zod.enum(['all', 'pending', 'confirmed', 'unsubscribed']).default(exportStaffNewsletterSubscribersQueryStatusDefault),
+  "groupId": zod.coerce.string().regex(exportStaffNewsletterSubscribersQueryGroupIdRegExp).optional()
+})
+
+export const ExportStaffNewsletterSubscribersResponse = zod.unknown()
+
+
+export const ListStaffNewsletterGroupsResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const createStaffNewsletterGroupBodyNameMax = 80;
+
+
+
+export const CreateStaffNewsletterGroupBody = zod.object({
+  "name": zod.string().min(1).max(createStaffNewsletterGroupBodyNameMax)
+})
+
+export const CreateStaffNewsletterGroupResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const renameStaffNewsletterGroupPathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const RenameStaffNewsletterGroupParams = zod.object({
+  "id": zod.coerce.string().regex(renameStaffNewsletterGroupPathIdRegExp)
+})
+
+export const renameStaffNewsletterGroupBodyNameMax = 80;
+
+
+
+export const RenameStaffNewsletterGroupBody = zod.object({
+  "name": zod.string().min(1).max(renameStaffNewsletterGroupBodyNameMax)
+})
+
+export const RenameStaffNewsletterGroupResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * Removes memberships, never subscribers or consent. Groups referenced by campaigns cannot be deleted.
+ */
+export const deleteStaffNewsletterGroupPathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const DeleteStaffNewsletterGroupParams = zod.object({
+  "id": zod.coerce.string().regex(deleteStaffNewsletterGroupPathIdRegExp)
+})
+
+export const DeleteStaffNewsletterGroupResponse = zod.record(zod.string(), zod.unknown())
+
+
+export const changeStaffNewsletterGroupMembersPathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const ChangeStaffNewsletterGroupMembersParams = zod.object({
+  "id": zod.coerce.string().regex(changeStaffNewsletterGroupMembersPathIdRegExp)
+})
+
+export const changeStaffNewsletterGroupMembersBodySubscriberIdsItemRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+export const changeStaffNewsletterGroupMembersBodySubscriberIdsMax = 500;
+
+
+
+export const ChangeStaffNewsletterGroupMembersBody = zod.object({
+  "subscriberIds": zod.array(zod.string().regex(changeStaffNewsletterGroupMembersBodySubscriberIdsItemRegExp)).min(1).max(changeStaffNewsletterGroupMembersBodySubscriberIdsMax),
+  "action": zod.enum(['add', 'remove'])
+})
+
+export const ChangeStaffNewsletterGroupMembersResponse = zod.record(zod.string(), zod.unknown())
+
+
+/**
+ * Select all confirmed subscribers or one group before the first send attempt. Membership and consent are evaluated again per batch and per reservation; changing groups never grants newsletter consent.
+ */
+export const changeStaffNewsletterCampaignAudiencePathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const ChangeStaffNewsletterCampaignAudienceParams = zod.object({
+  "id": zod.coerce.string().regex(changeStaffNewsletterCampaignAudiencePathIdRegExp)
+})
+
+export const changeStaffNewsletterCampaignAudienceBodyGroupIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
+
+
+export const ChangeStaffNewsletterCampaignAudienceBody = zod.object({
+  "groupId": zod.string().regex(changeStaffNewsletterCampaignAudienceBodyGroupIdRegExp).nullable()
+})
+
+export const ChangeStaffNewsletterCampaignAudienceResponse = zod.record(zod.string(), zod.unknown())
 
 
 export const resendStaffNewsletterConfirmationPathIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
@@ -810,11 +912,14 @@ export const createStaffNewsletterCampaignBodySubjectMax = 200;
 
 export const createStaffNewsletterCampaignBodyTextMax = 24000;
 
+export const createStaffNewsletterCampaignBodyGroupIdDefault = null;
+export const createStaffNewsletterCampaignBodyGroupIdRegExp = new RegExp('^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$');
 
 
 export const CreateStaffNewsletterCampaignBody = zod.object({
   "subject": zod.string().min(1).max(createStaffNewsletterCampaignBodySubjectMax),
-  "text": zod.string().min(1).max(createStaffNewsletterCampaignBodyTextMax)
+  "text": zod.string().min(1).max(createStaffNewsletterCampaignBodyTextMax),
+  "groupId": zod.string().regex(createStaffNewsletterCampaignBodyGroupIdRegExp).nullish().default(createStaffNewsletterCampaignBodyGroupIdDefault).describe('Null or omitted means all confirmed subscribers.')
 })
 
 export const CreateStaffNewsletterCampaignResponse = zod.record(zod.string(), zod.unknown())

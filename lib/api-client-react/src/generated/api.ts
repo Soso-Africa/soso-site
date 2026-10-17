@@ -26,6 +26,8 @@ import type {
   AnalyticsQualityReport,
   CatalogueMappingPreview,
   CatalogueMappingPreviewInput,
+  ChangeStaffNewsletterCampaignAudience200,
+  ChangeStaffNewsletterGroupMembers200,
   CloudinaryUsageView,
   CommerceCatalog,
   CommerceCheckoutInput,
@@ -42,13 +44,16 @@ import type {
   ConsentRecord,
   ConsentRegionDecision,
   CreateStaffNewsletterCampaign201,
+  CreateStaffNewsletterGroup201,
   CustomerMeasurement,
   CustomerMeasurementInput,
   CustomerMeasurements,
   DeleteShopperMeasurement200,
+  DeleteStaffNewsletterGroup200,
   Enquiry,
   EnquiryInput,
   ExportStaffAccessoryLaunchNotificationSummaryParams,
+  ExportStaffNewsletterSubscribersParams,
   FaqHistoryPage,
   FaqItem,
   FinalizeUploadRequest,
@@ -74,6 +79,7 @@ import type {
   ListStaffMailboxMessagesParams,
   ListStaffMailboxSendHistory200,
   ListStaffNewsletterCampaigns200,
+  ListStaffNewsletterGroups200,
   ListStaffNewsletterSubscribers200,
   ListStaffNewsletterSubscribersParams,
   ListStaffOrdersParams,
@@ -87,7 +93,10 @@ import type {
   MarketingPixelSettingsRevision,
   MarketingPixelSettingsUpdate,
   MediaStorageStatus,
+  NewsletterAudienceInput,
   NewsletterCampaignInput,
+  NewsletterGroupInput,
+  NewsletterGroupMembersInput,
   NewsletterLinkInput,
   NewsletterSignupInput,
   PlatformContentPublication,
@@ -106,6 +115,7 @@ import type {
   ReadStaffMailboxMessage200,
   ReadStaffMailboxMessageParams,
   RedirectLookup,
+  RenameStaffNewsletterGroup200,
   RenditionAuthorizationInput,
   RenditionAuthorizationResponse,
   RequestNewsletterSubscription202,
@@ -2630,6 +2640,492 @@ export function useListStaffNewsletterSubscribers<TData = Awaited<ReturnType<typ
 
 
 
+
+export const getExportStaffNewsletterSubscribersUrl = (params?: ExportStaffNewsletterSubscribersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/newsletter/subscribers/export?${stringifiedParams}` : `/api/staff/newsletter/subscribers/export`
+}
+
+/**
+ * Owner/administrator only. Downloads all matching subscribers, not only the visible page, as a literal-string XLSX workbook including consent status and UTC timestamps. Maximum 50,000 rows; larger requests fail explicitly.
+ */
+export const exportStaffNewsletterSubscribers = async (params?: ExportStaffNewsletterSubscribersParams, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getExportStaffNewsletterSubscribersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportStaffNewsletterSubscribersQueryKey = (params?: ExportStaffNewsletterSubscribersParams,) => {
+    return [
+    `/api/staff/newsletter/subscribers/export`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getExportStaffNewsletterSubscribersQueryOptions = <TData = Awaited<ReturnType<typeof exportStaffNewsletterSubscribers>>, TError = ErrorType<void>>(params?: ExportStaffNewsletterSubscribersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportStaffNewsletterSubscribers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportStaffNewsletterSubscribersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportStaffNewsletterSubscribers>>> = ({ signal }) => exportStaffNewsletterSubscribers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportStaffNewsletterSubscribers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportStaffNewsletterSubscribersQueryResult = NonNullable<Awaited<ReturnType<typeof exportStaffNewsletterSubscribers>>>
+export type ExportStaffNewsletterSubscribersQueryError = ErrorType<void>
+
+
+
+export function useExportStaffNewsletterSubscribers<TData = Awaited<ReturnType<typeof exportStaffNewsletterSubscribers>>, TError = ErrorType<void>>(
+ params?: ExportStaffNewsletterSubscribersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportStaffNewsletterSubscribers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportStaffNewsletterSubscribersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStaffNewsletterGroupsUrl = () => {
+
+
+
+
+  return `/api/staff/newsletter/groups`
+}
+
+export const listStaffNewsletterGroups = async ( options?: Parameters<typeof customFetch>[1]): Promise<ListStaffNewsletterGroups200> => {
+
+  return customFetch<ListStaffNewsletterGroups200>(getListStaffNewsletterGroupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffNewsletterGroupsQueryKey = () => {
+    return [
+    `/api/staff/newsletter/groups`
+    ] as const;
+    }
+
+
+export const getListStaffNewsletterGroupsQueryOptions = <TData = Awaited<ReturnType<typeof listStaffNewsletterGroups>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterGroups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffNewsletterGroupsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffNewsletterGroups>>> = ({ signal }) => listStaffNewsletterGroups({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterGroups>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffNewsletterGroupsQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffNewsletterGroups>>>
+export type ListStaffNewsletterGroupsQueryError = ErrorType<unknown>
+
+
+
+export function useListStaffNewsletterGroups<TData = Awaited<ReturnType<typeof listStaffNewsletterGroups>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffNewsletterGroups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffNewsletterGroupsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateStaffNewsletterGroupUrl = () => {
+
+
+
+
+  return `/api/staff/newsletter/groups`
+}
+
+export const createStaffNewsletterGroup = async (newsletterGroupInput: NewsletterGroupInput, options?: Parameters<typeof customFetch>[1]): Promise<CreateStaffNewsletterGroup201> => {
+
+  return customFetch<CreateStaffNewsletterGroup201>(getCreateStaffNewsletterGroupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterGroupInput)
+  }
+);}
+
+
+
+
+
+export const getCreateStaffNewsletterGroupMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffNewsletterGroup>>, TError,{data: BodyType<NewsletterGroupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createStaffNewsletterGroup>>, TError,{data: BodyType<NewsletterGroupInput>}, TContext> => {
+
+const mutationKey = ['createStaffNewsletterGroup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createStaffNewsletterGroup>>, {data: BodyType<NewsletterGroupInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createStaffNewsletterGroup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateStaffNewsletterGroupMutationResult = NonNullable<Awaited<ReturnType<typeof createStaffNewsletterGroup>>>
+    export type CreateStaffNewsletterGroupMutationBody = BodyType<NewsletterGroupInput>
+    export type CreateStaffNewsletterGroupMutationError = ErrorType<unknown>
+
+    export const useCreateStaffNewsletterGroup = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createStaffNewsletterGroup>>, TError,{data: BodyType<NewsletterGroupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createStaffNewsletterGroup>>,
+        TError,
+        {data: BodyType<NewsletterGroupInput>},
+        TContext
+      > => {
+      return useMutation(getCreateStaffNewsletterGroupMutationOptions(options));
+    }
+
+export const getRenameStaffNewsletterGroupUrl = (id: MailIdentifier,) => {
+
+
+
+
+  return `/api/staff/newsletter/groups/${id}`
+}
+
+export const renameStaffNewsletterGroup = async (id: MailIdentifier,
+    newsletterGroupInput: NewsletterGroupInput, options?: Parameters<typeof customFetch>[1]): Promise<RenameStaffNewsletterGroup200> => {
+
+  return customFetch<RenameStaffNewsletterGroup200>(getRenameStaffNewsletterGroupUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterGroupInput)
+  }
+);}
+
+
+
+
+
+export const getRenameStaffNewsletterGroupMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameStaffNewsletterGroup>>, TError,{id: MailIdentifier;data: BodyType<NewsletterGroupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renameStaffNewsletterGroup>>, TError,{id: MailIdentifier;data: BodyType<NewsletterGroupInput>}, TContext> => {
+
+const mutationKey = ['renameStaffNewsletterGroup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameStaffNewsletterGroup>>, {id: MailIdentifier;data: BodyType<NewsletterGroupInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  renameStaffNewsletterGroup(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenameStaffNewsletterGroupMutationResult = NonNullable<Awaited<ReturnType<typeof renameStaffNewsletterGroup>>>
+    export type RenameStaffNewsletterGroupMutationBody = BodyType<NewsletterGroupInput>
+    export type RenameStaffNewsletterGroupMutationError = ErrorType<unknown>
+
+    export const useRenameStaffNewsletterGroup = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameStaffNewsletterGroup>>, TError,{id: MailIdentifier;data: BodyType<NewsletterGroupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof renameStaffNewsletterGroup>>,
+        TError,
+        {id: MailIdentifier;data: BodyType<NewsletterGroupInput>},
+        TContext
+      > => {
+      return useMutation(getRenameStaffNewsletterGroupMutationOptions(options));
+    }
+
+export const getDeleteStaffNewsletterGroupUrl = (id: MailIdentifier,) => {
+
+
+
+
+  return `/api/staff/newsletter/groups/${id}`
+}
+
+/**
+ * Removes memberships, never subscribers or consent. Groups referenced by campaigns cannot be deleted.
+ */
+export const deleteStaffNewsletterGroup = async (id: MailIdentifier, options?: Parameters<typeof customFetch>[1]): Promise<DeleteStaffNewsletterGroup200> => {
+
+  return customFetch<DeleteStaffNewsletterGroup200>(getDeleteStaffNewsletterGroupUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteStaffNewsletterGroupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffNewsletterGroup>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteStaffNewsletterGroup>>, TError,{id: MailIdentifier}, TContext> => {
+
+const mutationKey = ['deleteStaffNewsletterGroup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteStaffNewsletterGroup>>, {id: MailIdentifier}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteStaffNewsletterGroup(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteStaffNewsletterGroupMutationResult = NonNullable<Awaited<ReturnType<typeof deleteStaffNewsletterGroup>>>
+
+    export type DeleteStaffNewsletterGroupMutationError = ErrorType<void>
+
+    export const useDeleteStaffNewsletterGroup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteStaffNewsletterGroup>>, TError,{id: MailIdentifier}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteStaffNewsletterGroup>>,
+        TError,
+        {id: MailIdentifier},
+        TContext
+      > => {
+      return useMutation(getDeleteStaffNewsletterGroupMutationOptions(options));
+    }
+
+export const getChangeStaffNewsletterGroupMembersUrl = (id: MailIdentifier,) => {
+
+
+
+
+  return `/api/staff/newsletter/groups/${id}/members`
+}
+
+export const changeStaffNewsletterGroupMembers = async (id: MailIdentifier,
+    newsletterGroupMembersInput: NewsletterGroupMembersInput, options?: Parameters<typeof customFetch>[1]): Promise<ChangeStaffNewsletterGroupMembers200> => {
+
+  return customFetch<ChangeStaffNewsletterGroupMembers200>(getChangeStaffNewsletterGroupMembersUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterGroupMembersInput)
+  }
+);}
+
+
+
+
+
+export const getChangeStaffNewsletterGroupMembersMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeStaffNewsletterGroupMembers>>, TError,{id: MailIdentifier;data: BodyType<NewsletterGroupMembersInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeStaffNewsletterGroupMembers>>, TError,{id: MailIdentifier;data: BodyType<NewsletterGroupMembersInput>}, TContext> => {
+
+const mutationKey = ['changeStaffNewsletterGroupMembers'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeStaffNewsletterGroupMembers>>, {id: MailIdentifier;data: BodyType<NewsletterGroupMembersInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  changeStaffNewsletterGroupMembers(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeStaffNewsletterGroupMembersMutationResult = NonNullable<Awaited<ReturnType<typeof changeStaffNewsletterGroupMembers>>>
+    export type ChangeStaffNewsletterGroupMembersMutationBody = BodyType<NewsletterGroupMembersInput>
+    export type ChangeStaffNewsletterGroupMembersMutationError = ErrorType<unknown>
+
+    export const useChangeStaffNewsletterGroupMembers = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeStaffNewsletterGroupMembers>>, TError,{id: MailIdentifier;data: BodyType<NewsletterGroupMembersInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeStaffNewsletterGroupMembers>>,
+        TError,
+        {id: MailIdentifier;data: BodyType<NewsletterGroupMembersInput>},
+        TContext
+      > => {
+      return useMutation(getChangeStaffNewsletterGroupMembersMutationOptions(options));
+    }
+
+export const getChangeStaffNewsletterCampaignAudienceUrl = (id: MailIdentifier,) => {
+
+
+
+
+  return `/api/staff/newsletter/campaigns/${id}/audience`
+}
+
+/**
+ * Select all confirmed subscribers or one group before the first send attempt. Membership and consent are evaluated again per batch and per reservation; changing groups never grants newsletter consent.
+ */
+export const changeStaffNewsletterCampaignAudience = async (id: MailIdentifier,
+    newsletterAudienceInput: NewsletterAudienceInput, options?: Parameters<typeof customFetch>[1]): Promise<ChangeStaffNewsletterCampaignAudience200> => {
+
+  return customFetch<ChangeStaffNewsletterCampaignAudience200>(getChangeStaffNewsletterCampaignAudienceUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(newsletterAudienceInput)
+  }
+);}
+
+
+
+
+
+export const getChangeStaffNewsletterCampaignAudienceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeStaffNewsletterCampaignAudience>>, TError,{id: MailIdentifier;data: BodyType<NewsletterAudienceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeStaffNewsletterCampaignAudience>>, TError,{id: MailIdentifier;data: BodyType<NewsletterAudienceInput>}, TContext> => {
+
+const mutationKey = ['changeStaffNewsletterCampaignAudience'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeStaffNewsletterCampaignAudience>>, {id: MailIdentifier;data: BodyType<NewsletterAudienceInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  changeStaffNewsletterCampaignAudience(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeStaffNewsletterCampaignAudienceMutationResult = NonNullable<Awaited<ReturnType<typeof changeStaffNewsletterCampaignAudience>>>
+    export type ChangeStaffNewsletterCampaignAudienceMutationBody = BodyType<NewsletterAudienceInput>
+    export type ChangeStaffNewsletterCampaignAudienceMutationError = ErrorType<void>
+
+    export const useChangeStaffNewsletterCampaignAudience = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeStaffNewsletterCampaignAudience>>, TError,{id: MailIdentifier;data: BodyType<NewsletterAudienceInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof changeStaffNewsletterCampaignAudience>>,
+        TError,
+        {id: MailIdentifier;data: BodyType<NewsletterAudienceInput>},
+        TContext
+      > => {
+      return useMutation(getChangeStaffNewsletterCampaignAudienceMutationOptions(options));
+    }
 
 export const getResendStaffNewsletterConfirmationUrl = (id: MailIdentifier,) => {
 

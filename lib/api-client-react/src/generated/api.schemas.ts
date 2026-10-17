@@ -3321,6 +3321,45 @@ export interface NewsletterCampaignInput {
      * @maxLength 24000
      */
   text: string;
+  /**
+     * Null or omitted means all confirmed subscribers.
+     * @nullable
+     * @pattern ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$
+     */
+  groupId?: string | null;
+}
+
+export interface NewsletterGroupInput {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+}
+
+export type NewsletterGroupMembersInputAction = typeof NewsletterGroupMembersInputAction[keyof typeof NewsletterGroupMembersInputAction];
+
+
+export const NewsletterGroupMembersInputAction = {
+  add: 'add',
+  remove: 'remove',
+} as const;
+
+export interface NewsletterGroupMembersInput {
+  /**
+     * @minItems 1
+     * @maxItems 500
+     */
+  subscriberIds: MailIdentifier[];
+  action: NewsletterGroupMembersInputAction;
+}
+
+export interface NewsletterAudienceInput {
+  /**
+     * @nullable
+     * @pattern ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$
+     */
+  groupId: string | null;
 }
 
 export interface NewsletterSignupInput {
@@ -3416,6 +3455,7 @@ export type ListStaffMailboxSendHistory200 = { [key: string]: unknown };
 export type ListStaffNewsletterSubscribersParams = {
 status?: ListStaffNewsletterSubscribersStatus;
 before?: MailIdentifier;
+groupId?: MailIdentifier;
 };
 
 export type ListStaffNewsletterSubscribersStatus = typeof ListStaffNewsletterSubscribersStatus[keyof typeof ListStaffNewsletterSubscribersStatus];
@@ -3429,6 +3469,33 @@ export const ListStaffNewsletterSubscribersStatus = {
 } as const;
 
 export type ListStaffNewsletterSubscribers200 = { [key: string]: unknown };
+
+export type ExportStaffNewsletterSubscribersParams = {
+status?: ExportStaffNewsletterSubscribersStatus;
+groupId?: MailIdentifier;
+};
+
+export type ExportStaffNewsletterSubscribersStatus = typeof ExportStaffNewsletterSubscribersStatus[keyof typeof ExportStaffNewsletterSubscribersStatus];
+
+
+export const ExportStaffNewsletterSubscribersStatus = {
+  all: 'all',
+  pending: 'pending',
+  confirmed: 'confirmed',
+  unsubscribed: 'unsubscribed',
+} as const;
+
+export type ListStaffNewsletterGroups200 = { [key: string]: unknown };
+
+export type CreateStaffNewsletterGroup201 = { [key: string]: unknown };
+
+export type RenameStaffNewsletterGroup200 = { [key: string]: unknown };
+
+export type DeleteStaffNewsletterGroup200 = { [key: string]: unknown };
+
+export type ChangeStaffNewsletterGroupMembers200 = { [key: string]: unknown };
+
+export type ChangeStaffNewsletterCampaignAudience200 = { [key: string]: unknown };
 
 export type ResendStaffNewsletterConfirmation200 = { [key: string]: unknown };
 

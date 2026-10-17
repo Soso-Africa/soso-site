@@ -77,7 +77,85 @@ paths:
       parameters:
         - { name: status, in: query, schema: { type: string, enum: [all, pending, confirmed, unsubscribed], default: all } }
         - { name: before, in: query, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+        - { name: groupId, in: query, schema: { $ref: "#/components/schemas/MailIdentifier" } }
       responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/subscribers/export:
+    get:
+      operationId: exportStaffNewsletterSubscribers
+      tags: [mail]
+      description: Owner/administrator only. Downloads all matching subscribers, not only the visible page, as a literal-string XLSX workbook including consent status and UTC timestamps. Maximum 50,000 rows; larger requests fail explicitly.
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [all, pending, confirmed, unsubscribed], default: all } }
+        - { name: groupId, in: query, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+      responses:
+        "200":
+          description: Excel workbook
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+        "413": { description: "Narrow the export to fewer than 50,001 matching subscribers." }
+  /staff/newsletter/groups:
+    get:
+      operationId: listStaffNewsletterGroups
+      tags: [mail]
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+    post:
+      operationId: createStaffNewsletterGroup
+      tags: [mail]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewsletterGroupInput" }
+      responses: { "201": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/groups/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+    patch:
+      operationId: renameStaffNewsletterGroup
+      tags: [mail]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewsletterGroupInput" }
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+    delete:
+      operationId: deleteStaffNewsletterGroup
+      tags: [mail]
+      description: Removes memberships, never subscribers or consent. Groups referenced by campaigns cannot be deleted.
+      responses:
+        "200": { $ref: "#/components/responses/MailResult" }
+        "409": { description: Group is referenced by a campaign. }
+  /staff/newsletter/groups/{id}/members:
+    put:
+      operationId: changeStaffNewsletterGroupMembers
+      tags: [mail]
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewsletterGroupMembersInput"
+      responses: { "200": { $ref: "#/components/responses/MailResult" } }
+  /staff/newsletter/campaigns/{id}/audience:
+    patch:
+      operationId: changeStaffNewsletterCampaignAudience
+      tags: [mail]
+      description: Select all confirmed subscribers or one group before the first send attempt. Membership and consent are evaluated again per batch and per reservation; changing groups never grants newsletter consent.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/MailIdentifier" } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewsletterAudienceInput"
+      responses:
+        "200": { $ref: "#/components/responses/MailResult" }
+        "409": { description: Audience is locked because sending has already been attempted. }
   /staff/newsletter/subscribers/{id}/confirmation:
     post:
       operationId: resendStaffNewsletterConfirmation
@@ -192,6 +270,30 @@ components:
       properties:
         subject: { type: string, minLength: 1, maxLength: 200 }
         text: { type: string, minLength: 1, maxLength: 24000 }
+        groupId: { type: [string, "null"], pattern: '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$', default: null, description: Null or omitted means all confirmed subscribers. }
+    NewsletterGroupInput:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+    NewsletterGroupMembersInput:
+      type: object
+      additionalProperties: false
+      required: [subscriberIds, action]
+      properties:
+        subscriberIds:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items: { $ref: "#/components/schemas/MailIdentifier" }
+        action: { type: string, enum: [add, remove] }
+    NewsletterAudienceInput:
+      type: object
+      required: [groupId]
+      additionalProperties: false
+      properties:
+        groupId: { type: [string, "null"], pattern: '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$' }
     NewsletterSignupInput:
       type: object
       required: [email, consent]

@@ -6,11 +6,14 @@ import { requireStaff, requireStaffRoles } from "../middlewares/staff";
 import { MailError, campaignInput, mailSettingsInput, messageInput, resolveMailHost } from "../lib/staff-mail-security";
 import { ensureMailSchema, freshMailPermission, mailTransaction, newsletterLink, rateLimit, saveMailSettings, storedMail, useNewsletterLink } from "../lib/staff-mail-store";
 import { confirmationMail, deliverMail, listMail, readMail, readyNewsletter, sendStaffMessage, testMailConnection } from "../lib/staff-mail-transport";
+import newsletterGroups from "./newsletter-groups";
+import { audienceInput, campaignAudienceSQL, subscriberFilters } from "../lib/newsletter-audience";
 
 const router: IRouter = Router();
 const mailRoles = requireStaffRoles("owner", "administrator");
 const owner = requireStaffRoles("owner");
 const uuid = z.string().uuid();
+router.use("/staff/newsletter", newsletterGroups);
 type MailRequest = Request & { staff: NonNullable<Request["staff"]> };
 function endpoint(handler: (req: MailRequest, res: Response) => Promise<void>) {
   return async (req: Request, res: Response) => {
@@ -66,10 +69,14 @@ router.get("/staff/mail/history", requireStaff, mailRoles, endpoint(async (req, 
 }));
 router.get("/staff/newsletter/subscribers", requireStaff, mailRoles, endpoint(async (req, res) => {
   await freshMailPermission(req.staff.id); await ensureMailSchema();
-  const status = z.enum(["all", "pending", "confirmed", "unsubscribed"]).default("all").parse(req.query.status);
-  const cursor = req.query.before ? z.string().uuid().parse(req.query.before) : null;
-  const rows = (await pool.query(`SELECT id,email,status,policy_version,consented_at,confirmed_at,unsubscribed_at FROM soso_newsletter_subscribers
-    WHERE ($1='all' OR status=$1) AND ($2::uuid IS NULL OR id<$2) ORDER BY id DESC LIMIT 51`, [status, cursor])).rows;
+  const filters = subscriberFilters.parse(req.query);
+  const rows = (await pool.query(`SELECT n.id,n.email,n.status,n.policy_version,n.consented_at,n.confirmed_at,n.unsubscribed_at,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',g.id,'name',g.name) ORDER BY lower(g.name))
+      FROM soso_newsletter_group_members m JOIN soso_newsletter_groups g ON g.id=m.group_id WHERE m.subscriber_id=n.id),'[]'::jsonb) AS groups
+    FROM soso_newsletter_subscribers n
+    WHERE ($1='all' OR n.status=$1) AND ($2::uuid IS NULL OR n.id<$2)
+    AND ($3::uuid IS NULL OR EXISTS(SELECT 1 FROM soso_newsletter_group_members m WHERE m.subscriber_id=n.id AND m.group_id=$3))
+    ORDER BY n.id DESC LIMIT 51`, [filters.status, filters.before ?? null, filters.groupId ?? null])).rows;
   res.json({ subscribers: rows.slice(0, 50), nextCursor: rows.length > 50 ? rows[49].id : null });
 }));
 router.post("/staff/newsletter/subscribers/:id/confirmation", requireStaff, mailRoles, endpoint(async (req, res) => {
@@ -95,27 +102,45 @@ router.post("/staff/newsletter/subscribers/:id/unsubscribe", requireStaff, mailR
 }));
 router.get("/staff/newsletter/campaigns", requireStaff, mailRoles, endpoint(async (req, res) => {
   await freshMailPermission(req.staff.id); await ensureMailSchema();
-  res.json({ campaigns: (await pool.query(`SELECT c.id,c.subject,c.body_text,c.created_at,
+  res.json({ campaigns: (await pool.query(`SELECT c.id,c.subject,c.body_text,c.created_at,c.group_id,g.name AS group_name,
     (SELECT count(*)::int FROM soso_mail_sends s WHERE s.campaign_id=c.id) AS attempted,
     (SELECT count(*)::int FROM soso_mail_sends s WHERE s.campaign_id=c.id AND s.status='accepted') AS accepted,
     (SELECT count(*)::int FROM soso_mail_sends s WHERE s.campaign_id=c.id AND s.status IN ('uncertain','sending')) AS uncertain,
-    (SELECT count(*)::int FROM soso_newsletter_subscribers n WHERE n.status='confirmed' AND NOT EXISTS(SELECT 1 FROM soso_mail_sends s WHERE s.campaign_id=c.id AND s.subscriber_id=n.id)) AS remaining
-    FROM soso_mail_campaigns c ORDER BY c.created_at DESC LIMIT 30`)).rows });
+    (SELECT count(*)::int FROM soso_newsletter_subscribers n WHERE n.status='confirmed' AND ${campaignAudienceSQL}
+      AND NOT EXISTS(SELECT 1 FROM soso_mail_sends s WHERE s.campaign_id=c.id AND s.subscriber_id=n.id)) AS remaining
+    FROM soso_mail_campaigns c LEFT JOIN soso_newsletter_groups g ON g.id=c.group_id ORDER BY c.created_at DESC LIMIT 30`)).rows });
 }));
 router.post("/staff/newsletter/campaigns", requireStaff, mailRoles, endpoint(async (req, res) => {
   await freshMailPermission(req.staff.id); await ensureMailSchema();
   const input = campaignInput.parse(req.body);
-  const result = await pool.query("INSERT INTO soso_mail_campaigns(subject,body_text,created_by) VALUES($1,$2,$3) RETURNING id", [input.subject, input.text, req.staff.id]);
+  if (input.groupId && !(await pool.query("SELECT id FROM soso_newsletter_groups WHERE id=$1", [input.groupId])).rowCount) throw new MailError("Group not found. Refresh the audience list.", 404);
+  const result = await pool.query("INSERT INTO soso_mail_campaigns(subject,body_text,created_by,group_id) VALUES($1,$2,$3,$4) RETURNING id", [input.subject, input.text, req.staff.id, input.groupId]);
   res.status(201).json(result.rows[0]);
+}));
+router.patch("/staff/newsletter/campaigns/:id/audience", requireStaff, mailRoles, endpoint(async (req, res) => {
+  await ensureMailSchema();
+  const id = uuid.parse(req.params.id), input = audienceInput.parse(req.body);
+  await mailTransaction(async (connection) => {
+    await freshMailPermission(req.staff.id, false, connection);
+    const campaign = await connection.query("SELECT id FROM soso_mail_campaigns WHERE id=$1 FOR UPDATE", [id]);
+    if (!campaign.rowCount) throw new MailError("Campaign not found.", 404);
+    if ((await connection.query("SELECT id FROM soso_mail_sends WHERE campaign_id=$1 LIMIT 1", [id])).rowCount) {
+      throw new MailError("The audience is locked after the first send attempt. Create a new draft for another audience.", 409);
+    }
+    if (input.groupId && !(await connection.query("SELECT id FROM soso_newsletter_groups WHERE id=$1", [input.groupId])).rowCount) throw new MailError("Group not found.", 404);
+    await connection.query("UPDATE soso_mail_campaigns SET group_id=$2 WHERE id=$1", [id, input.groupId]);
+  });
+  res.json({ saved: true });
 }));
 router.post("/staff/newsletter/campaigns/:id/send", requireStaff, mailRoles, endpoint(async (req, res) => {
   await freshMailPermission(req.staff.id);
   const settings = await readyNewsletter();
   const id = uuid.parse(req.params.id);
-  const campaign = (await pool.query("SELECT subject,body_text FROM soso_mail_campaigns WHERE id=$1", [id])).rows[0];
+  const campaign = (await pool.query("SELECT subject,body_text,group_id FROM soso_mail_campaigns WHERE id=$1", [id])).rows[0];
   if (!campaign) throw new MailError("Campaign not found.", 404);
   // A single short batch is explicit; no fire-and-forget work in serverless handlers.
-  const recipients = (await pool.query(`SELECT n.id,n.email FROM soso_newsletter_subscribers n WHERE status='confirmed'
+  const recipients = (await pool.query(`SELECT n.id,n.email FROM soso_newsletter_subscribers n JOIN soso_mail_campaigns c ON c.id=$1 WHERE n.status='confirmed'
+    AND ${campaignAudienceSQL}
     AND NOT EXISTS(SELECT 1 FROM soso_mail_sends s WHERE s.campaign_id=$1 AND s.subscriber_id=n.id)
     ORDER BY n.id LIMIT 3`, [id])).rows;
   let accepted = 0;
@@ -126,6 +151,7 @@ router.post("/staff/newsletter/campaigns/:id/send", requireStaff, mailRoles, end
       id: randomUUID(), staffId: req.staff.id, to: recipient.email,
       subject: campaign.subject, text: `${campaign.body_text}\n\n—\nSOSO Africa\nYou confirmed your subscription to SOSO news, collections and offers.\nUnsubscribe: ${url}`,
       kind: "newsletter", subscriberId: recipient.id, campaignId: id, unsubscribeUrl: url,
+      expectedGroupId: campaign.group_id,
     });
     accepted++;
   }

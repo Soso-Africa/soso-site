@@ -75,4 +75,5 @@ export const messageInput = z.object({
 export const campaignInput = z.object({
   subject: messageInput.shape.subject,
   text: messageInput.shape.text,
+  groupId: z.string().uuid().nullable().default(null),
 }).strict();
