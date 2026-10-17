@@ -8,9 +8,11 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
     "@clerk/testing": "^2.2.45",
     "@playwright/test": "1.55.1",
     "@types/node": "catalog:",
+    "sharp": "0.34.5",
     "tsx": "catalog:"
   }
 }

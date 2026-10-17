@@ -43,6 +43,7 @@ import { validateAccessoryProductPublication } from "../lib/accessory-product-pu
 import { validateCollectionMediaAssets, validateManagedImageAsset, validateProductMediaAssets } from "../lib/product-media-validation";
 import { platformProductReferences } from "../lib/platform-product-references";
 import { deleteDraftProduct } from "../lib/delete-draft-product";
+import { prepareMediaForPublication } from "../lib/media-publication";
 import { CatalogueAlertProductsSchema, catalogueAlertProjection, findStaleProjectedProducts } from "../lib/catalogue-alert-projection";
 import { publishSiteDraft, saveSiteDraft } from "./site-content-policy";
 import { z } from "zod";
@@ -113,39 +114,47 @@ router.put("/staff/content/site", requireStaffRoles("owner", "administrator", "e
     res.status(400).json({ error: "Primary CTA must link to a local storefront path" });
     return;
   }
-  const [current] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
-  const next = saveSiteDraft(current, draft, req.staff!.clerkUserId);
-  const nextValues = {
-    key: next.key, draft: next.draft, published: next.published,
-    draftUpdatedAt: next.draftUpdatedAt ?? undefined, publishedAt: next.publishedAt ?? undefined,
-    updatedByClerkUserId: next.updatedByClerkUserId ?? undefined,
-    publishedByClerkUserId: next.publishedByClerkUserId ?? undefined,
-  };
-  const [row] = await db.insert(siteContentTable).values(nextValues).onConflictDoUpdate({
-    target: siteContentTable.key,
-    set: nextValues,
-  }).returning();
-  await db.insert(auditLogsTable).values({
-    actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
-    entityType: "site_content", entityId: "site",
-    metadata: { keys: Object.keys(draft) },
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const [current] = await tx.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
+    const next = saveSiteDraft(current, draft, req.staff!.clerkUserId);
+    const nextValues = {
+      key: next.key, draft: next.draft, published: next.published,
+      draftUpdatedAt: next.draftUpdatedAt ?? undefined, publishedAt: next.publishedAt ?? undefined,
+      updatedByClerkUserId: next.updatedByClerkUserId ?? undefined,
+      publishedByClerkUserId: next.publishedByClerkUserId ?? undefined,
+    };
+    const [updated] = await tx.insert(siteContentTable).values(nextValues).onConflictDoUpdate({
+      target: siteContentTable.key, set: nextValues,
+    }).returning();
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: req.staff!.clerkUserId, action: "site_content.draft_saved",
+      entityType: "site_content", entityId: "site", metadata: { keys: Object.keys(draft) },
+    });
+    return updated;
   });
   res.json(row);
 });
 
 router.post("/staff/content/site/publish", requireStaffRoles("owner", "administrator", "editor"), async (req, res): Promise<void> => {
-  const [existing] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
-  if (!existing) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
-  const { row: published, audit } = publishSiteDraft(existing, req.staff!.clerkUserId);
-  const [row] = await db.update(siteContentTable).set({
-    ...published,
-    draftUpdatedAt: published.draftUpdatedAt ?? undefined,
-    updatedByClerkUserId: published.updatedByClerkUserId ?? undefined,
-  }).where(eq(siteContentTable.key, "site")).returning();
-  await db.insert(auditLogsTable).values({
-    actorClerkUserId: audit.actorClerkUserId, action: audit.action,
-    entityType: audit.entityType, entityId: audit.entityId, metadata: audit.metadata,
+  const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${PLATFORM_CONTENT_MEDIA_LOCK}))`);
+    const [existing] = await tx.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1).for("update");
+    if (!existing) return null;
+    const { row: published, audit } = publishSiteDraft(existing, req.staff!.clerkUserId);
+    const [updated] = await tx.update(siteContentTable).set({
+      ...published,
+      draftUpdatedAt: published.draftUpdatedAt ?? undefined,
+      updatedByClerkUserId: published.updatedByClerkUserId ?? undefined,
+    }).where(eq(siteContentTable.key, "site")).returning();
+    await prepareMediaForPublication(published.published, existing.published);
+    await tx.insert(auditLogsTable).values({
+      actorClerkUserId: audit.actorClerkUserId, action: audit.action,
+      entityType: audit.entityType, entityId: audit.entityId, metadata: audit.metadata,
+    });
+    return updated;
   });
+  if (!row) { res.status(409).json({ error: "Save a draft before publishing" }); return; }
   res.json(row);
 });
 
@@ -1439,6 +1448,7 @@ router.post("/staff/content/platform/catalogue/publish-confirmed", platformRoles
       eq(siteContentTable.publishedAt, expectedPublished),
     )).returning();
     if (!updated) return { kind: "conflict" as const };
+    await prepareMediaForPublication(checked.candidate, row.published);
     const hash = platformContentHash(checked.candidate);
     const [revision] = await tx.insert(siteContentRevisionsTable).values({
       contentKey: "platform", event: "published_confirmed_catalogue",
@@ -1574,6 +1584,7 @@ router.post("/staff/content/platform/publish", platformRoles, async (req, res): 
       published: parsed.data, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
     }).where(and(eq(siteContentTable.key, "platform"), eq(siteContentTable.draftUpdatedAt, expected))).returning();
     if (!updated) return { kind: "conflict" as const };
+    await prepareMediaForPublication(parsed.data, current.published);
     const hash = platformContentHash(parsed.data);
     const [revision] = await tx.insert(siteContentRevisionsTable).values({
       contentKey: "platform", event: "published", snapshot: parsed.data,
@@ -1667,6 +1678,7 @@ router.post("/staff/content/platform/homepage/publish", platformRoles, async (re
       publishedGuard,
     )).returning();
     if (!updated) return { kind: "conflict" as const };
+    await prepareMediaForPublication(parsed.data, current.published);
     const [revision] = await tx.insert(siteContentRevisionsTable).values({
       contentKey: "platform",
       event: "published",
@@ -1800,6 +1812,7 @@ router.post("/staff/content/platform/products/:slug/publish", platformRoles, asy
       eq(siteContentTable.publishedAt, expectedPublished),
     )).returning();
     if (!updated) return { kind: "conflict" as const };
+    await prepareMediaForPublication(candidate.data, row.published);
     const hash = platformContentHash(candidate.data);
     const [revision] = await tx.insert(siteContentRevisionsTable).values({
       contentKey: "platform", event: "published_product", snapshot: candidate.data,
@@ -2172,6 +2185,9 @@ router.post(
         publishedAt: parsed.data.status === "published" ? new Date() : null,
       })
         .returning();
+      if (created!.status === "published") {
+        await prepareMediaForPublication({ coverImageUrl: created!.coverImageUrl, body: created!.body });
+      }
       const [revision] = await tx
         .insert(journalPostRevisionsTable)
         .values({
@@ -2268,6 +2284,12 @@ router.patch(
         .where(eq(journalPostsTable.id, current.id))
         .returning();
 
+      if (updated!.status === "published") {
+        await prepareMediaForPublication(
+          { coverImageUrl: updated!.coverImageUrl, body: updated!.body },
+          current.status === "published" ? { coverImageUrl: current.coverImageUrl, body: current.body } : undefined,
+        );
+      }
       const [revision] = await tx
         .insert(journalPostRevisionsTable)
         .values({

@@ -1,5 +1,5 @@
 import type { PlatformContent } from "./platform-content";
-import { CloudinaryStorageService } from "./cloudinary-storage";
+import { createMediaStorageService } from "./media-storage";
 import {
   MAX_HERO_POSTER_BYTES,
   MAX_HERO_VIDEO_BYTES,
@@ -19,7 +19,7 @@ export type HeroMediaInspection = {
 export type HeroMediaInspector = (path: string) => Promise<HeroMediaInspection | null>;
 export type HeroMediaValidationIssue = { path: string[]; message: string };
 
-const storage = new CloudinaryStorageService();
+const storage = createMediaStorageService();
 
 export const inspectStoredHeroMedia: HeroMediaInspector = async (path) => {
   const uploadedPrefix = "/api/storage/objects/";

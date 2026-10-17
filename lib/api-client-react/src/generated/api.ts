@@ -86,6 +86,7 @@ import type {
   ManagedMediaCleanupSummary,
   MarketingPixelSettingsRevision,
   MarketingPixelSettingsUpdate,
+  MediaStorageStatus,
   NewsletterCampaignInput,
   NewsletterLinkInput,
   NewsletterSignupInput,
@@ -105,6 +106,8 @@ import type {
   ReadStaffMailboxMessage200,
   ReadStaffMailboxMessageParams,
   RedirectLookup,
+  RenditionAuthorizationInput,
+  RenditionAuthorizationResponse,
   RequestNewsletterSubscription202,
   ResendStaffNewsletterConfirmation200,
   SaveStaffMailboxSettings200,
@@ -9117,6 +9120,83 @@ export function useListStaffRedirectHistory<TData = Awaited<ReturnType<typeof li
 
 
 
+export const getGetStaffMediaStorageStatusUrl = () => {
+
+
+
+
+  return `/api/storage/status`
+}
+
+/**
+ * @summary Read the active media provider and bounded application-bucket R2 storage inventory
+ */
+export const getStaffMediaStorageStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<MediaStorageStatus> => {
+
+  return customFetch<MediaStorageStatus>(getGetStaffMediaStorageStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffMediaStorageStatusQueryKey = () => {
+    return [
+    `/api/storage/status`
+    ] as const;
+    }
+
+
+export const getGetStaffMediaStorageStatusQueryOptions = <TData = Awaited<ReturnType<typeof getStaffMediaStorageStatus>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffMediaStorageStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffMediaStorageStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffMediaStorageStatus>>> = ({ signal }) => getStaffMediaStorageStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffMediaStorageStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffMediaStorageStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffMediaStorageStatus>>>
+export type GetStaffMediaStorageStatusQueryError = ErrorType<void>
+
+
+/**
+ * @summary Read the active media provider and bounded application-bucket R2 storage inventory
+ */
+
+export function useGetStaffMediaStorageStatus<TData = Awaited<ReturnType<typeof getStaffMediaStorageStatus>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffMediaStorageStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffMediaStorageStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getRequestUploadUrlUrl = () => {
 
 
@@ -9188,6 +9268,77 @@ export const useRequestUploadUrl = <TError = ErrorType<void>,
       return useMutation(getRequestUploadUrlMutationOptions(options));
     }
 
+export const getRequestMediaRenditionUploadsUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/renditions/request-urls`
+}
+
+/**
+ * @summary Authorize bounded responsive copies of an owned, verified private photo
+ */
+export const requestMediaRenditionUploads = async (renditionAuthorizationInput: RenditionAuthorizationInput, options?: Parameters<typeof customFetch>[1]): Promise<RenditionAuthorizationResponse> => {
+
+  return customFetch<RenditionAuthorizationResponse>(getRequestMediaRenditionUploadsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(renditionAuthorizationInput)
+  }
+);}
+
+
+
+
+
+export const getRequestMediaRenditionUploadsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestMediaRenditionUploads>>, TError,{data: BodyType<RenditionAuthorizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestMediaRenditionUploads>>, TError,{data: BodyType<RenditionAuthorizationInput>}, TContext> => {
+
+const mutationKey = ['requestMediaRenditionUploads'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestMediaRenditionUploads>>, {data: BodyType<RenditionAuthorizationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestMediaRenditionUploads(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestMediaRenditionUploadsMutationResult = NonNullable<Awaited<ReturnType<typeof requestMediaRenditionUploads>>>
+    export type RequestMediaRenditionUploadsMutationBody = BodyType<RenditionAuthorizationInput>
+    export type RequestMediaRenditionUploadsMutationError = ErrorType<void>
+
+    /**
+ * @summary Authorize bounded responsive copies of an owned, verified private photo
+ */
+export const useRequestMediaRenditionUploads = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestMediaRenditionUploads>>, TError,{data: BodyType<RenditionAuthorizationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestMediaRenditionUploads>>,
+        TError,
+        {data: BodyType<RenditionAuthorizationInput>},
+        TContext
+      > => {
+      return useMutation(getRequestMediaRenditionUploadsMutationOptions(options));
+    }
+
 export const getFinalizeStorageUploadUrl = () => {
 
 
@@ -9197,7 +9348,7 @@ export const getFinalizeStorageUploadUrl = () => {
 }
 
 /**
- * @summary Verify a completed Cloudinary upload before it can be persisted
+ * @summary Verify a completed managed upload and its required responsive copies before persistence
  */
 export const finalizeStorageUpload = async (finalizeUploadRequest: FinalizeUploadRequest, options?: Parameters<typeof customFetch>[1]): Promise<FinalizeUploadResponse> => {
 
@@ -9246,7 +9397,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type FinalizeStorageUploadMutationError = ErrorType<void>
 
     /**
- * @summary Verify a completed Cloudinary upload before it can be persisted
+ * @summary Verify a completed managed upload and its required responsive copies before persistence
  */
 export const useFinalizeStorageUpload = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof finalizeStorageUpload>>, TError,{data: BodyType<FinalizeUploadRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}

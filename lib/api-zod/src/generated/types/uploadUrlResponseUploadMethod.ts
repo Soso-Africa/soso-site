@@ -11,4 +11,5 @@ export type UploadUrlResponseUploadMethod = typeof UploadUrlResponseUploadMethod
 
 export const UploadUrlResponseUploadMethod = {
   POST: 'POST',
+  PUT: 'PUT',
 } as const;

@@ -1520,6 +1520,20 @@ paths:
         "200":
           description: Redirect revisions
           content: { application/json: { schema: { type: array, items: { type: object, additionalProperties: true } } } }
+  /storage/status:
+    get:
+      operationId: getStaffMediaStorageStatus
+      tags: [storage]
+      summary: Read the active media provider and bounded application-bucket R2 storage inventory
+      responses:
+        "200":
+          description: Provider-aware status, never an account-wide billing or request report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MediaStorageStatus" }
+        "401": { description: "Staff authentication required" }
+        "403": { description: "Editorial staff role required" }
+        "503": { description: "Storage status could not be coordinated safely" }
   /storage/uploads/request-url:
     post:
       operationId: requestUploadUrl
@@ -1532,7 +1546,7 @@ paths:
             schema: { $ref: "#/components/schemas/UploadUrlRequest" }
       responses:
         "200":
-          description: Signed Cloudinary upload authorization and durable browser path
+          description: Signed provider-specific upload authorization and durable browser path
           content:
             application/json:
               schema: { $ref: "#/components/schemas/UploadUrlResponse" }
@@ -1540,11 +1554,31 @@ paths:
         "401": { description: "Staff authentication required" }
         "403": { description: "Editorial staff role required" }
         "500": { description: "Upload URL could not be created" }
+  /storage/uploads/renditions/request-urls:
+    post:
+      operationId: requestMediaRenditionUploads
+      tags: [storage]
+      summary: Authorize bounded responsive copies of an owned, verified private photo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RenditionAuthorizationInput" }
+      responses:
+        "200":
+          description: Owner-bound signed PUT authorizations for the four responsive copies
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RenditionAuthorizationResponse" }
+        "400": { description: "Invalid rendition metadata or source authorization" }
+        "401": { description: "Staff authentication required" }
+        "403": { description: "Editorial staff role required" }
+        "409": { description: "The active storage provider does not accept separate renditions" }
   /storage/uploads/finalize:
     post:
       operationId: finalizeStorageUpload
       tags: [storage]
-      summary: Verify a completed Cloudinary upload before it can be persisted
+      summary: Verify a completed managed upload and its required responsive copies before persistence
       requestBody:
         required: true
         content:
@@ -1733,6 +1767,36 @@ components:
         eventId: { type: string, pattern: "^[a-f0-9-]{36}$" }
         value: { type: number, exclusiveMinimum: 0 }
         currency: { type: string, enum: [NGN] }
+    R2StorageSnapshot:
+      type: object
+      additionalProperties: false
+      required: [fetchedAt, privateBytes, privateObjects, publicBytes, publicObjects]
+      properties:
+        fetchedAt: { type: string }
+        privateBytes: { type: number, minimum: 0 }
+        privateObjects: { type: number, minimum: 0 }
+        publicBytes: { type: number, minimum: 0 }
+        publicObjects: { type: number, minimum: 0 }
+    R2StorageUsage:
+      type: object
+      additionalProperties: false
+      required: [status, snapshot, nextRefreshAt, message]
+      properties:
+        status: { type: string, enum: [available, stale, unavailable] }
+        snapshot:
+          allOf: [{ $ref: "#/components/schemas/R2StorageSnapshot" }]
+          nullable: true
+        nextRefreshAt: { type: string }
+        message: { type: string, nullable: true }
+    MediaStorageStatus:
+      type: object
+      additionalProperties: false
+      required: [provider, r2Usage]
+      properties:
+        provider: { type: string, enum: [cloudinary, r2] }
+        r2Usage:
+          allOf: [{ $ref: "#/components/schemas/R2StorageUsage" }]
+          nullable: true
     UploadUrlRequest:
       type: object
       additionalProperties: false
@@ -1758,18 +1822,91 @@ components:
         uploadURL: { type: string, minLength: 1 }
         uploadMethod:
           type: string
-          enum: [POST]
+          enum: [POST, PUT]
         uploadFields:
           type: object
           additionalProperties: { type: string }
+        uploadHeaders:
+          type: object
+          additionalProperties: { type: string }
+        finalizeToken:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        requiresRenditions:
+          type: boolean
         objectPath:
           type: string
           pattern: "^/api/storage/objects/uploads/"
+    RenditionUploadMetadata:
+      type: object
+      additionalProperties: false
+      required: [width, size, contentType]
+      properties:
+        width:
+          type: integer
+          enum: [480, 768, 1280, 1600]
+        size:
+          type: number
+          minimum: 1
+          maximum: 12582912
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png]
+    RenditionAuthorizationInput:
+      type: object
+      additionalProperties: false
+      required: [objectPath, finalizeToken, renditions]
+      properties:
+        objectPath:
+          type: string
+          pattern: "^/api/storage/objects/uploads/"
+        finalizeToken:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        renditions:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items: { $ref: "#/components/schemas/RenditionUploadMetadata" }
+    RenditionUploadAuthorization:
+      type: object
+      additionalProperties: false
+      required: [width, uploadURL, uploadHeaders]
+      properties:
+        width:
+          type: integer
+          enum: [480, 768, 1280, 1600]
+        uploadURL:
+          type: string
+          minLength: 1
+        uploadHeaders:
+          type: object
+          additionalProperties: { type: string }
+    RenditionAuthorizationResponse:
+      type: object
+      additionalProperties: false
+      required: [uploads, finalizeToken]
+      properties:
+        uploads:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items: { $ref: "#/components/schemas/RenditionUploadAuthorization" }
+        finalizeToken:
+          type: string
+          minLength: 1
+          maxLength: 4096
     FinalizeUploadRequest:
       type: object
       additionalProperties: false
       required: [objectPath]
       properties:
+        finalizeToken:
+          type: string
+          minLength: 1
+          maxLength: 4096
         objectPath:
           type: string
           pattern: "^/api/storage/objects/uploads/"
