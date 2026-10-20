@@ -8,6 +8,141 @@
 import * as zod from 'zod';
 
 
+export const GetCatalogueGoogleStatusResponse = zod.object({
+  "configured": zod.boolean(),
+  "connected": zod.boolean(),
+  "workspace": zod.boolean(),
+  "folders": zod.array(zod.string()),
+  "expiresAt": zod.string().optional()
+})
+
+
+export const AuthorizeCatalogueGoogleResponse = zod.object({
+  "authorizationUrl": zod.string()
+})
+
+
+export const CompleteCatalogueGoogleQueryParams = zod.object({
+  "state": zod.coerce.string().optional(),
+  "code": zod.coerce.string().optional(),
+  "error": zod.coerce.string().optional()
+})
+
+export const CompleteCatalogueGoogleResponse = zod.void()
+
+
+export const DisconnectCatalogueGoogleResponse = zod.object({
+  "disconnected": zod.boolean(),
+  "revoked": zod.boolean()
+})
+
+
+export const listCatalogueGoogleFoldersQuerySearchMax = 100;
+
+
+
+export const ListCatalogueGoogleFoldersQueryParams = zod.object({
+  "search": zod.coerce.string().max(listCatalogueGoogleFoldersQuerySearchMax).optional()
+})
+
+export const ListCatalogueGoogleFoldersResponse = zod.object({
+  "folders": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})),
+  "more": zod.boolean()
+})
+
+
+export const selectCatalogueGoogleFolderBodyFolderIdRegExp = new RegExp('^[A-Za-z0-9_-]{10,160}$');
+
+
+export const SelectCatalogueGoogleFolderBody = zod.object({
+  "folderId": zod.string().regex(selectCatalogueGoogleFolderBodyFolderIdRegExp)
+})
+
+export const SelectCatalogueGoogleFolderResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})
+
+
+export const scanCatalogueImportSheetBodyNameMax = 200;
+
+export const scanCatalogueImportSheetBodyContentBase64Max = 900000;
+
+
+
+export const ScanCatalogueImportSheetBody = zod.object({
+  "name": zod.string().max(scanCatalogueImportSheetBodyNameMax),
+  "contentBase64": zod.string().max(scanCatalogueImportSheetBodyContentBase64Max)
+})
+
+export const scanCatalogueImportSheetResponseRowsItemRowNumberMultipleOf = 1;
+
+
+
+export const ScanCatalogueImportSheetResponse = zod.object({
+  "sheetName": zod.string(),
+  "rows": zod.array(zod.object({
+  "rowNumber": zod.number().multipleOf(scanCatalogueImportSheetResponseRowsItemRowNumberMultipleOf),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "department": zod.string(),
+  "category": zod.string(),
+  "driveFolderId": zod.string().optional(),
+  "driveUrl": zod.string().optional(),
+  "fields": zod.record(zod.string(), zod.string()),
+  "warnings": zod.array(zod.string()),
+  "photoNames": zod.array(zod.string())
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+export const GetCatalogueImportDriveFolderParams = zod.object({
+  "folderId": zod.coerce.string()
+})
+
+export const getCatalogueImportDriveFolderResponseFilesItemSizeMultipleOf = 1;
+
+
+
+export const GetCatalogueImportDriveFolderResponse = zod.object({
+  "folderId": zod.string(),
+  "name": zod.string(),
+  "files": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "size": zod.number().multipleOf(getCatalogueImportDriveFolderResponseFilesItemSizeMultipleOf),
+  "mimeType": zod.string(),
+  "md5Checksum": zod.string().optional(),
+  "modifiedTime": zod.string().optional()
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+export const DownloadCatalogueImportDrivePhotoParams = zod.object({
+  "folderId": zod.coerce.string(),
+  "fileId": zod.coerce.string()
+})
+
+export const DownloadCatalogueImportDrivePhotoResponse = zod.unknown()
+
+
+export const saveCatalogueImportDraftBodyProductsMax = 10;
+
+
+
+export const SaveCatalogueImportDraftBody = zod.object({
+  "expectedDraftUpdatedAt": zod.string(),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())).min(1).max(saveCatalogueImportDraftBodyProductsMax)
+})
+
+export const SaveCatalogueImportDraftResponse = zod.record(zod.string(), zod.unknown())
+
+
 export const ListShopperSessionsResponse = zod.object({
   "sessions": zod.array(zod.object({
   "id": zod.string(),

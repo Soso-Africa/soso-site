@@ -24,6 +24,14 @@ import type {
   Acknowledgement,
   AnalyticsEventInput,
   AnalyticsQualityReport,
+  AuthorizeCatalogueGoogle200,
+  CatalogueGoogleFolder,
+  CatalogueGoogleFolderSelection,
+  CatalogueGoogleStatus,
+  CatalogueImportDraftInput,
+  CatalogueImportDriveFolder,
+  CatalogueImportSheet,
+  CatalogueImportSheetInput,
   CatalogueMappingPreview,
   CatalogueMappingPreviewInput,
   ChangeStaffNewsletterCampaignAudience200,
@@ -39,6 +47,7 @@ import type {
   CommerceQuoteInput,
   CommerceWebhookInput,
   CommerceWebhookReceipt,
+  CompleteCatalogueGoogleParams,
   ConfirmNewsletterSubscription200,
   ConsentInput,
   ConsentRecord,
@@ -50,6 +59,7 @@ import type {
   CustomerMeasurements,
   DeleteShopperMeasurement200,
   DeleteStaffNewsletterGroup200,
+  DisconnectCatalogueGoogle200,
   DownloadStaffMailboxAttachmentParams,
   Enquiry,
   EnquiryInput,
@@ -74,6 +84,8 @@ import type {
   GetVerifiedShopperOrdersParams,
   HealthStatus,
   JournalPost,
+  ListCatalogueGoogleFolders200,
+  ListCatalogueGoogleFoldersParams,
   ListStaffAuditEventsParams,
   ListStaffFaqHistoryParams,
   ListStaffMailboxMessages200,
@@ -121,6 +133,7 @@ import type {
   RenditionAuthorizationResponse,
   RequestNewsletterSubscription202,
   ResendStaffNewsletterConfirmation200,
+  SaveCatalogueImportDraft200,
   SaveStaffMailboxSettings200,
   SendStaffMailboxMessage200,
   SendStaffNewsletterCampaignBatch200,
@@ -216,6 +229,705 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetCatalogueGoogleStatusUrl = () => {
+
+
+
+
+  return `/api/staff/catalogue-import/google/status`
+}
+
+export const getCatalogueGoogleStatus = async ( options?: Parameters<typeof customFetch>[1]): Promise<CatalogueGoogleStatus> => {
+
+  return customFetch<CatalogueGoogleStatus>(getGetCatalogueGoogleStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCatalogueGoogleStatusQueryKey = () => {
+    return [
+    `/api/staff/catalogue-import/google/status`
+    ] as const;
+    }
+
+
+export const getGetCatalogueGoogleStatusQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogueGoogleStatus>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCatalogueGoogleStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCatalogueGoogleStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogueGoogleStatus>>> = ({ signal }) => getCatalogueGoogleStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogueGoogleStatus>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCatalogueGoogleStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogueGoogleStatus>>>
+export type GetCatalogueGoogleStatusQueryError = ErrorType<unknown>
+
+
+
+export function useGetCatalogueGoogleStatus<TData = Awaited<ReturnType<typeof getCatalogueGoogleStatus>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCatalogueGoogleStatus>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCatalogueGoogleStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAuthorizeCatalogueGoogleUrl = () => {
+
+
+
+
+  return `/api/staff/catalogue-import/google/authorize`
+}
+
+export const authorizeCatalogueGoogle = async ( options?: Parameters<typeof customFetch>[1]): Promise<AuthorizeCatalogueGoogle200> => {
+
+  return customFetch<AuthorizeCatalogueGoogle200>(getAuthorizeCatalogueGoogleUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthorizeCatalogueGoogleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeCatalogueGoogle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authorizeCatalogueGoogle>>, TError,void, TContext> => {
+
+const mutationKey = ['authorizeCatalogueGoogle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeCatalogueGoogle>>, void> = () => {
+
+
+          return  authorizeCatalogueGoogle(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthorizeCatalogueGoogleMutationResult = NonNullable<Awaited<ReturnType<typeof authorizeCatalogueGoogle>>>
+
+    export type AuthorizeCatalogueGoogleMutationError = ErrorType<unknown>
+
+    export const useAuthorizeCatalogueGoogle = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeCatalogueGoogle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authorizeCatalogueGoogle>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAuthorizeCatalogueGoogleMutationOptions(options));
+    }
+
+export const getCompleteCatalogueGoogleUrl = (params?: CompleteCatalogueGoogleParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/catalogue-import/google/callback?${stringifiedParams}` : `/api/staff/catalogue-import/google/callback`
+}
+
+export const completeCatalogueGoogle = async (params?: CompleteCatalogueGoogleParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getCompleteCatalogueGoogleUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteCatalogueGoogleQueryKey = (params?: CompleteCatalogueGoogleParams,) => {
+    return [
+    `/api/staff/catalogue-import/google/callback`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCompleteCatalogueGoogleQueryOptions = <TData = Awaited<ReturnType<typeof completeCatalogueGoogle>>, TError = ErrorType<void>>(params?: CompleteCatalogueGoogleParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof completeCatalogueGoogle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCompleteCatalogueGoogleQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof completeCatalogueGoogle>>> = ({ signal }) => completeCatalogueGoogle(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof completeCatalogueGoogle>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CompleteCatalogueGoogleQueryResult = NonNullable<Awaited<ReturnType<typeof completeCatalogueGoogle>>>
+export type CompleteCatalogueGoogleQueryError = ErrorType<void>
+
+
+
+export function useCompleteCatalogueGoogle<TData = Awaited<ReturnType<typeof completeCatalogueGoogle>>, TError = ErrorType<void>>(
+ params?: CompleteCatalogueGoogleParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof completeCatalogueGoogle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCompleteCatalogueGoogleQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDisconnectCatalogueGoogleUrl = () => {
+
+
+
+
+  return `/api/staff/catalogue-import/google/disconnect`
+}
+
+export const disconnectCatalogueGoogle = async ( options?: Parameters<typeof customFetch>[1]): Promise<DisconnectCatalogueGoogle200> => {
+
+  return customFetch<DisconnectCatalogueGoogle200>(getDisconnectCatalogueGoogleUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectCatalogueGoogleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectCatalogueGoogle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectCatalogueGoogle>>, TError,void, TContext> => {
+
+const mutationKey = ['disconnectCatalogueGoogle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectCatalogueGoogle>>, void> = () => {
+
+
+          return  disconnectCatalogueGoogle(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectCatalogueGoogleMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectCatalogueGoogle>>>
+
+    export type DisconnectCatalogueGoogleMutationError = ErrorType<unknown>
+
+    export const useDisconnectCatalogueGoogle = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectCatalogueGoogle>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectCatalogueGoogle>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDisconnectCatalogueGoogleMutationOptions(options));
+    }
+
+export const getListCatalogueGoogleFoldersUrl = (params?: ListCatalogueGoogleFoldersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/catalogue-import/google/folders?${stringifiedParams}` : `/api/staff/catalogue-import/google/folders`
+}
+
+export const listCatalogueGoogleFolders = async (params?: ListCatalogueGoogleFoldersParams, options?: Parameters<typeof customFetch>[1]): Promise<ListCatalogueGoogleFolders200> => {
+
+  return customFetch<ListCatalogueGoogleFolders200>(getListCatalogueGoogleFoldersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCatalogueGoogleFoldersQueryKey = (params?: ListCatalogueGoogleFoldersParams,) => {
+    return [
+    `/api/staff/catalogue-import/google/folders`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCatalogueGoogleFoldersQueryOptions = <TData = Awaited<ReturnType<typeof listCatalogueGoogleFolders>>, TError = ErrorType<unknown>>(params?: ListCatalogueGoogleFoldersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCatalogueGoogleFolders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCatalogueGoogleFoldersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCatalogueGoogleFolders>>> = ({ signal }) => listCatalogueGoogleFolders(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCatalogueGoogleFolders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCatalogueGoogleFoldersQueryResult = NonNullable<Awaited<ReturnType<typeof listCatalogueGoogleFolders>>>
+export type ListCatalogueGoogleFoldersQueryError = ErrorType<unknown>
+
+
+
+export function useListCatalogueGoogleFolders<TData = Awaited<ReturnType<typeof listCatalogueGoogleFolders>>, TError = ErrorType<unknown>>(
+ params?: ListCatalogueGoogleFoldersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCatalogueGoogleFolders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCatalogueGoogleFoldersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSelectCatalogueGoogleFolderUrl = () => {
+
+
+
+
+  return `/api/staff/catalogue-import/google/folders`
+}
+
+export const selectCatalogueGoogleFolder = async (catalogueGoogleFolderSelection: CatalogueGoogleFolderSelection, options?: Parameters<typeof customFetch>[1]): Promise<CatalogueGoogleFolder> => {
+
+  return customFetch<CatalogueGoogleFolder>(getSelectCatalogueGoogleFolderUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(catalogueGoogleFolderSelection)
+  }
+);}
+
+
+
+
+
+export const getSelectCatalogueGoogleFolderMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectCatalogueGoogleFolder>>, TError,{data: BodyType<CatalogueGoogleFolderSelection>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof selectCatalogueGoogleFolder>>, TError,{data: BodyType<CatalogueGoogleFolderSelection>}, TContext> => {
+
+const mutationKey = ['selectCatalogueGoogleFolder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof selectCatalogueGoogleFolder>>, {data: BodyType<CatalogueGoogleFolderSelection>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  selectCatalogueGoogleFolder(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SelectCatalogueGoogleFolderMutationResult = NonNullable<Awaited<ReturnType<typeof selectCatalogueGoogleFolder>>>
+    export type SelectCatalogueGoogleFolderMutationBody = BodyType<CatalogueGoogleFolderSelection>
+    export type SelectCatalogueGoogleFolderMutationError = ErrorType<unknown>
+
+    export const useSelectCatalogueGoogleFolder = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectCatalogueGoogleFolder>>, TError,{data: BodyType<CatalogueGoogleFolderSelection>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof selectCatalogueGoogleFolder>>,
+        TError,
+        {data: BodyType<CatalogueGoogleFolderSelection>},
+        TContext
+      > => {
+      return useMutation(getSelectCatalogueGoogleFolderMutationOptions(options));
+    }
+
+export const getScanCatalogueImportSheetUrl = () => {
+
+
+
+
+  return `/api/staff/catalogue-import/sheet`
+}
+
+export const scanCatalogueImportSheet = async (catalogueImportSheetInput: CatalogueImportSheetInput, options?: Parameters<typeof customFetch>[1]): Promise<CatalogueImportSheet> => {
+
+  return customFetch<CatalogueImportSheet>(getScanCatalogueImportSheetUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(catalogueImportSheetInput)
+  }
+);}
+
+
+
+
+
+export const getScanCatalogueImportSheetMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scanCatalogueImportSheet>>, TError,{data: BodyType<CatalogueImportSheetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scanCatalogueImportSheet>>, TError,{data: BodyType<CatalogueImportSheetInput>}, TContext> => {
+
+const mutationKey = ['scanCatalogueImportSheet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scanCatalogueImportSheet>>, {data: BodyType<CatalogueImportSheetInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  scanCatalogueImportSheet(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScanCatalogueImportSheetMutationResult = NonNullable<Awaited<ReturnType<typeof scanCatalogueImportSheet>>>
+    export type ScanCatalogueImportSheetMutationBody = BodyType<CatalogueImportSheetInput>
+    export type ScanCatalogueImportSheetMutationError = ErrorType<unknown>
+
+    export const useScanCatalogueImportSheet = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scanCatalogueImportSheet>>, TError,{data: BodyType<CatalogueImportSheetInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scanCatalogueImportSheet>>,
+        TError,
+        {data: BodyType<CatalogueImportSheetInput>},
+        TContext
+      > => {
+      return useMutation(getScanCatalogueImportSheetMutationOptions(options));
+    }
+
+export const getGetCatalogueImportDriveFolderUrl = (folderId: string,) => {
+
+
+
+
+  return `/api/staff/catalogue-import/drive/${folderId}`
+}
+
+export const getCatalogueImportDriveFolder = async (folderId: string, options?: Parameters<typeof customFetch>[1]): Promise<CatalogueImportDriveFolder> => {
+
+  return customFetch<CatalogueImportDriveFolder>(getGetCatalogueImportDriveFolderUrl(folderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCatalogueImportDriveFolderQueryKey = (folderId: string,) => {
+    return [
+    `/api/staff/catalogue-import/drive/${folderId}`
+    ] as const;
+    }
+
+
+export const getGetCatalogueImportDriveFolderQueryOptions = <TData = Awaited<ReturnType<typeof getCatalogueImportDriveFolder>>, TError = ErrorType<unknown>>(folderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCatalogueImportDriveFolder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCatalogueImportDriveFolderQueryKey(folderId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCatalogueImportDriveFolder>>> = ({ signal }) => getCatalogueImportDriveFolder(folderId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: folderId !== null && folderId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCatalogueImportDriveFolder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCatalogueImportDriveFolderQueryResult = NonNullable<Awaited<ReturnType<typeof getCatalogueImportDriveFolder>>>
+export type GetCatalogueImportDriveFolderQueryError = ErrorType<unknown>
+
+
+
+export function useGetCatalogueImportDriveFolder<TData = Awaited<ReturnType<typeof getCatalogueImportDriveFolder>>, TError = ErrorType<unknown>>(
+ folderId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCatalogueImportDriveFolder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCatalogueImportDriveFolderQueryOptions(folderId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDownloadCatalogueImportDrivePhotoUrl = (folderId: string,
+    fileId: string,) => {
+
+
+
+
+  return `/api/staff/catalogue-import/drive/${folderId}/files/${fileId}`
+}
+
+export const downloadCatalogueImportDrivePhoto = async (folderId: string,
+    fileId: string, options?: Parameters<typeof customFetch>[1]): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadCatalogueImportDrivePhotoUrl(folderId,fileId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadCatalogueImportDrivePhotoQueryKey = (folderId: string,
+    fileId: string,) => {
+    return [
+    `/api/staff/catalogue-import/drive/${folderId}/files/${fileId}`
+    ] as const;
+    }
+
+
+export const getDownloadCatalogueImportDrivePhotoQueryOptions = <TData = Awaited<ReturnType<typeof downloadCatalogueImportDrivePhoto>>, TError = ErrorType<unknown>>(folderId: string,
+    fileId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogueImportDrivePhoto>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadCatalogueImportDrivePhotoQueryKey(folderId,fileId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadCatalogueImportDrivePhoto>>> = ({ signal }) => downloadCatalogueImportDrivePhoto(folderId,fileId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: folderId !== null && folderId !== undefined && fileId !== null && fileId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogueImportDrivePhoto>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadCatalogueImportDrivePhotoQueryResult = NonNullable<Awaited<ReturnType<typeof downloadCatalogueImportDrivePhoto>>>
+export type DownloadCatalogueImportDrivePhotoQueryError = ErrorType<unknown>
+
+
+
+export function useDownloadCatalogueImportDrivePhoto<TData = Awaited<ReturnType<typeof downloadCatalogueImportDrivePhoto>>, TError = ErrorType<unknown>>(
+ folderId: string,
+    fileId: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadCatalogueImportDrivePhoto>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadCatalogueImportDrivePhotoQueryOptions(folderId,fileId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveCatalogueImportDraftUrl = () => {
+
+
+
+
+  return `/api/staff/content/platform/import/draft`
+}
+
+export const saveCatalogueImportDraft = async (catalogueImportDraftInput: CatalogueImportDraftInput, options?: Parameters<typeof customFetch>[1]): Promise<SaveCatalogueImportDraft200> => {
+
+  return customFetch<SaveCatalogueImportDraft200>(getSaveCatalogueImportDraftUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(catalogueImportDraftInput)
+  }
+);}
+
+
+
+
+
+export const getSaveCatalogueImportDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCatalogueImportDraft>>, TError,{data: BodyType<CatalogueImportDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveCatalogueImportDraft>>, TError,{data: BodyType<CatalogueImportDraftInput>}, TContext> => {
+
+const mutationKey = ['saveCatalogueImportDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveCatalogueImportDraft>>, {data: BodyType<CatalogueImportDraftInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  saveCatalogueImportDraft(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveCatalogueImportDraftMutationResult = NonNullable<Awaited<ReturnType<typeof saveCatalogueImportDraft>>>
+    export type SaveCatalogueImportDraftMutationBody = BodyType<CatalogueImportDraftInput>
+    export type SaveCatalogueImportDraftMutationError = ErrorType<void>
+
+    export const useSaveCatalogueImportDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveCatalogueImportDraft>>, TError,{data: BodyType<CatalogueImportDraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveCatalogueImportDraft>>,
+        TError,
+        {data: BodyType<CatalogueImportDraftInput>},
+        TContext
+      > => {
+      return useMutation(getSaveCatalogueImportDraftMutationOptions(options));
+    }
 
 export const getListShopperSessionsUrl = () => {
 

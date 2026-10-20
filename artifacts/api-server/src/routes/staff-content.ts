@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { createHash } from "node:crypto";
 import {
+  SaveCatalogueImportDraftBody,
   GetCommerceCatalogResponse,
   CreateStaffJournalPostBody,
   CreateStaffJournalPostResponse,
@@ -1091,12 +1092,14 @@ const editablePlatformSections = [
 const editableSection = z.enum(editablePlatformSections);
 type EditableSection = typeof editablePlatformSections[number];
 type DraftChange =
+  | { kind: "import"; products: unknown[] }
   | { kind: "section"; section: EditableSection; value: unknown }
   | { kind: "product"; slug: string; value: unknown }
   | { kind: "delete_product"; slug: string }
   | { kind: "catalogue"; collections: unknown; upserts: { slug: string; product: unknown }[]; deletions: string[] };
 
 function mergeDraftChange(current: PlatformContent, change: DraftChange): unknown {
+  if (change.kind === "import") return { ...current, products: [...current.products, ...change.products] };
   if (change.kind === "section") return { ...current, [change.section]: change.value };
   if (change.kind === "delete_product") return deleteDraftProduct(current, change.slug);
   if (change.kind === "catalogue") {
@@ -1134,6 +1137,12 @@ async function saveScopedDraft(req: Request, res: Response, change: DraftChange)
     if (!currentRow) return { kind: "conflict" as const };
     const current = PlatformContentSchema.safeParse(currentRow.draft);
     if (!current.success) return { kind: "invalid" as const, error: "The saved draft is invalid. Restore it with the complete document editor.", issues: current.error.issues };
+    if (change.kind === "import") {
+      const products = change.products as PlatformContent["products"];
+      if (products.some((product) => current.data.products.some((existing) => existing.slug === product.slug))) {
+        return { kind: "conflict" as const };
+      }
+    }
     const candidate = mergeDraftChange(current.data, change);
     if (!candidate) return { kind: "invalid" as const, error: "Product slug must match the URL and an existing product must be selected for deletion.", issues: [] };
     const parsed = PlatformContentSchema.safeParse(candidate);
@@ -1142,6 +1151,7 @@ async function saveScopedDraft(req: Request, res: Response, change: DraftChange)
       return { kind: "invalid" as const, error: "Legacy sparse featured compatibility can only be preserved from the current migrated draft.", issues: [] };
     }
     const selectedProducts = change.kind === "product" ? [change.slug]
+      : change.kind === "import" ? (change.products as PlatformContent["products"]).map((product) => product.slug)
       : change.kind === "catalogue" ? change.upserts.map((item) => item.slug) : [];
     const selected = { ...parsed.data, products: parsed.data.products.filter((product) => selectedProducts.includes(product.slug)) };
     const mediaIssues = selectedProducts.length
@@ -1182,7 +1192,8 @@ async function saveScopedDraft(req: Request, res: Response, change: DraftChange)
       entityType: "site_content", entityId: "platform",
       metadata: {
         contentHash: hash, revisionId: revision!.id,
-        scope: change.kind === "section" ? change.section : change.kind === "catalogue" ? "catalogue" : "product",
+        scope: change.kind === "section" ? change.section : change.kind === "catalogue" ? "catalogue" : change.kind === "import" ? "catalogue_import" : "product",
+        ...(change.kind === "import" ? { slugs: selectedProducts, draftOnly: true } : {}),
         ...(change.kind === "product" || change.kind === "delete_product" ? { slug: change.slug } : {}),
         confirmedCommerceMappings: parsed.data.products.filter((product) => product.commerceMappingConfirmation)
           .map((product) => ({
@@ -1195,7 +1206,7 @@ async function saveScopedDraft(req: Request, res: Response, change: DraftChange)
     await queueCollectionCoverCleanup(tx, replacedCollectionCoverUploadPaths(currentRow.draft, parsed.data), req.staff!.clerkUserId);
     return { kind: "saved" as const, row: updated };
   });
-  if (result.kind === "conflict") { res.status(409).json({ error: "Platform content changed while you were editing. Reload before saving." }); return; }
+  if (result.kind === "conflict") { res.status(409).json({ error: "Platform content changed or an imported slug already exists. Reload before saving; existing products were not overwritten." }); return; }
   if (result.kind === "invalid") { res.status(400).json({ error: result.error, issues: result.issues }); return; }
   if (result.kind === "unavailable") { res.status(503).json({ error: "JusticeSure catalogue could not be revalidated. The draft was not saved." }); return; }
   acknowledgeCommittedPlatformDraft(res, result.row);
@@ -1239,6 +1250,36 @@ router.patch("/staff/content/platform/catalogue/draft", platformRoles, async (re
     upserts: parsed.data.upserts.map((item) => ({ slug: item.slug, product: item.product })),
     deletions: parsed.data.deletions,
   });
+});
+
+router.post("/staff/content/platform/import/draft", platformRoles, async (req, res): Promise<void> => {
+  const input = SaveCatalogueImportDraftBody.safeParse(req.body);
+  if (!input.success) { res.status(400).json({ error: "Provide a draft version and between 1 and 10 reviewed products." }); return; }
+  const products = input.data.products;
+  const slugs = products.map((product) => product.slug);
+  if (new Set(slugs).size !== slugs.length || products.some((product) =>
+    typeof product.slug !== "string" || !catalogueSlug.safeParse(product.slug).success
+    || typeof product.name !== "string" || !product.name.trim()
+    || typeof product.category !== "string" || !product.category.trim()
+    || product.releaseState !== "placeholder" || product.fulfilmentState !== "unavailable"
+    || product.standardEligible !== false || product.customEligible !== false
+    || product.allowCustomColour !== false
+    || !Array.isArray(product.standardSizes) || product.standardSizes.length
+    || !Array.isArray(product.readyNowSizes) || product.readyNowSizes.length
+    || !Array.isArray(product.images) || product.images.length < 1 || product.images.length > 40
+    || product.images.some((image: unknown) => {
+      if (!image || typeof image !== "object") return true;
+      const item = image as { src?: unknown; alt?: unknown; provenance?: { source?: unknown; rights?: unknown } };
+      return typeof item.src !== "string" || typeof item.alt !== "string" || !item.alt.trim()
+        || typeof item.provenance?.source !== "string" || !item.provenance.source.trim()
+        || typeof item.provenance?.rights !== "string" || !item.provenance.rights.trim();
+    })
+    || !product.images.some((image: unknown) => !!image && typeof image === "object" && "src" in image && image.src === product.img)
+    || ["commerceProductId", "commerceVariantIds", "commerceMappingConfirmation", "variantPrices", "legacyMigration"].some((key) => key in product)
+  )) {
+    res.status(400).json({ error: "Import only unique, reviewed new products with a gallery and cover, placeholder release, unavailable fulfilment, and no checkout eligibility or commerce mapping." }); return;
+  }
+  await saveScopedDraft(req, res, { kind: "import", products });
 });
 
 router.put("/staff/content/platform", platformRoles, async (req, res): Promise<void> => {

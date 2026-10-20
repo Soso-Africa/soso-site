@@ -1,0 +1,53 @@
+/** IndexedDB persistence for import review metadata and upload receipts. Never stores photo bytes, auth or secrets. */
+const DB = "soso-catalogue-import";
+const VERSION = 1;
+
+export type UploadReceipt = { hash: string; path: string; name: string; size: number; uploadedAt: string };
+
+function open(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") return reject(new Error("IndexedDB unavailable"));
+    const req = indexedDB.open(DB, VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains("receipts")) db.createObjectStore("receipts");
+      if (!db.objectStoreNames.contains("sessions")) db.createObjectStore("sessions");
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function run<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest): Promise<T> {
+  const db = await open();
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(store, mode);
+    const req = fn(tx.objectStore(store));
+    // Resolve only once the transaction has committed, not when the request succeeds.
+    tx.oncomplete = () => resolve(req.result as T);
+    tx.onerror = () => reject(tx.error ?? req.error);
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+  }).finally(() => db.close());
+}
+
+export const importStore = {
+  getReceipt: (staffId: string, hash: string) => run<UploadReceipt | undefined>("receipts", "readonly", (s) => s.get(`${staffId}:${hash}`)),
+  putReceipt: (staffId: string, r: UploadReceipt) => run<IDBValidKey>("receipts", "readwrite", (s) => s.put(r, `${staffId}:${r.hash}`)),
+  getSession: <T>(staffId: string) => run<T | undefined>("sessions", "readonly", (s) => s.get(staffId)),
+  putSession: (staffId: string, value: unknown) => run<IDBValidKey>("sessions", "readwrite", (s) => s.put(value, staffId)),
+  clearSession: (staffId: string) => run<undefined>("sessions", "readwrite", (s) => s.delete(staffId)),
+};
+
+export async function sha256Hex(blob: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ""));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}

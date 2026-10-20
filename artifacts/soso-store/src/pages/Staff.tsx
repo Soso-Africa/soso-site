@@ -782,6 +782,34 @@ function PlatformContentManagementSection() {
       return { ok: false, message };
     } finally { setSaving(false); }
   };
+  const importCatalogueProducts = async (products: PlatformContent["products"]): Promise<void> => {
+    if (saving) throw new Error("Wait for the current save to finish before importing.");
+    if (!row?.draft || !row.draftUpdatedAt) throw new Error("Reload the saved draft before importing products.");
+    let current: PlatformContent;
+    try { current = parsedDocument(); } catch { throw new Error("Fix the editor JSON before importing. Nothing was changed."); }
+    if (!structuredEditorValid || JSON.stringify(current) !== JSON.stringify(row.draft)) {
+      throw new Error("The catalogue editor has unsaved edits. Save or discard them first — your edits were left untouched and nothing was imported.");
+    }
+    setSaving(true);
+    try {
+      const next = await customFetch<PlatformContentRow>("/api/staff/content/platform/import/draft", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedDraftUpdatedAt: row.draftUpdatedAt, products }), responseType: "json",
+      });
+      setRow(next);
+      const document = next.draft ?? next.published;
+      if (document) {
+        setContent(document);
+        setJson(JSON.stringify(sectionValue(document, sectionRef.current), null, 2));
+      }
+      setStatus(`${products.length} imported product${products.length === 1 ? "" : "s"} saved to the unpublished draft as non-selling placeholders. The storefront was not updated.`);
+      try { await refreshRevisions(); } catch { /* history refresh is best-effort */ }
+    } catch (error) {
+      const message = platformActionError(error, "Imported products could not be saved.");
+      setStatus(message);
+      throw new Error(message);
+    } finally { setSaving(false); }
+  };
   const deleteCatalogueProduct = async (slug: string): Promise<string | null | undefined> => {
     if (saving) return "Wait for the current save to finish before deleting a product.";
     let document: PlatformContent;
@@ -1086,6 +1114,7 @@ function PlatformContentManagementSection() {
           onPublishProduct={publishCatalogueProduct}
           publishedProducts={row?.published?.products ?? []}
           onPublishRemoval={publishCatalogueRemoval}
+          onImportProducts={importCatalogueProducts}
           onUploadMedia={async (file) => {
             const path = await uploadStaffMedia(file);
             setStatus("Catalogue asset uploaded and added to the draft. Save the draft to keep it.");

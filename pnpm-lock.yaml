@@ -197,6 +197,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: 3.1152.0
         version: 3.1152.0
+      '@replit/connectors-sdk':
+        specifier: ^0.4.3
+        version: 0.4.3
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -1845,6 +1848,9 @@ packages:
 
   '@radix-ui/rect@1.1.3':
     resolution: {integrity: sha512-JtyZR+mqgBibTo8xea3B6ZRmzZiM/YeVBtUkas6zMuXjAlfIFIW2FgqeM9eLyvEaYX66vr6DJMK+4U6LV0KhNw==}
+
+  '@replit/connectors-sdk@0.4.3':
+    resolution: {integrity: sha512-7XoaRty/O6JF161UkVBI8UewZ96XCNNN1kRvT9Q41IRH3xr+6ImylvXtirIghydDd2FCQvIkY4HQscOOr45otA==}
 
   '@replit/vite-plugin-cartographer@0.5.21':
     resolution: {integrity: sha512-E5rco8Mov05QDfUOjoim3MVJdDX0/pBYql5Jay3w9cqmU/QOL6cEOUAjsBZPB/V8FEChsk++sZUrcWt1bHaAoQ==}
@@ -5688,6 +5694,8 @@ snapshots:
       '@types/react-dom': 19.2.3(@types/react@19.2.17)
 
   '@radix-ui/rect@1.1.3': {}
+
+  '@replit/connectors-sdk@0.4.3': {}
 
   '@replit/vite-plugin-cartographer@0.5.21':
     dependencies:
