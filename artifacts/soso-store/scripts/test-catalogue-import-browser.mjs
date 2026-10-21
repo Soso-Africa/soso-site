@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
 import { createStaffBrowserHarness } from "./staff-browser-harness.mjs";
 
 const root = resolve(new URL("../../..", import.meta.url).pathname);
@@ -25,6 +23,7 @@ let page;
 let harness;
 let originalDraft;
 let parsedRows = [];
+let pilotUser;
 
 async function writeReport() {
   report.updatedAt = new Date().toISOString();
@@ -72,13 +71,23 @@ try {
   await writeFile(createdPathsFile, JSON.stringify({ runId, createdPaths: [], cleanup: {} }, null, 2));
   await writeFile(outstandingPathsFile, JSON.stringify([], null, 2));
   await persistCreatedPaths();
-  harness = await createStaffBrowserHarness({ prefix: "cataloguepilot", ownerPassword: password });
+  harness = await createStaffBrowserHarness({ prefix: "cataloguepilot", ownerPassword: password, requireImportRecovery: true });
   await harness.startServers();
+  pilotUser = await harness.createStaffUser({ label: "pilot", password, role: "editor" });
+  // Start by exporting the authenticated server ledger. Browser response events
+  // are only supplementary: a lost authorization response must not lose a path.
+  const initialLedger = await harness.api("/api/storage/import-ledger", { cookie: pilotUser.cookie });
+  assert.equal(initialLedger.response.status, 200, "Durable upload recovery must be available before a real pilot.");
+  for (const receipt of initialLedger.value) {
+    createdPaths.add(receipt.path);
+    pathCleanup.set(receipt.path, { deleted: false, state: receipt.status });
+  }
+  await persistCreatedPaths();
   const original = harness.originalPlatformRow;
   originalDraft = structuredClone(original.draft);
   const originalPublished = structuredClone(original.published);
   const originalProducts = originalDraft.products ?? [];
-  const user = await harness.createStaffUser({ label: "pilot", password, role: "editor" });
+  const user = pilotUser;
   browser = await harness.launchBrowser();
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   page = await context.newPage();
@@ -317,44 +326,52 @@ try {
         if (!draftRestored) throw new Error(`Isolated draft restore failed (${restore.response.status}); media deletion withheld.`);
       }
     }
+    assert.ok(pilotUser, "Pilot identity must be available to recover its owned upload paths.");
+    const ledger = await harness.api("/api/storage/import-ledger", { cookie: pilotUser.cookie });
+    assert.equal(ledger.response.status, 200, "Export the server ledger before verification teardown.");
+    for (const receipt of ledger.value) {
+      createdPaths.add(receipt.path);
+      if (!pathCleanup.has(receipt.path)) pathCleanup.set(receipt.path, { deleted: false, state: receipt.status });
+    }
+    await persistCreatedPaths();
     if (createdPaths.size) {
       if (!draftRestored) throw new Error("Media deletion withheld because isolated draft restoration was not confirmed.");
       const objectPaths = [...createdPaths];
-      const storageModule = pathToFileURL(resolve(root, "artifacts/api-server/src/lib/media-storage.ts")).href;
-      const source = `void (async () => {
-        const { createMediaStorageService } = await import(${JSON.stringify(storageModule)});
-        const storage = createMediaStorageService();
-        const items = JSON.parse(process.env.PILOT_MEDIA_PATHS);
-        const results = [];
-        for (const objectPath of items) {
-          const prefix = "/api/storage/objects/";
-          if (typeof objectPath !== "string" || !objectPath.startsWith(prefix)) {
-            results.push({ objectPath, deleted: false, errorType: "InvalidObjectPath" }); continue;
-          }
-          const relative = objectPath.slice(prefix.length);
-          if (!relative.startsWith("uploads/")) {
-            results.push({ objectPath, deleted: false, errorType: "NotAnUploadedMediaPath" }); continue;
-          }
-          try {
-            await storage.deleteUploadedMedia(relative);
-            results.push({ objectPath, deleted: true });
-          } catch (error) {
-            results.push({ objectPath, deleted: false, errorType: error?.name || "DeleteError" });
-          }
-        }
-        console.log("PILOT_CLEANUP_JSON:" + JSON.stringify(results));
-        if (results.some((result) => !result.deleted)) process.exitCode = 1;
-      })().catch((error) => { console.error("PILOT_CLEANUP_FATAL:" + (error?.name || "CleanupError")); process.exitCode = 1; });`;
-      const cleanup = spawnSync("pnpm", ["--dir", resolve(root, "scripts"), "exec", "tsx", "--eval", source], {
-        cwd: root, encoding: "utf8", maxBuffer: 2_000_000,
-        env: { ...process.env, PILOT_MEDIA_PATHS: JSON.stringify(objectPaths) },
+      // Do not invoke a storage adapter directly. The server must establish
+      // ownership and perform a fresh locked reference check for every record.
+      const review = await harness.api("/api/storage/import-review", { cookie: pilotUser.cookie });
+      assert.equal(review.response.status, 200);
+      const cleared = await harness.api("/api/storage/import-review", {
+        cookie: pilotUser.cookie, method: "PUT", body: { version: review.value.version, review: null },
       });
-      const marker = cleanup.stdout?.split(/\r?\n/).find((line) => line.startsWith("PILOT_CLEANUP_JSON:"));
-      const results = marker ? JSON.parse(marker.slice("PILOT_CLEANUP_JSON:".length)) : [];
+      assert.equal(cleared.response.status, 200);
+      const results = [];
+      for (const objectPath of objectPaths) {
+        const receipt = ledger.value.find((r) => r.path === objectPath);
+        if (!receipt) {
+          results.push({ objectPath, deleted: false, errorType: "NoOwnedLedgerIdentity" });
+          continue;
+        }
+        // Fresh authorizations are deliberately not reclaimed immediately.
+        // The isolated-schema runner retains the owned ledger and references
+        // and prints a resumable cleanup command after this process exits.
+        if (Date.now() - new Date(receipt.createdAt).getTime() < 2 * 60 * 60_000) {
+          results.push({ objectPath, deleted: false, deferred: true });
+          continue;
+        }
+        const cleaned = await harness.api(`/api/storage/import-ledger/${receipt.id}/cleanup`, {
+          cookie: pilotUser.cookie, method: "POST",
+        });
+        results.push({
+          objectPath, deleted: cleaned.response.status === 200 && cleaned.value.status === "deleted",
+          deferred: cleaned.response.status === 409,
+          ...(cleaned.response.status === 200 ? {} : { errorType: "CleanupWithheld" }),
+        });
+      }
       for (const result of results) {
         pathCleanup.set(result.objectPath, result.deleted
           ? { deleted: true, state: "deleted" }
-          : { deleted: false, state: "outstanding", errorType: result.errorType ?? "DeleteError" });
+          : { deleted: false, state: result.deferred ? "deferred" : "outstanding", ...(result.errorType ? { errorType: result.errorType } : {}) });
       }
       const outstanding = objectPaths.filter((objectPath) => !results.some((result) => result.objectPath === objectPath && result.deleted));
       await writeFile(outstandingPathsFile, JSON.stringify(outstanding, null, 2));
@@ -363,9 +380,9 @@ try {
         attempted: objectPaths.length,
         deleted: results.filter((result) => result.deleted).length,
         outstanding,
-        ...(cleanup.status !== 0 ? { childExitCode: cleanup.status, childError: safeChildError(cleanup.stderr) } : {}),
+        deferred: results.filter((result) => result.deferred).length,
       };
-      if (cleanup.status !== 0 || outstanding.length) {
+      if (results.some((result) => !result.deleted && !result.deferred)) {
         throw new Error(`Exact-path media cleanup incomplete (${outstanding.length} outstanding).`);
       }
     }

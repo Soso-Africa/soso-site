@@ -83,6 +83,9 @@ import type {
   GetStorageObjectParams,
   GetVerifiedShopperOrdersParams,
   HealthStatus,
+  ImportLedger,
+  ImportReview,
+  ImportUploadReceipt,
   JournalPost,
   ListCatalogueGoogleFolders200,
   ListCatalogueGoogleFoldersParams,
@@ -650,6 +653,278 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getSelectCatalogueGoogleFolderMutationOptions(options));
+    }
+
+export const getGetImportLedgerUrl = () => {
+
+
+
+
+  return `/api/storage/import-ledger`
+}
+
+export const getImportLedger = async ( options?: Parameters<typeof customFetch>[1]): Promise<ImportLedger> => {
+
+  return customFetch<ImportLedger>(getGetImportLedgerUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetImportLedgerQueryKey = () => {
+    return [
+    `/api/storage/import-ledger`
+    ] as const;
+    }
+
+
+export const getGetImportLedgerQueryOptions = <TData = Awaited<ReturnType<typeof getImportLedger>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getImportLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetImportLedgerQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getImportLedger>>> = ({ signal }) => getImportLedger({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getImportLedger>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetImportLedgerQueryResult = NonNullable<Awaited<ReturnType<typeof getImportLedger>>>
+export type GetImportLedgerQueryError = ErrorType<unknown>
+
+
+
+export function useGetImportLedger<TData = Awaited<ReturnType<typeof getImportLedger>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getImportLedger>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetImportLedgerQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCleanupImportUploadUrl = (id: string,) => {
+
+
+
+
+  return `/api/storage/import-ledger/${id}/cleanup`
+}
+
+export const cleanupImportUpload = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ImportUploadReceipt> => {
+
+  return customFetch<ImportUploadReceipt>(getCleanupImportUploadUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCleanupImportUploadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cleanupImportUpload>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cleanupImportUpload>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['cleanupImportUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cleanupImportUpload>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  cleanupImportUpload(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CleanupImportUploadMutationResult = NonNullable<Awaited<ReturnType<typeof cleanupImportUpload>>>
+
+    export type CleanupImportUploadMutationError = ErrorType<unknown>
+
+    export const useCleanupImportUpload = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cleanupImportUpload>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof cleanupImportUpload>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getCleanupImportUploadMutationOptions(options));
+    }
+
+export const getGetImportReviewUrl = () => {
+
+
+
+
+  return `/api/storage/import-review`
+}
+
+export const getImportReview = async ( options?: Parameters<typeof customFetch>[1]): Promise<ImportReview> => {
+
+  return customFetch<ImportReview>(getGetImportReviewUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetImportReviewQueryKey = () => {
+    return [
+    `/api/storage/import-review`
+    ] as const;
+    }
+
+
+export const getGetImportReviewQueryOptions = <TData = Awaited<ReturnType<typeof getImportReview>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getImportReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetImportReviewQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getImportReview>>> = ({ signal }) => getImportReview({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getImportReview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetImportReviewQueryResult = NonNullable<Awaited<ReturnType<typeof getImportReview>>>
+export type GetImportReviewQueryError = ErrorType<unknown>
+
+
+
+export function useGetImportReview<TData = Awaited<ReturnType<typeof getImportReview>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getImportReview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetImportReviewQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPutImportReviewUrl = () => {
+
+
+
+
+  return `/api/storage/import-review`
+}
+
+export const putImportReview = async (importReview: ImportReview, options?: Parameters<typeof customFetch>[1]): Promise<ImportReview> => {
+
+  return customFetch<ImportReview>(getPutImportReviewUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(importReview)
+  }
+);}
+
+
+
+
+
+export const getPutImportReviewMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putImportReview>>, TError,{data: BodyType<ImportReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putImportReview>>, TError,{data: BodyType<ImportReview>}, TContext> => {
+
+const mutationKey = ['putImportReview'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putImportReview>>, {data: BodyType<ImportReview>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  putImportReview(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutImportReviewMutationResult = NonNullable<Awaited<ReturnType<typeof putImportReview>>>
+    export type PutImportReviewMutationBody = BodyType<ImportReview>
+    export type PutImportReviewMutationError = ErrorType<unknown>
+
+    export const usePutImportReview = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putImportReview>>, TError,{data: BodyType<ImportReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putImportReview>>,
+        TError,
+        {data: BodyType<ImportReview>},
+        TContext
+      > => {
+      return useMutation(getPutImportReviewMutationOptions(options));
     }
 
 export const getScanCatalogueImportSheetUrl = () => {

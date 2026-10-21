@@ -111,13 +111,14 @@ const AnalyticsDashboard = lazy(() =>
 
 type SignedMediaUpload = import("@workspace/api-client-react").UploadUrlResponse;
 
-async function uploadStaffMedia(file: File): Promise<string> {
+async function uploadStaffMedia(file: File, importSource?: import("@workspace/api-client-react").ImportUploadSource): Promise<string> {
   const signed = await customFetch<SignedMediaUpload>("/api/storage/uploads/request-url", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type, importSource }),
     responseType: "json",
   });
+  if (signed.completed) return signed.objectPath;
   let body: BodyInit = file;
   if (signed.uploadMethod === "POST") {
     const form = new FormData();
@@ -125,10 +126,12 @@ async function uploadStaffMedia(file: File): Promise<string> {
     form.append("file", file);
     body = form;
   }
-  const uploaded = await fetch(signed.uploadURL, {
-    method: signed.uploadMethod, body, headers: signed.uploadHeaders,
-  });
-  if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
+  if (!signed.originalUploaded) {
+    const uploaded = await fetch(signed.uploadURL, {
+      method: signed.uploadMethod, body, headers: signed.uploadHeaders,
+    });
+    if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
+  }
   let finalizeToken = signed.finalizeToken;
   if (signed.requiresRenditions) {
     const { createStaffPhotoRenditions } = await import("../lib/staff-media-renditions");
@@ -143,6 +146,7 @@ async function uploadStaffMedia(file: File): Promise<string> {
       },
     );
     for (const upload of authorized.uploads) {
+      if (upload.uploaded) continue;
       const rendition = renditions.find((r) => r.width === upload.width);
       if (!rendition) throw new Error("Responsive photo authorization returned an unexpected width.");
       const response = await fetch(upload.uploadURL, { method: "PUT", headers: upload.uploadHeaders, body: rendition.blob });
@@ -1115,8 +1119,8 @@ function PlatformContentManagementSection() {
           publishedProducts={row?.published?.products ?? []}
           onPublishRemoval={publishCatalogueRemoval}
           onImportProducts={importCatalogueProducts}
-          onUploadMedia={async (file) => {
-            const path = await uploadStaffMedia(file);
+          onUploadMedia={async (file, importSource) => {
+            const path = await uploadStaffMedia(file, importSource);
             setStatus("Catalogue asset uploaded and added to the draft. Save the draft to keep it.");
             return path;
           }}

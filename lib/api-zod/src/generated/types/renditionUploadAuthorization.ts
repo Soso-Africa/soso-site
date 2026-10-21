@@ -9,6 +9,7 @@ import type { RenditionUploadAuthorizationUploadHeaders } from './renditionUploa
 import type { RenditionUploadAuthorizationWidth } from './renditionUploadAuthorizationWidth';
 
 export interface RenditionUploadAuthorization {
+  uploaded?: boolean;
   width: RenditionUploadAuthorizationWidth;
   /** @minLength 1 */
   uploadURL: string;

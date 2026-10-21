@@ -10,6 +10,8 @@ import type { UploadUrlResponseUploadHeaders } from './uploadUrlResponseUploadHe
 import type { UploadUrlResponseUploadMethod } from './uploadUrlResponseUploadMethod';
 
 export interface UploadUrlResponse {
+  completed?: boolean;
+  originalUploaded?: boolean;
   /** @minLength 1 */
   uploadURL: string;
   uploadMethod: UploadUrlResponseUploadMethod;

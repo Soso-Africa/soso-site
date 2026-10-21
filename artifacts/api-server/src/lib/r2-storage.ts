@@ -37,6 +37,13 @@ export class R2StorageService implements MediaStorage {
     const stem = name.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 120) || "media";
     const path = `uploads/${randomUUID()}-${stem}.${extensions[contentType]}`;
     const objectPath = `/api/storage/objects/${path}`;
+    return this.resumeMediaUpload(objectPath, contentType, context);
+  }
+
+  // Only called with a path from the server-owned ledger, never a client path.
+  async resumeMediaUpload(objectPath: string, contentType: string, context: MediaUploadContext): Promise<MediaUpload> {
+    const path = objectPath.slice("/api/storage/objects/".length);
+    normalizeR2MediaPath(path, "uploads");
     const key = r2MediaKey(this.config, path, "uploads");
     const signed = await signR2MediaPut(this.io.client, {
       bucket: this.config.privateBucket, key, contentType, size: context.size,

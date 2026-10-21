@@ -5,6 +5,54 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ImportUploadSource {
+  /**
+     * @minLength 1
+     * @maxLength 256
+     * @pattern ^(drive:[A-Za-z0-9_-]+|local:[a-f0-9]{64})$
+     */
+  sourceIdentity: string;
+  /** @pattern ^[a-f0-9]{64}$ */
+  sourceVersion: string;
+  /** @pattern ^[a-f0-9]{64}$ */
+  hash: string;
+}
+
+export type ImportUploadReceiptStatus = typeof ImportUploadReceiptStatus[keyof typeof ImportUploadReceiptStatus];
+
+
+export const ImportUploadReceiptStatus = {
+  pending: 'pending',
+  complete: 'complete',
+  deleted: 'deleted',
+} as const;
+
+export interface ImportUploadReceipt {
+  id: string;
+  sourceIdentity: string;
+  sourceVersion: string;
+  hash: string;
+  name: string;
+  size: number;
+  path: string;
+  status: ImportUploadReceiptStatus;
+  createdAt: string;
+}
+
+export type ImportLedger = ImportUploadReceipt[];
+
+/**
+ * @nullable
+ */
+export type ImportReviewReview = { [key: string]: unknown } | null;
+
+export interface ImportReview {
+  /** @minimum 0 */
+  version: number;
+  /** @nullable */
+  review: ImportReviewReview;
+}
+
 export interface CatalogueImportSheetInput {
   /** @maxLength 200 */
   name: string;
@@ -239,6 +287,7 @@ export const UploadUrlRequestContentType = {
 } as const;
 
 export interface UploadUrlRequest {
+  importSource?: ImportUploadSource;
   /**
      * @minLength 1
      * @maxLength 160
@@ -266,6 +315,8 @@ export type UploadUrlResponseUploadFields = {[key: string]: string};
 export type UploadUrlResponseUploadHeaders = {[key: string]: string};
 
 export interface UploadUrlResponse {
+  completed?: boolean;
+  originalUploaded?: boolean;
   /** @minLength 1 */
   uploadURL: string;
   uploadMethod: UploadUrlResponseUploadMethod;
@@ -337,6 +388,7 @@ export const RenditionUploadAuthorizationWidth = {
 export type RenditionUploadAuthorizationUploadHeaders = {[key: string]: string};
 
 export interface RenditionUploadAuthorization {
+  uploaded?: boolean;
   width: RenditionUploadAuthorizationWidth;
   /** @minLength 1 */
   uploadURL: string;

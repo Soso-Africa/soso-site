@@ -14,7 +14,7 @@ import {
   type CollectionRef, type GroupReview, type PhotoItem, type SharedFacts,
 } from "./import-model";
 import { StaleTaskError, createSerialQueue } from "./drive-queue";
-import { fileToBase64, importStore, sha256Hex } from "./import-store";
+import { fileToBase64, createImportStore, sha256Hex } from "./import-store";
 import { DriveConnection } from "./DriveConnection";
 import { CatalogueImportGuide } from "./CatalogueImportGuide";
 
@@ -65,11 +65,13 @@ export function CatalogueImporter({
   editorProducts: CatalogProduct[];
   /** Saved/draft collections; categories must match one exactly. */
   collections?: CollectionRef[];
-  onUploadMedia: (file: File) => Promise<string>;
+  onUploadMedia: (file: File, importSource?: import("@workspace/api-client-react").ImportUploadSource) => Promise<string>;
   onImportProducts: (products: CatalogProduct[]) => Promise<void>;
 }) {
   const [open, setOpen] = useState(() => new URLSearchParams(window.location.search).has("drive"));
   const [staffId, setStaffId] = useState<string | null>(null);
+  const importStore = useRef(createImportStore()).current;
+  const [receipts, setReceipts] = useState<import("@workspace/api-client-react").ImportUploadReceipt[]>([]);
   const [identityError, setIdentityError] = useState("");
   const [sheet, setSheet] = useState<CatalogueImportSheet | null>(null);
   const [groups, setGroups] = useState<Record<number, GroupReview>>({});
@@ -144,11 +146,30 @@ export function CatalogueImporter({
         return;
       }
       let session: Session | undefined;
-      try { session = await importStore.getSession<Session>(me.id); } catch {
-        if (mountedRef.current) setPersistError("This browser could not open local storage (IndexedDB). Review progress and upload receipts will NOT survive a reload.");
+      let currentReceipts: import("@workspace/api-client-react").ImportUploadReceipt[] = [];
+      try {
+        session = await importStore.restore<Session>(me.id);
+        currentReceipts = await importStore.listReceipts(me.id);
+        if (mountedRef.current) setReceipts(currentReceipts);
+      } catch {
+        if (mountedRef.current) {
+          setPersistError("Server recovery could not be loaded. Reopen Staff before uploading; local-only receipts are not trusted.");
+          identityStarted.current = false;
+        }
+        return;
       }
       if (!mountedRef.current) return;
-      if (session?.sheet && !sheetRef.current) { setSheet(session.sheet); setGroups(Object.fromEntries(Object.entries(session.groups).map(([k, g]) => [k, { ...g, category: typeof g.category === "string" ? g.category : "", accepted: typeof g.category === "string" ? g.accepted : false }]))); setSelected(session.selected); setRestored(true); }
+      if (session?.sheet && !sheetRef.current) {
+        const paths = new Set(currentReceipts.filter((r) => r.status === "complete").map((r) => r.path));
+        setSheet(session.sheet);
+        setGroups(Object.fromEntries(Object.entries(session.groups).map(([k, g]) => [k, {
+          ...g, category: typeof g.category === "string" ? g.category : "",
+          accepted: typeof g.category === "string" ? g.accepted : false,
+          scan: g.scan.status === "scanning" ? { ...g.scan, status: "idle" } : g.scan,
+          photos: g.photos.map((p) => p.path && !paths.has(p.path) ? { ...p, path: undefined, hash: undefined } : p),
+        }])));
+        setSelected(session.selected); setRestored(true);
+      }
       setStaffId(me.id);
     })();
   }, [open]);
@@ -163,7 +184,7 @@ export function CatalogueImporter({
       if (!mountedRef.current) return; // never write after unmount (e.g. a different Staff session)
       importStore.putSession(owner, value)
         .then(() => { if (mountedRef.current) setPersistError(""); })
-        .catch(() => { if (mountedRef.current) setPersistError("Progress could not be saved in this browser. Keep this tab open until the batch is saved; a reload will lose the review."); });
+        .catch(() => { if (mountedRef.current) setPersistError("Review save was not confirmed. It may have changed on another device. Reopen Staff before continuing; server upload identities are retained."); });
     }, 400);
   }, [staffId, sheet, groups, selected]);
 
@@ -350,7 +371,7 @@ export function CatalogueImporter({
     return r && g && !g.savedAt && readinessBlockers(r, g, existingSlugs, counts, fCounts, collections).length === 0;
   });
   const overLimit = batch.length > MAX_PER_SAVE;
-  const busy = saving || Boolean(scanning) || retrying !== null;
+  const busy = saving || Boolean(scanning) || retrying !== null || !staffId;
 
   // ---------- Upload + save ----------
   /** Uploads one photo, reusing any receipt for identical bytes. Never writes to the draft. */
@@ -359,12 +380,14 @@ export function CatalogueImporter({
       if (!UPLOADABLE_TYPES.includes(p.mimeType)) throw new Error(`${p.mimeType || "Unknown type"} cannot be uploaded; export JPEG, PNG or WebP.`);
       const blob = await fetchPhotoBlob(p);
       const hash = await sha256Hex(blob);
+      if (!staffId) throw new Error("Wait for authenticated server recovery before uploading.");
       let path = sessionHashes.get(hash);
-      if (!path && staffId) path = (await importStore.getReceipt(staffId, hash).catch(() => undefined))?.path;
       if (!path) {
-        path = await onUploadMedia(new File([blob], safeUploadName(p.name, p.mimeType), { type: p.mimeType }));
-        if (staffId) await importStore.putReceipt(staffId, { hash, path, name: p.name, size: blob.size, uploadedAt: new Date().toISOString() })
-          .catch(() => setPersistError("An upload receipt could not be stored locally; after a reload this photo may upload again."));
+        const sourceIdentity = p.source === "drive" ? `drive:${p.driveFileId}` : `local:${await sha256Hex(new Blob([p.key]))}`;
+        path = await onUploadMedia(new File([blob], safeUploadName(p.name, p.mimeType), { type: p.mimeType }), {
+          sourceIdentity, sourceVersion: hash, hash,
+        });
+        if (mountedRef.current) setReceipts(await importStore.listReceipts(staffId));
       }
       sessionHashes.set(hash, path);
       patchPhoto(n, p.key, { hash, path, error: undefined });
@@ -372,6 +395,7 @@ export function CatalogueImporter({
       groupsRef.current = { ...groupsRef.current, [n]: { ...cur, photos: cur.photos.map((x) => (x.key === p.key ? { ...x, hash, path, error: undefined } : x)) } };
       return true;
     } catch (error) {
+      if (staffId) void importStore.listReceipts(staffId).then((r) => { if (mountedRef.current) setReceipts(r); }).catch(() => undefined);
       patchPhoto(n, p.key, { error: errText(error, "Upload failed. Retry this photo.") });
       return false;
     }
@@ -387,6 +411,7 @@ export function CatalogueImporter({
 
   const uploadAndSave = async () => {
     if (busy || batch.length === 0 || overLimit) return;
+    if (persistError) { setSaveError("Resolve the recovery warning before uploading. Reopen Staff to load the current server review."); return; }
     thumbGen.current++; // queued previews are discarded before they reach the network
     setSaving(true); setSaveError(""); setSaveMessage("");
     const sessionHashes = new Map<string, string>();
@@ -426,7 +451,7 @@ export function CatalogueImporter({
       // The success message is a reload boundary: wait for the IDB transaction to commit.
       if (staffId && sheetRef.current) {
         await importStore.putSession(staffId, { sheet: sheetRef.current, groups: committed, selected: remaining } satisfies Session)
-          .catch(() => setPersistError("Products were saved, but this browser could not save their review labels. Reload the saved catalogue before continuing."));
+          .catch(() => setPersistError("Products were saved, but their server review labels were not confirmed. Reload the saved catalogue before continuing."));
       }
       setSaveMessage(`${products.length} product${products.length === 1 ? "" : "s"} saved to the unpublished draft as non-selling placeholders. Price is unknown on each; nothing was published.${failedGroups.size ? ` ${failedGroups.size} group(s) held back by photo errors.` : ""}`);
     } catch (error) {
@@ -439,8 +464,13 @@ export function CatalogueImporter({
   const resetSession = async () => {
     if (busy) return;
     if (!window.confirm("Clear this import review? Upload receipts are kept so finished photos are not uploaded again.")) return;
-    setSheet(null); setGroups({}); setSelected([]); setLocalDirs([]); setRestored(false);
-    if (staffId) await importStore.clearSession(staffId).catch(() => undefined);
+    try {
+      if (!staffId) throw new Error("Wait for Staff recovery before clearing.");
+      if (persistTimer.current) window.clearTimeout(persistTimer.current);
+      persistTimer.current = null;
+      await importStore.putSession(staffId, null);
+      setSheet(null); setGroups({}); setSelected([]); setLocalDirs([]); setRestored(false);
+    } catch { setPersistError("Review clear was not confirmed. Reopen Staff before continuing."); }
   };
 
   const savedCount = Object.values(groups).filter((g) => g.savedAt).length;
@@ -469,13 +499,34 @@ export function CatalogueImporter({
           </div>
           {persistError && <p role="alert" data-testid="text-persist-error" className="border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900">{persistError}</p>}
           {identityError && <p role="status" className="border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">{identityError}</p>}
-          {restored && <p role="status" data-testid="status-import-restored" className="border border-border bg-muted/30 px-3 py-2 text-xs">Restored your previous review. Drive photos are available; reselect any local photo folders to continue — finished uploads are recognised by content hash and not sent again.</p>}
+          {restored && <p role="status" data-testid="status-import-restored" className="border border-border bg-muted/30 px-3 py-2 text-xs">Restored your server-saved review. Drive photos are available; reselect local folders to continue. Finished uploads are recognised by content hash across Staff devices.</p>}
+          {staffId && <details className="border border-border p-3 text-xs" data-testid="import-upload-recovery">
+            <summary className="cursor-pointer font-semibold">Upload recovery · {receipts.filter((r) => r.status === "complete").length} complete · {receipts.filter((r) => r.status === "pending").length} interrupted or in progress</summary>
+            <p className="my-2">Exact upload identities are saved on the server before upload authorization. Retry the same photo to resume its recorded path. Cleanup never scans a bucket: it checks only the selected owned record, after upload grants expire, and refuses referenced content or history. Clear the review first if it still retains that photo.</p>
+            <button type="button" className={btn} disabled={saving || retrying !== null} onClick={() => {
+              void importStore.listReceipts(staffId).then(setReceipts).catch(() => setSaveError("Upload recovery could not be refreshed."));
+            }}>Refresh upload recovery</button>
+            <ul className="mt-3 max-h-64 space-y-3 overflow-auto">
+              {receipts.map((r) => <li key={r.id} className="border-t border-border pt-2">
+                <p>{r.name} · {r.status}</p>
+                <code className="block break-all text-[10px]">{r.path}</code>
+                <button type="button" className={`${btn} mt-1`} disabled={busy} onClick={() => {
+                  if (!window.confirm(`Remove only this recorded upload if no content or review references it?\n${r.path}`)) return;
+                  setRetrying(r.id);
+                  void importStore.cleanup(staffId, r.id).then(() => importStore.listReceipts(staffId)).then(setReceipts)
+                    .catch((e) => setSaveError(errText(e, "Cleanup withheld; the recorded upload remains recoverable.")))
+                    .finally(() => setRetrying(null));
+                }}>Check references and clean up</button>
+              </li>)}
+            </ul>
+          </details>}
+
           <DriveConnection
             folders={Array.from(new Map((sheet?.rows ?? []).filter((r) => r.driveFolderId).map((r) => [r.driveFolderId!, { id: r.driveFolderId!, product: r.name }])).values())}
             busy={busy}
             beforeConnect={async () => {
               if (!sheetRef.current) return;
-              if (!staffId || persistError) throw new Error("Save the batch first or restore browser storage before connecting Google. Leaving this page could lose this review.");
+              if (!staffId || persistError) throw new Error("Restore the current server review before connecting Google. Leaving this page could lose unsaved changes.");
               if (persistTimer.current) window.clearTimeout(persistTimer.current);
               persistTimer.current = null;
               await importStore.putSession(staffId, { sheet: sheetRef.current, groups: groupsRef.current, selected: selectedRef.current });

@@ -26,6 +26,8 @@ export function CatalogueImportGuide() {
         <p><strong>To release later:</strong> review the product in Catalogue, replace unconfirmed information, confirm fulfilment and exact JusticeSure variant prices/mappings, complete the existing approval checks, and deliberately publish the product. Importing and deploying this tool do not perform those steps.</p>
         <p><strong>Google unavailable or expired?</strong> Reconnect the intended account and select the folders again, or use local folders. A Replit workspace connection alone does not authorize the live Staff site.</p>
         <p><strong>Save failed or response lost?</strong> Reload the saved catalogue before retrying: the server may have committed the batch. Existing-slug and draft-version checks prevent duplicate or stale saves. Reselect local files if prompted; keep using the same Staff account for recovery.</p>
+        <p><strong>Continue on another device:</strong> sign in to the same Staff account and reopen this importer. Review metadata and owned upload records are kept on the server; reselect local files if needed. If another device changed the review, reopen Staff rather than overwrite it.</p>
+        <p><strong>Upload recovery:</strong> use the owned-record recovery list below to inspect interrupted uploads. Cleanup checks current references and authorization expiry, so referenced or newly authorized photos cannot be removed. A refused cleanup leaves the record recoverable; do not delete files elsewhere to bypass the check.</p>
       </div>
     </details>
   );

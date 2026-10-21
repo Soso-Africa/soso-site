@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importStore } from "./import-store";
+import { localImportStore as importStore, createImportStore } from "./import-store";
 
 test("session persistence resolves only after transaction commit, so immediate restore sees saved metadata", async () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
@@ -54,4 +54,43 @@ test("session persistence resolves only after transaction commit, so immediate r
     if (previous) Object.defineProperty(globalThis, "indexedDB", previous);
     else Reflect.deleteProperty(globalThis, "indexedDB");
   }
+});
+
+test("server reviews restore without IndexedDB, serialize saves and reject stale devices and identities", async () => {
+  const original = globalThis.fetch;
+  let version = 0;
+  let review: unknown = null;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.endsWith("/import-review") && init?.method === "PUT") {
+      const body = JSON.parse(String(init.body));
+      if (body.version !== version) return Response.json({ error: "Changed on another device" }, { status: 409 });
+      version++; review = body.review;
+      return Response.json({ version, review });
+    }
+    if (url.endsWith("/import-review")) return Response.json({ version, review });
+    if (url.endsWith("/import-ledger")) return Response.json([{ id: "receipt", path: "/api/storage/objects/uploads/exact.jpg", status: "complete", hash: "a".repeat(64) }]);
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  try {
+    const first = createImportStore();
+    await assert.rejects(first.listReceipts("owner"), /authenticate/);
+    assert.equal(await first.restore("owner"), undefined);
+    const otherDevice = createImportStore();
+    await otherDevice.restore("owner");
+    await Promise.all([
+      first.putSession("owner", { selected: [2] }),
+      first.putSession("owner", { selected: [2, 3] }),
+    ]);
+    assert.equal(version, 2);
+    assert.deepEqual(review, { selected: [2, 3] });
+    await assert.rejects(otherDevice.putSession("owner", { selected: [] }));
+    assert.deepEqual(review, { selected: [2, 3] });
+    const freshDevice = createImportStore();
+    assert.deepEqual(await freshDevice.restore("owner"), { selected: [2, 3] });
+    assert.equal((await freshDevice.listReceipts("owner"))[0]?.path, "/api/storage/objects/uploads/exact.jpg");
+    await assert.rejects(freshDevice.listReceipts("different-owner"), /authenticate/);
+    await first.putSession("owner", null);
+    assert.equal(review, null);
+  } finally { globalThis.fetch = original; }
 });

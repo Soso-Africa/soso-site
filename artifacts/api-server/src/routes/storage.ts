@@ -1,4 +1,9 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { db } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import importLedgerRouter from "./import-ledger";
+import { importLock, mediaLock, ownedUpload, uploads } from "../lib/catalogue-import-ledger";
+import { createHash } from "node:crypto";
 import { RESPONSIVE_PHOTO_WIDTHS } from "../lib/responsive-media";
 import {
   FinalizeStorageUploadBody,
@@ -37,6 +42,7 @@ import {
 } from "../lib/media-files";
 
 const router: IRouter = Router();
+router.use(importLedgerRouter);
 const storage = createMediaStorageService();
 const SAFE_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$/;
 export { detectMediaContentType, parseMediaByteRange } from "../lib/media-files";
@@ -100,6 +106,7 @@ router.post(
       !Number.isInteger(parsed.data.size) ||
       parsed.data.size < 1 ||
       parsed.data.size > maxBytes ||
+      (parsed.success && parsed.data.importSource && !["image/jpeg", "image/png", "image/webp"].includes(parsed.data.contentType)) ||
       !SAFE_FILENAME.test(parsed.data.name) ||
       parsed.data.name === "." ||
       parsed.data.name === ".."
@@ -110,13 +117,53 @@ router.post(
       return;
     }
     try {
-      const result = await storage.createMediaUpload(parsed.data.name, parsed.data.contentType, {
+      const create = () => storage.createMediaUpload(parsed.data.name, parsed.data.contentType, {
         size: parsed.data.size, ownerId: req.staff!.id,
       });
+      const source = parsed.data.importSource;
+      const result = source ? await db.transaction(async (tx) => {
+        await importLock(tx, req.staff!.id);
+        await mediaLock(tx);
+        const rows = await tx.select().from(uploads).where(and(eq(uploads.ownerId, req.staff!.id), eq(uploads.hash, source.hash)));
+        const complete = rows.find((r) => r.status === "complete");
+        if (complete) {
+          await storage.inspectUploadedMedia(complete.path.slice("/api/storage/objects/".length));
+          return { objectPath: complete.path, completed: true, uploadURL: "unused", uploadMethod: "PUT" as const, uploadFields: {} };
+        }
+        const pending = rows.find((r) => r.status === "pending");
+        if (pending) {
+          if (pending.size !== parsed.data.size || mediaMimeTypeForPath(pending.path) !== parsed.data.contentType) throw new Error("Upload metadata changed");
+          // Both providers refuse overwrite. Independently verify any original
+          // that arrived before interruption, then skip sending those bytes.
+          let originalUploaded = false;
+            try {
+              const relative = pending.path.slice("/api/storage/objects/".length);
+              const inspected = await storage.inspectUploadedMedia(relative);
+              if (inspectionIssue(relative, inspected)) throw new Error("Invalid stored upload");
+              const bytes = await storage.readUploadedImageBytes(relative, pending.size);
+              if (bytes.length !== pending.size || createHash("sha256").update(bytes).digest("hex") !== pending.hash) throw new Error("Hash mismatch");
+              originalUploaded = true;
+              if (storage.provider === "cloudinary") {
+                await tx.update(uploads).set({ status: "complete" }).where(eq(uploads.id, pending.id));
+                return { objectPath: pending.path, completed: true, uploadURL: "unused", uploadMethod: "PUT" as const, uploadFields: {} };
+              }
+            } catch (error) { if (!(error instanceof MediaNotFoundError)) throw error; }
+          if (!storage.resumeMediaUpload) throw new Error("Upload recovery unavailable");
+          const signed = await storage.resumeMediaUpload(pending.path, parsed.data.contentType, { size: pending.size, ownerId: req.staff!.id });
+          if (originalUploaded) await storage.verifyFinalization?.(pending.path, signed.finalizeToken, req.staff!.id);
+          await tx.update(uploads).set({ authorizedAt: new Date() }).where(eq(uploads.id, pending.id));
+          return { ...signed, originalUploaded };
+        }
+        const signed = await create();
+        await tx.insert(uploads).values({
+          ownerId: req.staff!.id, ...source, path: signed.objectPath, name: parsed.data.name, size: parsed.data.size,
+        });
+        return signed;
+      }) : await create();
       res.json(RequestUploadUrlResponse.parse(result));
     } catch (error) {
       req.log.error({ err: error }, "Failed to create managed media upload authorization");
-      res.status(500).json({ error: "Failed to create upload URL" });
+      res.status(409).json({ error: parsed.data.importSource ? "Upload paused. Refresh upload recovery: an interrupted attempt may need scoped cleanup before retrying." : "Failed to create upload URL" });
     }
   },
 );
@@ -176,14 +223,26 @@ router.post(
     }
     const relativePath = objectPath.slice(uploadedPrefix.length);
     try {
+      await db.transaction(async (tx) => {
+      await mediaLock(tx);
+      const [receipt] = await tx.select().from(uploads).where(ownedUpload(req.staff!.id, objectPath));
+      if (receipt?.status === "deleted") throw new Error("Upload was reclaimed");
+      if (receipt?.status === "complete") return;
       await storage.verifyFinalization?.(objectPath, parsed.success ? parsed.data.finalizeToken : undefined, req.staff!.id);
       const inspected = await storage.inspectUploadedMedia(relativePath);
       if (inspectionIssue(relativePath, inspected)) {
         await storage.deleteUploadedMedia(relativePath);
-        res.status(400).json({ error: "Uploaded media did not pass SOSO publishing checks" });
-        return;
+        throw new Error("Uploaded media did not pass SOSO publishing checks");
+      }
+      if (receipt) {
+        const bytes = await storage.readUploadedImageBytes(relativePath, receipt.size);
+        if (bytes.length !== receipt.size || createHash("sha256").update(bytes).digest("hex") !== receipt.hash) {
+          throw new Error("Import photo content hash does not match");
+        }
       }
       await storage.finalizeRenditions?.(objectPath, parsed.success ? parsed.data.finalizeToken : undefined, req.staff!.id);
+      if (receipt) await tx.update(uploads).set({ status: "complete" }).where(eq(uploads.id, receipt.id));
+      });
       res.json(FinalizeStorageUploadResponse.parse({ objectPath }));
     } catch (error) {
       if (!(error instanceof MediaNotFoundError)) {

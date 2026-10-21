@@ -90,7 +90,7 @@ export function PlatformEditorCatalogue({
 }: {
   data: CatalogueData;
   onChange: (data: CatalogueData) => void;
-  onUploadMedia: (file: File) => Promise<string>;
+  onUploadMedia: (file: File, importSource?: import("@workspace/api-client-react").ImportUploadSource) => Promise<string>;
   initialProductSlug?: string | null;
   onDeleteProduct: (slug: string) => Promise<string | null | undefined>;
   onSaveProduct: (slug: string) => Promise<SaveResult>;

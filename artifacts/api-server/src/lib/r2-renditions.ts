@@ -41,8 +41,22 @@ export async function authorizeR2Renditions(
   if (!head.ETag) throw new Error("The source photo has no byte validator");
   const uploads = [];
   for (const rendition of renditions) {
+    const key = storage.variantKey(path, "uploads", rendition.width);
+    try {
+      const existing = await storage.io.head(storage.config.privateBucket, key);
+      if (existing.Metadata?.["soso-upload-owner"] !== ownerId
+        || existing.Metadata?.["soso-source-etag"] !== head.ETag
+        || existing.Metadata?.["soso-requested-width"] !== String(rendition.width)
+        || existing.ContentType !== rendition.contentType || existing.ContentLength !== rendition.size) {
+        throw new Error("Existing responsive upload differs from this owner and source. Cleanup is required before replacement.");
+      }
+      // Finalization still inspects complete bytes and dimensions. HEAD only
+      // establishes that retrying a non-overwriting PUT is unnecessary.
+      uploads.push({ width: rendition.width, uploaded: true, uploadURL: "unused", uploadHeaders: {} });
+      continue;
+    } catch (error) { if (!(error instanceof MediaNotFoundError)) throw error; }
     const signed = await signR2MediaPut(storage.io.client, {
-      bucket: storage.config.privateBucket, key: storage.variantKey(path, "uploads", rendition.width),
+      bucket: storage.config.privateBucket, key,
       contentType: rendition.contentType, size: rendition.size,
       metadata: { "soso-upload-owner": ownerId, "soso-source-etag": head.ETag, "soso-requested-width": String(rendition.width) },
     });

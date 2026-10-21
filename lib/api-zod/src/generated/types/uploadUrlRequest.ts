@@ -5,9 +5,11 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ImportUploadSource } from './importUploadSource';
 import type { UploadUrlRequestContentType } from './uploadUrlRequestContentType';
 
 export interface UploadUrlRequest {
+  importSource?: ImportUploadSource;
   /**
      * @minLength 1
      * @maxLength 160
