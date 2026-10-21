@@ -64,7 +64,7 @@ The **only** requested scope is `https://www.googleapis.com/auth/drive.readonly`
 
 ### Using direct Drive
 
-1. Open the importer, read the spreadsheet and choose **Connect Google Drive**. The current review must successfully commit to browser storage before leaving; if storage is unavailable, save the batch or keep using local folders.
+1. Open the importer, read the spreadsheet and choose **Connect Google Drive**. The current review must successfully commit to authenticated server recovery before leaving. If recovery is unavailable or another device changed the review, reopen Staff before continuing. Local file access is not retained through this navigation; reselect local files if prompted.
 2. Sign in to the intended Google account and consent. Google returns to Staff's Catalogue importer. Cancellation, expired state or invalid authorization shows a reconnect/local-folder recovery message.
 3. In the read-only folder picker, find a folder by name or choose **Select this spreadsheet folder** for the exact linked folder ID. Only folders linked by the current spreadsheet are offered for import selection. Missing/inaccessible folders and shortcuts are rejected.
 4. Scan the corresponding spreadsheet groups, review photos and save drafts as before. Every photo download rechecks that the photo is still a direct child of the selected folder.
