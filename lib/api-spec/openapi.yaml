@@ -17,6 +17,115 @@ tags:
   - name: storage
     description: Staff image uploads and public object serving
 paths:
+  /staff/catalogue-import/google/status:
+    $ref: "./catalogue-drive-oauth.yaml#/paths/~1staff~1catalogue-import~1google~1status"
+  /staff/catalogue-import/google/authorize:
+    $ref: "./catalogue-drive-oauth.yaml#/paths/~1staff~1catalogue-import~1google~1authorize"
+  /staff/catalogue-import/google/callback:
+    $ref: "./catalogue-drive-oauth.yaml#/paths/~1staff~1catalogue-import~1google~1callback"
+  /staff/catalogue-import/google/disconnect:
+    $ref: "./catalogue-drive-oauth.yaml#/paths/~1staff~1catalogue-import~1google~1disconnect"
+  /staff/catalogue-import/google/folders:
+    $ref: "./catalogue-drive-oauth.yaml#/paths/~1staff~1catalogue-import~1google~1folders"
+  /storage/import-ledger:
+    get:
+      operationId: getImportLedger
+      responses:
+        "200":
+          description: Current Staff-owned upload identities
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportLedger" }
+  /storage/import-ledger/{id}/cleanup:
+    post:
+      operationId: cleanupImportUpload
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, pattern: "^[a-f0-9-]{36}$" } }
+      responses:
+        "200":
+          description: Exact owned upload removed after reference checks
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportUploadReceipt" }
+  /storage/import-review:
+    get:
+      operationId: getImportReview
+      responses:
+        "200":
+          description: Current Staff review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportReview" }
+    put:
+      operationId: putImportReview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ImportReview" }
+      responses:
+        "200":
+          description: Saved Staff review
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportReview" }
+  /staff/catalogue-import/sheet:
+    post:
+      operationId: scanCatalogueImportSheet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogueImportSheetInput"
+      responses:
+        "200":
+          description: Read-only spreadsheet preview; no products saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueImportSheet"
+  /staff/catalogue-import/drive/{folderId}:
+    get:
+      operationId: getCatalogueImportDriveFolder
+      parameters:
+        - { name: folderId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: All direct photo children of the selected Drive folder.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueImportDriveFolder"
+  /staff/catalogue-import/drive/{folderId}/files/{fileId}:
+    get:
+      operationId: downloadCatalogueImportDrivePhoto
+      parameters:
+        - { name: folderId, in: path, required: true, schema: { type: string } }
+        - { name: fileId, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Bounded original photo bytes, after checking folder membership.
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+  /staff/content/platform/import/draft:
+    post:
+      operationId: saveCatalogueImportDraft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogueImportDraftInput"
+      responses:
+        "200":
+          description: Saved platform row. Published content is unchanged.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        "409":
+          description: The draft changed or a product slug already exists; reload and review.
   /shopper-auth/sessions:
     $ref: "./shopper-auth.yaml#/paths/~1shopper-auth~1sessions"
   /shopper-auth/sessions/revoke:
@@ -1711,6 +1820,102 @@ components:
         type: string
         pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
   schemas:
+    ImportUploadSource:
+      type: object
+      additionalProperties: false
+      required: [sourceIdentity, sourceVersion, hash]
+      properties:
+        sourceIdentity: { type: string, minLength: 1, maxLength: 256, pattern: "^(drive:[A-Za-z0-9_-]+|local:[a-f0-9]{64})$" }
+        sourceVersion: { type: string, pattern: "^[a-f0-9]{64}$" }
+        hash: { type: string, pattern: "^[a-f0-9]{64}$" }
+    ImportUploadReceipt:
+      type: object
+      required: [id, sourceIdentity, sourceVersion, hash, name, size, path, status, createdAt]
+      properties:
+        id: { type: string }
+        sourceIdentity: { type: string }
+        sourceVersion: { type: string }
+        hash: { type: string }
+        name: { type: string }
+        size: { type: number, multipleOf: 1 }
+        path: { type: string }
+        status: { type: string, enum: [pending, complete, deleted] }
+        createdAt: { type: string }
+    ImportLedger:
+      type: array
+      items: { $ref: "#/components/schemas/ImportUploadReceipt" }
+    ImportReview:
+      type: object
+      additionalProperties: false
+      required: [version, review]
+      properties:
+        version: { type: number, multipleOf: 1, minimum: 0 }
+        review:
+          type: [object, "null"]
+          additionalProperties: true
+    CatalogueImportSheetInput:
+      type: object
+      additionalProperties: false
+      required: [name, contentBase64]
+      properties:
+        name: { type: string, maxLength: 200 }
+        contentBase64: { type: string, maxLength: 900000 }
+    CatalogueImportRow:
+      type: object
+      required: [rowNumber, slug, name, department, category, fields, warnings, photoNames]
+      properties:
+        rowNumber: { type: number, multipleOf: 1 }
+        slug: { type: string }
+        name: { type: string }
+        department: { type: string }
+        category: { type: string }
+        driveFolderId: { type: string }
+        driveUrl: { type: string }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+        warnings: { type: array, items: { type: string } }
+        photoNames: { type: array, items: { type: string } }
+    CatalogueImportSheet:
+      type: object
+      required: [sheetName, rows, warnings]
+      properties:
+        sheetName: { type: string }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogueImportRow" }
+        warnings: { type: array, items: { type: string } }
+    CatalogueImportDrivePhoto:
+      type: object
+      required: [id, name, size, mimeType]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        size: { type: number, multipleOf: 1 }
+        mimeType: { type: string }
+        md5Checksum: { type: string }
+        modifiedTime: { type: string }
+    CatalogueImportDriveFolder:
+      type: object
+      required: [folderId, name, files, warnings]
+      properties:
+        folderId: { type: string }
+        name: { type: string }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/CatalogueImportDrivePhoto" }
+        warnings: { type: array, items: { type: string } }
+    CatalogueImportDraftInput:
+      type: object
+      additionalProperties: false
+      required: [expectedDraftUpdatedAt, products]
+      properties:
+        expectedDraftUpdatedAt: { type: string }
+        products:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { type: object, additionalProperties: true }
     PriceDisplayInput:
       type: object
       additionalProperties: false
@@ -1850,6 +2055,7 @@ components:
       additionalProperties: false
       required: [name, size, contentType]
       properties:
+        importSource: { $ref: "#/components/schemas/ImportUploadSource" }
         name:
           type: string
           minLength: 1
@@ -1867,6 +2073,8 @@ components:
       additionalProperties: false
       required: [uploadURL, uploadMethod, uploadFields, objectPath]
       properties:
+        completed: { type: boolean }
+        originalUploaded: { type: boolean }
         uploadURL: { type: string, minLength: 1 }
         uploadMethod:
           type: string
@@ -1923,6 +2131,7 @@ components:
       additionalProperties: false
       required: [width, uploadURL, uploadHeaders]
       properties:
+        uploaded: { type: boolean }
         width:
           type: integer
           enum: [480, 768, 1280, 1600]

@@ -5,6 +5,109 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface ImportUploadSource {
+  /**
+     * @minLength 1
+     * @maxLength 256
+     * @pattern ^(drive:[A-Za-z0-9_-]+|local:[a-f0-9]{64})$
+     */
+  sourceIdentity: string;
+  /** @pattern ^[a-f0-9]{64}$ */
+  sourceVersion: string;
+  /** @pattern ^[a-f0-9]{64}$ */
+  hash: string;
+}
+
+export type ImportUploadReceiptStatus = typeof ImportUploadReceiptStatus[keyof typeof ImportUploadReceiptStatus];
+
+
+export const ImportUploadReceiptStatus = {
+  pending: 'pending',
+  complete: 'complete',
+  deleted: 'deleted',
+} as const;
+
+export interface ImportUploadReceipt {
+  id: string;
+  sourceIdentity: string;
+  sourceVersion: string;
+  hash: string;
+  name: string;
+  size: number;
+  path: string;
+  status: ImportUploadReceiptStatus;
+  createdAt: string;
+}
+
+export type ImportLedger = ImportUploadReceipt[];
+
+/**
+ * @nullable
+ */
+export type ImportReviewReview = { [key: string]: unknown } | null;
+
+export interface ImportReview {
+  /** @minimum 0 */
+  version: number;
+  /** @nullable */
+  review: ImportReviewReview;
+}
+
+export interface CatalogueImportSheetInput {
+  /** @maxLength 200 */
+  name: string;
+  /** @maxLength 900000 */
+  contentBase64: string;
+}
+
+export type CatalogueImportRowFields = {[key: string]: string};
+
+export interface CatalogueImportRow {
+  rowNumber: number;
+  slug: string;
+  name: string;
+  department: string;
+  category: string;
+  driveFolderId?: string;
+  driveUrl?: string;
+  fields: CatalogueImportRowFields;
+  warnings: string[];
+  photoNames: string[];
+}
+
+export interface CatalogueImportSheet {
+  sheetName: string;
+  rows: CatalogueImportRow[];
+  warnings: string[];
+}
+
+export interface CatalogueImportDrivePhoto {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  md5Checksum?: string;
+  modifiedTime?: string;
+}
+
+export interface CatalogueImportDriveFolder {
+  folderId: string;
+  name: string;
+  files: CatalogueImportDrivePhoto[];
+  warnings: string[];
+}
+
+export type CatalogueImportDraftInputProductsItem = { [key: string]: unknown };
+
+export interface CatalogueImportDraftInput {
+  expectedDraftUpdatedAt: string;
+  /**
+     * @minItems 1
+     * @maxItems 10
+     */
+  products: CatalogueImportDraftInputProductsItem[];
+}
+
 export interface PriceDisplayInput {
   /** @pattern ^[A-Z]{3}$ */
   currency?: string;
@@ -184,6 +287,7 @@ export const UploadUrlRequestContentType = {
 } as const;
 
 export interface UploadUrlRequest {
+  importSource?: ImportUploadSource;
   /**
      * @minLength 1
      * @maxLength 160
@@ -211,6 +315,8 @@ export type UploadUrlResponseUploadFields = {[key: string]: string};
 export type UploadUrlResponseUploadHeaders = {[key: string]: string};
 
 export interface UploadUrlResponse {
+  completed?: boolean;
+  originalUploaded?: boolean;
   /** @minLength 1 */
   uploadURL: string;
   uploadMethod: UploadUrlResponseUploadMethod;
@@ -282,6 +388,7 @@ export const RenditionUploadAuthorizationWidth = {
 export type RenditionUploadAuthorizationUploadHeaders = {[key: string]: string};
 
 export interface RenditionUploadAuthorization {
+  uploaded?: boolean;
   width: RenditionUploadAuthorizationWidth;
   /** @minLength 1 */
   uploadURL: string;
@@ -2777,6 +2884,24 @@ export interface StaffExport {
   rows: StaffExportRowsItem[];
 }
 
+export interface CatalogueGoogleFolderSelection {
+  /** @pattern ^[A-Za-z0-9_-]{10,160}$ */
+  folderId: string;
+}
+
+export interface CatalogueGoogleFolder {
+  id: string;
+  name: string;
+}
+
+export interface CatalogueGoogleStatus {
+  configured: boolean;
+  connected: boolean;
+  workspace: boolean;
+  folders: string[];
+  expiresAt?: string;
+}
+
 export interface ShopperDeviceSession {
   id: string;
   deviceLabel: string;
@@ -3410,6 +3535,35 @@ export type RedirectExpectedRevisionParameter = string;
 export type StaffDateFromParameter = string;
 
 export type StaffDateToParameter = string;
+
+export type AuthorizeCatalogueGoogle200 = {
+  authorizationUrl: string;
+};
+
+export type CompleteCatalogueGoogleParams = {
+state?: string;
+code?: string;
+error?: string;
+};
+
+export type DisconnectCatalogueGoogle200 = {
+  disconnected: boolean;
+  revoked: boolean;
+};
+
+export type ListCatalogueGoogleFoldersParams = {
+/**
+ * @maxLength 100
+ */
+search?: string;
+};
+
+export type ListCatalogueGoogleFolders200 = {
+  folders: CatalogueGoogleFolder[];
+  more: boolean;
+};
+
+export type SaveCatalogueImportDraft200 = { [key: string]: unknown };
 
 export type GetVerifiedShopperOrdersParams = {
 /**

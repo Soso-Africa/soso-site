@@ -8,6 +8,7 @@ export type MediaUpload = {
   uploadHeaders?: Record<string, string>;
   finalizeToken?: string;
   requiresRenditions?: boolean;
+  originalUploaded?: boolean;
   objectPath: string;
 };
 export type MediaUploadContext = { size: number; ownerId: string };
@@ -17,6 +18,7 @@ export type MediaDelivery = { url: string; cacheControl: string };
 export interface MediaStorage {
   readonly provider: "cloudinary" | "r2";
   createMediaUpload(name: string, contentType: string, context?: MediaUploadContext): Promise<MediaUpload>;
+  resumeMediaUpload?(objectPath: string, contentType: string, context: MediaUploadContext): Promise<MediaUpload>;
   inspectUploadedMedia(path: string): Promise<MediaInspection>;
   inspectPublicMedia(path: string): Promise<MediaInspection>;
   readUploadedImageBytes(path: string, maxBytes: number): Promise<Buffer>;

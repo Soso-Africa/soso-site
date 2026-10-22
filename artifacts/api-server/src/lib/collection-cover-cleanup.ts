@@ -1,4 +1,4 @@
-import { auditLogsTable, db, siteContentTable, siteContentRevisionsTable, journalPostsTable, journalPostRevisionsTable } from "@workspace/db";
+import { auditLogsTable, db, siteContentTable, siteContentRevisionsTable, journalPostsTable, journalPostRevisionsTable, catalogueImportUploadsTable, catalogueImportSessionsTable } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { MediaNotFoundError } from "./cloudinary-storage";
 import { createMediaStorageService } from "./media-storage";
@@ -145,12 +145,28 @@ export async function processPendingCollectionCoverCleanup(
         ))
         .limit(1);
       if (deleted) return "already_deleted" as const;
+      const [importReceipt] = await tx.select({
+        authorizedAt: catalogueImportUploadsTable.authorizedAt,
+      }).from(catalogueImportUploadsTable)
+        .where(eq(catalogueImportUploadsTable.path, `${MANAGED_UPLOAD_PREFIX}${pending.path}`)).limit(1);
+      // Cover replacement must not bypass import recovery. A still-valid grant
+      // could recreate the object after deletion, even if the cover was removed.
+      if (importReceipt && Date.now() - importReceipt.authorizedAt.getTime() < 2 * 60 * 60_000) {
+        await tx.insert(auditLogsTable).values({
+          actorClerkUserId: pending.actorClerkUserId,
+          action: "platform_media.cleanup_deferred",
+          entityType: "platform_media",
+          entityId: pending.path,
+          metadata: { path: pending.path, reason: "import_upload_authorization_active" },
+        });
+        return "deferred" as const;
+      }
       const [platform] = await tx.select({
         draft: siteContentTable.draft,
         published: siteContentTable.published,
       }).from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
       let retainedReference = false;
-      if (storage.provider === "r2") {
+      if (storage.provider === "r2" || importReceipt) {
         const needle = `${MANAGED_UPLOAD_PREFIX}${pending.path}`;
         // Conservative text containment also catches embedded Journal/body URLs
         // and query suffixes. False positives defer; they must never delete.
@@ -169,9 +185,22 @@ export async function processPendingCollectionCoverCleanup(
             union all
             select 1 from ${journalPostRevisionsTable}
               where strpos(coalesce(${journalPostRevisionsTable.snapshot}::text, ''), ${needle}) > 0
+            union all
+            select 1 from ${catalogueImportSessionsTable}
+              where strpos(coalesce(${catalogueImportSessionsTable.review}::text, ''), ${needle}) > 0
           ) as referenced
         `);
         retainedReference = found.rows[0]?.referenced !== false;
+      }
+      // Import review metadata is durable content too. Preserve an upload held
+      // there regardless of the active storage provider.
+      if (!retainedReference && storage.provider !== "r2") {
+        const reviews = await tx.execute<{ referenced: boolean }>(sql`
+          select exists(select 1 from ${catalogueImportSessionsTable}
+            where strpos(coalesce(${catalogueImportSessionsTable.review}::text, ''), ${`${MANAGED_UPLOAD_PREFIX}${pending.path}`}) > 0
+          ) as referenced
+        `);
+        retainedReference = reviews.rows[0]?.referenced !== false;
       }
       if (
         retainedReference
@@ -193,6 +222,8 @@ export async function processPendingCollectionCoverCleanup(
           if (!storage.deleteUnreferencedUploadedMedia) throw new Error("Retained-reference-aware R2 cleanup is unavailable");
           await storage.deleteUnreferencedUploadedMedia(pending.path);
         } else await storage.deleteUploadedMedia(pending.path);
+        await tx.update(catalogueImportUploadsTable).set({ status: "deleted" })
+          .where(eq(catalogueImportUploadsTable.path, `${MANAGED_UPLOAD_PREFIX}${pending.path}`));
         await tx.insert(auditLogsTable).values({
           actorClerkUserId: pending.actorClerkUserId,
           action: "platform_media.cleanup_deleted",
@@ -203,6 +234,8 @@ export async function processPendingCollectionCoverCleanup(
         return "deleted" as const;
       } catch (error) {
         if (error instanceof MediaNotFoundError) {
+          await tx.update(catalogueImportUploadsTable).set({ status: "deleted" })
+            .where(eq(catalogueImportUploadsTable.path, `${MANAGED_UPLOAD_PREFIX}${pending.path}`));
           await tx.insert(auditLogsTable).values({
             actorClerkUserId: pending.actorClerkUserId,
             action: "platform_media.cleanup_deleted",

@@ -8,6 +8,215 @@
 import * as zod from 'zod';
 
 
+export const GetCatalogueGoogleStatusResponse = zod.object({
+  "configured": zod.boolean(),
+  "connected": zod.boolean(),
+  "workspace": zod.boolean(),
+  "folders": zod.array(zod.string()),
+  "expiresAt": zod.string().optional()
+})
+
+
+export const AuthorizeCatalogueGoogleResponse = zod.object({
+  "authorizationUrl": zod.string()
+})
+
+
+export const CompleteCatalogueGoogleQueryParams = zod.object({
+  "state": zod.coerce.string().optional(),
+  "code": zod.coerce.string().optional(),
+  "error": zod.coerce.string().optional()
+})
+
+export const CompleteCatalogueGoogleResponse = zod.void()
+
+
+export const DisconnectCatalogueGoogleResponse = zod.object({
+  "disconnected": zod.boolean(),
+  "revoked": zod.boolean()
+})
+
+
+export const listCatalogueGoogleFoldersQuerySearchMax = 100;
+
+
+
+export const ListCatalogueGoogleFoldersQueryParams = zod.object({
+  "search": zod.coerce.string().max(listCatalogueGoogleFoldersQuerySearchMax).optional()
+})
+
+export const ListCatalogueGoogleFoldersResponse = zod.object({
+  "folders": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})),
+  "more": zod.boolean()
+})
+
+
+export const selectCatalogueGoogleFolderBodyFolderIdRegExp = new RegExp('^[A-Za-z0-9_-]{10,160}$');
+
+
+export const SelectCatalogueGoogleFolderBody = zod.object({
+  "folderId": zod.string().regex(selectCatalogueGoogleFolderBodyFolderIdRegExp)
+})
+
+export const SelectCatalogueGoogleFolderResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})
+
+
+export const getImportLedgerResponseSizeMultipleOf = 1;
+
+
+
+export const GetImportLedgerResponseItem = zod.object({
+  "id": zod.string(),
+  "sourceIdentity": zod.string(),
+  "sourceVersion": zod.string(),
+  "hash": zod.string(),
+  "name": zod.string(),
+  "size": zod.number().multipleOf(getImportLedgerResponseSizeMultipleOf),
+  "path": zod.string(),
+  "status": zod.enum(['pending', 'complete', 'deleted']),
+  "createdAt": zod.string()
+})
+export const GetImportLedgerResponse = zod.array(GetImportLedgerResponseItem)
+
+
+export const cleanupImportUploadPathIdRegExp = new RegExp('^[a-f0-9-]{36}$');
+
+
+export const CleanupImportUploadParams = zod.object({
+  "id": zod.coerce.string().regex(cleanupImportUploadPathIdRegExp)
+})
+
+export const cleanupImportUploadResponseSizeMultipleOf = 1;
+
+
+
+export const CleanupImportUploadResponse = zod.object({
+  "id": zod.string(),
+  "sourceIdentity": zod.string(),
+  "sourceVersion": zod.string(),
+  "hash": zod.string(),
+  "name": zod.string(),
+  "size": zod.number().multipleOf(cleanupImportUploadResponseSizeMultipleOf),
+  "path": zod.string(),
+  "status": zod.enum(['pending', 'complete', 'deleted']),
+  "createdAt": zod.string()
+})
+
+
+export const getImportReviewResponseVersionMin = 0;
+export const getImportReviewResponseVersionMultipleOf = 1;
+
+
+
+export const GetImportReviewResponse = zod.object({
+  "version": zod.number().min(getImportReviewResponseVersionMin).multipleOf(getImportReviewResponseVersionMultipleOf),
+  "review": zod.record(zod.string(), zod.unknown()).nullable()
+})
+
+
+export const putImportReviewBodyVersionMin = 0;
+export const putImportReviewBodyVersionMultipleOf = 1;
+
+
+
+export const PutImportReviewBody = zod.object({
+  "version": zod.number().min(putImportReviewBodyVersionMin).multipleOf(putImportReviewBodyVersionMultipleOf),
+  "review": zod.record(zod.string(), zod.unknown()).nullable()
+})
+
+export const putImportReviewResponseVersionMin = 0;
+export const putImportReviewResponseVersionMultipleOf = 1;
+
+
+
+export const PutImportReviewResponse = zod.object({
+  "version": zod.number().min(putImportReviewResponseVersionMin).multipleOf(putImportReviewResponseVersionMultipleOf),
+  "review": zod.record(zod.string(), zod.unknown()).nullable()
+})
+
+
+export const scanCatalogueImportSheetBodyNameMax = 200;
+
+export const scanCatalogueImportSheetBodyContentBase64Max = 900000;
+
+
+
+export const ScanCatalogueImportSheetBody = zod.object({
+  "name": zod.string().max(scanCatalogueImportSheetBodyNameMax),
+  "contentBase64": zod.string().max(scanCatalogueImportSheetBodyContentBase64Max)
+})
+
+export const scanCatalogueImportSheetResponseRowsItemRowNumberMultipleOf = 1;
+
+
+
+export const ScanCatalogueImportSheetResponse = zod.object({
+  "sheetName": zod.string(),
+  "rows": zod.array(zod.object({
+  "rowNumber": zod.number().multipleOf(scanCatalogueImportSheetResponseRowsItemRowNumberMultipleOf),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "department": zod.string(),
+  "category": zod.string(),
+  "driveFolderId": zod.string().optional(),
+  "driveUrl": zod.string().optional(),
+  "fields": zod.record(zod.string(), zod.string()),
+  "warnings": zod.array(zod.string()),
+  "photoNames": zod.array(zod.string())
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+export const GetCatalogueImportDriveFolderParams = zod.object({
+  "folderId": zod.coerce.string()
+})
+
+export const getCatalogueImportDriveFolderResponseFilesItemSizeMultipleOf = 1;
+
+
+
+export const GetCatalogueImportDriveFolderResponse = zod.object({
+  "folderId": zod.string(),
+  "name": zod.string(),
+  "files": zod.array(zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "size": zod.number().multipleOf(getCatalogueImportDriveFolderResponseFilesItemSizeMultipleOf),
+  "mimeType": zod.string(),
+  "md5Checksum": zod.string().optional(),
+  "modifiedTime": zod.string().optional()
+})),
+  "warnings": zod.array(zod.string())
+})
+
+
+export const DownloadCatalogueImportDrivePhotoParams = zod.object({
+  "folderId": zod.coerce.string(),
+  "fileId": zod.coerce.string()
+})
+
+export const DownloadCatalogueImportDrivePhotoResponse = zod.unknown()
+
+
+export const saveCatalogueImportDraftBodyProductsMax = 10;
+
+
+
+export const SaveCatalogueImportDraftBody = zod.object({
+  "expectedDraftUpdatedAt": zod.string(),
+  "products": zod.array(zod.record(zod.string(), zod.unknown())).min(1).max(saveCatalogueImportDraftBodyProductsMax)
+})
+
+export const SaveCatalogueImportDraftResponse = zod.record(zod.string(), zod.unknown())
+
+
 export const ListShopperSessionsResponse = zod.object({
   "sessions": zod.array(zod.object({
   "id": zod.string(),
@@ -4459,6 +4668,12 @@ export const GetStaffMediaStorageStatusResponse = zod.object({
 /**
  * @summary Request a signed direct-upload URL for staff-managed storefront media
  */
+export const requestUploadUrlBodyImportSourceSourceIdentityMax = 256;
+
+
+export const requestUploadUrlBodyImportSourceSourceIdentityRegExp = new RegExp('^(drive:[A-Za-z0-9_-]+|local:[a-f0-9]{64})$');
+export const requestUploadUrlBodyImportSourceSourceVersionRegExp = new RegExp('^[a-f0-9]{64}$');
+export const requestUploadUrlBodyImportSourceHashRegExp = new RegExp('^[a-f0-9]{64}$');
 export const requestUploadUrlBodyNameMax = 160;
 
 
@@ -4468,6 +4683,11 @@ export const requestUploadUrlBodySizeMax = 12582912;
 
 
 export const RequestUploadUrlBody = zod.object({
+  "importSource": zod.object({
+  "sourceIdentity": zod.string().min(1).max(requestUploadUrlBodyImportSourceSourceIdentityMax).regex(requestUploadUrlBodyImportSourceSourceIdentityRegExp),
+  "sourceVersion": zod.string().regex(requestUploadUrlBodyImportSourceSourceVersionRegExp),
+  "hash": zod.string().regex(requestUploadUrlBodyImportSourceHashRegExp)
+}).optional(),
   "name": zod.string().min(1).max(requestUploadUrlBodyNameMax).regex(requestUploadUrlBodyNameRegExp),
   "size": zod.number().min(1).max(requestUploadUrlBodySizeMax),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'])
@@ -4480,6 +4700,8 @@ export const requestUploadUrlResponseObjectPathRegExp = new RegExp('^/api/storag
 
 
 export const RequestUploadUrlResponse = zod.object({
+  "completed": zod.boolean().optional(),
+  "originalUploaded": zod.boolean().optional(),
   "uploadURL": zod.string().min(1),
   "uploadMethod": zod.enum(['POST', 'PUT']),
   "uploadFields": zod.record(zod.string(), zod.string()),
@@ -4523,6 +4745,7 @@ export const requestMediaRenditionUploadsResponseFinalizeTokenMax = 4096;
 
 export const RequestMediaRenditionUploadsResponse = zod.object({
   "uploads": zod.array(zod.object({
+  "uploaded": zod.boolean().optional(),
   "width": zod.union([zod.literal(480),zod.literal(768),zod.literal(1280),zod.literal(1600)]),
   "uploadURL": zod.string().min(1),
   "uploadHeaders": zod.record(zod.string(), zod.string())

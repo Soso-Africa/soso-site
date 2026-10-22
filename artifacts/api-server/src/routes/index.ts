@@ -13,6 +13,7 @@ import staffAuthRouter from "./staff-auth";
 import staffMailRouter from "./staff-mail";
 import staffActivationRouter from "./staff-activation";
 import staffContentRouter from "./staff-content";
+import staffCatalogueImportRouter from "./staff-catalogue-import";
 import staffRouter from "./staff";
 import storageRouter from "./storage";
 import shopperAccountsRouter from "./shopper-accounts";
@@ -38,6 +39,7 @@ router.use(staffMailRouter);
 router.use(staffRouter);
 router.use(staffActivationRouter);
 router.use(staffContentRouter);
+router.use(staffCatalogueImportRouter);
 router.use(storageRouter);
 router.use(shopperRouter);
 

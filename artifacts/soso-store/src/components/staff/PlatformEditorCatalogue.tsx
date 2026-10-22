@@ -7,6 +7,7 @@ import { ProductEditor } from "./product/ProductEditor";
 import { PlatformEditorSupportInterface } from "./PlatformEditorRoutineCopy";
 import { CopyPanel, PlatformCopyFields } from "./PlatformCopyFields";
 import { CollectionEditor } from "./CollectionEditor";
+import { CatalogueImporter } from "./import/CatalogueImporter";
 import {
   isConfirmedMappingCurrent,
   isMappingPreviewFreshForReview,
@@ -85,10 +86,11 @@ export function PlatformEditorCatalogue({
   onPublishProduct,
   publishedProducts,
   onPublishRemoval,
+  onImportProducts,
 }: {
   data: CatalogueData;
   onChange: (data: CatalogueData) => void;
-  onUploadMedia: (file: File) => Promise<string>;
+  onUploadMedia: (file: File, importSource?: import("@workspace/api-client-react").ImportUploadSource) => Promise<string>;
   initialProductSlug?: string | null;
   onDeleteProduct: (slug: string) => Promise<string | null | undefined>;
   onSaveProduct: (slug: string) => Promise<SaveResult>;
@@ -96,6 +98,7 @@ export function PlatformEditorCatalogue({
   onPublishProduct: (slug: string) => Promise<string>;
   publishedProducts: CatalogProduct[];
   onPublishRemoval: (slug: string) => Promise<string | undefined>;
+  onImportProducts?: (products: CatalogProduct[]) => Promise<void>;
 }) {
   const [expandedProductIndex, setExpandedProductIndex] = useState<number | null>(() => {
     const index = initialProductSlug ? data.products.findIndex((product) => product.slug === initialProductSlug) : -1;
@@ -461,6 +464,15 @@ export function PlatformEditorCatalogue({
 
   return (
     <div className="mt-5 space-y-5">
+      {onImportProducts && (
+        <CatalogueImporter
+          savedProducts={savedProducts}
+          editorProducts={data.products}
+          collections={data.collections}
+          onUploadMedia={onUploadMedia}
+          onImportProducts={onImportProducts}
+        />
+      )}
       <section className="border border-border bg-card p-5">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>

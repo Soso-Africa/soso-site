@@ -12,7 +12,7 @@
     "seed:soso-journal-launch": "node ./scripts/seed-soso-journal-launch.mjs",
     "seed:soso-legacy-redirects": "node ./scripts/seed-soso-legacy-redirects.mjs",
     "seed:soso-policies": "node ./scripts/seed-soso-policies.mjs",
-    "test:migrations": "node ./scripts/validate-soso-content-migration.mjs",
+    "test:migrations": "node ./scripts/validate-soso-content-migration.mjs && node ./scripts/test-retained-import-ledger.mjs && node ./scripts/test-catalogue-import-release-schema.mjs",
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
   },

@@ -1,0 +1,105 @@
+paths:
+  /staff/catalogue-import/google/status:
+    get:
+      operationId: getCatalogueGoogleStatus
+      responses:
+        "200":
+          description: Session-scoped connection status. Never returns Google credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueGoogleStatus"
+  /staff/catalogue-import/google/authorize:
+    post:
+      operationId: authorizeCatalogueGoogle
+      responses:
+        "200":
+          description: Start a ten-minute, single-use, session-bound PKCE authorization.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authorizationUrl]
+                properties:
+                  authorizationUrl: { type: string }
+  /staff/catalogue-import/google/callback:
+    get:
+      operationId: completeCatalogueGoogle
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        "303":
+          description: Return to Staff with a connected or failed result, without reflecting credentials.
+  /staff/catalogue-import/google/disconnect:
+    post:
+      operationId: disconnectCatalogueGoogle
+      responses:
+        "200":
+          description: Local credentials removed before attempting Google revocation.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [disconnected, revoked]
+                properties:
+                  disconnected: { type: boolean }
+                  revoked: { type: boolean }
+  /staff/catalogue-import/google/folders:
+    get:
+      operationId: listCatalogueGoogleFolders
+      parameters:
+        - { name: search, in: query, schema: { type: string, maxLength: 100 } }
+      responses:
+        "200":
+          description: Read-only folder picker, bounded to 50 results. Search to narrow incomplete results.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [folders, more]
+                properties:
+                  folders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CatalogueGoogleFolder"
+                  more: { type: boolean }
+    post:
+      operationId: selectCatalogueGoogleFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogueGoogleFolderSelection"
+      responses:
+        "200":
+          description: Validated folder now allowed for this Staff session only.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueGoogleFolder"
+components:
+  schemas:
+    CatalogueGoogleFolderSelection:
+      type: object
+      required: [folderId]
+      additionalProperties: false
+      properties:
+        folderId: { type: string, pattern: "^[A-Za-z0-9_-]{10,160}$" }
+    CatalogueGoogleFolder:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    CatalogueGoogleStatus:
+      type: object
+      required: [configured, connected, workspace, folders]
+      properties:
+        configured: { type: boolean }
+        connected: { type: boolean }
+        workspace: { type: boolean }
+        folders: { type: array, items: { type: string } }
+        expiresAt: { type: string }

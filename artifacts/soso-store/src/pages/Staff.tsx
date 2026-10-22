@@ -111,13 +111,14 @@ const AnalyticsDashboard = lazy(() =>
 
 type SignedMediaUpload = import("@workspace/api-client-react").UploadUrlResponse;
 
-async function uploadStaffMedia(file: File): Promise<string> {
+async function uploadStaffMedia(file: File, importSource?: import("@workspace/api-client-react").ImportUploadSource): Promise<string> {
   const signed = await customFetch<SignedMediaUpload>("/api/storage/uploads/request-url", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type, importSource }),
     responseType: "json",
   });
+  if (signed.completed) return signed.objectPath;
   let body: BodyInit = file;
   if (signed.uploadMethod === "POST") {
     const form = new FormData();
@@ -125,10 +126,12 @@ async function uploadStaffMedia(file: File): Promise<string> {
     form.append("file", file);
     body = form;
   }
-  const uploaded = await fetch(signed.uploadURL, {
-    method: signed.uploadMethod, body, headers: signed.uploadHeaders,
-  });
-  if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
+  if (!signed.originalUploaded) {
+    const uploaded = await fetch(signed.uploadURL, {
+      method: signed.uploadMethod, body, headers: signed.uploadHeaders,
+    });
+    if (!uploaded.ok) throw new Error(`Media upload failed (${uploaded.status}).`);
+  }
   let finalizeToken = signed.finalizeToken;
   if (signed.requiresRenditions) {
     const { createStaffPhotoRenditions } = await import("../lib/staff-media-renditions");
@@ -143,6 +146,7 @@ async function uploadStaffMedia(file: File): Promise<string> {
       },
     );
     for (const upload of authorized.uploads) {
+      if (upload.uploaded) continue;
       const rendition = renditions.find((r) => r.width === upload.width);
       if (!rendition) throw new Error("Responsive photo authorization returned an unexpected width.");
       const response = await fetch(upload.uploadURL, { method: "PUT", headers: upload.uploadHeaders, body: rendition.blob });
@@ -782,6 +786,34 @@ function PlatformContentManagementSection() {
       return { ok: false, message };
     } finally { setSaving(false); }
   };
+  const importCatalogueProducts = async (products: PlatformContent["products"]): Promise<void> => {
+    if (saving) throw new Error("Wait for the current save to finish before importing.");
+    if (!row?.draft || !row.draftUpdatedAt) throw new Error("Reload the saved draft before importing products.");
+    let current: PlatformContent;
+    try { current = parsedDocument(); } catch { throw new Error("Fix the editor JSON before importing. Nothing was changed."); }
+    if (!structuredEditorValid || JSON.stringify(current) !== JSON.stringify(row.draft)) {
+      throw new Error("The catalogue editor has unsaved edits. Save or discard them first — your edits were left untouched and nothing was imported.");
+    }
+    setSaving(true);
+    try {
+      const next = await customFetch<PlatformContentRow>("/api/staff/content/platform/import/draft", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expectedDraftUpdatedAt: row.draftUpdatedAt, products }), responseType: "json",
+      });
+      setRow(next);
+      const document = next.draft ?? next.published;
+      if (document) {
+        setContent(document);
+        setJson(JSON.stringify(sectionValue(document, sectionRef.current), null, 2));
+      }
+      setStatus(`${products.length} imported product${products.length === 1 ? "" : "s"} saved to the unpublished draft as non-selling placeholders. The storefront was not updated.`);
+      try { await refreshRevisions(); } catch { /* history refresh is best-effort */ }
+    } catch (error) {
+      const message = platformActionError(error, "Imported products could not be saved.");
+      setStatus(message);
+      throw new Error(message);
+    } finally { setSaving(false); }
+  };
   const deleteCatalogueProduct = async (slug: string): Promise<string | null | undefined> => {
     if (saving) return "Wait for the current save to finish before deleting a product.";
     let document: PlatformContent;
@@ -1086,8 +1118,9 @@ function PlatformContentManagementSection() {
           onPublishProduct={publishCatalogueProduct}
           publishedProducts={row?.published?.products ?? []}
           onPublishRemoval={publishCatalogueRemoval}
-          onUploadMedia={async (file) => {
-            const path = await uploadStaffMedia(file);
+          onImportProducts={importCatalogueProducts}
+          onUploadMedia={async (file, importSource) => {
+            const path = await uploadStaffMedia(file, importSource);
             setStatus("Catalogue asset uploaded and added to the draft. Save the draft to keep it.");
             return path;
           }}

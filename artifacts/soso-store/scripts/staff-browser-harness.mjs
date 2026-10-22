@@ -61,8 +61,18 @@ async function stopProcess(record) {
   }
 }
 
-export async function createStaffBrowserHarness({ prefix, ownerPassword }) {
+export async function createStaffBrowserHarness({ prefix, ownerPassword, requireImportRecovery = false }) {
   assert.ok(process.env.DATABASE_URL, "DATABASE_URL is required.");
+  if (requireImportRecovery) {
+    const database = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await database.connect();
+    try {
+      const scope = await database.query("select current_schema() as name, to_regclass('import_verification_guard') as guard");
+      assert.match(scope.rows[0]?.name ?? "", /^soso_api_test_[a-f0-9]{32}$/,
+        "Run this pilot through lib/db/scripts/run-in-isolated-soso-schema.mjs so deferred upload recovery can retain its database.");
+      assert.ok(scope.rows[0]?.guard, "The isolated upload recovery guard is required before any real pilot upload.");
+    } finally { await database.end(); }
+  }
   const apiReservation = await reservePort();
   const storeReservation = await reservePort();
   const apiPort = apiReservation.port;
@@ -249,7 +259,8 @@ export async function createStaffBrowserHarness({ prefix, ownerPassword }) {
     const database = new pg.Client({ connectionString: process.env.DATABASE_URL });
     await database.connect().then(async () => {
       await database.query(
-        `delete from soso_staff_users where id = any($1::uuid[]) or email = $2`,
+        `delete from soso_staff_users s where (id = any($1::uuid[]) or email = $2)
+          and not exists (select 1 from soso_catalogue_import_uploads u where u.owner_id = s.id::text and u.status <> 'deleted')`,
         [temporaryStaffIds, ownerEmail],
       );
     }).catch((error) => errors.push(error)).finally(() => database.end().catch((error) => errors.push(error)));

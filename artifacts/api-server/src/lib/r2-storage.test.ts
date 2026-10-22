@@ -8,6 +8,7 @@ import { normalizeR2MediaPath, r2MediaKey, type R2MediaConfig } from "./r2-media
 import { R2MediaIO } from "./r2-media-io";
 import { R2StorageService } from "./r2-storage";
 import { createR2UploadTicket, verifyR2UploadTicket } from "./r2-upload-ticket";
+import { authorizeR2Renditions } from "./r2-renditions";
 
 const config: R2MediaConfig = {
   accountId: "0".repeat(32), accessKeyId: "1".repeat(32), secretAccessKey: "2".repeat(64),
@@ -19,6 +20,28 @@ const head = { ContentLength: png.length, ContentType: "image/png", ETag: '"stro
 function fakeClient(send: (command: { input: Record<string, unknown>; constructor: { name: string } }) => Promise<unknown>): S3Client {
   return { send } as unknown as S3Client;
 }
+
+test("interrupted responsive uploads skip only matching owned source copies and never overwrite them", async () => {
+  const storage = new R2StorageService(config, fakeClient(async () => { throw new Error("No network calls expected"); }));
+  storage.verifyFinalization = async () => undefined;
+  storage.inspectUploadedMedia = async () => ({
+    size: png.length, contentType: "image/png", declaredContentType: "image/png", width: 1, height: 1, animated: false,
+  });
+  let wrongOwner = false;
+  storage.io.head = async (_bucket, key) => key.endsWith("/photo.png")
+    ? { ...head, $metadata: {} }
+    : { ...head, $metadata: {}, Metadata: {
+      "soso-upload-owner": wrongOwner ? "another-owner" : "owner",
+      "soso-source-etag": head.ETag,
+      "soso-requested-width": String([480, 768, 1280, 1600].find((w) => key.includes(String(w)))),
+    } };
+  const renditions = [480, 768, 1280, 1600].map((width) => ({ width: width as 480, size: png.length, contentType: "image/png" as const }));
+  const result = await authorizeR2Renditions(storage, "/api/storage/objects/uploads/photo.png", "transient", "owner", renditions);
+  assert.equal(result.uploads.length, 4);
+  assert.ok(result.uploads.every((u) => u.uploaded && u.uploadURL === "unused"));
+  wrongOwner = true;
+  await assert.rejects(authorizeR2Renditions(storage, "/api/storage/objects/uploads/photo.png", "transient", "owner", renditions), /differs from this owner/);
+});
 
 test("R2 preserves logical media paths and confines keys to the chosen namespace", () => {
   assert.equal(r2MediaKey(config, "uploads/photo.jpg", "uploads"), "isolated-test/uploads/photo.jpg");

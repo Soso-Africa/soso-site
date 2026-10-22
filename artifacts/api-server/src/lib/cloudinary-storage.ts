@@ -288,12 +288,17 @@ async function destroyCloudinaryAsset(
 
 export class CloudinaryStorageService {
   async createMediaUpload(filename: string, contentType: string): Promise<CloudinaryUpload> {
-    const config = requiredCloudinaryConfig();
     const extension = extensionForContentType(contentType);
-    const policy = cloudinaryUploadPolicyForContentType(contentType);
-    await ensureUploadPreset(config, policy);
     const stem = filename.replace(/\.[^.]*$/, "").replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 120) || "media";
     const relativePath = `uploads/${randomUUID()}-${stem}.${extension}`;
+    return this.resumeMediaUpload(`/api/storage/objects/${relativePath}`, contentType);
+  }
+
+  async resumeMediaUpload(objectPath: string, contentType: string): Promise<CloudinaryUpload> {
+    const config = requiredCloudinaryConfig();
+    const policy = cloudinaryUploadPolicyForContentType(contentType);
+    await ensureUploadPreset(config, policy);
+    const relativePath = objectPath.slice("/api/storage/objects/".length);
     const publicId = cloudinaryPublicId(relativePath, "uploads");
     const timestamp = Math.floor(Date.now() / 1_000);
     const params = { public_id: publicId, timestamp, upload_preset: policy.preset };

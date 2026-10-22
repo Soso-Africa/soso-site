@@ -56,6 +56,10 @@ app.put("/api/staff/content/platform", express.json({ limit: "1mb", verify: pres
 // Keep all other JSON endpoints at their existing smaller limits.
 app.post("/api/staff/mail/send", express.json({ limit: "3mb" }));
 app.post("/api/staff/newsletter/campaigns", express.json({ limit: "160kb" }));
+// Import metadata is bounded separately; actual photo uploads still use signed storage URLs.
+app.post("/api/staff/catalogue-import/sheet", express.json({ limit: "900kb" }));
+app.post("/api/staff/content/platform/import/draft", express.json({ limit: "300kb" }));
+app.put("/api/storage/import-review", express.json({ limit: "2mb" }));
 app.use(express.json({ verify: preserveRawBody }));
 app.use(express.urlencoded({ extended: true }));
 app.use(loadStaffSession);
