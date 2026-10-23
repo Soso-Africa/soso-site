@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { heroLayout, selectHeroMedia, videoMimeType, type HeroMediaConfiguration } from "./heroMedia";
+import { heroLayout, heroUsesOverlayHeader, selectHeroMedia, videoMimeType, type HeroMediaConfiguration } from "./heroMedia";
 
 const videoHero: HeroMediaConfiguration = {
   mediaMode: "video",
@@ -41,6 +41,14 @@ test("existing videos and stills retain their full-height layouts unless video c
     assert.match(result.section, /-mt-\[72px\]/);
     assert.equal(result.media, "absolute inset-0");
   }
+});
+
+test("phone comparison headers stay readable without changing desktop overlay navigation", () => {
+  const hero = { ...videoHero, mobileVideoLayout: "comparison" as const };
+  assert.equal(heroUsesOverlayHeader(hero, true), false);
+  assert.equal(heroUsesOverlayHeader(hero, false), true);
+  assert.equal(heroUsesOverlayHeader(videoHero, true), true);
+  assert.equal(heroUsesOverlayHeader(undefined, true), true);
 });
 
 test("video heroes select responsive videos without unrelated image posters", () => {

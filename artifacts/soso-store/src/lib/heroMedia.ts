@@ -22,6 +22,10 @@ export function heroLayout(hero: HeroMediaConfiguration, hasAnnouncements: boole
   };
 }
 
+export function heroUsesOverlayHeader(hero: HeroMediaConfiguration | undefined, phoneViewport: boolean) {
+  return !(phoneViewport && hero?.mediaMode === "video" && hero.mobileVideoLayout === "comparison");
+}
+
 export type HeroMotionEnvironment = {
   isMobile: boolean;
   prefersReducedMotion: boolean;
