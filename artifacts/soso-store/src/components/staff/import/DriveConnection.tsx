@@ -9,11 +9,12 @@ const button = "min-h-10 border border-border bg-background px-3 text-xs disable
 const message = (error: unknown) => error instanceof Error ? error.message : "Drive is unavailable. Retry or use local photo folders.";
 
 /** This picker uses server-side read-only Drive API calls; Google credentials never enter the browser. */
-export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: {
+export function DriveConnection({ folders, busy, onDisconnect, beforeConnect, onStatusChange }: {
   folders: { id: string; product: string }[];
   busy: boolean;
   onDisconnect: () => void;
   beforeConnect: () => Promise<void>;
+  onStatusChange: (status: CatalogueGoogleStatus | null) => void;
 }) {
   const [status, setStatus] = useState<CatalogueGoogleStatus | null>(null);
   const [error, setError] = useState("");
@@ -24,11 +25,13 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
   const [choices, setChoices] = useState<CatalogueGoogleFolder[] | null>(null);
   const [more, setMore] = useState(false);
   const mounted = useRef(true);
+  const onStatusRef = useRef(onStatusChange);
+  onStatusRef.current = onStatusChange;
   const refresh = useCallback(async () => {
     try {
       const result = await getCatalogueGoogleStatus();
-      if (mounted.current) { setStatus(result); setError(""); }
-    } catch (error) { if (mounted.current) setError(message(error)); }
+      if (mounted.current) { setStatus(result); setError(""); onStatusRef.current(result); }
+    } catch (error) { if (mounted.current) { setStatus(null); setError(message(error)); onStatusRef.current(null); } }
   }, []);
   useEffect(() => {
     mounted.current = true;
@@ -50,6 +53,7 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
     finally { if (mounted.current) setWorking(false); }
   };
   const select = (id: string) => run(async () => {
+    onStatusRef.current(null);
     const selected = await selectCatalogueGoogleFolder({ folderId: id });
     setNotice(`Selected “${selected.name}”. Use Scan Drive on its matching spreadsheet group.`);
     await refresh();
@@ -66,7 +70,7 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
       </p>
       {!status && !error && <p role="status" className="text-xs">Checking Drive connection…</p>}
       {status?.workspace && <p className="text-xs">Workspace connector available here only. It does not authorize the published Staff site.</p>}
-      {status && !status.configured && !status.workspace && <p className="text-xs">Direct Drive is not configured. Ask an owner to configure the published host’s Google OAuth app, or use local photo folders.</p>}
+      {status && !status.configured && !status.workspace && <p role="status" className="border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">Google Drive is not set up on this site. Scanning cannot connect it. You can still import photos: choose Add files or Add folder below, then assign those photos to the correct product. An owner must arrange the separate Google connection before direct Drive imports can work.</p>}
       {status?.configured && (
         <>
           <p className="text-xs" role="status">{status.connected
@@ -75,10 +79,12 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
           <div className="flex flex-wrap gap-2">
             <button type="button" className={button} disabled={disabled} onClick={() => void run(async () => {
               await beforeConnect();
+              onStatusRef.current(null);
               const result = await authorizeCatalogueGoogle();
               window.location.assign(result.authorizationUrl);
             })}>{status.connected ? "Reconnect / change Google account" : "Connect Google Drive"}</button>
             <button type="button" className={button} disabled={disabled} onClick={() => void run(async () => {
+              onStatusRef.current(null);
               const result = await disconnectCatalogueGoogle();
               onDisconnect(); setChoices(null);
               await refresh();

@@ -164,6 +164,8 @@ async function hostedRead(req: Request): Promise<DriveProxy> {
 }
 export async function importDriveRead(req: Request, folderId: string): Promise<DriveProxy> {
   if (workspaceDriveAvailable() && !process.env.GOOGLE_DRIVE_CLIENT_ID) return driveRead;
+  // A missing host setup is not a Staff folder-selection mistake.
+  driveConfig();
   await ensureSchema();
   const { rows } = await pool.query(`SELECT 1 FROM soso_catalogue_drive_sessions WHERE session_hash=$1 AND staff_id=$2
     AND token_expires_at>now() AND $3=ANY(folders)`, [sessionHash(req), req.staff!.id, folderId]);
