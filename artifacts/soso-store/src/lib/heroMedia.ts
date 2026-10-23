@@ -4,7 +4,23 @@ export type HeroMediaConfiguration = {
   mobileImageUrl: string;
   videoUrl?: string;
   mobileVideoUrl?: string;
+  mobileVideoLayout?: "full-height" | "comparison";
 };
+
+/** Explicit merchant choice: do not infer layout from a filename or a late metadata response. */
+export function heroLayout(hero: HeroMediaConfiguration, hasAnnouncements: boolean) {
+  const comparison = hero.mediaMode === "video" && hero.mobileVideoLayout === "comparison";
+  return {
+    comparison,
+    section: comparison
+      ? `pb-6 md:h-[100svh] md:min-h-[600px] md:pb-28 ${hasAnnouncements ? "md:-mt-[106px]" : "md:-mt-[72px]"}`
+      : `h-[100svh] min-h-[600px] pb-20 md:pb-28 ${hasAnnouncements ? "-mt-[106px]" : "-mt-[72px]"}`,
+    media: comparison
+      ? "relative aspect-[4/3] w-full md:absolute md:inset-0 md:aspect-auto"
+      : "absolute inset-0",
+    cta: comparison ? "mt-6 md:mt-0" : "",
+  };
+}
 
 export type HeroMotionEnvironment = {
   isMobile: boolean;

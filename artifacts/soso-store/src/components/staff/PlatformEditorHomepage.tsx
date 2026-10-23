@@ -110,6 +110,13 @@ export function PlatformEditorHomepage({
         {data.hero.mediaMode === "video" && <>
           <Field label="Hero desktop video path" value={data.hero.videoUrl ?? ""} onChange={(videoUrl) => update("hero", { ...data.hero, videoUrl })} />
           <Field label="Hero mobile video path" value={data.hero.mobileVideoUrl ?? ""} onChange={(mobileVideoUrl) => update("hero", { ...data.hero, mobileVideoUrl })} />
+          <label className={labelClass}>Phone video layout
+            <select className={inputClass} value={data.hero.mobileVideoLayout ?? "full-height"} onChange={(event) => update("hero", { ...data.hero, mobileVideoLayout: event.target.value as "full-height" | "comparison" })}>
+              <option value="full-height">Full-height portrait crop</option>
+              <option value="comparison">Show both views · 4:3 comparison</option>
+            </select>
+            <span className="mt-1 block normal-case font-normal tracking-normal">Comparison fits both views above the shop button on phones. Use a 4:3 phone video. Desktop stays full-height.</span>
+          </label>
         </>}
         <Field label="Hero primary CTA label" value={data.hero.primaryCta.label} onChange={(label) => update("hero", { ...data.hero, primaryCta: { ...data.hero.primaryCta, label } })} />
         <Field label="Hero primary CTA path" value={data.hero.primaryCta.href} onChange={(href) => update("hero", { ...data.hero, primaryCta: { ...data.hero.primaryCta, href } })} />

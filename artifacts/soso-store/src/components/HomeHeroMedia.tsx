@@ -134,7 +134,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
         key={selected.videoUrl}
         ref={videoRef}
         src={selected.videoUrl}
-        className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-150 motion-reduce:transition-none ${readyVideoUrl === selected.videoUrl ? "opacity-85" : "opacity-0"}`}
+        className={`absolute inset-0 h-full w-full ${hero.mobileVideoLayout === "comparison" ? "object-contain md:object-cover" : "object-cover"} object-top transition-opacity duration-150 motion-reduce:transition-none ${readyVideoUrl === selected.videoUrl ? "opacity-85" : "opacity-0"}`}
         poster={selected.posterUrl}
         muted
         loop
