@@ -134,6 +134,7 @@ const homepageHero = z.object({
   imageAlt: z.string().min(1).max(300),
   videoUrl: videoPath.optional(),
   mobileVideoUrl: videoPath.optional(),
+  mobileVideoLayout: z.enum(["full-height", "comparison"]).optional(),
   playLabel: copy.min(1),
   pauseLabel: copy.min(1),
   primaryCta: link,

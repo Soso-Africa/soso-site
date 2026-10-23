@@ -73,6 +73,10 @@ test("hero starts only in a visible viewport, pauses in background, retains its 
       listeners.forEach(callback => callback());
     });
     assert.equal(plays, pausedPlays, "Returning to the tab must not undo the shopper's manual pause");
+    await act(async () => {
+      renderer!.update(<HomeHeroMedia hero={{ ...hero, mobileVideoLayout: "comparison" }} />);
+    });
+    assert.match(root.findByType("video").props.className, /object-contain md:object-cover/, "Phone comparison never crops either figure; desktop retains its full-height presentation");
   } finally {
     if (renderer) await act(async () => renderer!.unmount());
     for (const [key, descriptor] of Object.entries(original)) {
