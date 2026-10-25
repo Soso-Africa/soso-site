@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useCart } from "@/context/CartContext";
 import { usePlatformContent, type CatalogProduct, type MegaMenuGroup } from "@/data/platformContent";
+import { heroUsesOverlayHeader } from "@/lib/heroMedia";
 import { ChevronDown, UserRound } from "lucide-react";
 import { HeaderSearch } from "./HeaderSearch";
 import { BrandLockup } from "./BrandLockup";
@@ -12,6 +13,13 @@ const isGlobalWhatsAppControl = (href: string) => /(?:wa\.me|whatsapp)/i.test(hr
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [phoneViewport, setPhoneViewport] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const refresh = () => setPhoneViewport(query.matches);
+    query.addEventListener("change", refresh);
+    return () => query.removeEventListener("change", refresh);
+  }, []);
   const [location] = useLocation();
   const { openDrawer, itemCount } = useCart();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,7 +44,7 @@ export function Navbar() {
   const [isAnnouncementHovered, setIsAnnouncementHovered] = useState(false);
 
   const isHome = location === "/";
-  const isTransparent = isHome && !scrolled && !mobileMenuOpen && !activeGroupId;
+  const isTransparent = isHome && heroUsesOverlayHeader(data?.content.homepage.hero, phoneViewport) && !scrolled && !mobileMenuOpen && !activeGroupId;
   const headerControlClass = isTransparent
     ? "text-white/90 hover:text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]"
     : "text-foreground/80 hover:text-foreground";

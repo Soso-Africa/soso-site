@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { selectHeroMedia, videoMimeType, type HeroMediaConfiguration } from "./heroMedia";
+import { heroLayout, heroUsesOverlayHeader, selectHeroMedia, videoMimeType, type HeroMediaConfiguration } from "./heroMedia";
 
 const videoHero: HeroMediaConfiguration = {
   mediaMode: "video",
@@ -16,6 +16,40 @@ const standardEnvironment = {
   saveData: false,
   effectiveType: "4g",
 };
+
+test("comparison heroes reserve an uncropped 4:3 phone frame below the header without changing desktop", () => {
+  const result = heroLayout({ ...videoHero, mobileVideoLayout: "comparison" }, true);
+  assert.equal(result.comparison, true);
+  assert.match(result.media, /relative aspect-\[4\/3\]/);
+  assert.match(result.media, /md:absolute md:inset-0 md:aspect-auto/);
+  assert.match(result.section, /md:h-\[100svh\]/);
+  assert.match(result.section, /md:-mt-\[106px\]/);
+  assert.ok(!result.section.split(" ").includes("h-[100svh]"), "Phone layout must not fill a tall screen");
+  assert.ok(!result.section.split(" ").includes("-mt-[106px]"), "Header must not obscure either model");
+  assert.equal(result.cta, "mt-6 md:mt-0");
+});
+
+test("existing videos and stills retain their full-height layouts unless video comparison is explicit", () => {
+  for (const hero of [
+    videoHero,
+    { ...videoHero, mobileVideoLayout: "full-height" as const },
+    { ...videoHero, mediaMode: "image" as const, mobileVideoLayout: "comparison" as const },
+  ]) {
+    const result = heroLayout(hero, false);
+    assert.equal(result.comparison, false);
+    assert.match(result.section, /h-\[100svh\]/);
+    assert.match(result.section, /-mt-\[72px\]/);
+    assert.equal(result.media, "absolute inset-0");
+  }
+});
+
+test("phone comparison headers stay readable without changing desktop overlay navigation", () => {
+  const hero = { ...videoHero, mobileVideoLayout: "comparison" as const };
+  assert.equal(heroUsesOverlayHeader(hero, true), false);
+  assert.equal(heroUsesOverlayHeader(hero, false), true);
+  assert.equal(heroUsesOverlayHeader(videoHero, true), true);
+  assert.equal(heroUsesOverlayHeader(undefined, true), true);
+});
 
 test("video heroes select responsive videos without unrelated image posters", () => {
   const desktop = selectHeroMedia(videoHero, standardEnvironment, () => true);

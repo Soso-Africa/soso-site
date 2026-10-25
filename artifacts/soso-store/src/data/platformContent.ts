@@ -169,6 +169,7 @@ export type PlatformContent = {
       mediaMode: "image" | "video";
       imageUrl: string; mobileImageUrl: string; imageAlt: string;
       videoUrl?: string; mobileVideoUrl?: string; playLabel: string; pauseLabel: string;
+      mobileVideoLayout?: "full-height" | "comparison";
       primaryCta: ContentLink; campaignCta?: { enabled: boolean; label: string; href: string; startsAt: string; endsAt: string }; stylistCtaLabel: string;
       assurances: string[];
     };

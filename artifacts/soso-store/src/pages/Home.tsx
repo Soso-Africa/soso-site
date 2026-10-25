@@ -12,6 +12,7 @@ import { HomeJournalPreview } from "@/components/HomeJournalPreview";
 import { resolveProductMedia, resolveMobileFrames } from "@/lib/homepageProducts";
 import { trackStorefrontEvent } from "@/components/ConsentManager";
 import { responsiveProductPhoto } from "@/lib/responsive-product-photo";
+import { heroLayout } from "@/lib/heroMedia";
 
 const canonicalCategoryTargets = ["/collections/kaftans", "/collections/agbadas", "/collections/shirts", "/collections/dashikis", "/collections/two-piece"];
 
@@ -36,19 +37,22 @@ export default function Home() {
   const heroCta = campaign?.enabled && Date.parse(campaign.startsAt) <= now && now < Date.parse(campaign.endsAt)
     ? campaign
     : homepage.hero.primaryCta;
+  const heroPresentation = heroLayout(homepage.hero, site.announcementItems.length > 0);
 
   return <div className="flex flex-col bg-background">
     <Seo title={homepage.seo.title} description={homepage.seo.description} noIndex={!indexingEnabled} />
 
     {/* 1. Full-bleed Hero */}
-    <section className={`relative flex h-[100svh] min-h-[600px] w-full flex-col justify-end overflow-hidden pb-20 md:pb-28 ${site.announcementItems.length ? "-mt-[106px]" : "-mt-[72px]"}`}>
-      <HomeHeroMedia hero={homepage.hero} />
+    <section className={`relative flex w-full flex-col justify-end overflow-hidden ${heroPresentation.section}`} data-testid="homepage-hero" data-mobile-layout={heroPresentation.comparison ? "comparison" : "full-height"}>
+      <div className={heroPresentation.media} data-testid="homepage-hero-frame">
+        <HomeHeroMedia hero={homepage.hero} />
+      </div>
       <div className="pointer-events-none absolute inset-0 z-0">
         <div className="absolute inset-0 bg-black/15" />
         <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-white/40 to-transparent opacity-80" />
         <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-black/40 to-transparent" />
       </div>
-      <div className="relative z-10 mx-auto flex w-full max-w-7xl justify-center px-6 text-center lg:px-12">
+      <div className={`relative z-10 mx-auto flex w-full max-w-7xl justify-center px-6 text-center lg:px-12 ${heroPresentation.cta}`}>
         <Link
           href={heroCta.href}
           onClick={() => trackStorefrontEvent("cta_clicked", { placement: "homepage_hero", action: "primary_click", campaign: campaign === heroCta })}
