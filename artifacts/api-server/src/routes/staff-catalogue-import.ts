@@ -20,7 +20,7 @@ router.post("/staff/catalogue-import/sheet", async (req, res): Promise<void> => 
   if (activeSheetReads >= 2) { res.status(429).json({ error: "Two sheets are being read. Retry shortly." }); return; }
   activeSheetReads++;
   try {
-    const result = await parseCatalogueSpreadsheet(input.data.name, Buffer.from(input.data.contentBase64, "base64"));
+    const result = await parseCatalogueSpreadsheet(input.data.name, Buffer.from(input.data.contentBase64, "base64"), input.data.mode);
     res.json(ScanCatalogueImportSheetResponse.parse(result));
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : "The spreadsheet could not be read." });

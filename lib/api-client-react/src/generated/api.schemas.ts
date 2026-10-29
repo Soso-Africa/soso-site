@@ -53,11 +53,24 @@ export interface ImportReview {
   review: ImportReviewReview;
 }
 
+/**
+ * New-product imports require Name and Slug; update previews require only Slug and never create products.
+ */
+export type CatalogueImportSheetInputMode = typeof CatalogueImportSheetInputMode[keyof typeof CatalogueImportSheetInputMode];
+
+
+export const CatalogueImportSheetInputMode = {
+  new: 'new',
+  update: 'update',
+} as const;
+
 export interface CatalogueImportSheetInput {
   /** @maxLength 200 */
   name: string;
-  /** @maxLength 900000 */
+  /** @maxLength 2800000 */
   contentBase64: string;
+  /** New-product imports require Name and Slug; update previews require only Slug and never create products. */
+  mode?: CatalogueImportSheetInputMode;
 }
 
 export type CatalogueImportRowFields = {[key: string]: string};

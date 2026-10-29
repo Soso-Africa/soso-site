@@ -5,10 +5,13 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { CatalogueImportSheetInputMode } from './catalogueImportSheetInputMode';
 
 export interface CatalogueImportSheetInput {
   /** @maxLength 200 */
   name: string;
-  /** @maxLength 900000 */
+  /** @maxLength 2800000 */
   contentBase64: string;
+  /** New-product imports require Name and Slug; update previews require only Slug and never create products. */
+  mode?: CatalogueImportSheetInputMode;
 }
