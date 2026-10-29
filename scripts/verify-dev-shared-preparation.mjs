@@ -19,8 +19,19 @@ const preparationCommand = "pnpm -w run dev:prepare-shared";
 
 assert.equal(
   rootPackage.scripts?.["dev:prepare-shared"],
-  "tsc --build --force",
-  'The root "dev:prepare-shared" script must force a shared declaration rebuild.',
+  "node scripts/with-shared-build-lock.mjs pnpm exec tsc --build --force",
+  'The root "dev:prepare-shared" script must serialize and force a shared declaration rebuild.',
+);
+const apiSpecPackage = JSON.parse(await readFile("lib/api-spec/package.json", "utf8"));
+assert.match(
+  apiSpecPackage.scripts.codegen,
+  /^node \.\.\/\.\.\/scripts\/with-shared-build-lock\.mjs pnpm exec orval /,
+  "API generation must share the same lock as development compilation.",
+);
+assert.equal(
+  rootPackage.scripts["typecheck:libs"],
+  "node scripts/with-shared-build-lock.mjs pnpm exec tsc --build",
+  "Shared library checks must not race generation or forced development builds.",
 );
 
 for (const consumer of consumers) {
