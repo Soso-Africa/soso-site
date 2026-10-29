@@ -12,6 +12,7 @@ import {
 } from "./update-model";
 
 import { UpdateSheetDownload } from "./UpdateSheetDownload";
+import { UpdateReviewSummary } from "./UpdateReviewSummary";
 
 const label = "text-[10px] font-semibold uppercase tracking-wider";
 const btn = `inline-flex min-h-10 items-center justify-center gap-2 border border-border bg-background px-3 ${label} text-primary hover:bg-muted/40 disabled:opacity-50 transition-colors`;
@@ -186,21 +187,12 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
           {review && (
             <div className="space-y-4" data-testid="update-review">
               <h4 className={`${label} text-primary`}>3 · Review</h4>
-              <div className="flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-wider">
-                <span className="border border-primary/40 bg-accent px-2 py-1">{review.changes.length} proposed</span>
-                <span className="border border-border px-2 py-1">{review.unchanged} unchanged</span>
-                <span className="border border-border px-2 py-1">{review.skipped.length} skipped</span>
-                <span className="border border-border px-2 py-1">{review.blankCells} blank cells kept</span>
-                {review.errors.length > 0 && <span className="border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">{review.errors.length} blocking</span>}
-              </div>
+              <UpdateReviewSummary review={review} mode={mode} />
               {review.errors.length > 0 && (
                 <div role="alert" className="space-y-1 border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive" data-testid="list-update-errors">
                   <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" />Fix these in the sheet or set the column to Ignore, then rebuild. Nothing can be saved until they are resolved.</p>
                   <ul className="list-disc pl-5">{review.errors.map((e, i) => <li key={i}>{e.message}</li>)}</ul>
                 </div>
-              )}
-              {review.changes.length === 0 && review.errors.length === 0 && (
-                <p className="border border-border bg-muted/30 px-3 py-4 text-xs">No cell would change a saved product. {mode === "fill" && review.skipped.length > 0 ? "Values already exist; choose Replace supplied fields for intentional corrections." : ""}</p>
               )}
               {review.changes.length > 0 && (
                 <div className="space-y-2 border border-border p-3 text-xs">
