@@ -205,7 +205,7 @@ export type ProposedChange = {
 };
 export type SkippedItem = { slug: string; label: string; reason: string; rows: number[] };
 export type RowError = { rows: number[]; message: string };
-export type UpdateReview = { changes: ProposedChange[]; skipped: SkippedItem[]; errors: RowError[]; unchanged: number; blankCells: number; productCount: number };
+export type UpdateReview = { changes: ProposedChange[]; skipped: SkippedItem[]; errors: RowError[]; unchanged: number; blankCells: number; blankVariantPrices: number; productCount: number };
 
 const stable = (v: unknown) => JSON.stringify(v);
 
@@ -232,6 +232,8 @@ export function buildUpdateReview(input: {
   const variantHeading = entries.find(([, d]) => d === "variant")?.[0];
   const collected = new Map<string, Collected>();
   let blankCells = 0;
+  let blankVariantPrices = 0;
+  let unchanged = 0;
 
   const put = (c: Omit<Collected, "rows">, row: number) => {
     const key = `${c.slug}\u0000${c.field}\u0000${c.variant ?? ""}`;
@@ -277,7 +279,7 @@ export function buildUpdateReview(input: {
           : Array.isArray(typedValue) && typedValue.every((value) => typeof value === "string") ? typedValue.join(" | ")
           : typeof typedValue === "object" ? JSON.stringify(typedValue) : String(typedValue).trim();
         // Populated but untouched cells must never revert newer merchant edits.
-        if (fieldFingerprint(canonical) === original) continue;
+        if (fieldFingerprint(canonical) === original) { unchanged++; continue; }
         if (variantRaw && dest !== "price") {
           errors.push({ rows: [r.rowNumber], message: `Row ${r.rowNumber}: edit ${heading} on the product row with a blank Variant, not on a size-price row.` }); continue;
         }
@@ -300,12 +302,13 @@ export function buildUpdateReview(input: {
       if (parsed.error) { errors.push({ rows: [r.rowNumber], message: `Row ${r.rowNumber}: ${heading} ${parsed.error}.` }); continue; }
       put({ slug, field: dest, value: parsed.value }, r.rowNumber);
     }
-    if (variantRaw && !entries.some(([h, d]) => d === "price" && (r.fields[h] ?? "").trim()))
-      skipped.push({ slug, label: `Variant "${variantRaw}"`, reason: "Price cell is blank; nothing changes.", rows: [r.rowNumber] });
+    // Empty optional size-price cells are no-ops, not rejected or skipped edits.
+    // Count them only when a price column is actually mapped.
+    if (variantRaw && entries.some(([, d]) => d === "price")
+      && !entries.some(([h, d]) => d === "price" && (r.fields[h] ?? "").trim())) blankVariantPrices++;
   }
 
   const changes: ProposedChange[] = [];
-  let unchanged = 0;
   for (const c of collected.values()) {
     const p = bySlug.get(c.slug)!;
     const label = c.field === "variantPrice" ? `Price · ${c.variant}` : fieldLabel(c.field);
@@ -334,7 +337,7 @@ export function buildUpdateReview(input: {
       variant: c.variant, before: formatValue(before, money), after: formatValue(c.value, money), value: c.value, rows: c.rows,
     });
   }
-  return { changes, skipped, errors, unchanged, blankCells, productCount: new Set(changes.map((c) => c.slug)).size };
+  return { changes, skipped, errors, unchanged, blankCells, blankVariantPrices, productCount: new Set(changes.map((c) => c.slug)).size };
 }
 
 /** Applies only the selected changes to clones of saved products. Returns only modified products. */

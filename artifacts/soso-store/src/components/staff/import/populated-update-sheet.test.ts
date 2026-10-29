@@ -6,6 +6,9 @@ import { rowsToCatalogueSheet, parseCatalogueSpreadsheet } from "../../../../../
 import { createUpdateSheet, updateSheetRows } from "./update-sheet";
 import { buildUpdateReview, suggestMapping, sheetHeadings, applySelectedChanges, FIELD_DEFS } from "./update-model";
 import { ORIGINAL_VALUES_HEADING } from "./update-reference";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { UpdateReviewSummary } from "./UpdateReviewSummary";
 
 const base = (): CatalogProduct => ({
   slug: "saved-kaftan", name: "Saved kaftan", img: "", images: [], materialTurnSets: [],
@@ -82,4 +85,67 @@ test("CSV and XLSX current-value files round-trip all editable fields and over 5
       assert.equal(workbook.worksheets[0].getColumn(parsed.rows[0] ? Object.keys(parsed.rows[0].fields).length : 1).hidden, true);
     }
   }
+});
+
+test("94 blank Custom prices are preserved, not presented as 94 skipped product updates", () => {
+  const products = Array.from({ length: 94 }, (_, i) => ({
+    ...base(), slug: `piece-${i}`, standardSizes: [], customEligible: true, variantPrices: {},
+  }));
+  const rows = updateSheetRows(products, ["fabric", "price"], { populated: true });
+  const result = review(rows, products);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.changes, []);
+  assert.deepEqual(result.skipped, []);
+  assert.equal(result.blankVariantPrices, 94);
+  assert.equal(result.unchanged, 188); // Fabric and base price on each product row.
+  const html = renderToStaticMarkup(React.createElement(UpdateReviewSummary, { review: result, mode: "fill" }));
+  assert.match(html, /94 blank size-price/);
+  assert.match(html, /0 supplied edits skipped/);
+  assert.match(html, /not failed updates/);
+  assert.match(html, /No new or edited values to apply/);
+  assert.doesNotMatch(html, /choose Replace supplied fields/);
+  assert.deepEqual(applySelectedChanges(products, result.changes, new Set(),
+    [{ department: "men", category: "Kaftans" }]), []);
+});
+
+test("blank Custom prices do not suppress a real product edit or another size's exact price", () => {
+  const p = { ...base(), customEligible: true };
+  const rows = updateSheetRows([p], ["fabric", "price"], { populated: true });
+  rows[1][rows[0].indexOf("fabric")] = "Linen";
+  rows.find(row => row[1] === "M")![rows[0].indexOf("price")] = "27000";
+  const result = review(rows, [p]);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.skipped, []);
+  assert.equal(result.blankVariantPrices, 1);
+  assert.equal(result.changes.length, 2);
+  const [next] = applySelectedChanges([p], result.changes, new Set(result.changes.map(c => c.id)),
+    [{ department: "men", category: "Kaftans" }]);
+  assert.equal(next.fabric, "Linen");
+  assert.deepEqual(next.variantPrices, { M: 27000, XL: 28000 });
+  assert.equal(next.price, 25000);
+  assert.equal(p.fabric, "Cotton");
+});
+
+test("fill-only skips remain visible for genuinely supplied replacements, not optional blanks", () => {
+  const p = { ...base(), customEligible: true };
+  const rows = updateSheetRows([p], ["fabric", "price"], { populated: true });
+  rows[1][rows[0].indexOf("fabric")] = "Linen";
+  const parsed = rowsToCatalogueSheet("updates", rows, "update");
+  const result = buildUpdateReview({ rows: parsed.rows, savedProducts: [p],
+    mapping: suggestMapping(sheetHeadings(parsed.rows)), mode: "fill",
+    collections: [{ department: "men", category: "Kaftans" }] });
+  assert.equal(result.skipped.length, 1);
+  assert.equal(result.skipped[0].label, "Fabric");
+  assert.equal(result.blankVariantPrices, 1);
+  const html = renderToStaticMarkup(React.createElement(UpdateReviewSummary, { review: result, mode: "fill" }));
+  assert.match(html, /choose Replace supplied fields only for intentional corrections/);
+  assert.equal(review(rows, [p]).changes.length, 1);
+});
+
+test("a non-price-only download never describes empty variant rows as skipped prices", () => {
+  const p = { ...base(), customEligible: true };
+  const result = review(updateSheetRows([p], ["fabric"], { populated: true }), [p]);
+  assert.equal(result.blankVariantPrices, 0);
+  assert.deepEqual(result.skipped, []);
+  assert.deepEqual(result.errors, []);
 });
