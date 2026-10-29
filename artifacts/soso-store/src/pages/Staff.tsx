@@ -814,6 +814,59 @@ function PlatformContentManagementSection() {
       throw new Error(message);
     } finally { setSaving(false); }
   };
+  const catalogueUpdateBusy = useRef(false);
+  const updateCatalogueProducts = async (
+    products: PlatformContent["products"],
+    reviewedSavedProducts: PlatformContent["products"],
+  ): Promise<void> => {
+    if (saving || catalogueUpdateBusy.current) throw new Error("Wait for the current save to finish.");
+    if (!row?.draft || !row.draftUpdatedAt) throw new Error("Reload the saved draft before updating products.");
+    const current = parsedDocument();
+    if (!structuredEditorValid || JSON.stringify(current) !== JSON.stringify(row.draft)) {
+      throw new Error("Save or discard unsaved editor changes before uploading updates. Nothing was changed.");
+    }
+    if (JSON.stringify(reviewedSavedProducts) !== JSON.stringify(row.draft.products)) {
+      throw new Error("The saved catalogue changed after review. Rebuild the preview before saving.");
+    }
+    if (!products.length || products.length > 1000 || new Set(products.map((product) => product.slug)).size !== products.length) {
+      throw new Error("Select changes for 1–1,000 distinct existing products per save.");
+    }
+    if (products.some((product) => !row.draft!.products.some((saved) => saved.slug === product.slug))) {
+      throw new Error("Updates must match existing product slugs. Use the new-product importer for new products.");
+    }
+    const updatePayload = JSON.stringify({
+      expectedDraftUpdatedAt: row.draftUpdatedAt,
+      collections: row.draft.collections,
+      upserts: products.map((product) => ({ slug: product.slug, product })),
+      deletions: [],
+    });
+    if (new Blob([updatePayload]).size > 4 * 1024 * 1024) {
+      throw new Error("Selected changes exceed the safe 4 MiB save limit. Select fewer products in this review; nothing has been saved.");
+    }
+    catalogueUpdateBusy.current = true;
+    setSaving(true);
+    try {
+      const next = await customFetch<PlatformContentRow>("/api/staff/content/platform/catalogue/draft", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: updatePayload, responseType: "json",
+      });
+      setRow(next);
+      const document = next.draft ?? next.published;
+      if (document) {
+        setContent(document);
+        setJson(JSON.stringify(sectionValue(document, sectionRef.current), null, 2));
+      }
+      setStatus(`${products.length} existing product${products.length === 1 ? "" : "s"} updated in draft. Only reviewed fields changed; nothing was published. Re-review changed prices against JusticeSure before publishing.`);
+      try { await refreshRevisions(); } catch { /* The committed save remains successful. */ }
+    } catch (error) {
+      const message = platformActionError(error, "Selected product updates could not be saved.");
+      setStatus(message);
+      throw new Error(message);
+    } finally {
+      catalogueUpdateBusy.current = false;
+      setSaving(false);
+    }
+  };
   const deleteCatalogueProduct = async (slug: string): Promise<string | null | undefined> => {
     if (saving) return "Wait for the current save to finish before deleting a product.";
     let document: PlatformContent;
@@ -1072,7 +1125,9 @@ function PlatformContentManagementSection() {
   };
 
   let structuredEditor: React.ReactNode = null;
-  if (json) {
+  // Direct section links initially have "{}" until the saved document loads.
+  // Do not mount typed editors against that temporary, incomplete value.
+  if (json && content) {
     try {
       const parsed = JSON.parse(json) as unknown;
       if (section === "site") {
@@ -1119,6 +1174,7 @@ function PlatformContentManagementSection() {
           publishedProducts={row?.published?.products ?? []}
           onPublishRemoval={publishCatalogueRemoval}
           onImportProducts={importCatalogueProducts}
+          onUpdateProducts={updateCatalogueProducts}
           onUploadMedia={async (file, importSource) => {
             const path = await uploadStaffMedia(file, importSource);
             setStatus("Catalogue asset uploaded and added to the draft. Save the draft to keep it.");
@@ -1172,6 +1228,7 @@ function PlatformContentManagementSection() {
           <li>Description and assurances remain in the document for compatibility, but supporting purchase guidance belongs in trustItems below the hero.</li>
           <li>Use mediaMode image with imageUrl, mobileImageUrl and imageAlt for a still hero. Do not include video fields.</li>
           <li>Use mediaMode video only with local MP4 or WebM paths in both videoUrl and mobileVideoUrl.</li>
+          <li>For uploaded MP4s, use the structured editor to prepare and approve a same-footage VP9 WebM alternative for each viewport. Alternatives are bound to the original and exported file hashes; changing footage requires fresh approval. Browsers choose one supported encoding, not unrelated artwork.</li>
           <li>imageUrl and mobileImageUrl are required for image mode only in the display. Video mode never shows this artwork as a poster or playback fallback; loading, reduced-motion, data-saving and failed playback use a neutral background. Use static JPEG, PNG or WebP artwork—animated images are rejected.</li>
           <li>Keep poster images at or under 512 KB and each motion file at or under 8 MB. playLabel and pauseLabel must clearly describe the control.</li>
         </ul>

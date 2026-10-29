@@ -1859,7 +1859,11 @@ components:
       required: [name, contentBase64]
       properties:
         name: { type: string, maxLength: 200 }
-        contentBase64: { type: string, maxLength: 900000 }
+        contentBase64: { type: string, maxLength: 2800000 }
+        mode:
+          type: string
+          enum: [new, update]
+          description: New-product imports require Name and Slug; update previews require only Slug and never create products.
     CatalogueImportRow:
       type: object
       required: [rowNumber, slug, name, department, category, fields, warnings, photoNames]

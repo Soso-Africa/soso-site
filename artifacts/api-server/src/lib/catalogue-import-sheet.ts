@@ -3,16 +3,19 @@ import { inflateRawSync } from "node:zlib";
 import type { CatalogueImportRow, CatalogueImportSheet } from "@workspace/api-zod";
 
 export const MAX_IMPORT_SHEET_BYTES = 650 * 1024;
+export const MAX_UPDATE_SHEET_BYTES = 2 * 1024 * 1024;
 const MAX_ROWS = 1000;
 const MAX_COLUMNS = 80;
 const normal = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** Only exact known headings are mapped. Unknown columns remain in fields for review. */
-export function rowsToCatalogueSheet(sheetName: string, rows: string[][]): CatalogueImportSheet {
+export function rowsToCatalogueSheet(sheetName: string, rows: string[][], mode: "new" | "update" = "new"): CatalogueImportSheet {
   const headerIndex = rows.findIndex((row, index) => index < 20
     && row.some((cell) => ["newsiteslug", "slug", "productslug"].includes(normal(cell)))
-    && row.some((cell) => ["name", "productname", "proposedname"].includes(normal(cell))));
-  if (headerIndex < 0) throw new Error("No Name and New-site slug headings were found. Keep the workbook headings, or use Name and Slug in CSV.");
+    && (mode === "update" || row.some((cell) => ["name", "productname", "proposedname"].includes(normal(cell)))));
+  if (headerIndex < 0) throw new Error(mode === "update"
+    ? "A Slug or Product slug heading is required to match existing products exactly."
+    : "No Name and New-site slug headings were found. Keep the workbook headings, or use Name and Slug in CSV.");
   const headers = rows[headerIndex].map((cell) => cell.trim());
   const nonempty = headers.filter(Boolean).map(normal);
   if (new Set(nonempty).size !== nonempty.length) throw new Error("Duplicate spreadsheet headings must be resolved before importing.");
@@ -20,7 +23,7 @@ export function rowsToCatalogueSheet(sheetName: string, rows: string[][]): Catal
   for (let index = headerIndex + 1; index < rows.length; index++) {
     const values = rows[index];
     if (!values.some((value) => value.trim())) continue;
-    if (result.length >= MAX_ROWS) throw new Error("Import at most 1,000 product rows per spreadsheet.");
+    if (result.length >= (mode === "update" ? 10_000 : MAX_ROWS)) throw new Error(`Import at most ${mode === "update" ? "10,000 update" : "1,000 product"} rows per spreadsheet.`);
     const fields: Record<string, string> = Object.create(null);
     headers.forEach((header, col) => { if (header) fields[header] = (values[col] ?? "").trim(); });
     const get = (...aliases: string[]) => {
@@ -31,6 +34,14 @@ export function rowsToCatalogueSheet(sheetName: string, rows: string[][]): Catal
       return "";
     };
     const slug = get("New-site slug", "Slug", "Product slug");
+    if (mode === "update") {
+      const suppliedSlugs = headers
+        .filter((heading) => ["newsiteslug", "slug", "productslug"].includes(normal(heading)))
+        .map((heading) => fields[heading]).filter(Boolean);
+      if (new Set(suppliedSlugs).size > 1) {
+        throw new Error(`Row ${index + 1} has conflicting product-slug columns. Keep one exact existing Slug per row.`);
+      }
+    }
     const name = get("Proposed Name", "Name", "Product Name");
     const department = get("Department").toLowerCase();
     const category = get("Proposed category", "Category");
@@ -55,7 +66,8 @@ export function rowsToCatalogueSheet(sheetName: string, rows: string[][]): Catal
     const missing = get("Review / Missing Information");
     if (missing) warnings.push(`Source review: ${missing}`);
     result.push({
-      rowNumber: index + 1, slug, name, department, category, fields, warnings,
+      rowNumber: index + 1, slug, name, department, category, fields,
+      warnings: mode === "update" ? warnings.filter((warning) => warning.startsWith("A valid unique product slug")) : warnings,
       ...(driveFolderId ? { driveFolderId, driveUrl } : {}),
       photoNames: get("All Renamed Photo Filenames").split(/[|;\n]+/).map((value) => value.trim()).filter(Boolean),
     });
@@ -67,10 +79,12 @@ export function rowsToCatalogueSheet(sheetName: string, rows: string[][]): Catal
     if (row.driveFolderId) folders.set(row.driveFolderId, (folders.get(row.driveFolderId) ?? 0) + 1);
   }
   for (const row of result) {
-    if ((counts.get(row.slug) ?? 0) > 1) row.warnings.push("Conflicting duplicate slug in this spreadsheet.");
-    if (row.driveFolderId && (folders.get(row.driveFolderId) ?? 0) > 1) row.warnings.push("Conflicting Drive folder shared by multiple product rows; review before accepting.");
+    if (mode !== "update" && (counts.get(row.slug) ?? 0) > 1) row.warnings.push("Conflicting duplicate slug in this spreadsheet.");
+    if (mode !== "update" && row.driveFolderId && (folders.get(row.driveFolderId) ?? 0) > 1) row.warnings.push("Conflicting Drive folder shared by multiple product rows; review before accepting.");
   }
-  return { sheetName, rows: result, warnings: ["Preview only. Prices, stock, sizes, business claims and JusticeSure mappings are not approved by this import."] };
+  return { sheetName, rows: result, warnings: [mode === "update"
+    ? "Update preview only. Exact product/variant matching, selected-field review and draft save are required. Blank cells and formula cells leave saved data unchanged; prices still require JusticeSure review."
+    : "Preview only. Prices, stock, sizes, business claims and JusticeSure mappings are not approved by this import."] };
 }
 
 export function driveFolderIdFromUrl(value: string): string | undefined {
@@ -82,7 +96,7 @@ export function driveFolderIdFromUrl(value: string): string | undefined {
   } catch { return undefined; }
 }
 
-export function parseCatalogueCsv(text: string): string[][] {
+export function parseCatalogueCsv(text: string, maxRows = MAX_ROWS): string[][] {
   // RFC4180 quoting, including embedded newlines. Support common Excel CSV delimiters.
   const firstLine = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0];
   const delimiter = [",", ";", "\t"].sort((a, b) => firstLine.split(b).length - firstLine.split(a).length)[0];
@@ -94,7 +108,7 @@ export function parseCatalogueCsv(text: string): string[][] {
   };
   const pushRow = () => {
     pushCell(); rows.push(row); row = [];
-    if (rows.length > MAX_ROWS + 21) throw new Error("Spreadsheet exceeds 1,000 product rows.");
+    if (rows.length > maxRows + 21) throw new Error(`Spreadsheet exceeds ${maxRows.toLocaleString("en-US")} rows.`);
   };
   text = text.replace(/^\uFEFF/, "");
   for (let index = 0; index < text.length; index++) {
@@ -146,9 +160,9 @@ export function checkWorkbookBudget(bytes: Buffer): void {
   }
 }
 
-export async function parseCatalogueSpreadsheet(name: string, bytes: Buffer): Promise<CatalogueImportSheet> {
-  if (!bytes.length || bytes.length > MAX_IMPORT_SHEET_BYTES) throw new Error("Choose a nonempty Excel/CSV file no larger than 650 KiB.");
-  if (/\.csv$/i.test(name)) return rowsToCatalogueSheet(name, parseCatalogueCsv(bytes.toString("utf8")));
+export async function parseCatalogueSpreadsheet(name: string, bytes: Buffer, mode: "new" | "update" = "new"): Promise<CatalogueImportSheet> {
+  if (!bytes.length || bytes.length > (mode === "update" ? MAX_UPDATE_SHEET_BYTES : MAX_IMPORT_SHEET_BYTES)) throw new Error(`Choose a nonempty Excel/CSV file no larger than ${mode === "update" ? "2 MiB" : "650 KiB"}.`);
+  if (/\.csv$/i.test(name)) return rowsToCatalogueSheet(name, parseCatalogueCsv(bytes.toString("utf8"), mode === "update" ? 10_000 : MAX_ROWS), mode);
   if (!/\.xlsx$/i.test(name)) throw new Error("Use an .xlsx workbook or UTF-8 .csv file.");
   checkWorkbookBudget(bytes);
   const workbook = new ExcelJS.Workbook();
@@ -156,7 +170,7 @@ export async function parseCatalogueSpreadsheet(name: string, bytes: Buffer): Pr
   let selected: CatalogueImportSheet | undefined;
   const others: string[] = [];
   for (const sheet of workbook.worksheets) {
-    if (sheet.rowCount > MAX_ROWS + 21 || sheet.columnCount > MAX_COLUMNS) throw new Error("Workbook sheet exceeds the row or column budget.");
+    if (sheet.rowCount > (mode === "update" ? 10_000 : MAX_ROWS) + 21 || sheet.columnCount > MAX_COLUMNS) throw new Error("Workbook sheet exceeds the row or column budget.");
     const rows: string[][] = [];
     sheet.eachRow({ includeEmpty: true }, (row) => {
       const cells: string[] = [];
@@ -172,11 +186,11 @@ export async function parseCatalogueSpreadsheet(name: string, bytes: Buffer): Pr
     });
     const hasHeader = rows.slice(0, 20).some((row) => row.some((cell) => ["newsiteslug", "slug", "productslug"].includes(normal(cell))));
     if (!hasHeader) { if (sheet.actualRowCount) others.push(sheet.name); continue; }
-    const parsed = rowsToCatalogueSheet(sheet.name, rows);
+    const parsed = rowsToCatalogueSheet(sheet.name, rows, mode);
     if (!selected) selected = parsed;
     else others.push(sheet.name);
   }
-  if (!selected) throw new Error("No product sheet with Name and New-site slug headings was found.");
+  if (!selected) throw new Error(mode === "update" ? "No update sheet with a Slug heading was found." : "No product sheet with Name and New-site slug headings was found.");
   if (others.length) selected.warnings.push(`Other sheets were not imported: ${others.join(", ")}.`);
   return selected;
 }

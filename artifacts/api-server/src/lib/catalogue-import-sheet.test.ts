@@ -5,6 +5,54 @@ import test from "node:test";
 import ExcelJS from "exceljs";
 import { checkWorkbookBudget, driveFolderIdFromUrl, parseCatalogueCsv, parseCatalogueSpreadsheet, rowsToCatalogueSheet } from "./catalogue-import-sheet";
 
+test("partial updates require only exact slug and preserve blank cells for review", async () => {
+  const bytes = Buffer.from("Slug,Fabric,Price\nexisting-product,Linen,\n");
+  const sheet = await parseCatalogueSpreadsheet("update.csv", bytes, "update");
+  assert.equal(sheet.rows[0].slug, "existing-product");
+  assert.equal(sheet.rows[0].fields.Fabric, "Linen");
+  assert.equal(sheet.rows[0].fields.Price, "");
+  assert.deepEqual(sheet.rows[0].warnings, []);
+  await assert.rejects(parseCatalogueSpreadsheet("update.csv", bytes), /Name/);
+  assert.throws(() => rowsToCatalogueSheet("update", [["Name", "Fabric"], ["Dress", "Linen"]], "update"), /Slug/);
+});
+
+test("update sheets can contain a whole catalogue above the new-product row budget", async () => {
+  const rows = Array.from({ length: 1100 }, (_, i) => `piece-${i},Linen`).join("\n");
+  const bytes = Buffer.from(`Slug,Fabric\n${rows}\n`);
+  assert.equal((await parseCatalogueSpreadsheet("full.csv", bytes, "update")).rows.length, 1100);
+  await assert.rejects(parseCatalogueSpreadsheet("full.csv", bytes), /1,000/);
+});
+
+test("variant update rows retain exact labels and do not trigger new-product duplicate warnings", () => {
+  const sheet = rowsToCatalogueSheet("updates", [
+    ["Product slug", "Variant", "Price"],
+    ["existing-product", "M", "25,000.50"],
+    ["existing-product", "XL", "28000"],
+  ], "update");
+  assert.equal(sheet.rows.length, 2);
+  assert.equal(sheet.rows[0].fields.Variant, "M");
+  assert.equal(sheet.rows[1].fields.Price, "28000");
+  assert.ok(sheet.rows.every((row) => row.warnings.length === 0));
+  assert.throws(() => rowsToCatalogueSheet("bad", [["Slug", "slug"], ["one", "two"]], "update"), /Duplicate/);
+  assert.throws(() => rowsToCatalogueSheet("ambiguous", [
+    ["Slug", "Product slug", "Price"], ["first-product", "second-product", "25000"],
+  ], "update"), /conflicting product-slug columns/);
+  assert.equal(rowsToCatalogueSheet("same identity", [
+    ["Slug", "Product slug", "Fabric"], ["same-product", "same-product", "Linen"],
+  ], "update").rows[0].slug, "same-product");
+});
+
+test("XLSX partial updates keep formula cells empty and the normal workbook budget", async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Updates");
+  sheet.addRow(["Slug", "Fabric", "Price"]);
+  sheet.addRow(["existing-product", "Linen", { formula: "100+1", result: 101 }]);
+  const parsed = await parseCatalogueSpreadsheet("partial.xlsx", Buffer.from(await workbook.xlsx.writeBuffer()), "update");
+  assert.equal(parsed.rows[0].fields.Fabric, "Linen");
+  assert.equal(parsed.rows[0].fields.Price, "");
+  await assert.rejects(parseCatalogueSpreadsheet("big.csv", Buffer.alloc(2 * 1024 * 1024 + 1), "update"), /2 MiB/);
+});
+
 const path = new URL("../../../../attached_assets/0_SOSO_Online_Stock_Catalogue_-_New_Drive_Collection_-_Draft_1792484546301.xlsx", import.meta.url);
 
 test("XLSX parsing skips an empty first sheet and preserves unconfirmed product metadata", async () => {

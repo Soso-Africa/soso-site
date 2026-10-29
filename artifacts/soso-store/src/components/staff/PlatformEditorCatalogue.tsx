@@ -8,6 +8,7 @@ import { PlatformEditorSupportInterface } from "./PlatformEditorRoutineCopy";
 import { CopyPanel, PlatformCopyFields } from "./PlatformCopyFields";
 import { CollectionEditor } from "./CollectionEditor";
 import { CatalogueImporter } from "./import/CatalogueImporter";
+import { CatalogueUpdates } from "./import/CatalogueUpdates";
 import {
   isConfirmedMappingCurrent,
   isMappingPreviewFreshForReview,
@@ -87,6 +88,7 @@ export function PlatformEditorCatalogue({
   publishedProducts,
   onPublishRemoval,
   onImportProducts,
+  onUpdateProducts,
 }: {
   data: CatalogueData;
   onChange: (data: CatalogueData) => void;
@@ -99,6 +101,7 @@ export function PlatformEditorCatalogue({
   publishedProducts: CatalogProduct[];
   onPublishRemoval: (slug: string) => Promise<string | undefined>;
   onImportProducts?: (products: CatalogProduct[]) => Promise<void>;
+  onUpdateProducts?: (products: CatalogProduct[], reviewedSavedProducts: CatalogProduct[]) => Promise<void>;
 }) {
   const [expandedProductIndex, setExpandedProductIndex] = useState<number | null>(() => {
     const index = initialProductSlug ? data.products.findIndex((product) => product.slug === initialProductSlug) : -1;
@@ -471,6 +474,14 @@ export function PlatformEditorCatalogue({
           collections={data.collections}
           onUploadMedia={onUploadMedia}
           onImportProducts={onImportProducts}
+        />
+      )}
+      {onUpdateProducts && (
+        <CatalogueUpdates
+          savedProducts={savedProducts}
+          editorProducts={data.products}
+          collections={data.collections}
+          onUpdateProducts={onUpdateProducts}
         />
       )}
       <section className="border border-border bg-card p-5">

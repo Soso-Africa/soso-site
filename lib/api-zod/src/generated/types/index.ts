@@ -30,6 +30,7 @@ export * from './catalogueImportRow';
 export * from './catalogueImportRowFields';
 export * from './catalogueImportSheet';
 export * from './catalogueImportSheetInput';
+export * from './catalogueImportSheetInputMode';
 export * from './catalogueMappingPreview';
 export * from './catalogueMappingPreviewInput';
 export * from './catalogueMappingProductInput';

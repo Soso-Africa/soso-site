@@ -143,13 +143,14 @@ export const PutImportReviewResponse = zod.object({
 
 export const scanCatalogueImportSheetBodyNameMax = 200;
 
-export const scanCatalogueImportSheetBodyContentBase64Max = 900000;
+export const scanCatalogueImportSheetBodyContentBase64Max = 2800000;
 
 
 
 export const ScanCatalogueImportSheetBody = zod.object({
   "name": zod.string().max(scanCatalogueImportSheetBodyNameMax),
-  "contentBase64": zod.string().max(scanCatalogueImportSheetBodyContentBase64Max)
+  "contentBase64": zod.string().max(scanCatalogueImportSheetBodyContentBase64Max),
+  "mode": zod.enum(['new', 'update']).optional().describe('New-product imports require Name and Slug; update previews require only Slug and never create products.')
 })
 
 export const scanCatalogueImportSheetResponseRowsItemRowNumberMultipleOf = 1;
