@@ -69,6 +69,18 @@ test("uses controlled size aliases and Custom", () => {
   assert.deepEqual(mapping.variantIds, { S: "small", Custom: "made" });
 });
 
+test("import placeholder sizes stay blocked with actionable repair guidance, even if remotely named alike", () => {
+  for (const size of ["To confirm", "To be confirmed", "TBC", "TBD", "Unknown", "Pending"]) {
+    const remote = [{ ...catalog[0]!, variants: [{ ...catalog[0]!.variants[0]!, name: size, label: size, attributes: { size } }] }];
+    const mapping = suggestCatalogueMappings([{ ...locals[0]!, commerceProductId: remote[0].id, standardSizes: [size] }], remote)[0]!;
+    assert.equal(mapping.status, "unsafe");
+    assert.deepEqual(mapping.variantIds, {});
+    assert.match(mapping.evidence.join(" "), /import placeholder, not a size/);
+    assert.match(mapping.evidence.join(" "), /All Available Sizes/);
+    assert.match(mapping.evidence.join(" "), /Save the draft separately/);
+  }
+});
+
 test("does not treat unrelated variant attributes as size evidence", () => {
   const misleading = [{
     ...catalog[0]!,

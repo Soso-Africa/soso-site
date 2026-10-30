@@ -1,4 +1,5 @@
 import type { CatalogProduct } from "../../../data/platformContent";
+import { isSizePlaceholder } from "./size-placeholders";
 
 function removePrices(product: CatalogProduct, choices: string[]): CatalogProduct["variantPrices"] {
   const prices = { ...product.variantPrices };
@@ -171,6 +172,8 @@ export function handleUpdateStandardSizes(
   checked: boolean,
   confirm: (msg: string) => boolean
 ): CatalogProduct | null {
+  // Existing placeholder selections may be removed, but never newly enabled.
+  if (checked && isSizePlaceholder(size)) return null;
   if (!checked) {
     const hasData = product.commerceVariantIds?.[size] || product.readyNowSizes?.includes(size);
     if (hasData) {
