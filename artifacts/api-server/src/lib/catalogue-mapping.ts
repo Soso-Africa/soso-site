@@ -189,6 +189,11 @@ function makeMapping(local: LocalCatalogueProduct, catalog: JusticeSureCatalogPr
   if (isAvailable(local) && !product.inStock) return { ...base, status: unsafe, evidence: ["Available local product has no product stock."], productId: product.id, productHash: snapshot.products[product.id] };
   const used = new Set<string>();
   for (const choice of choices(local)) {
+    if (/^(to confirm|to be confirmed|tbc|tbd|unknown|pending)$/.test(normalizedText(choice.key))) {
+      return { ...base, status: unsafe, evidence: [...evidence,
+        `"${choice.key}" is an import placeholder, not a size. In All Available Sizes, remove it and add the actual JusticeSure sizes, then select and map those Standard sizes. For Custom-only products, disable Standard Eligible. Save the draft separately; review again after correcting the choices.`,
+      ], productId: product.id, productHash: snapshot.products[product.id] };
+    }
     const matches = product.variants.filter((variant) => variantTerms(variant).includes(choice.semantic));
     if (matches.length === 0) return { ...base, status: unsafe, evidence: [...evidence, `No unique variant matched ${choice.key}.`], productId: product.id, productHash: snapshot.products[product.id] };
     if (matches.length > 1) return { ...base, status: "ambiguous", evidence: [...evidence, `Multiple variants matched ${choice.key}; no guess was made.`], productId: product.id, productHash: snapshot.products[product.id] };

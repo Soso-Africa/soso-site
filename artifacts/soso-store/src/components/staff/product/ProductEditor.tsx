@@ -17,6 +17,7 @@ import { ImagesEditor } from "./ImagesEditor";
 import { MaterialTurnSetsEditor } from "./MaterialTurnSetsEditor";
 import { ColourEditor } from "./ColourEditor";
 import { VariantPricingEditor } from "./VariantPricingEditor";
+import { isSizePlaceholder } from "./size-placeholders";
 import { canConfirmMapping, isConfirmedMappingCurrent } from "./mapping-staleness";
 import { CommerceSearchSelect } from "./CommerceSearchSelect";
 import { publicationLabel, publicationState, type SaveResult } from "./product-state";
@@ -588,6 +589,13 @@ export function ProductEditor({
                     inputLabel={`Add an available size for ${product.name}`}
                   />
                   <p className="text-[10px] text-muted-foreground mt-2 italic">Custom size is managed automatically via the eligibility toggle.</p>
+                  {product.sizes.some(isSizePlaceholder) && (
+                    <p role="status" className="mt-2 text-xs text-amber-900" data-testid={`placeholder-sizes-${product.slug}`}>
+                      “To confirm” and similar labels are import placeholders, not sizes. Remove them from All Available Sizes,
+                      add the actual sizes offered in JusticeSure, then select those under Standard Eligible and map each exact variant.
+                      For Custom-only products, disable Standard Eligible instead. No size or price is filled automatically.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-3 border border-border bg-background p-4">
@@ -630,6 +638,7 @@ export function ProductEditor({
                             <input
                               type="checkbox"
                               checked={product.standardSizes?.includes(size) || false}
+                              disabled={isSizePlaceholder(size) && !product.standardSizes?.includes(size)}
                               onChange={(e) => {
                                 const next = handleUpdateStandardSizes(product, size, e.target.checked, window.confirm);
                                 if (next) onChange(next);
@@ -637,7 +646,7 @@ export function ProductEditor({
                               className="h-3 w-3 rounded-sm border-border bg-background text-primary accent-primary"
                               data-testid={`input-product-standard-size-${product.slug}-${size}`}
                             />
-                            <span className="text-[10px] font-medium uppercase tracking-wider text-foreground">{size}</span>
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-foreground">{size}{isSizePlaceholder(size) ? " — placeholder; remove this size" : ""}</span>
                           </label>
                         ))}
                         {(product.sizes || []).filter(s => s !== "Custom").length === 0 && (
@@ -967,6 +976,10 @@ export function ProductEditor({
                   )}
 
                   <div id={`step-${product.slug}-review`} tabIndex={-1} className="space-y-3 border border-border bg-muted/10 p-3">
+                    <p className="text-[10px] text-muted-foreground">
+                      Review checks whether the JusticeSure links are safe to confirm. It does not save your edits.
+                      You can use Save this product only below to keep an unpublished draft while resolving mapping issues.
+                    </p>
                     <ReviewMappingAction
                       slug={product.slug}
                       onReview={() => onReviewMapping?.()}
