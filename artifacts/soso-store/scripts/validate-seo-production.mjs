@@ -52,8 +52,8 @@ assert.match(source, /`\$\{siteUrl\}\/#organization`/);
 assert.match(source, /"@type": "WebSite"/);
 assert.match(source, /`\$\{siteUrl\}\/#website`/);
 assert.match(source, /"@type": "BreadcrumbList"/);
-assert.match(source, /"@type": "Product"/);
-assert.match(source, /"@type": "Offer"/);
+assert.match(source, /schema: \[productSchema\]/);
+assert.match(source, /offer: productSchema\.offers/);
 assert.match(source, /"@type": "FAQPage"/);
 assert.match(source, /"@type": "BlogPosting"/);
 assert.match(source, /headline: article\.title/);
@@ -73,12 +73,12 @@ const allowedInternalLink = /^(?:\/(?:journal|product|collections)\/[a-z0-9]+(?:
 for (const href of ["/shop", "/faq", "/about", "/journal/a-post", "/product/a-product", "/collections/a-collection"]) assert.ok(allowedInternalLink.test(href), `${href} should be allowed.`);
 for (const href of ["/staff", "/checkout", "/journal/preview/a-post", "/shop?q=x", "/about#team", "/../staff", "https://shopsoso.co/shop", "//example.com"]) assert.ok(!allowedInternalLink.test(href), `${href} must remain plain text.`);
 assert.match(source, /bodyText: stripMarkdown\(row\.body\)/);
-assert.match(source, /product\.commerceProductId && authoritativeState/);
-assert.match(source, /brand: \{ "@type": "Brand", name: platform\.site\?\.name/);
-assert.match(source, /\.\.\.\(product\.img \? \{ image: absolute\(product\.img\) \}/);
-assert.match(source, /https:\/\/schema\.org\/OutOfStock/);
+assert.match(source, /import \{ buildProductStructuredData \} from "\.\.\/src\/lib\/product-schema\.ts"/);
+assert.match(source, /buildProductStructuredData\(product, schemaSite/);
+assert.match(source, /renderProductDetails\(product/);
+assert.match(source, /renderProductList\(products, offerFor\)/);
 assert.match(source, /"@type": "CollectionPage"/);
-assert.match(source, /product\.department === collection\.department && product\.category === collection\.category/);
+assert.match(source, /selectCollectionProducts\(collection, products\)/);
 assert.match(source, /resolve\(out, `\$\{path\.slice\(1\)\}\.html`\)/);
 assert.match(source, /await clearPrerenders\(\)/);
 assert.match(source, /hydrationAsset/);
@@ -91,7 +91,7 @@ assert.match(source, /SOSO_SEO_OUTPUT_DIR/);
 assert.match(main, /rootElement\.replaceChildren\(\)/);
 const vercelConfig = JSON.parse(vercel);
 assert.equal(vercelConfig.cleanUrls, true);
-assert.equal(vercelConfig.routes[0].src, "/api");
+assert.ok(vercelConfig.routes.findIndex((route) => route.src === "/api") >= 0);
 assert.match(vercel, /www\.shopsoso\.co/);
 const previewGuard = vercelConfig.routes.find((route) => route.headers?.["X-Robots-Tag"]);
 assert.equal(previewGuard?.headers?.["X-Robots-Tag"], "noindex, nofollow");
@@ -99,10 +99,18 @@ assert.equal(previewGuard?.continue, true);
 assert.match(previewGuard?.has?.[0]?.value || "", /vercel/);
 const filesystemIndex = vercelConfig.routes.findIndex((route) => route.handle === "filesystem");
 assert.ok(filesystemIndex > vercelConfig.routes.indexOf(previewGuard));
-assert.deepEqual(vercelConfig.routes.slice(0, 2), [
+assert.deepEqual(vercelConfig.routes.filter((route) => route.src === "/api" || route.src === "/api/(.*)"), [
   { src: "/api", dest: "/api/handler" },
   { src: "/api/(.*)", dest: "/api/handler?__soso_path=$1" },
 ]);
+for (const route of vercelConfig.routes.filter((route) => route.src?.startsWith("/api"))) {
+  assert.ok(vercelConfig.routes.indexOf(route) < filesystemIndex);
+}
+const legacyShop = vercelConfig.routes.find((route) => route.src === "/shopsoso/?$");
+assert.deepEqual(legacyShop, { src: "/shopsoso/?$", headers: { Location: "/shop" }, status: 301 });
+assert.ok(vercelConfig.routes.indexOf(legacyShop) < filesystemIndex);
+for (const path of ["/shopsoso", "/shopsoso/"]) assert.match(path, new RegExp(`^${legacyShop.src}`));
+for (const path of ["/shopsoso-other", "/shopsoso/nested", "/product/test-piece", "/shop"]) assert.doesNotMatch(path, new RegExp(`^${legacyShop.src}`));
 const commerceWebhook = vercelConfig.routes.find((route) => route.src === "/webhook/commerce/?");
 assert.equal(commerceWebhook?.dest, "/api/handler?__soso_path=payment/webhook");
 assert.ok(vercelConfig.routes.indexOf(commerceWebhook) < filesystemIndex);
@@ -135,6 +143,6 @@ for (const [name, records, prefix] of [
     assert.ok(record.title && record.seoTitle && record.seoDescription && record.body, `${name} ${record.slug} must have crawler content.`);
   }
 }
-const contentTests = spawnSync(process.execPath, ["--test", resolve(root, "scripts/seo-public-content.test.mjs")], { stdio: "inherit" });
+const contentTests = spawnSync(process.execPath, ["--test", resolve(root, "scripts/seo-public-content.test.mjs"), resolve(root, "scripts/seo-catalog-content.test.mjs")], { stdio: "inherit" });
 assert.equal(contentTests.status, 0, "Published crawler content regression checks must pass.");
 process.stdout.write("SEO source validation passed: canonical gate, private fallback, crawlable route files, feeds, schema, social metadata, and www redirect are present.\n");

@@ -57,6 +57,11 @@
       "continue": true
     },
     {
+      "src": "/shopsoso/?$",
+      "headers": { "Location": "/shop" },
+      "status": 301
+    },
+    {
       "src": "/shop/",
       "dest": "/api/handler?__soso_path=legacy-redirect&path=shop/"
     },

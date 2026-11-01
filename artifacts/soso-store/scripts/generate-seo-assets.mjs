@@ -1,4 +1,7 @@
 import { publishedFaqContent, renderFaqContent, publishedPolicyPages, publishedProductImage } from "./seo-public-content.mjs";
+import { renderCollectionLinks, renderProductDetails, renderProductList } from "./seo-catalog-content.mjs";
+import { buildProductStructuredData } from "../src/lib/product-schema.ts";
+import { selectCollectionProducts } from "../src/lib/collectionSelection.ts";
 import { mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -163,6 +166,13 @@ const collections = catalogApproved && Array.isArray(platform.collections) ? pla
 const faq = publishedFaqContent(faqRows);
 const policyPages = publishedPolicyPages(policyRows);
 const pageCopy = platform.pages || {};
+const schemaSite = { ...platform.site, name: platform.site?.name || "SOSO Africa" };
+const productSchemas = new Map(products.map((product) => [
+  product.slug,
+  buildProductStructuredData(product, schemaSite, `/product/${product.slug}`, { siteUrl, absoluteUrl: absolute }),
+]));
+const offerFor = (product) => productSchemas.get(product.slug)?.offers;
+const catalogueLinks = renderCollectionLinks(collections);
 const approvedAboutPages = legacyAboutPages
   .filter((item) => isLegacyEditoriallyApproved(item))
   .map((item) => ({
@@ -185,8 +195,8 @@ const approvedAboutPages = legacyAboutPages
     }],
   }));
 const staticPages = [
-  { path: "/", title: /^SOSO Africa \| Premium Nigerian (Menswear|Fashion)$/.test(platform.homepage?.seo?.title ?? "") ? "SOSO Africa | Premium African Fashion" : (platform.homepage?.seo?.title || "SOSO Africa | Premium African Fashion"), description: platform.homepage?.seo?.description || "Discover premium African fashion from SOSO Africa.", h1: "SOSO Africa", body: platform.site?.structuredData?.organizationDescription || "Discover considered African fashion, collections, and editorial stories." },
-  ...(catalogApproved ? [{ path: "/shop", title: "Shop | SOSO Africa", description: "Browse SOSO Africa collections.", h1: "Shop SOSO Africa", body: "Browse the current SOSO Africa collection." }] : []),
+  { path: "/", title: /^SOSO Africa \| Premium Nigerian (Menswear|Fashion)$/.test(platform.homepage?.seo?.title ?? "") ? "SOSO Africa | Premium African Fashion" : (platform.homepage?.seo?.title || "SOSO Africa | Premium African Fashion"), description: platform.homepage?.seo?.description || "Discover premium African fashion from SOSO Africa.", h1: "SOSO Africa", body: platform.site?.structuredData?.organizationDescription || "Discover considered African fashion, collections, and editorial stories.", bodyHtml: `<p>${escapeHtml(platform.site?.structuredData?.organizationDescription || "Discover considered African fashion, collections, and editorial stories.")}</p>${catalogueLinks}${renderProductList(products.slice(0, 8), offerFor, "Explore the collection")}` },
+  ...(catalogApproved ? [{ path: "/shop", title: "Shop | SOSO Africa", description: "Browse SOSO Africa collections.", h1: "Shop SOSO Africa", body: "Browse the current SOSO Africa collection.", bodyHtml: `<p>Browse the current SOSO Africa collection.</p>${catalogueLinks}${renderProductList(products, offerFor)}` }] : []),
   ...(policiesApproved ? [
     { path: "/faq", title: pageCopy.faq?.seo?.title || "Frequently asked questions | SOSO Africa", description: pageCopy.faq?.seo?.description || "Answers to common SOSO Africa questions.", h1: pageCopy.faq?.title || "Frequently asked questions", body: pageCopy.faq?.intro || "Find answers and support information.", bodyHtml: renderFaqContent(faq) },
     { path: "/about", title: pageCopy.about?.seo?.title || "About SOSO Africa", description: pageCopy.about?.seo?.description || "About SOSO Africa.", h1: pageCopy.about?.hero?.title || "About SOSO Africa", body: pageCopy.about?.hero?.body || "Learn about SOSO Africa." },
@@ -267,22 +277,21 @@ for (const item of legacyAboutRoutes) {
 }
 for (const product of products) {
   const productImage = publishedProductImage(product);
-  const price = Number(product.price);
-  const authoritativeState = ["ready_now", "made_immediately", "unavailable"].includes(product.fulfilmentState);
-  const availability = product.fulfilmentState === "unavailable" ? "https://schema.org/OutOfStock" : product.fulfilmentState === "ready_now" ? "https://schema.org/InStock" : "https://schema.org/PreOrder";
-  const offer = product.commerceProductId && authoritativeState && Number.isFinite(price) && price >= 0
-    ? { "@type": "Offer", price, priceCurrency: "NGN", availability, url: absolute(`/product/${product.slug}`), seller: { "@id": `${siteUrl}/#organization` } }
-    : undefined;
+  const productSchema = productSchemas.get(product.slug);
+  // Use the governed primary/gallery image even when only gallery media exists.
+  if (productImage) productSchema.image = absolute(productImage);
+  else delete productSchema.image;
+  const relatedCollections = collections.filter((collection) =>
+    selectCollectionProducts(collection, products).some((piece) => piece.slug === product.slug));
   const item = { path: `/product/${product.slug}`, title: `${product.name} | SOSO Africa`, description: product.description, h1: product.name, body: product.description, lastmod: now };
-  routes.push(item); await emit(item.path, page({ ...item, image: productImage, schema: [{ "@context": "https://schema.org", "@type": "Product", name: product.name, description: product.description, url: absolute(item.path), brand: { "@type": "Brand", name: platform.site?.name || "SOSO Africa" }, ...(product.img ? { image: absolute(product.img) } : productImage ? { image: absolute(productImage) } : {}), ...(offer ? { offers: offer } : {}) }] }));
+  routes.push(item); await emit(item.path, page({ ...item, image: productImage, bodyHtml: renderProductDetails(product, { copy: platform.productCopy, offer: productSchema.offers, collections: relatedCollections }), schema: [productSchema] }));
 }
 for (const collection of collections) {
-  const pieces = products.filter((product) => product.department === collection.department && product.category === collection.category)
-    .sort((a, b) => (b.merchandising?.sortPriority || 0) - (a.merchandising?.sortPriority || 0));
+  const pieces = selectCollectionProducts(collection, products);
   const item = { path: `/collections/${collection.slug}`, title: collection.seo?.title || `${collection.h1} | SOSO Africa`, description: collection.seo?.description || collection.intro, h1: collection.h1, body: collection.intro, lastmod: now };
   const itemListElement = pieces.map((product, index) => ({ "@type": "ListItem", position: index + 1, url: absolute(`/product/${product.slug}`), name: product.name }));
   routes.push(item);
-  await emit(item.path, page({ ...item, schema: [{ "@context": "https://schema.org", "@type": "CollectionPage", name: collection.h1, description: item.description, url: absolute(item.path), mainEntity: { "@type": "ItemList", itemListElement } }] }));
+  await emit(item.path, page({ ...item, bodyHtml: `<p>${escapeHtml(collection.intro)}</p>${renderProductList(pieces, offerFor)}<p><a href="/shop">Browse all products</a></p>`, schema: [{ "@context": "https://schema.org", "@type": "CollectionPage", name: collection.h1, description: item.description, url: absolute(item.path), mainEntity: { "@type": "ItemList", itemListElement } }] }));
 }
 if (journalApproved) for (const article of articles) {
   const item = { path: `/journal/${article.slug}`, title: article.pageTitle, description: article.description, h1: article.title, body: article.bodyText || article.excerpt, lastmod: article.updatedAt };
