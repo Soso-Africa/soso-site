@@ -83,6 +83,8 @@ export function PlatformEditorCatalogue({
   initialProductSlug,
   onDeleteProduct,
   onSaveProduct,
+  onApproveProduct,
+  onApproveProducts,
   savedProducts,
   onPublishProduct,
   publishedProducts,
@@ -96,6 +98,8 @@ export function PlatformEditorCatalogue({
   initialProductSlug?: string | null;
   onDeleteProduct: (slug: string) => Promise<string | null | undefined>;
   onSaveProduct: (slug: string) => Promise<SaveResult>;
+  onApproveProduct?: (product: CatalogProduct, publish: boolean) => Promise<SaveResult>;
+  onApproveProducts?: (slugs: string[], publish: boolean) => Promise<SaveResult>;
   savedProducts: CatalogProduct[];
   onPublishProduct: (slug: string) => Promise<string>;
   publishedProducts: CatalogProduct[];
@@ -482,6 +486,7 @@ export function PlatformEditorCatalogue({
           editorProducts={data.products}
           collections={data.collections}
           onUpdateProducts={onUpdateProducts}
+          onApproveProducts={onApproveProducts}
         />
       )}
       <section className="border border-border bg-card p-5">
@@ -622,6 +627,7 @@ export function PlatformEditorCatalogue({
               deleting={deletingProductSlug === product.slug}
               deleteError={deleteErrorSlug === product.slug ? deleteError : ""}
               onSave={() => onSaveProduct(product.slug)}
+              onApproveProduct={onApproveProduct}
               onPublish={() => onPublishProduct(product.slug)}
               onUploadMedia={onUploadMedia}
               commerceProducts={commerceProducts}

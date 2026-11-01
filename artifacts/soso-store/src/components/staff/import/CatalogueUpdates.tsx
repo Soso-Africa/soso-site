@@ -13,6 +13,8 @@ import {
 
 import { UpdateSheetDownload } from "./UpdateSheetDownload";
 import { UpdateReviewSummary } from "./UpdateReviewSummary";
+import { assertSpreadsheetDoesNotOverwriteEditor } from "./editor-merge";
+import type { SaveResult } from "../product/product-state";
 
 const label = "text-[10px] font-semibold uppercase tracking-wider";
 const btn = `inline-flex min-h-10 items-center justify-center gap-2 border border-border bg-background px-3 ${label} text-primary hover:bg-muted/40 disabled:opacity-50 transition-colors`;
@@ -24,18 +26,19 @@ function errText(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-export function CatalogueUpdates({ savedProducts, editorProducts, collections, onUpdateProducts }: {
+export function CatalogueUpdates({ savedProducts, editorProducts, collections, onUpdateProducts, onApproveProducts }: {
   savedProducts: CatalogProduct[];
   editorProducts: CatalogProduct[];
   collections: { department: string; category: string }[];
   onUpdateProducts: (products: CatalogProduct[], reviewedSavedProducts: CatalogProduct[]) => Promise<void>;
+  onApproveProducts?: (slugs: string[], publish: boolean) => Promise<SaveResult>;
 }) {
   const [open, setOpen] = useState(false);
   const [fileName, setFileName] = useState("");
   const [fileToken, setFileToken] = useState(0);
   const [sheet, setSheet] = useState<CatalogueImportSheet | null>(null);
   const [mapping, setMapping] = useState<Record<string, Destination>>({});
-  const [mode, setMode] = useState<UpdateMode>("fill");
+  const [mode, setMode] = useState<UpdateMode>("replace");
   const [inputRevision, setInputRevision] = useState(0);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState("");
@@ -44,6 +47,9 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [success, setSuccess] = useState("");
+  const [savedSlugs, setSavedSlugs] = useState<string[]>([]);
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [releaseMessage, setReleaseMessage] = useState("");
   const readGen = useRef(0);
   const savingRef = useRef(false);
 
@@ -57,6 +63,7 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
   const readFile = async (file: File) => {
     const gen = ++readGen.current;
     setReadError(""); setSuccess(""); setSaveError(""); setPreview(null); setSelected(new Set());
+    setSavedSlugs([]); setConfirmPublish(false); setReleaseMessage("");
     setSheet(null); setFileName(file.name); setFileToken(gen);
     if (!/\.(xlsx|csv)$/i.test(file.name)) { setReadError("Choose an .xlsx or .csv file."); return; }
     if (file.size > MAX_SHEET_BYTES) { setReadError(`${file.name} is ${(file.size / 1024).toFixed(1)} KiB. The update limit is 2 MiB. Choose fewer products/fields or use Excel.`); return; }
@@ -66,7 +73,12 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
       const result = await scanCatalogueImportSheet(args);
       if (gen !== readGen.current) return;
       setSheet(result);
-      setMapping(suggestMapping(sheetHeadings(result.rows)));
+      const suggested = suggestMapping(sheetHeadings(result.rows));
+      setMapping(suggested);
+      const baseline = structuredClone(savedProducts);
+      const review = buildUpdateReview({ rows: result.rows, mapping: suggested, mode, savedProducts: baseline, collections });
+      setPreview({ review, baseline, inputKey: `${gen}|${inputRevision}|${mode}|${JSON.stringify(suggested)}`, savedRef: savedProducts });
+      setSelected(new Set(review.changes.map((change) => change.id)));
     } catch (error) {
       if (gen === readGen.current) setReadError(errText(error, "The spreadsheet could not be read. It needs an exact Slug heading plus at least one other column."));
     } finally { if (gen === readGen.current) setReading(false); }
@@ -78,27 +90,31 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
     const baseline = structuredClone(savedProducts);
     const review = buildUpdateReview({ rows: sheet.rows, mapping, mode, savedProducts: baseline, collections });
     setPreview({ review, baseline, inputKey, savedRef: savedProducts });
-    setSelected(review.errors.length ? new Set() : new Set(review.changes.map((c) => c.id)));
+    setSelected(new Set(review.changes.map((c) => c.id)));
   };
 
   const review = live?.review;
   const priceCheck = useSpreadsheetPriceCheck(review, live?.baseline, selected);
   const selectedPrices = review?.changes.filter((c) => selected.has(c.id) && isPriceChange(c)).length ?? 0;
-  const blocked = !review || review.errors.length > 0;
+  const blocked = !review || review.errors.some((error) => !error.slug);
   const selectedProducts = review ? new Set(review.changes.filter((c) => selected.has(c.id)).map((c) => c.slug)).size : 0;
   const allSelected = review ? review.changes.length > 0 && review.changes.every((c) => selected.has(c.id)) : false;
 
   const save = async () => {
-    if (!live || savingRef.current || blocked || selected.size === 0 || dirty) return;
+    if (!live || savingRef.current || blocked || selected.size === 0) return;
     let products: CatalogProduct[];
-    try { products = applySelectedChanges(live.baseline, live.review.changes, selected, collections); }
+    try {
+      products = applySelectedChanges(live.baseline, live.review.changes, selected, collections);
+      assertSpreadsheetDoesNotOverwriteEditor(editorProducts, live.baseline, products);
+    }
     catch (error) { setSaveError(errText(error, "Changes could not be prepared.")); return; }
     savingRef.current = true; setSaving(true); setSaveError(""); setSuccess("");
     try {
       await onUpdateProducts(products, live.baseline);
+      setSavedSlugs(products.map((product) => product.slug));
       const n = selected.size;
       setPreview(null); setSelected(new Set());
-      setSuccess(`${n} change${n === 1 ? "" : "s"} saved to ${products.length} product${products.length === 1 ? "" : "s"} in the unpublished draft. Nothing was published. Mapping confirmation was cleared on each modified product; review it in Catalogue Products before publishing.`);
+      setSuccess(`${n} change${n === 1 ? "" : "s"} saved to ${products.length} product${products.length === 1 ? "" : "s"}. Nothing is live yet. Use “Review and publish these products” above when ready; the size and price checks run for you.`);
     } catch (error) {
       setPreview(null); setSelected(new Set());
       setSaveError(`${errText(error, "The draft could not be saved.")} Nothing is confirmed as saved. Reload if needed, then rebuild the review.`);
@@ -111,20 +127,43 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
         className="flex w-full items-center justify-between gap-3 p-5 text-left hover:bg-muted/30">
         <span>
           <span className={`${label} flex items-center gap-2 text-primary`}><FileSpreadsheet className="h-3.5 w-3.5" /> Update existing products</span>
-          <span className="mt-1 block text-xs text-muted-foreground">Fill missing facts and per-size NGN prices on saved products from a spreadsheet. Matches exact slugs only; never creates or publishes.</span>
+          <span className="mt-1 block text-xs text-muted-foreground">Upload your edits, review the changes, then approve and put the ready products on the shop.</span>
         </span>
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
       </button>
       {open && (
         <div className="space-y-5 border-t border-border p-5">
+          {savedSlugs.length > 0 && onApproveProducts && (
+            <div className="space-y-3 border border-primary/30 bg-primary/5 p-4" data-testid="sheet-publish-ready">
+              <p className="text-sm font-semibold">{savedSlugs.length} updated products saved. Ready to put them on the shop?</p>
+              <p className="text-xs text-muted-foreground">We will check sizes, prices and photos, record your approval, and publish only these products. A failed check keeps the remaining products in draft. Owners and administrators can approve.</p>
+              <details className="text-xs"><summary className="cursor-pointer">Review the products</summary><ul className="mt-2 space-y-1">{savedSlugs.map((slug) => <li key={slug}>{savedProducts.find((p) => p.slug === slug)?.name ?? slug}</li>)}</ul></details>
+              {!confirmPublish ? <button type="button" className={btnPrimary} disabled={saving} onClick={() => setConfirmPublish(true)}>Review and publish these products</button> : (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">I have reviewed these products and approve their details for the live shop.</p>
+                  <button type="button" className={btnPrimary} disabled={saving} data-testid="button-sheet-confirm-publish" onClick={async () => {
+                    if (savingRef.current) return;
+                    savingRef.current = true; setSaving(true); setReleaseMessage("");
+                    try {
+                      const result = await onApproveProducts(savedSlugs, true);
+                      setReleaseMessage(result.message);
+                      if (result.ok) { setSavedSlugs([]); setConfirmPublish(false); }
+                    } catch (error) { setReleaseMessage(errText(error, "Publishing could not finish. Your saved draft is safe.")); }
+                    finally { savingRef.current = false; setSaving(false); }
+                  }}>{saving ? "Checking and publishing…" : "Approve and publish"}</button>
+                  <button type="button" className={`${btn} ml-2`} disabled={saving} onClick={() => setConfirmPublish(false)}>Keep in draft</button>
+                </div>
+              )}
+            </div>
+          )}
+          {releaseMessage && <p role="status" className="border border-border p-3 text-sm">{releaseMessage}</p>}
           <div className="border-l-2 border-primary bg-accent px-3 py-2 text-xs leading-5 text-accent-foreground" data-testid="text-update-rules">
-            Columns: an exact <strong>Slug</strong> heading plus any field, for example <code>Slug, Fabric</code> or <code>Slug, Variant, Price</code>.
-            Price without Variant sets the base price. Variants must match an existing size label exactly (standard sizes, plus Custom when custom-eligible).
-            Blank cells never clear anything. Lists use <code>|</code> or <code>;</code>. Booleans accept true, false, yes or no.
-            Current-values downloads include a protected original-values reference: keep it in the file.
-            Only cells you edited are proposed; newer conflicting catalogue changes block saving. Edit product fields on the blank Variant row and size prices on named Variant rows.
-            Slugs, release state, approvals, JusticeSure mapping and retired colour masks are never changed here. Upload photos, approve releases and map inventory in the normal product editors.
-            Unmapped columns are ignored and the server still applies its normal schema, media and commerce checks.
+            <strong>1. Upload your sheet. 2. Review and save. 3. Approve and put on shop.</strong>
+            <p>Blank cells leave existing information alone. You can add sizes and their prices together. Nothing goes live without your final approval.</p>
+            <details className="mt-2">
+              <summary className="cursor-pointer">Sheet format and safety details</summary>
+              <p className="mt-2">Use an exact <strong>Slug</strong> heading to identify each existing product. Edit product details on a blank Variant row, and size prices on named Variant rows. A Price without Variant is the base price. Lists use <code>|</code> or <code>;</code>; yes/no fields accept true, false, yes or no. Keep the protected original-values column in downloaded sheets: it detects changed cells and newer conflicting edits. Upload photos in the product editor. Approvals and JusticeSure links are checked separately before anything goes live.</p>
+            </details>
           </div>
 
           <UpdateSheetDownload savedProducts={savedProducts} disabled={reading || saving} />
@@ -146,8 +185,8 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
 
           {sheet && (
             <>
-              <div className="space-y-2">
-                <h4 className={`${label} text-primary`}>1 · Map columns</h4>
+              <details className="space-y-2" open={mapErrs.length > 0 || undefined}>
+                <summary className={`${label} cursor-pointer text-primary`}>Column choices · change only if needed</summary>
                 {headings.length === 0 && <p className="text-xs text-muted-foreground">This sheet has only a Slug column. Add a field column such as Fabric or Price.</p>}
                 <div className="divide-y divide-border border border-border">
                   {headings.map((h) => (
@@ -167,14 +206,14 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
                   ))}
                 </div>
                 {mapErrs.map((e) => <p key={e} role="alert" className="text-xs text-destructive">{e}</p>)}
-              </div>
+              </details>
 
               <fieldset className="space-y-2">
-                <legend className={`${label} text-primary`}>2 · Mode</legend>
+                <legend className={`${label} text-primary`}>How to use your sheet</legend>
                 <label className="flex items-start gap-2 text-xs"><input type="radio" checked={mode === "fill"} onChange={() => { setMode("fill"); setInputRevision((revision) => revision + 1); }} data-testid="radio-mode-fill" />
-                  <span><strong>Fill missing only.</strong> Changes only empty or placeholder values (such as To be confirmed) and unset variant prices.</span></label>
+                  <span><strong>Only fill gaps.</strong> Keep existing values; use the sheet only for missing information.</span></label>
                 <label className="flex items-start gap-2 text-xs"><input type="radio" checked={mode === "replace"} onChange={() => { setMode("replace"); setInputRevision((revision) => revision + 1); }} data-testid="radio-mode-replace" />
-                  <span><strong>Replace supplied fields.</strong> For intentional corrections: every non-blank mapped cell replaces the saved value.</span></label>
+                  <span><strong>Use the edits in this sheet.</strong> Review each change below before saving. Blank cells leave existing information alone.</span></label>
               </fieldset>
 
               <button type="button" className={btn} disabled={mapErrs.length > 0 || saving} onClick={buildReview} data-testid="button-build-update-review">
@@ -186,11 +225,11 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
 
           {review && (
             <div className="space-y-4" data-testid="update-review">
-              <h4 className={`${label} text-primary`}>3 · Review</h4>
+              <h4 className={`${label} text-primary`}>Review your changes</h4>
               <UpdateReviewSummary review={review} mode={mode} />
               {review.errors.length > 0 && (
                 <div role="alert" className="space-y-1 border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive" data-testid="list-update-errors">
-                  <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" />Fix these in the sheet or set the column to Ignore, then rebuild. Nothing can be saved until they are resolved.</p>
+                  <p className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4" />{blocked ? "Check the column choices below, then rebuild the review." : `${new Set(review.errors.map((error) => error.slug)).size} products need attention. They are left out for now; you can save the ready products below.`}</p>
                   <ul className="list-disc pl-5">{review.errors.map((e, i) => <li key={i}>{e.message}</li>)}</ul>
                 </div>
               )}
@@ -203,7 +242,7 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
                   </button>
                   <p role="status">Read-only comparison of selected prices using confirmed IDs only. Results are a fetched snapshot, not a live guarantee.
                     Nothing changes in JusticeSure. Checks never confirm mappings, publish or enable checkout. Unavailable or mismatched prices do not block draft editing.
-                    Saving still clears mapping confirmation; review and confirm again in Catalogue Products before the existing live publication checks.</p>
+                    Saving clears the old confirmation. “Review and publish these products” runs fresh checks and records your explicit approval before publication.</p>
                 </div>
               )}
               {review.changes.length > 0 && (
@@ -242,11 +281,11 @@ export function CatalogueUpdates({ savedProducts, editorProducts, collections, o
                   <ul className="mt-2 space-y-1">{review.skipped.map((s, i) => <li key={i}><code>{s.slug}</code> · {s.label} · {s.reason} (row {s.rows.join(", ")})</li>)}</ul>
                 </details>
               )}
-              {dirty && <p role="alert" className="border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">The catalogue editor has unsaved edits. Save or discard them before saving spreadsheet changes.</p>}
+              {dirty && <p role="status" className="border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">Your product-form edits will be kept. Only an edit to the same field will need resolving before saving this sheet.</p>}
               {selectedProducts > MAX_UPDATE_PRODUCTS && <p role="alert" className="text-xs text-destructive">Select changes for at most {MAX_UPDATE_PRODUCTS} products per save (currently {selectedProducts}).</p>}
               <div className="flex flex-wrap items-center gap-3">
                 <button type="button" className={btnPrimary} data-testid="button-save-selected-updates"
-                  disabled={blocked || saving || dirty || selected.size === 0 || selectedProducts > MAX_UPDATE_PRODUCTS} onClick={() => void save()}>
+                  disabled={blocked || saving || selected.size === 0 || selectedProducts > MAX_UPDATE_PRODUCTS} onClick={() => void save()}>
                   {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Save {selected.size} selected change{selected.size === 1 ? "" : "s"} to draft
                 </button>
                 <span className="text-xs text-muted-foreground">{selectedProducts} product{selectedProducts === 1 ? "" : "s"} · not published</span>

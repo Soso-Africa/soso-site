@@ -6,6 +6,9 @@ import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { committedRowFor } from "../components/staff/platform-row";
 import type { SaveResult } from "../components/staff/product/product-state";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
+import { assertSpreadsheetDoesNotOverwriteEditor, reconcileSavedProducts } from "../components/staff/import/editor-merge";
+import { runGuidedReview } from "../components/staff/product/guided-review";
+import { stable } from "../components/staff/product/product-state";
 import { productDeletionReferences } from "../components/staff/product/catalogue-delete";
 import { platformActionError } from "../components/staff/platform-action-error";
 import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
@@ -704,6 +707,8 @@ function PlatformContentManagementSection() {
   const [uploadedObjectPath, setUploadedObjectPath] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [structuredEditorValid, setStructuredEditorValid] = useState(true);
+  const editorSnapshot = useRef({ content, section, json });
+  editorSnapshot.current = { content, section, json };
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const jsonEditorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -764,6 +769,20 @@ function PlatformContentManagementSection() {
   const refreshRevisions = async () => {
     setRevisions(await customFetch<PlatformRevision[]>("/api/staff/content/platform/revisions", { responseType: "json" }));
   };
+  const acceptScopedCommit = (next: PlatformContentRow, before: PlatformContentRow) => {
+    setRow(next);
+    const latest = editorSnapshot.current;
+    if (!next.draft || !before.draft || !latest.content) return;
+    try {
+      const editor = applyPlatformSection(latest.content, latest.section, JSON.parse(latest.json) as unknown);
+      const merged = { ...editor, products: reconcileSavedProducts(editor.products, before.draft.products, next.draft.products) };
+      setContent(merged);
+      const updatedJson = JSON.stringify(sectionValue(merged, latest.section), null, 2);
+      setJson(updatedJson);
+      // Sequential save/approval/publish responses may arrive before React renders.
+      editorSnapshot.current = { content: merged, section: latest.section, json: updatedJson };
+    } catch { /* Preserve invalid, in-progress JSON instead of overwriting it. */ }
+  };
   const saveProduct = async (slug: string): Promise<SaveResult> => {
     if (!row?.draftUpdatedAt) return { ok: false, message: "Reload the saved draft before saving this product." };
     if (!structuredEditorValid) return { ok: false, message: "Fix the highlighted fields before saving." };
@@ -776,7 +795,7 @@ function PlatformContentManagementSection() {
         body: JSON.stringify({ product, expectedDraftUpdatedAt: row.draftUpdatedAt }), responseType: "json",
       });
       setRow(next);
-      await refreshRevisions();
+      try { await refreshRevisions(); } catch { /* A history outage does not undo the save. */ }
       const message = `${product.name} changes saved to the unpublished draft only. Other unsaved edits remain in the editor; the storefront was not updated.`;
       setStatus(message);
       return { ok: true, message };
@@ -822,9 +841,7 @@ function PlatformContentManagementSection() {
     if (saving || catalogueUpdateBusy.current) throw new Error("Wait for the current save to finish.");
     if (!row?.draft || !row.draftUpdatedAt) throw new Error("Reload the saved draft before updating products.");
     const current = parsedDocument();
-    if (!structuredEditorValid || JSON.stringify(current) !== JSON.stringify(row.draft)) {
-      throw new Error("Save or discard unsaved editor changes before uploading updates. Nothing was changed.");
-    }
+    assertSpreadsheetDoesNotOverwriteEditor(current.products, reviewedSavedProducts, products);
     if (JSON.stringify(reviewedSavedProducts) !== JSON.stringify(row.draft.products)) {
       throw new Error("The saved catalogue changed after review. Rebuild the preview before saving.");
     }
@@ -850,12 +867,7 @@ function PlatformContentManagementSection() {
         method: "PATCH", headers: { "content-type": "application/json" },
         body: updatePayload, responseType: "json",
       });
-      setRow(next);
-      const document = next.draft ?? next.published;
-      if (document) {
-        setContent(document);
-        setJson(JSON.stringify(sectionValue(document, sectionRef.current), null, 2));
-      }
+      acceptScopedCommit(next, row);
       setStatus(`${products.length} existing product${products.length === 1 ? "" : "s"} updated in draft. Only reviewed fields changed; nothing was published. Re-review changed prices against JusticeSure before publishing.`);
       try { await refreshRevisions(); } catch { /* The committed save remains successful. */ }
     } catch (error) {
@@ -866,6 +878,31 @@ function PlatformContentManagementSection() {
       catalogueUpdateBusy.current = false;
       setSaving(false);
     }
+  };
+  const guidedProductBusy = useRef(false);
+  const approveCatalogueProducts = async (products: PlatformContent["products"], publish: boolean): Promise<SaveResult> => {
+    if (saving || catalogueUpdateBusy.current || guidedProductBusy.current) return { ok: false, message: "Please wait for the current save to finish." };
+    if (!row?.draftUpdatedAt) return { ok: false, message: "Reload the saved draft first." };
+    try {
+      const current = parsedDocument();
+      if (products.some((p) => stable(current.products.find((item) => item.slug === p.slug)) !== stable(p))) {
+        return { ok: false, message: "A selected product changed. Review its latest details and try again." };
+      }
+    } catch { return { ok: false, message: "Finish the current form before continuing. Your edits are kept." }; }
+    guidedProductBusy.current = true;
+    setSaving(true);
+    try {
+      const result = await runGuidedReview({
+        products, row, publish, committed: acceptScopedCommit,
+        request: <T,>(path: string, body: unknown) => customFetch<T>(path, {
+          method: path.endsWith("/catalogue/draft") ? "PATCH" : "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify(body), responseType: "json",
+        }),
+      });
+      setStatus(result.message);
+      void refreshRevisions().catch(() => undefined);
+      return result;
+    } finally { guidedProductBusy.current = false; setSaving(false); }
   };
   const deleteCatalogueProduct = async (slug: string): Promise<string | null | undefined> => {
     if (saving) return "Wait for the current save to finish before deleting a product.";
@@ -1169,6 +1206,12 @@ function PlatformContentManagementSection() {
           initialProductSlug={initialProductSlug}
           onDeleteProduct={deleteCatalogueProduct}
           onSaveProduct={saveProduct}
+          onApproveProduct={(product, publish) => approveCatalogueProducts([product], publish)}
+          onApproveProducts={(slugs, publish) => {
+            const products = (row?.draft?.products ?? []).filter((p) => slugs.includes(p.slug));
+            if (products.length !== slugs.length) return Promise.resolve({ ok: false, message: "Some selected products are missing. Rebuild the review." });
+            return approveCatalogueProducts(products, publish);
+          }}
           savedProducts={row?.draft?.products ?? []}
           onPublishProduct={publishCatalogueProduct}
           publishedProducts={row?.published?.products ?? []}

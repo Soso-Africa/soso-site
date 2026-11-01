@@ -23,6 +23,8 @@ import { CommerceSearchSelect } from "./CommerceSearchSelect";
 import { publicationLabel, publicationState, type SaveResult } from "./product-state";
 import { mappingInputFingerprint } from "./review-state";
 import { ProductStepNav, ReviewMappingAction, computeProductSteps } from "./ProductStepFlow";
+import { compatibleVariants, evaluateChoices, wrongSizeMessage } from "./size-match";
+import { ApprovalPanel } from "./ApprovalPanel";
 
 type MappingHistoryEntry = {
   id: string;
@@ -59,6 +61,7 @@ export function ProductEditor({
   onReviewMapping,
   isReviewingMapping = false,
   reviewMappingError = "",
+  onApproveProduct,
 }: {
   product: CatalogProduct;
   allProducts: CatalogProduct[];
@@ -82,7 +85,9 @@ export function ProductEditor({
   onReviewMapping?: () => void;
   isReviewingMapping?: boolean;
   reviewMappingError?: string;
+  onApproveProduct?: (product: CatalogProduct, publish: boolean) => Promise<SaveResult>;
 }) {
+  const [approving, setApproving] = useState(false);
   // Only an analysis produced from exactly the current editor inputs may drive confirmation.
   const mappingSuggestion = reviewedSuggestion && reviewedSuggestion.inputFingerprint === mappingInputFingerprint(product) ? reviewedSuggestion : undefined;
   const categoryOptions = useMemo(
@@ -107,15 +112,26 @@ export function ProductEditor({
     ...(product.standardEligible ? product.standardSizes : []),
     ...(product.customEligible ? ["Custom"] : []),
   ];
-  const mappedVariantCount = eligibleCommerceChoices.filter((choice) => product.commerceVariantIds?.[choice]).length;
+  const sizeCheck = evaluateChoices(eligibleCommerceChoices, product.commerceVariantIds, mappedCommerceProduct?.variants);
+  const mappedVariantCount = sizeCheck.selectedCount;
+  const correctVariantCount = sizeCheck.correctCount;
   const commerceProductOptions = commerceProducts.map((remote) => ({
     id: remote.id,
     label: `${remote.name} · NGN ${(remote.amountKobo / 100).toLocaleString()} · ${remote.inStock ? "In stock" : "Out of stock"} · ${remote.variants.length} variants`,
   }));
-  const commerceVariantOptions = (mappedCommerceProduct?.variants ?? []).map((variant) => ({
-    id: variant.id,
-    label: `${variant.name} · ${Object.entries(variant.attributes).map(([name, value]) => `${name}: ${String(value)}`).join(", ") || variant.label} · NGN ${(variant.amountKobo / 100).toLocaleString()} · ${variant.inStock ? "In stock" : "Out of stock"}`,
-  }));
+  const variantLabel = (variant: NonNullable<typeof mappedCommerceProduct>["variants"][number]) => (
+    `${variant.name} · ${Object.entries(variant.attributes).map(([name, value]) => `${name}: ${String(value)}`).join(", ") || variant.label} · NGN ${(variant.amountKobo / 100).toLocaleString()} · ${variant.inStock ? "In stock" : "Out of stock"}`);
+  /** Only size-compatible remote variants are offered; a mismatched current choice stays visible, flagged. */
+  const variantOptionsFor = (choice: string) => {
+    const variants = mappedCommerceProduct?.variants ?? [];
+    const options = compatibleVariants(choice, variants).map((variant) => ({ id: variant.id, label: variantLabel(variant) }));
+    const currentId = product.commerceVariantIds?.[choice];
+    if (currentId && !options.some((o) => o.id === currentId)) {
+      const current = variants.find((variant) => variant.id === currentId);
+      options.unshift({ id: currentId, label: `${wrongSizeMessage(choice).split(".")[0]} · currently: ${current ? variantLabel(current) : "option no longer in JusticeSure"}` });
+    }
+    return options;
+  };
   const updateVariantMapping = (choice: string, id: string) => {
     if ((product.commerceVariantIds?.[choice] ?? "") === id) return;
     const updatedVariants = { ...(product.commerceVariantIds || {}) };
@@ -146,7 +162,7 @@ export function ProductEditor({
     priceOk: Number(product.price) > 0,
     eligibleChoices: eligibleCommerceChoices.length,
     standardSizesOk: !product.standardEligible || product.standardSizes.length > 0,
-    mappedChoices: mappedVariantCount,
+    mappedChoices: correctVariantCount,
     hasProductMapping: Boolean(product.commerceProductId),
     confirmedCurrent,
     analysisStatus: mappingSuggestion?.status,
@@ -265,6 +281,7 @@ export function ProductEditor({
       {isExpanded && (
         <div className="border-t border-border p-5 space-y-8 bg-muted/10">
           <ProductStepNav slug={product.slug} steps={steps} />
+          <fieldset disabled={approving} className="m-0 min-w-0 space-y-8 border-0 p-0 disabled:opacity-70" data-testid={`product-fields-${product.slug}`}>
 
           <div id={`step-${product.slug}-details`} tabIndex={-1} className="space-y-4">
             <h5 className="text-[10px] font-semibold uppercase tracking-wider text-primary border-b border-border pb-2">Core Details & Merchandising</h5>
@@ -741,7 +758,7 @@ export function ProductEditor({
                       <h6 className="text-[10px] font-semibold uppercase tracking-wider text-primary">JusticeSure Inventory Mapping</h6>
                       <p className="mt-1 text-[10px] text-muted-foreground">Mappings change SOSO references only; JusticeSure inventory is never edited here.</p>
                       <p className="mt-2 text-[10px] text-muted-foreground">
-                        Selecting IDs—even 6 of 6—links variants but does not confirm a match. Review the analysis and use Apply Safe Match or Review and Reconfirm before saving. Existing links can save while JusticeSure is temporarily unavailable. Saving keeps changes in draft only; publish separately to activate.
+                        Pick the matching JusticeSure option for each size. The list only shows options of that size. "Check and approve" below checks everything again before anything goes live.
                       </p>
                     </div>
                     <span data-testid={`mapping-status-${product.slug}`} className={`border px-2 py-1 text-[9px] font-semibold uppercase tracking-wider ${
@@ -938,16 +955,18 @@ export function ProductEditor({
 
                   <div className="space-y-2 mt-4">
                     {product.standardEligible && product.standardSizes?.map((size) => (
-                      <CommerceSearchSelect
-                        key={size}
-                        label={`Standard: ${size}`}
-                        value={product.commerceVariantIds?.[size] ?? ""}
-                        options={commerceVariantOptions}
-                        disabled={!mappedCommerceProduct || mappedCommerceProduct.variants.length === 0}
-                        placeholder="Search exact remote variant"
-                        testId={`input-product-variant-${product.slug}-${size}`}
-                        onChange={(id) => updateVariantMapping(size, id)}
-                      />
+                      <div key={size}>
+                        <CommerceSearchSelect
+                          label={`Standard: ${size}`}
+                          value={product.commerceVariantIds?.[size] ?? ""}
+                          options={variantOptionsFor(size)}
+                          disabled={!mappedCommerceProduct || mappedCommerceProduct.variants.length === 0}
+                          placeholder={`Choose the JusticeSure ${size} option`}
+                          testId={`input-product-variant-${product.slug}-${size}`}
+                          onChange={(id) => updateVariantMapping(size, id)}
+                        />
+                        <SizeHint slug={product.slug} choice={size} row={sizeCheck.rows.find((row) => row.choice === size)} noneAvailable={Boolean(mappedCommerceProduct) && compatibleVariants(size, mappedCommerceProduct?.variants ?? []).length === 0} />
+                      </div>
                     ))}
 
                     {product.customEligible && (
@@ -955,12 +974,13 @@ export function ProductEditor({
                         <CommerceSearchSelect
                           label="Custom Option"
                           value={product.commerceVariantIds?.["Custom"] ?? ""}
-                          options={commerceVariantOptions}
+                          options={variantOptionsFor("Custom")}
                           disabled={!mappedCommerceProduct || mappedCommerceProduct.variants.length === 0}
-                          placeholder="Search exact remote Custom variant"
+                          placeholder="Choose the JusticeSure Custom / Made to measure option"
                           testId={`input-product-variant-${product.slug}-custom`}
                           onChange={(id) => updateVariantMapping("Custom", id)}
                         />
+                        <SizeHint slug={product.slug} choice="Custom" row={sizeCheck.rows.find((row) => row.choice === "Custom")} noneAvailable={Boolean(mappedCommerceProduct) && compatibleVariants("Custom", mappedCommerceProduct?.variants ?? []).length === 0} />
                       </div>
                     )}
 
@@ -970,8 +990,9 @@ export function ProductEditor({
                   </div>
 
                   {mappedCommerceProduct && eligibleCommerceChoices.length > 0 && mappedCommerceProduct.variants.length > 0 && (
-                    <p className={`text-[10px] ${mappedVariantCount === eligibleCommerceChoices.length ? "text-emerald-700" : "text-amber-700"}`}>
-                      {mappedVariantCount} of {eligibleCommerceChoices.length} eligible choices mapped.
+                    <p data-testid={`size-match-count-${product.slug}`} className={`text-[10px] ${correctVariantCount === eligibleCommerceChoices.length ? "text-emerald-700" : "text-amber-700"}`}>
+                      {correctVariantCount} of {eligibleCommerceChoices.length} sizes linked to the right option ({mappedVariantCount} chosen).
+                      {mappedVariantCount > correctVariantCount ? " Fix the sizes marked Wrong size before approving." : ""}
                     </p>
                   )}
 
@@ -1018,8 +1039,16 @@ export function ProductEditor({
           <div id={`step-${product.slug}-images`} tabIndex={-1}>
             <ImagesEditor product={product} onChange={onChange} onUploadMedia={onUploadMedia} />
           </div>
+          </fieldset>
+          <ApprovalPanel
+            product={product}
+            rows={sizeCheck.rows.map((row) => ({ choice: row.choice, status: row.status, price: product.variantPrices?.[row.choice] }))}
+            correctCount={correctVariantCount}
+            onApprove={onApproveProduct}
+            onBusyChange={setApproving}
+          />
           <div id={`step-${product.slug}-save`} tabIndex={-1} className="border-t border-border pt-4">
-            <button type="button" disabled={saving} onClick={async () => {
+            <button type="button" disabled={saving || approving} onClick={async () => {
               const slug = product.slug;
               setSaving(true);
               try {
@@ -1033,15 +1062,15 @@ export function ProductEditor({
               {saving ? "Saving…" : "Save this product only"}
             </button>
             {saveMessage && <p role="status" data-testid={`save-message-${product.slug}`} className="mt-2 border border-border bg-background p-2 text-xs">{saveMessage}</p>}
-            <p className="mt-2 text-xs text-muted-foreground">Saves this product to the unpublished draft without sending the rest of the catalogue. Save other edits separately before publishing.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Keeps your work as a draft. Nothing goes live and other products are not changed.</p>
           </div>
           <div id={`step-${product.slug}-publish`} tabIndex={-1} className="border-t border-border pt-4" data-testid={`publish-readiness-${product.slug}`}>
             <p className="text-xs font-semibold">Publication readiness: {steps[6]?.state === "done" ? "live and current" : steps[6]?.state === "next" ? "ready to publish" : "not ready"}</p>
             <p className="mt-1 text-xs text-muted-foreground" data-testid={`publication-state-${product.slug}`}>{publicationLabel(pubState, Boolean(publishedProduct))}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {steps.slice(0, 6).filter((s) => s.state !== "done").map((s) => `${s.label}: ${s.detail}`).join(" | ") || "All 6 pre-publish steps are done. Publishing is a separate action and is never automatic."}
+              {steps.slice(0, 6).filter((s) => s.state !== "done").map((s) => `${s.label}: ${s.detail}`).join(". ") || "Everything is ready. Use Check and approve above, or the publication controls."}
             </p>
-            <button type="button" disabled={steps[6]?.state !== "next"}
+            <button type="button" disabled={approving || steps[6]?.state !== "next"}
               data-testid={`button-go-publication-${product.slug}`}
               onClick={() => {
                 const target = document.getElementById("platform-publication-controls");
@@ -1054,7 +1083,7 @@ export function ProductEditor({
           </div>
           {product.releaseState === "placeholder" && product.fulfilmentState === "unavailable" && !product.commerceProductId && (
             <div className="border-t border-border pt-4">
-              <button type="button" disabled={publishingProduct} onClick={async () => {
+              <button type="button" disabled={publishingProduct || approving} onClick={async () => {
                 const requestedSlug = product.slug;
                 setPublishingProduct(true);
                 setProductPublishMessage("");
@@ -1072,7 +1101,7 @@ export function ProductEditor({
             </div>
           )}
           <div className="border-t border-border pt-4">
-            <button type="button" disabled={deleting} onClick={onDelete} data-testid={`button-delete-catalogue-product-${product.slug}`}
+            <button type="button" disabled={deleting || approving} onClick={onDelete} data-testid={`button-delete-catalogue-product-${product.slug}`}
               className="inline-flex min-h-10 items-center gap-2 border border-destructive/40 px-3 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50">
               <Trash2 size={14} /> {deleting ? "Deleting draft…" : "Delete from draft"}
             </button>
@@ -1083,4 +1112,14 @@ export function ProductEditor({
       )}
     </div>
   );
+}
+
+function SizeHint({ slug, choice, row, noneAvailable }: {
+  slug: string; choice: string; row?: { status: "empty" | "ok" | "wrong" | "missing_remote" }; noneAvailable: boolean;
+}) {
+  if (row?.status === "wrong") return <p role="status" data-testid={`size-wrong-${slug}-${choice}`} className="mt-1 border border-amber-300 bg-amber-50 p-1.5 text-[10px] text-amber-900">{wrongSizeMessage(choice)}</p>;
+  if (row?.status === "missing_remote") return <p role="status" data-testid={`size-missing-${slug}-${choice}`} className="mt-1 text-[10px] text-amber-800">The option chosen for {choice} was not found in JusticeSure. Choose it again.</p>;
+  if (noneAvailable) return <p data-testid={`size-none-${slug}-${choice}`} className="mt-1 text-[10px] text-muted-foreground">JusticeSure has no {choice} option for this product. Ask the stock team to add it, or switch this size off.</p>;
+  if (row?.status === "ok") return <p className="mt-1 text-[10px] text-emerald-700">Right size.</p>;
+  return null;
 }

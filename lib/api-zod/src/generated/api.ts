@@ -3783,7 +3783,8 @@ export const PublishStaffPlatformContentResponse = zod.object({
 
 
 /**
- * @summary Publish one complete, unavailable catalogue product without republishing unrelated products
+ * Available and mapped products require exact-snapshot business approval and fresh JusticeSure validation. Unmapped unavailable placeholders retain browse-only publication. Media, content, reference, role and concurrency checks always apply.
+ * @summary Publish one reviewed product without republishing unrelated products or store settings
  */
 export const publishStaffPlatformProductPathSlugMax = 160;
 

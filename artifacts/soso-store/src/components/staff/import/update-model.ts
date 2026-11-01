@@ -194,7 +194,7 @@ export function isMissing(p: CatalogProduct, key: FieldKey): boolean {
 }
 
 export function variantChoices(p: CatalogProduct): string[] {
-  return [...p.standardSizes, ...(p.customEligible ? ["Custom"] : [])];
+  return [...(p.standardEligible ? p.standardSizes : []), ...(p.customEligible ? ["Custom"] : [])];
 }
 
 // ---------- Review ----------
@@ -204,7 +204,7 @@ export type ProposedChange = {
   variant?: string; before: string; after: string; value: unknown; rows: number[];
 };
 export type SkippedItem = { slug: string; label: string; reason: string; rows: number[] };
-export type RowError = { rows: number[]; message: string };
+export type RowError = { rows: number[]; message: string; slug?: string };
 export type UpdateReview = { changes: ProposedChange[]; skipped: SkippedItem[]; errors: RowError[]; unchanged: number; blankCells: number; blankVariantPrices: number; productCount: number };
 
 const stable = (v: unknown) => JSON.stringify(v);
@@ -289,10 +289,7 @@ export function buildUpdateReview(input: {
         }
       }
       if (dest === "price" && variantRaw) {
-        if (!variantChoices(product).includes(variantRaw)) {
-          errors.push({ rows: [r.rowNumber], message: `Row ${r.rowNumber}: "${variantRaw}" is not an exact variant of ${slug}. Choices: ${variantChoices(product).join(", ") || "none"}.` });
-          continue;
-        }
+        // Resolve eligibility after collecting the whole sheet, not against old sizes.
         const m = parseMoney(raw);
         if (m === null) { errors.push({ rows: [r.rowNumber], message: `Row ${r.rowNumber}: ${heading} "${raw}" is not a valid NGN amount.` }); continue; }
         put({ slug, field: "variantPrice", variant: variantRaw, value: m }, r.rowNumber);
@@ -312,6 +309,19 @@ export function buildUpdateReview(input: {
   for (const c of collected.values()) {
     const p = bySlug.get(c.slug)!;
     const label = c.field === "variantPrice" ? `Price · ${c.variant}` : fieldLabel(c.field);
+    if (c.field === "variantPrice") {
+      const effective = { ...p };
+      for (const key of ["standardSizes", "standardEligible", "customEligible"] as const) {
+        const proposal = collected.get(`${c.slug}\u0000${key}\u0000`);
+        if (proposal && (mode === "replace" || isMissing(p, key))) {
+          Object.assign(effective, { [key]: proposal.value });
+        }
+      }
+      if (!variantChoices(effective).includes(c.variant!)) {
+        errors.push({ rows: c.rows, slug: c.slug, message: `${c.slug}: size "${c.variant}" is not enabled. Enable this size in the product row (Standard eligible and Standard sizes), or remove its price row. Enabled sizes: ${variantChoices(effective).join(", ") || "none"}.` });
+        continue;
+      }
+    }
     if (c.field === "relatedProductSlugs") {
       const bad = (c.value as string[]).filter((s) => s === c.slug || !bySlug.has(s));
       if (bad.length) { errors.push({ rows: c.rows, message: `${c.slug}: related slugs must be other saved products (${bad.join(", ")}).` }); continue; }
@@ -337,7 +347,15 @@ export function buildUpdateReview(input: {
       variant: c.variant, before: formatValue(before, money), after: formatValue(c.value, money), value: c.value, rows: c.rows,
     });
   }
-  return { changes, skipped, errors, unchanged, blankCells, blankVariantPrices, productCount: new Set(changes.map((c) => c.slug)).size };
+  // Isolate complete products, not arbitrary cells. Global mapping errors still block all.
+  const scopedErrors = errors.map((error) => {
+    if (error.slug || !error.rows.length) return error;
+    const slugs = [...new Set(rows.filter((row) => error.rows.includes(row.rowNumber)).map((row) => row.slug.trim()))];
+    return slugs.length === 1 && slugs[0] ? { ...error, slug: slugs[0] } : error;
+  });
+  const blockedSlugs = new Set(scopedErrors.flatMap((error) => error.slug ? [error.slug] : []));
+  const safeChanges = scopedErrors.some((error) => !error.slug) ? [] : changes.filter((change) => !blockedSlugs.has(change.slug));
+  return { changes: safeChanges, skipped, errors: scopedErrors, unchanged, blankCells, blankVariantPrices, productCount: new Set(safeChanges.map((c) => c.slug)).size };
 }
 
 /** Applies only the selected changes to clones of saved products. Returns only modified products. */
@@ -354,6 +372,17 @@ export function applySelectedChanges(savedProducts: CatalogProduct[], changes: P
     for (const c of picked.filter((x) => x.slug === slug)) {
       if (c.field === "variantPrice") next.variantPrices = { ...(next.variantPrices ?? {}), [c.variant!]: c.value as number };
       else bag[c.field] = structuredClone(c.value);
+    }
+    for (const c of picked.filter((x) => x.slug === slug && x.field === "variantPrice")) {
+      if (!variantChoices(next).includes(c.variant!)) {
+        throw new Error(`${saved.name}: select the size/eligibility changes together with the ${c.variant} price, or deselect that price.`);
+      }
+    }
+    // Explicit eligibility edits retire only mappings/prices for removed buying choices.
+    if (picked.some((c) => c.slug === slug && ["standardSizes", "standardEligible", "customEligible"].includes(c.field))) {
+      const allowed = new Set(variantChoices(next));
+      if (next.commerceVariantIds) next.commerceVariantIds = Object.fromEntries(Object.entries(next.commerceVariantIds).filter(([key]) => allowed.has(key)));
+      if (next.variantPrices) next.variantPrices = Object.fromEntries(Object.entries(next.variantPrices).filter(([key]) => allowed.has(key)));
     }
     if (!collections.some((x) => x.department === next.department && x.category === next.category))
       throw new Error(`${slug}: selected department/category (${next.department as ProductDepartment} / ${next.category}) is not a saved collection. Select both changes together.`);

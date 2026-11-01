@@ -1359,7 +1359,8 @@ paths:
     post:
       operationId: publishStaffPlatformProduct
       tags: [staff]
-      summary: Publish one complete, unavailable catalogue product without republishing unrelated products
+      summary: Publish one reviewed product without republishing unrelated products or store settings
+      description: Available and mapped products require exact-snapshot business approval and fresh JusticeSure validation. Unmapped unavailable placeholders retain browse-only publication. Media, content, reference, role and concurrency checks always apply.
       parameters:
         - name: slug
           in: path
@@ -1376,8 +1377,9 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/StaffPlatformContent" }
-        "400": { description: "Product media or document validation failed" }
+        "400": { description: "Product approval, mapping, media or document validation failed" }
         "409": { description: "Draft or published content changed while editing" }
+        "503": { description: "Fresh JusticeSure validation is unavailable; nothing was published" }
   /staff/content/platform/products/{slug}/unpublish:
     post:
       operationId: unpublishStaffPlatformProduct
