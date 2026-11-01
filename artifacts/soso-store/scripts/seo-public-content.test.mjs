@@ -61,10 +61,25 @@ test("public generator emits full FAQ and policy HTML, correct metadata and only
       site: { name: "SOSO Africa", logoUrl: "/images/soso/logo.png", structuredData: { organizationDescription: "Published brand description." } },
       homepage: { seo: { title: "Approved home title", description: "Approved home description" } },
       pages: { faq: { seo: { title: "Approved FAQ title", description: "Approved FAQ description" } } },
-      products: [{ slug: "test-piece", name: "Test Piece", description: "Approved description", img: "", images: [{ src: "/photo.jpg" }] }],
+      products: [
+        { slug: "test-piece", name: "Test Piece", description: "Approved description", img: "", images: [{ src: "/photo.jpg" }],
+          department: "men", category: "Kaftans", fabric: "Approved cotton", fit: "Regular", colour: "Ivory",
+          composition: "Published composition.", care: "Published product care.", delivery: "Published delivery.",
+          returns: "Published returns.", price: 120000, variantPrices: { S: 130000, M: 150000 },
+          standardEligible: true, standardSizes: ["S", "M"], customEligible: false, commerceProductId: "published-id",
+          fulfilmentState: "made_immediately", releaseState: "placeholder", merchandising: { isNew: true, sortPriority: 2 } },
+        { slug: "planned-bag", name: "Planned Bag", description: "An approved browse-only preview.", department: "accessories",
+          category: "Bags", price: 987654, releaseState: "placeholder", fulfilmentState: "unavailable",
+          merchandising: { isNew: true, sortPriority: 1 } },
+      ],
+      collections: [
+        { slug: "kaftans", label: "Kaftans", h1: "Kaftans", intro: "Approved collection introduction.", department: "men", category: "Kaftans" },
+        { slug: "new-arrivals", h1: "New Arrivals", intro: "Approved new arrivals.", department: "men", category: "New Arrivals" },
+        { slug: "accessories", h1: "Accessories", intro: "Approved accessories.", department: "accessories", category: "Accessories" },
+      ],
     };
     const mock = `export default { Pool: class { async query(sql) {
-      if(sql.includes("soso_site_content")) return {rows:[{published:${JSON.stringify(published)}}]};
+      if(sql.includes("soso_site_content")) return {rows:[{published:${JSON.stringify(published)},draft:{products:[{slug:"private-draft-piece",description:"DRAFT SECRET SENTINEL"}]}}]};
       if(sql.includes("soso_faq_items")) return {rows:[{question:"When do I pay?",answer:"Pay first, then atelier confirmation."}]};
       if(sql.includes("soso_policy_documents")) return {rows:${JSON.stringify([policy, { ...policy, slug: "hidden", status: "draft" }, { ...policy, slug: "future", effectiveAt: "2099-01-01" }])}};
       return {rows:[]};
@@ -75,14 +90,15 @@ test("public generator emits full FAQ and policy HTML, correct metadata and only
     }`;
     await writeFile(join(folder, "loader.mjs"), loader);
     await writeFile(join(folder, "index.html"), '<!doctype html><html><head><meta data-soso-managed="robots" name="robots" content="noindex, nofollow"><link rel="stylesheet" href="/assets/test.css"><script type="module" src="/assets/test.js"></script></head><body><div id="root"></div></body></html>');
-    const result = spawnSync("pnpm", ["--dir", new URL("../../../scripts", import.meta.url).pathname, "exec", "tsx", "--experimental-loader", join(folder, "loader.mjs"), new URL("./generate-seo-assets.mjs", import.meta.url).pathname], {
+    const runGenerator = (overrides = {}) => spawnSync("pnpm", ["--dir", new URL("../../../scripts", import.meta.url).pathname, "exec", "tsx", "--experimental-loader", join(folder, "loader.mjs"), new URL("./generate-seo-assets.mjs", import.meta.url).pathname], {
       encoding: "utf8",
       env: { ...process.env, NODE_ENV: "test", DATABASE_URL: "postgres://synthetic-test-only",
         SOSO_SEO_OUTPUT_DIR: folder, VITE_PUBLIC_SITE_URL: "https://shopsoso.co",
         VITE_SOSO_INDEXING_ENABLED: "true", VITE_SOSO_POLICIES_APPROVED: "true",
         VITE_SOSO_CATALOG_APPROVED: "true", VITE_SOSO_JOURNAL_APPROVED: "false",
-        VITE_SOSO_SOCIAL_IMAGE_PATH: "", SOSO_SEO_JOURNAL_FIXTURE_PATH: "" },
+        VITE_SOSO_SOCIAL_IMAGE_PATH: "", SOSO_SEO_JOURNAL_FIXTURE_PATH: "", ...overrides },
     });
+    const result = runGenerator();
     assert.equal(result.status, 0, result.stderr);
     const faq = await readFile(join(folder, "faq.html"), "utf8");
     assert.match(faq, /<h2>When do I pay\?<\/h2>/);
@@ -91,13 +107,42 @@ test("public generator emits full FAQ and policy HTML, correct metadata and only
     assert.match(faq, /"@type":"FAQPage"/);
     assert.match(await readFile(join(folder, "privacy.html"), "utf8"), /Marketing requires consent/);
     assert.match(await readFile(join(folder, "index.html"), "utf8"), /Approved home title/);
-    assert.match(await readFile(join(folder, "product/test-piece.html"), "utf8"), /property="og:image" content="https:\/\/shopsoso.co\/photo.jpg"/);
+    const product = await readFile(join(folder, "product/test-piece.html"), "utf8");
+    assert.match(product, /property="og:image" content="https:\/\/shopsoso.co\/photo.jpg"/);
+    const productBody = product.split("<body>")[1];
+    for (const value of ["Approved cotton", "Published composition.", "Published product care.", "Published delivery.",
+      "Published returns.", "S, M", "130,000", "150,000", 'href="/collections/kaftans"']) assert.ok(productBody.includes(value), value);
+    assert.match(product, /"@type":"AggregateOffer"/);
+    assert.match(product, /"lowPrice":130000,"highPrice":150000/);
+    for (const path of ["index.html", "shop.html", "collections/kaftans.html", "collections/new-arrivals.html"]) {
+      const html = await readFile(join(folder, path), "utf8");
+      assert.match(html.split("<body>")[1], /<a href="\/product\/test-piece">Test Piece<\/a>/, path);
+      assert.doesNotMatch(html, /DRAFT SECRET SENTINEL|private-draft-piece/);
+    }
+    const newArrivals = await readFile(join(folder, "collections/new-arrivals.html"), "utf8");
+    assert.doesNotMatch(newArrivals, /planned-bag/);
+    const accessories = await readFile(join(folder, "collections/accessories.html"), "utf8");
+    assert.match(accessories.split("<body>")[1], /href="\/product\/planned-bag"/);
+    assert.doesNotMatch(accessories, /987654|987,654/);
+    const placeholder = await readFile(join(folder, "product/planned-bag.html"), "utf8");
+    assert.doesNotMatch(placeholder, /"offers":|987654|987,654/);
     const sitemap = await readFile(join(folder, "sitemap.xml"), "utf8");
     assert.match(sitemap, /https:\/\/shopsoso.co\/privacy/);
     assert.doesNotMatch(sitemap, /\/policies\/(?:hidden|future)/);
     const robots = await readFile(join(folder, "robots.txt"), "utf8");
     assert.match(robots, /Disallow: \/checkout/);
     assert.match(robots, /Disallow: \/staff/);
+    const catalogueDisabled = runGenerator({ VITE_SOSO_CATALOG_APPROVED: "false" });
+    assert.equal(catalogueDisabled.status, 0, catalogueDisabled.stderr);
+    for (const path of ["index.html", "seo-manifest.json", "sitemap.xml", "llms.txt"]) {
+      assert.doesNotMatch(await readFile(join(folder, path), "utf8"), /test-piece|planned-bag|Approved cotton|\/collections\/kaftans/);
+    }
+    await assert.rejects(readFile(join(folder, "product/test-piece.html")));
+    const privateBuild = runGenerator({ VITE_SOSO_INDEXING_ENABLED: "false" });
+    assert.equal(privateBuild.status, 0, privateBuild.stderr);
+    assert.match(await readFile(join(folder, "index.html"), "utf8"), /noindex, nofollow/);
+    assert.match(await readFile(join(folder, "robots.txt"), "utf8"), /Disallow: \//);
+    await assert.rejects(readFile(join(folder, "seo-manifest.json")));
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
