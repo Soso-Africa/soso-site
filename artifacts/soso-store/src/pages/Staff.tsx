@@ -1,6 +1,6 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useDocumentVisible } from "@/hooks/use-document-visible";
+import { useStaffBackgroundActive } from "@/hooks/use-staff-background-active";
 import { Link } from "wouter";
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { committedRowFor } from "../components/staff/platform-row";
@@ -225,7 +225,7 @@ export default function Staff() {
   const [range, setRange] = useState(() => dateRangeFor(7));
   const [activeTab, setActiveTabState] = useState<StaffTab>("overview");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
-  const visible = useDocumentVisible();
+  const visible = useStaffBackgroundActive();
   const queryClient = useQueryClient();
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
   const canViewOrders = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
@@ -432,7 +432,7 @@ type ManagedMediaCleanupSummary = {
 };
 
 function MediaCleanupSection() {
-  const visible = useDocumentVisible();
+  const visible = useStaffBackgroundActive();
   const [items, setItems] = useState<ManagedMediaCleanupItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
@@ -515,7 +515,8 @@ function MediaCleanupSection() {
 }
 
 function StaffAccessSection() {
-  const access = useListStaffAccess({ query: { queryKey: ["staff-access"], refetchInterval: 60_000 } });
+  const backgroundActive = useStaffBackgroundActive();
+  const access = useListStaffAccess({ query: { queryKey: ["staff-access"], refetchInterval: backgroundActive ? 60_000 : false, refetchIntervalInBackground: false } });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"owner" | "administrator" | "operations" | "stylist" | "editor" | "analyst">("operations");
@@ -2569,8 +2570,9 @@ function SectionHeading({ icon: Icon, title, description }: { icon: typeof Packa
 }
 
 function MarketingPixelsSection() {
-  const pixels = useGetStaffMarketingPixels({ query: { queryKey: ["staff-marketing-pixels"], refetchInterval: 60_000 } });
-  const revisions = useListStaffMarketingPixelRevisions({ query: { queryKey: ["staff-marketing-pixel-revisions"], refetchInterval: 60_000 } });
+  const backgroundActive = useStaffBackgroundActive();
+  const pixels = useGetStaffMarketingPixels({ query: { queryKey: ["staff-marketing-pixels"], refetchInterval: backgroundActive ? 60_000 : false, refetchIntervalInBackground: false } });
+  const revisions = useListStaffMarketingPixelRevisions({ query: { queryKey: ["staff-marketing-pixel-revisions"], refetchInterval: backgroundActive ? 60_000 : false, refetchIntervalInBackground: false } });
   const updatePixels = useUpdateStaffMarketingPixels();
 
   const [settings, setSettings] = useState<MarketingPixelSettings>({

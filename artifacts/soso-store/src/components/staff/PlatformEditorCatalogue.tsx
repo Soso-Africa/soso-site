@@ -9,6 +9,7 @@ import { CopyPanel, PlatformCopyFields } from "./PlatformCopyFields";
 import { CollectionEditor } from "./CollectionEditor";
 import { CatalogueImporter } from "./import/CatalogueImporter";
 import { CatalogueUpdates } from "./import/CatalogueUpdates";
+import { useStaffBackgroundActive } from "../../hooks/use-staff-background-active";
 import {
   isConfirmedMappingCurrent,
   isMappingPreviewFreshForReview,
@@ -112,6 +113,7 @@ export function PlatformEditorCatalogue({
     return index >= 0 ? index : null;
   });
   const [commerceProducts, setCommerceProducts] = useState<CommerceCatalogProduct[]>([]);
+  const visible = useStaffBackgroundActive();
   const [commerceStatus, setCommerceStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const [deletingProductSlug, setDeletingProductSlug] = useState<string | null>(null);
   const [mappingPreview, setMappingPreview] = useState<MappingPreview | null>(null);
@@ -330,17 +332,20 @@ export function PlatformEditorCatalogue({
   }, []);
 
   useEffect(() => {
-    if (commerceStatus !== "ready") return;
+    if (commerceStatus !== "ready" || !visible) return;
     void handleAnalyze();
-    const interval = window.setInterval(() => { void handleAnalyze(); }, 60_000);
+    // Review/publish actions still make their own fresh commerce checks.
+    const interval = window.setInterval(() => { void handleAnalyze(); }, 300_000);
     return () => window.clearInterval(interval);
-  }, [commerceStatus, handleAnalyze]);
+  }, [commerceStatus, handleAnalyze, visible]);
 
   useEffect(() => {
-    if (commerceStatus !== "ready") return;
+    if (commerceStatus !== "ready" || !visible) return;
     const controller = new AbortController();
     let active = true;
+    let checking = false;
     const checkInvalidations = async () => {
+      if (checking || !active) return;
       const confirmations = productsRef.current.flatMap((product) =>
         product.commerceProductId && product.commerceMappingConfirmation
           ? [{
@@ -350,6 +355,8 @@ export function PlatformEditorCatalogue({
             confirmedAt: product.commerceMappingConfirmation.confirmedAt,
           }]
           : []);
+      if (confirmations.length === 0) return;
+      checking = true;
       try {
         const response = await fetch("/api/staff/commerce/catalogue-mapping/invalidations", {
           method: "POST",
@@ -375,16 +382,18 @@ export function PlatformEditorCatalogue({
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
+      } finally {
+        checking = false;
       }
     };
     void checkInvalidations();
-    const interval = window.setInterval(() => { void checkInvalidations(); }, 5_000);
+    const interval = window.setInterval(() => { void checkInvalidations(); }, 60_000);
     return () => {
       active = false;
       controller.abort();
       window.clearInterval(interval);
     };
-  }, [commerceStatus, handleAnalyze]);
+  }, [commerceStatus, handleAnalyze, visible]);
 
   const handleBulkConfirm = () => {
     if (!reviewedMappingPreview) return;

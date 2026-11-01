@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { auditLogsTable, db, faqItemsTable, siteContentRevisionsTable, siteContentTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { createVersionCheckedInitializer } from "./version-checked-initializer";
 
 const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(160);
 const localPath = z.string().startsWith("/").max(512).refine((value) => !value.startsWith("//"));
@@ -2224,7 +2225,19 @@ export async function reconcileLegacyPublishedFaqItems(
   });
 }
 
-export async function ensurePlatformContent() {
+export const ensurePlatformContent = createVersionCheckedInitializer({
+  async readVersion() {
+    // Keep large JSON documents inside Postgres for this check. Include the
+    // publication timestamp because withdrawal can change it without the JSON.
+    const [row] = await db.select({
+      version: sql<string>`md5(jsonb_build_array(${siteContentTable.draft}, ${siteContentTable.published}, ${siteContentTable.publishedAt})::text)`,
+    }).from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
+    return row?.version ?? null;
+  },
+  initialize: initializePlatformContent,
+});
+
+async function initializePlatformContent() {
   const now = new Date();
   await db.insert(siteContentTable).values({
     key: "platform", draft: DEFAULT_PLATFORM_CONTENT, published: DEFAULT_PLATFORM_CONTENT,
