@@ -47,7 +47,7 @@ export function computeProductSteps(i: StepInputs): ProductStep[] {
     state: live ? "done" : allDone ? "next" : "blocked",
     detail: live ? "Live version matches the saved draft"
       : allDone ? (i.publicationState === "live_old_version" ? "Saved draft is ready; an older version is still live. Publish to update it" : "Saved draft is ready. Publish from the publication controls")
-      : "Blocked until the 6 pre-publish steps are done",
+      : "Finish the earlier parts first",
   });
   return steps;
 }
@@ -65,23 +65,50 @@ const tone: Record<StepState, string> = {
   todo: "border-border bg-background text-foreground",
 };
 
+export type StepGroup = { id: "info" | "sizes" | "live"; label: string; hint: string; steps: ProductStep[]; state: StepState };
+
+const GROUPS: { id: StepGroup["id"]; label: string; hint: string; ids: StepId[] }[] = [
+  { id: "info", label: "Photos and details", hint: "Pictures, name, price and sizes", ids: ["images", "details", "fulfilment"] },
+  { id: "sizes", label: "Link to JusticeSure", hint: "Pick the right option for each size", ids: ["mapping", "review"] },
+  { id: "live", label: "Save and go live", hint: "Check, save, and put on the shop", ids: ["save", "publish"] },
+];
+
+/** Pure: collapses the 7 readiness steps into 3 plain-language groups. */
+export function groupProductSteps(steps: ProductStep[]): StepGroup[] {
+  return GROUPS.map((g) => {
+    const members = g.ids.map((id) => steps.find((s) => s.id === id)).filter((s): s is ProductStep => Boolean(s));
+    const state: StepState = members.every((s) => s.state === "done") ? "done"
+      : members.some((s) => s.state === "next") ? "next"
+      : members.every((s) => s.state === "blocked" || s.state === "done") ? "blocked" : "todo";
+    return { id: g.id, label: g.label, hint: g.hint, steps: members, state };
+  });
+}
+
+const plainState = (s: StepState) => (s === "done" ? "Done" : s === "next" ? "Do this now" : s === "blocked" ? "Waiting" : "Later");
+
 export function ProductStepNav({ slug, steps }: { slug: string; steps: ProductStep[] }) {
   const next = steps.find((s) => s.state === "next");
+  const groups = groupProductSteps(steps);
   return (
     <nav aria-label="Product setup steps" className="space-y-3 border border-border bg-background p-3" data-testid={`step-nav-${slug}`}>
       <p role="status" className="text-xs">
-        <strong>{steps.slice(0, 6).filter((s) => s.state === "done").length} of 6 pre-publish steps ready; step 7, Publish, is {steps[6]?.state === "done" ? "complete (live)" : steps[6]?.state === "next" ? "ready" : "blocked"}.</strong>{" "}
-        {next ? <>Next: {next.label}. {next.detail}.</> : "Nothing left before publishing."}
+        <strong>{groups.filter((g) => g.state === "done").length} of 3 parts done.</strong>{" "}
+        {next ? <>Next: {next.label}. {next.detail}.</> : "This product is live and up to date."}
       </p>
-      <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {steps.map((s, n) => (
-          <li key={s.id}>
-            <button type="button" onClick={() => jumpToStep(slug, s.id)} aria-current={s.state === "next" ? "step" : undefined}
-              data-testid={`step-${slug}-${s.id}-button`}
-              className={`min-h-11 w-full border px-2 py-1.5 text-left text-[10px] ${tone[s.state]}`}>
-              <span className="block font-semibold uppercase tracking-wider">{n + 1}. {s.label}</span>
-              <span className="block normal-case">{s.state === "done" ? "Done" : s.state === "next" ? "Next action" : s.state === "blocked" ? "Blocked" : "To do"}</span>
-            </button>
+      <ol className="grid gap-2 md:grid-cols-3">
+        {groups.map((g, n) => (
+          <li key={g.id} className={`border p-2 ${tone[g.state]}`} data-testid={`step-group-${slug}-${g.id}`}>
+            <span className="block text-[10px] font-semibold uppercase tracking-wider">{n + 1}. {g.label}</span>
+            <span className="block text-[10px] normal-case opacity-80">{plainState(g.state)} · {g.hint}</span>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {g.steps.map((s) => (
+                <button key={s.id} type="button" onClick={() => jumpToStep(slug, s.id)} aria-current={s.state === "next" ? "step" : undefined}
+                  data-testid={`step-${slug}-${s.id}-button`} title={s.detail}
+                  className={`min-h-9 border bg-background/70 px-2 text-[10px] ${s.state === "next" ? "border-primary font-semibold text-primary" : "border-border text-foreground"}`}>
+                  {s.state === "done" ? "Done: " : ""}{s.label}
+                </button>
+              ))}
+            </div>
           </li>
         ))}
       </ol>
@@ -99,12 +126,12 @@ export function ReviewMappingAction({
         data-testid={`button-review-mapping-${slug}`}
         className="inline-flex min-h-11 items-center gap-2 border border-primary bg-background px-3 text-[10px] font-semibold uppercase tracking-wider text-primary hover:bg-primary/10 disabled:opacity-50">
         {loading && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
-        {loading ? "Reviewing mapping…" : error ? "Retry Review Mapping" : "Review Mapping"}
+        {loading ? "Checking with JusticeSure…" : error ? "Try the check again" : "Check sizes with JusticeSure"}
       </button>
       <p id={`review-mapping-note-${slug}`} className="text-[10px] text-muted-foreground">
-        {disabledReason || "Asks the server to analyse only this product. Your unsaved edits and other products are untouched."}
+        {disabledReason || "Checks only this product. Nothing is saved or published."}
       </p>
-      {error && <p role="alert" className="border border-destructive/30 bg-destructive/10 p-2 text-[10px] text-destructive">{error} Selections are kept; confirmation stays blocked until a review succeeds.</p>}
+      {error && <p role="alert" className="border border-destructive/30 bg-destructive/10 p-2 text-[10px] text-destructive">{error} Your choices are kept. Try again in a moment.</p>}
     </div>
   );
 }

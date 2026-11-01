@@ -47,3 +47,12 @@ test("details complete with valid content while review is not ready; image issue
   assert.equal(st(bad, "images"), "next");
   assert.equal(st(bad, "details"), "done");
 });
+
+test("seven steps collapse into three plain groups", async () => {
+  const { groupProductSteps } = await import("./ProductStepFlow");
+  const g = groupProductSteps(computeProductSteps(base));
+  assert.deepEqual(g.map((x) => x.id), ["info", "sizes", "live"]);
+  assert.equal(g[0].state, "done");
+  assert.equal(g[1].state, "next");
+  assert.equal(g[2].steps.length, 2);
+});

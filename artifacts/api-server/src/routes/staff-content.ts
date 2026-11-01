@@ -1814,11 +1814,8 @@ router.post("/staff/content/platform/products/:slug/publish", platformRoles, asy
     const product = draft.data.products.find((item) => item.slug === slug.data);
     if (!product) return { kind: "invalid" as const, error: "The product is not in the saved draft.", issues: [] };
     const previous = published.data.products.find((item) => item.slug === slug.data);
-    if (product.releaseState !== "placeholder" || product.fulfilmentState !== "unavailable" ||
-        product.commerceProductId || product.commerceVariantIds || product.commerceMappingConfirmation ||
-        (previous && previous.fulfilmentState !== "unavailable")) {
-      return { kind: "invalid" as const, error: "Product-only publishing is for browse-only, unavailable products without a JusticeSure mapping. Available products require full catalogue publication and verified checkout mappings.", issues: [] };
-    }
+    const browseOnly = product.releaseState === "placeholder" && product.fulfilmentState === "unavailable"
+      && !product.commerceProductId && !product.commerceVariantIds && !product.commerceMappingConfirmation;
     const products = previous
       ? published.data.products.map((item) => item.slug === slug.data ? product : item)
       : [product, ...published.data.products];
@@ -1838,12 +1835,26 @@ router.post("/staff/content/platform/products/:slug/publish", platformRoles, asy
     const [approvalRow] = await tx.select({ draft: siteContentTable.draft }).from(siteContentTable)
       .where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY)).limit(1);
     const approvals = validBusinessApprovalSlugs(draft.data, approvalRow?.draft);
+    if (!browseOnly && !approvals.has(product.slug)) {
+      return { kind: "invalid" as const, error: "Approve this exact product's details before publishing. Other products are unchanged.", issues: [] };
+    }
     const legacyIssues = validateLegacyProductPublication(selectedContent, undefined, approvals);
     if (legacyIssues.length) return { kind: "invalid" as const, error: "Legacy product approval is required.", issues: legacyIssues };
     const accessoryIssues = validateAccessoryProductPublication(selectedContent);
     if (accessoryIssues.length) return { kind: "invalid" as const, error: "Accessory publication checks failed.", issues: accessoryIssues };
     const mediaIssues = await validateProductMediaAssets(selectedContent);
     if (mediaIssues.length) return { kind: "invalid" as const, error: "This product’s media did not pass publication checks.", issues: mediaIssues };
+    // Product-only publication keeps the same live commerce gates as full publication.
+    const selectedIds = new Set([product.commerceProductId, ...Object.values(product.commerceVariantIds ?? {})].filter(Boolean));
+    const duplicate = candidate.data.products.find((item) => item.slug !== product.slug &&
+      [item.commerceProductId, ...Object.values(item.commerceVariantIds ?? {})].some((id) => id && selectedIds.has(id)));
+    if (duplicate) return { kind: "invalid" as const, error: `A JusticeSure identifier is already used by ${duplicate.name}. Correct the links before publishing.`, issues: [] };
+    try {
+      const commerceIssues = await validateCurrentCommerceMappings([product], true);
+      if (commerceIssues.length) return { kind: "invalid" as const, error: "Check this product's sizes, prices and JusticeSure links before publishing.", issues: commerceIssues };
+    } catch {
+      return { kind: "unavailable" as const };
+    }
     const now = new Date();
     const [updated] = await tx.update(siteContentTable).set({
       published: candidate.data, publishedAt: now, publishedByClerkUserId: req.staff!.clerkUserId,
@@ -1868,6 +1879,8 @@ router.post("/staff/content/platform/products/:slug/publish", platformRoles, asy
   });
   if (result.kind === "conflict") {
     res.status(409).json({ error: "The saved draft or published catalogue changed. Reload before publishing this product." });
+  } else if (result.kind === "unavailable") {
+    res.status(503).json({ error: "JusticeSure could not be checked. Your draft is safe; nothing was published. Try again shortly." });
   } else if (result.kind === "invalid") {
     res.status(400).json({ error: result.error, issues: result.issues });
   } else {

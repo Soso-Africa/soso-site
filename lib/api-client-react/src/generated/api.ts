@@ -9159,7 +9159,8 @@ export const getPublishStaffPlatformProductUrl = (slug: string,) => {
 }
 
 /**
- * @summary Publish one complete, unavailable catalogue product without republishing unrelated products
+ * Available and mapped products require exact-snapshot business approval and fresh JusticeSure validation. Unmapped unavailable placeholders retain browse-only publication. Media, content, reference, role and concurrency checks always apply.
+ * @summary Publish one reviewed product without republishing unrelated products or store settings
  */
 export const publishStaffPlatformProduct = async (slug: string,
     platformProductPublication: PlatformProductPublication, options?: Parameters<typeof customFetch>[1]): Promise<StaffPlatformContent> => {
@@ -9209,7 +9210,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PublishStaffPlatformProductMutationError = ErrorType<void>
 
     /**
- * @summary Publish one complete, unavailable catalogue product without republishing unrelated products
+ * @summary Publish one reviewed product without republishing unrelated products or store settings
  */
 export const usePublishStaffPlatformProduct = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishStaffPlatformProduct>>, TError,{slug: string;data: BodyType<PlatformProductPublication>}, TContext>, request?: SecondParameter<typeof customFetch>}

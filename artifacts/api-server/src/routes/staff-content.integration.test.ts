@@ -32,6 +32,8 @@ import {
   validBusinessApprovalSlugs,
 } from "../lib/catalogue-business-approvals";
 import { buildConfirmedCatalogueCandidate } from "./staff-content";
+import { JusticeSureCommerceClient, type JusticeSureCatalogProduct } from "../lib/justicesureCommerce";
+import { buildCatalogueSnapshot, suggestCatalogueMappings } from "../lib/catalogue-mapping";
 
 type ApiResponse = {
   status: number;
@@ -219,7 +221,7 @@ test("scoped saves accept a large catalogue, reject stale and unsafe writes, and
   }
 });
 
-test("Staff can publish only a complete browse-only product while preserving unrelated catalogue and checkout state", async () => {
+test("Staff can publish one complete product while preserving unrelated catalogue and checkout state", async () => {
   const originalRows = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "platform"));
   const token = randomBytes(32).toString("hex");
   const clerkUserId = `product-publish-check-${randomBytes(8).toString("hex")}`;
@@ -236,10 +238,15 @@ test("Staff can publish only a complete browse-only product while preserving unr
       expiresAt: new Date(Date.now() + 60_000),
     });
     const published = publishableContent();
+    // Keep the mandatory homepage arrival binding valid in this isolated snapshot.
+    const arrival = published.products.find((p) => p.slug === published.homepage.newArrival.productSlug)!;
+    arrival.fulfilmentState = "made_immediately";
+    arrival.releaseState = "approved";
+    delete arrival.unavailableMessage;
     const draft = structuredClone(published);
     draft.products[0]!.fulfilmentState = "made_immediately";
     draft.products[0]!.unavailableMessage = undefined;
-    const newProduct = { ...structuredClone(published.products[0]!), slug: "new-browse-only-test", name: "Browse-only test", releaseState: "placeholder" as const };
+    const newProduct = { ...structuredClone(published.products[0]!), slug: "new-browse-only-test", name: "Browse-only test", releaseState: "placeholder" as const, fulfilmentState: "unavailable" as const, unavailableMessage: "Not released" };
     draft.products.unshift(newProduct);
     const now = new Date();
     await db.delete(siteContentTable).where(eq(siteContentTable.key, "platform"));
@@ -263,7 +270,66 @@ test("Staff can publish only a complete browse-only product while preserving unr
       body: { expectedDraftUpdatedAt: publishedProduct.body.draftUpdatedAt, expectedPublishedAt: publishedProduct.body.publishedAt },
     });
     assert.equal(available.status, 400);
-    assert.match(available.body.error, /available products require full catalogue publication/i);
+    assert.match(available.body.error, /Approve this exact product/i);
+    // Available products can now be approved and released individually, without
+    // publishing another product's unfinished draft or altering checkout settings.
+    const previousListProducts = JusticeSureCommerceClient.prototype.listProducts;
+    const originalApprovals = await db.select().from(siteContentTable).where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+    try {
+      const commercialDraft = structuredClone(publishedProduct.body.draft) as PlatformContent;
+      const selected = commercialDraft.products[1]!;
+      selected.commerceProductId = randomUUID();
+      const sizes = [...selected.standardSizes, ...(selected.customEligible ? ["Custom"] : [])];
+      const remote: JusticeSureCatalogProduct = {
+        id: selected.commerceProductId, name: selected.name, description: null, images: [], currency: "NGN",
+        amountKobo: Math.round(selected.price * 100), inStock: true,
+        variants: sizes.map((size) => ({
+          id: randomUUID(), name: size, label: size, attributes: { size },
+          amountKobo: Math.round((selected.variantPrices?.[size] ?? selected.price) * 100), inStock: true,
+        })),
+      };
+      const local = { slug: selected.slug, name: selected.name, price: selected.price,
+        eligibility: { standard: selected.standardEligible, custom: selected.customEligible },
+        standardSizes: selected.standardSizes, commerceProductId: selected.commerceProductId, variantPrices: selected.variantPrices };
+      const snapshot = buildCatalogueSnapshot([remote]);
+      const match = suggestCatalogueMappings([local], [remote], snapshot)[0]!;
+      assert.equal(match.status, "matched");
+      selected.commerceVariantIds = match.variantIds;
+      selected.commerceMappingConfirmation = {
+        productHash: match.productHash!, localHash: match.localHash!, snapshotHash: snapshot.hash,
+        snapshotFetchedAt: snapshot.fetchedAt, confirmedAt: new Date().toISOString(),
+        confidence: match.confidence, source: "manual", evidence: match.evidence, choiceLabels: match.choiceLabels,
+      };
+      const commercialTime = new Date(now.getTime() + 1000);
+      await db.update(siteContentTable).set({ draft: commercialDraft, draftUpdatedAt: commercialTime })
+        .where(eq(siteContentTable.key, "platform"));
+      JusticeSureCommerceClient.prototype.listProducts = async () => [remote];
+      const approved = await request(running.baseUrl, "/api/staff/content/platform/catalogue/approve", token, {
+        method: "POST", body: { slugs: [selected.slug], expectedDraftUpdatedAt: commercialTime.toISOString(), acknowledged: true },
+      });
+      assert.equal(approved.status, 200, JSON.stringify(approved.body));
+      const onePublished = await request(running.baseUrl, `/api/staff/content/platform/products/${selected.slug}/publish`, token, {
+        method: "POST", body: { expectedDraftUpdatedAt: commercialTime.toISOString(), expectedPublishedAt: publishedProduct.body.publishedAt },
+      });
+      assert.equal(onePublished.status, 200, JSON.stringify(onePublished.body));
+      assert.deepEqual(onePublished.body.published.site, publishedProduct.body.published.site);
+      assert.deepEqual(onePublished.body.published.products.filter((p: { slug: string }) => p.slug !== selected.slug),
+        publishedProduct.body.published.products.filter((p: { slug: string }) => p.slug !== selected.slug));
+      remote.variants[0]!.inStock = false;
+      const drifted = await request(running.baseUrl, `/api/staff/content/platform/products/${selected.slug}/publish`, token, {
+        method: "POST", body: { expectedDraftUpdatedAt: commercialTime.toISOString(), expectedPublishedAt: onePublished.body.publishedAt },
+      });
+      assert.equal(drifted.status, 400);
+      assert.match(JSON.stringify(drifted.body), /stock|changed/i);
+    } finally {
+      JusticeSureCommerceClient.prototype.listProducts = previousListProducts;
+      await db.delete(siteContentTable).where(eq(siteContentTable.key, CATALOGUE_BUSINESS_APPROVALS_KEY));
+      if (originalApprovals.length) await db.insert(siteContentTable).values(originalApprovals);
+      await db.update(siteContentTable).set({
+        draft: publishedProduct.body.draft, draftUpdatedAt: new Date(publishedProduct.body.draftUpdatedAt),
+        published: publishedProduct.body.published, publishedAt: new Date(publishedProduct.body.publishedAt),
+      }).where(eq(siteContentTable.key, "platform"));
+    }
     const stale = await request(running.baseUrl, url, token, { method: "POST", body });
     assert.equal(stale.status, 409);
 
