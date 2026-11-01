@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useStaffBackgroundActive } from "../../../hooks/use-staff-background-active";
 import {
   authorizeCatalogueGoogle, disconnectCatalogueGoogle, getCatalogueGoogleStatus,
   listCatalogueGoogleFolders, selectCatalogueGoogleFolder,
@@ -16,6 +17,7 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
   beforeConnect: () => Promise<void>;
 }) {
   const [status, setStatus] = useState<CatalogueGoogleStatus | null>(null);
+  const visible = useStaffBackgroundActive();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState(() => new URLSearchParams(window.location.search).get("drive") === "failed"
     ? "Google authorization was cancelled, expired, or could not be verified. Connect again or use local folders." : "");
@@ -32,18 +34,20 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
   }, []);
   useEffect(() => {
     mounted.current = true;
-    void refresh();
-    const focus = () => { void refresh(); };
-    window.addEventListener("focus", focus);
-    const timer = window.setInterval(focus, 60_000);
     // OAuth parameters are only a hint to display; server status is authoritative.
     const url = new URL(window.location.href);
     if (url.searchParams.has("drive")) {
       url.searchParams.delete("drive");
       window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
     }
-    return () => { mounted.current = false; window.clearInterval(timer); window.removeEventListener("focus", focus); };
-  }, [refresh]);
+    return () => { mounted.current = false; };
+  }, []);
+  useEffect(() => {
+    if (!visible) return;
+    void refresh();
+    const timer = window.setInterval(() => { void refresh(); }, 300_000);
+    return () => window.clearInterval(timer);
+  }, [refresh, visible]);
   const run = async (action: () => Promise<void>) => {
     setWorking(true); setError(""); setNotice("");
     try { await action(); } catch (error) { if (mounted.current) setError(message(error)); }
