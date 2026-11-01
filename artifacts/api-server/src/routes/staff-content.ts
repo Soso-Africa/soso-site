@@ -2000,7 +2000,14 @@ router.post("/staff/content/platform/unpublish", platformRoles, async (req, res)
 });
 
 router.get("/staff/content/platform/revisions", platformRoles, async (_req, res): Promise<void> => {
-  const rows = await db.select().from(siteContentRevisionsTable)
+  // The list displays metadata only. Selecting snapshot here retransferred
+  // up to 100 entire catalogues from Neon on every editor load/save.
+  const rows = await db.select({
+    id: siteContentRevisionsTable.id,
+    event: siteContentRevisionsTable.event,
+    contentHash: siteContentRevisionsTable.contentHash,
+    createdAt: siteContentRevisionsTable.createdAt,
+  }).from(siteContentRevisionsTable)
     .where(eq(siteContentRevisionsTable.contentKey, "platform"))
     .orderBy(desc(siteContentRevisionsTable.createdAt)).limit(100);
   res.json(rows);

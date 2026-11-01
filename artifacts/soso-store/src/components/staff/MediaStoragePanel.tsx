@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useGetStaffMediaStorageStatus } from "@workspace/api-client-react";
 import { CloudinaryUsagePanel } from "./CloudinaryUsagePanel";
 import { MediaOperationsPanel } from "./MediaOperationsPanel";
+import { staffManualRefreshQuery } from "@/hooks/staff-query-policy";
 
 export function MediaStoragePanel({ staffId, role }: { staffId: string; role: string }) {
   const [now, setNow] = useState(Date.now);
@@ -10,9 +11,8 @@ export function MediaStoragePanel({ staffId, role }: { staffId: string; role: st
     return () => clearInterval(timer);
   }, []);
   const query = useGetStaffMediaStorageStatus({ query: {
-    queryKey: ["staff-media-storage-status", staffId, role], staleTime: 60 * 60_000,
-    refetchInterval: 60 * 60_000, refetchIntervalInBackground: false,
-    retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false,
+    ...staffManualRefreshQuery,
+    queryKey: ["staff-media-storage-status", staffId, role],
   } });
   if (query.isError) return <section className="mt-6 border border-border p-5">
     <p role="alert">Media storage status could not be loaded. Current capacity and backup/delivery protection reports are unavailable; billing information is not available here.</p>

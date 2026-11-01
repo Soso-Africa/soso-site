@@ -1,6 +1,6 @@
 import React, { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useStaffBackgroundActive } from "@/hooks/use-staff-background-active";
+import { staffManualRefreshQuery } from "@/hooks/staff-query-policy";
 import { Link } from "wouter";
 import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { committedRowFor } from "../components/staff/platform-row";
@@ -225,7 +225,8 @@ export default function Staff() {
   const [range, setRange] = useState(() => dateRangeFor(7));
   const [activeTab, setActiveTabState] = useState<StaffTab>("overview");
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
-  const visible = useStaffBackgroundActive();
+  const [refreshingLists, setRefreshingLists] = useState(false);
+  const [refreshNotice, setRefreshNotice] = useState("");
   const queryClient = useQueryClient();
   const canManageOrders = profile?.role === "owner" || profile?.role === "operations";
   const canViewOrders = canManageOrders || profile?.role === "administrator" || profile?.role === "stylist";
@@ -236,21 +237,18 @@ export default function Staff() {
   const canReviewAccessoryLaunchNotifications = ["owner", "administrator", "editor"].includes(profile?.role as string);
   const isEditorial = ["owner", "administrator", "editor"].includes(profile?.role as string);
 
-  const overview = useGetStaffOverview(range, { query: { queryKey: ["staff-overview", range.from, range.to, profile?.id, profile?.role], enabled: Boolean(profile) && visible && activeTab === "overview", refetchInterval: 60_000, refetchIntervalInBackground: false } });
-  const orders = useListStaffOrders(range, { query: { queryKey: ["staff-orders", range.from, range.to, profile?.id, profile?.role], enabled: canViewOrders && visible && activeTab === "orders", refetchInterval: 45_000, refetchIntervalInBackground: false } });
-  const enquiries = useListStaffEnquiries({ query: { queryKey: ["staff-enquiries", profile?.id, profile?.role], enabled: canManageEnquiries && visible && activeTab === "enquiries", refetchInterval: 45_000, refetchIntervalInBackground: false } });
-  const privacy = useListStaffPrivacyRequests({ query: { queryKey: ["staff-privacy", profile?.id, profile?.role], enabled: canManagePrivacy && visible && activeTab === "privacy", refetchInterval: 45_000, refetchIntervalInBackground: false } });
-  const accessoryLaunchNotifications = useListStaffAccessoryLaunchNotifications({ query: { queryKey: ["staff-accessory-launch-notifications", profile?.id, profile?.role], enabled: canReviewAccessoryLaunchNotifications && visible && activeTab === "accessory-launch-notifications", refetchInterval: 45_000, refetchIntervalInBackground: false } });
-  const accessoryLaunchNotificationSummary = useGetStaffAccessoryLaunchNotificationSummary(range, { query: { queryKey: ["staff-accessory-launch-notification-summary", range.from, range.to, profile?.id, profile?.role], enabled: canReviewAccessoryLaunchNotifications && visible && activeTab === "accessory-launch-notifications", refetchInterval: 45_000, refetchIntervalInBackground: false } });
-  const notifications = useListStaffNotifications({ query: { queryKey: ["staff-notifications", profile?.id, profile?.role], enabled: Boolean(profile) && visible && activeTab === "overview", refetchInterval: 45_000, refetchIntervalInBackground: false } });
+  const overview = useGetStaffOverview(range, { query: { ...staffManualRefreshQuery, queryKey: ["staff-overview", range.from, range.to, profile?.id, profile?.role], enabled: Boolean(profile) && activeTab === "overview" } });
+  const orders = useListStaffOrders(range, { query: { ...staffManualRefreshQuery, queryKey: ["staff-orders", range.from, range.to, profile?.id, profile?.role], enabled: canViewOrders && activeTab === "orders" } });
+  const enquiries = useListStaffEnquiries({ query: { ...staffManualRefreshQuery, queryKey: ["staff-enquiries", profile?.id, profile?.role], enabled: canManageEnquiries && activeTab === "enquiries" } });
+  const privacy = useListStaffPrivacyRequests({ query: { ...staffManualRefreshQuery, queryKey: ["staff-privacy", profile?.id, profile?.role], enabled: canManagePrivacy && activeTab === "privacy" } });
+  const accessoryLaunchNotifications = useListStaffAccessoryLaunchNotifications({ query: { ...staffManualRefreshQuery, queryKey: ["staff-accessory-launch-notifications", profile?.id, profile?.role], enabled: canReviewAccessoryLaunchNotifications && activeTab === "accessory-launch-notifications" } });
+  const accessoryLaunchNotificationSummary = useGetStaffAccessoryLaunchNotificationSummary(range, { query: { ...staffManualRefreshQuery, queryKey: ["staff-accessory-launch-notification-summary", range.from, range.to, profile?.id, profile?.role], enabled: canReviewAccessoryLaunchNotifications && activeTab === "accessory-launch-notifications" } });
+  const notifications = useListStaffNotifications({ query: { ...staffManualRefreshQuery, queryKey: ["staff-notifications", profile?.id, profile?.role], enabled: Boolean(profile) && activeTab === "overview" } });
   const staleCatalogueQuery = useQuery({
+    ...staffManualRefreshQuery,
     queryKey: ["staff-stale-catalogue-mappings", profile?.id, profile?.role],
     queryFn: ({ signal }) => customFetch<{ products: StaleCatalogueProduct[] }>("/api/staff/commerce/catalogue-mapping/stale", { responseType: "json", signal }),
-    enabled: isEditorial && visible && ["overview", "platform", "commerce-activation"].includes(activeTab),
-    staleTime: 60_000,
-    refetchInterval: 120_000,
-    refetchIntervalInBackground: false,
-    retry: false,
+    enabled: isEditorial && ["overview", "platform", "commerce-activation"].includes(activeTab),
   });
   const staleCatalogueProducts = isEditorial ? staleCatalogueQuery.data?.products ?? [] : [];
 
@@ -324,6 +322,21 @@ export default function Staff() {
       void queryClient.invalidateQueries({ queryKey: [key], refetchType: "active" });
     }
   };
+  const refreshLists = async () => {
+    setRefreshingLists(true);
+    setRefreshNotice("");
+    try {
+      await queryClient.refetchQueries({
+        type: "active",
+        predicate: (query) => String(query.queryKey[0]).startsWith("staff-"),
+      }, { throwOnError: true });
+      setRefreshNotice("Open lists and catalogue alerts updated.");
+    } catch {
+      setRefreshNotice("Some lists could not refresh. Check the connection and try again; previous data may still be displayed.");
+    } finally {
+      setRefreshingLists(false);
+    }
+  };
 
   const activeNavigation = navigation.flatMap((group) => group.items).find((item) => item.id === activeTab);
   const sidebar = (
@@ -366,6 +379,11 @@ export default function Staff() {
           </div>
           {["overview", "orders", "accessory-launch-notifications", "analytics"].includes(activeTab) && <DateRangeControl range={range} onChange={setRange} />}
         </header>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-border bg-muted/20 p-3">
+          <p className="text-xs text-muted-foreground">Manual refresh mode saves data. Automatic list refresh is off by default. Draft edits stay untouched; save and publish still run live checks.</p>
+          <button type="button" disabled={refreshingLists} onClick={() => void refreshLists()} className="border border-primary px-3 py-2 text-xs font-semibold disabled:opacity-50">{refreshingLists ? "Refreshing…" : "Refresh lists & alerts"}</button>
+          {refreshNotice && <p role="status" className="w-full text-xs">{refreshNotice}</p>}
+        </div>
         {isEditorial && staleCatalogueQuery.isError && <p role="status" className="mt-4 text-sm text-muted-foreground">Catalogue alerts could not refresh. Saving and publishing still check current mappings.</p>}
         {staleCatalogueProducts.length > 0 && (
           <aside role="alert" className="mt-6 border border-amber-300 bg-amber-50 p-4 text-amber-950">
@@ -432,7 +450,6 @@ type ManagedMediaCleanupSummary = {
 };
 
 function MediaCleanupSection() {
-  const visible = useStaffBackgroundActive();
   const [items, setItems] = useState<ManagedMediaCleanupItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
@@ -454,11 +471,8 @@ function MediaCleanupSection() {
   }, []);
 
   useEffect(() => {
-    if (!visible) return;
     void load();
-    const interval = window.setInterval(() => { void load(); }, 45_000);
-    return () => window.clearInterval(interval);
-  }, [load, visible]);
+  }, [load]);
 
   const retry = async () => {
     setRetrying(true);
@@ -484,6 +498,7 @@ function MediaCleanupSection() {
 
   return <section className="mt-12 border-t border-border pt-10">
     <SectionHeading icon={Images} title="Managed media cleanup" description="Review collection-cover uploads that could not yet be removed. Retries recheck current draft and published content before deleting anything." />
+    <button type="button" disabled={loading || retrying} onClick={() => { setLoading(true); void load(); }} className="my-3 border border-primary px-3 py-2 text-xs font-semibold disabled:opacity-50">Refresh cleanup list</button>
     <div className="flex flex-col gap-3 border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-medium">{items.length} {items.length === 1 ? "upload needs" : "uploads need"} attention</p>
@@ -515,8 +530,7 @@ function MediaCleanupSection() {
 }
 
 function StaffAccessSection() {
-  const backgroundActive = useStaffBackgroundActive();
-  const access = useListStaffAccess({ query: { queryKey: ["staff-access"], refetchInterval: backgroundActive ? 60_000 : false, refetchIntervalInBackground: false } });
+  const access = useListStaffAccess({ query: { ...staffManualRefreshQuery, queryKey: ["staff-access"] } });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"owner" | "administrator" | "operations" | "stylist" | "editor" | "analyst">("operations");
@@ -681,7 +695,7 @@ type PlatformContentRow = {
   draftUpdatedAt: string | null;
   publishedAt: string | null;
 };
-type PlatformRevision = { id?: string; createdAt?: string; action?: string; publishedAt?: string | null };
+type PlatformRevision = { id?: string; createdAt?: string; action?: string; event?: string; publishedAt?: string | null };
 type PlatformSection = "complete" | "site" | "homepage" | "catalogue" | "pages";
 const platformSections: { id: PlatformSection; label: string }[] = [
   { id: "complete", label: "Complete document" },
@@ -1346,7 +1360,7 @@ function PlatformContentManagementSection() {
       {status && <p data-testid="status-message" role="status" className="mt-4 border border-primary/25 bg-primary/5 p-3 text-sm">{status}</p>}
     </div>
     <div className="mt-5 border border-border bg-card p-5"><h3 className="text-xs font-semibold uppercase tracking-wider">Recent revisions</h3>
-      {!revisions.length ? <p className="mt-3 text-sm text-muted-foreground">No revisions recorded yet.</p> : <ul className="mt-3 divide-y divide-border">{revisions.slice(0, 10).map((revision, index) => <li key={revision.id ?? index} className="py-3 text-xs"><span className="font-medium">{revision.action ?? "Revision"}</span>{revision.createdAt ? ` · ${format(new Date(revision.createdAt), "d MMM yyyy, HH:mm")}` : ""}</li>)}</ul>}
+      {!revisions.length ? <p className="mt-3 text-sm text-muted-foreground">No revisions recorded yet.</p> : <ul className="mt-3 divide-y divide-border">{revisions.slice(0, 10).map((revision, index) => <li key={revision.id ?? index} className="py-3 text-xs"><span className="font-medium">{revision.event ?? revision.action ?? "Revision"}</span>{revision.createdAt ? ` · ${format(new Date(revision.createdAt), "d MMM yyyy, HH:mm")}` : ""}</li>)}</ul>}
     </div>
   </section>;
 }
@@ -2570,9 +2584,8 @@ function SectionHeading({ icon: Icon, title, description }: { icon: typeof Packa
 }
 
 function MarketingPixelsSection() {
-  const backgroundActive = useStaffBackgroundActive();
-  const pixels = useGetStaffMarketingPixels({ query: { queryKey: ["staff-marketing-pixels"], refetchInterval: backgroundActive ? 60_000 : false, refetchIntervalInBackground: false } });
-  const revisions = useListStaffMarketingPixelRevisions({ query: { queryKey: ["staff-marketing-pixel-revisions"], refetchInterval: backgroundActive ? 60_000 : false, refetchIntervalInBackground: false } });
+  const pixels = useGetStaffMarketingPixels({ query: { ...staffManualRefreshQuery, queryKey: ["staff-marketing-pixels"] } });
+  const revisions = useListStaffMarketingPixelRevisions({ query: { ...staffManualRefreshQuery, queryKey: ["staff-marketing-pixel-revisions"] } });
   const updatePixels = useUpdateStaffMarketingPixels();
 
   const [settings, setSettings] = useState<MarketingPixelSettings>({
