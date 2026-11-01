@@ -9,7 +9,6 @@ import { CopyPanel, PlatformCopyFields } from "./PlatformCopyFields";
 import { CollectionEditor } from "./CollectionEditor";
 import { CatalogueImporter } from "./import/CatalogueImporter";
 import { CatalogueUpdates } from "./import/CatalogueUpdates";
-import { useStaffBackgroundActive } from "../../hooks/use-staff-background-active";
 import {
   isConfirmedMappingCurrent,
   isMappingPreviewFreshForReview,
@@ -113,7 +112,6 @@ export function PlatformEditorCatalogue({
     return index >= 0 ? index : null;
   });
   const [commerceProducts, setCommerceProducts] = useState<CommerceCatalogProduct[]>([]);
-  const visible = useStaffBackgroundActive();
   const [commerceStatus, setCommerceStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const [deletingProductSlug, setDeletingProductSlug] = useState<string | null>(null);
   const [mappingPreview, setMappingPreview] = useState<MappingPreview | null>(null);
@@ -332,15 +330,7 @@ export function PlatformEditorCatalogue({
   }, []);
 
   useEffect(() => {
-    if (commerceStatus !== "ready" || !visible) return;
-    void handleAnalyze();
-    // Review/publish actions still make their own fresh commerce checks.
-    const interval = window.setInterval(() => { void handleAnalyze(); }, 300_000);
-    return () => window.clearInterval(interval);
-  }, [commerceStatus, handleAnalyze, visible]);
-
-  useEffect(() => {
-    if (commerceStatus !== "ready" || !visible) return;
+    if (commerceStatus !== "ready") return;
     const controller = new AbortController();
     let active = true;
     let checking = false;
@@ -378,7 +368,6 @@ export function PlatformEditorCatalogue({
           setMappingPreview(null);
           const firstAffectedIndex = productsRef.current.findIndex((product) => result.staleSlugs!.includes(product.slug));
           if (firstAffectedIndex >= 0) setExpandedProductIndex(firstAffectedIndex);
-          void handleAnalyze();
         }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -387,13 +376,11 @@ export function PlatformEditorCatalogue({
       }
     };
     void checkInvalidations();
-    const interval = window.setInterval(() => { void checkInvalidations(); }, 60_000);
     return () => {
       active = false;
       controller.abort();
-      window.clearInterval(interval);
     };
-  }, [commerceStatus, handleAnalyze, visible]);
+  }, [commerceStatus]);
 
   const handleBulkConfirm = () => {
     if (!reviewedMappingPreview) return;
@@ -538,6 +525,7 @@ export function PlatformEditorCatalogue({
                   {isAnalyzing && <Loader2 className="h-3 w-3 animate-spin" />}
                   {reviewedMappingPreview ? "Re-analyze Catalogue" : "Analyze Catalogue"}
                 </button>
+                <p className="text-xs text-muted-foreground">No background re-analysis. Use Analyze Catalogue or Review Mapping for current results. Saving and publishing still validate live mappings.</p>
                 
                 {reviewedMappingPreview && mappingSummary.analysis && mappingSummary.analysis.confident > 0 && (
                   <button

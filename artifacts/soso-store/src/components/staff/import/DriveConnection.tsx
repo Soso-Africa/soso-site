@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useStaffBackgroundActive } from "../../../hooks/use-staff-background-active";
 import {
   authorizeCatalogueGoogle, disconnectCatalogueGoogle, getCatalogueGoogleStatus,
   listCatalogueGoogleFolders, selectCatalogueGoogleFolder,
@@ -17,7 +16,6 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
   beforeConnect: () => Promise<void>;
 }) {
   const [status, setStatus] = useState<CatalogueGoogleStatus | null>(null);
-  const visible = useStaffBackgroundActive();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState(() => new URLSearchParams(window.location.search).get("drive") === "failed"
     ? "Google authorization was cancelled, expired, or could not be verified. Connect again or use local folders." : "");
@@ -43,11 +41,8 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
-    if (!visible) return;
     void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 300_000);
-    return () => window.clearInterval(timer);
-  }, [refresh, visible]);
+  }, [refresh]);
   const run = async (action: () => Promise<void>) => {
     setWorking(true); setError(""); setNotice("");
     try { await action(); } catch (error) { if (mounted.current) setError(message(error)); }
@@ -92,7 +87,7 @@ export function DriveConnection({ folders, busy, onDisconnect, beforeConnect }: 
           </div>
         </>
       )}
-      <button type="button" className={button} disabled={disabled} onClick={() => void refresh()}>Refresh connection status</button>
+      <button type="button" className={button} disabled={disabled} onClick={() => void run(refresh)}>Refresh connection status</button>
       {status?.connected && (
         <div className="space-y-2">
           <p className="text-xs">Select the exact Drive folders referenced by your spreadsheet. Folder selection does not approve product content or publish anything.</p>
