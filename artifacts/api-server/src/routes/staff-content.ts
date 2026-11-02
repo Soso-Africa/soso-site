@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import staffProductEditorRouter from "./staff-product-editor";
 import { createHash } from "node:crypto";
 import {
   SaveCatalogueImportDraftBody,
@@ -72,6 +73,7 @@ import {
 const router: IRouter = Router();
 
 router.use("/staff", requireStaff);
+router.use(staffProductEditorRouter);
 
 router.get("/staff/content/site", requireStaffRoles("owner", "administrator", "editor"), async (_req, res): Promise<void> => {
   const [row] = await db.select().from(siteContentTable).where(eq(siteContentTable.key, "site")).limit(1);
@@ -640,7 +642,8 @@ router.get("/staff/commerce/catalogue-mapping/:slug/history", platformRoles, asy
   const revisions = revisionIds.length > 0
     ? await db.select({
       id: siteContentRevisionsTable.id,
-      snapshot: siteContentRevisionsTable.snapshot,
+      // Mixed-format reconstruction verifies every dependency and media receipt.
+      snapshot: sql<unknown>`soso_history_restore(${siteContentRevisionsTable.id})`,
     }).from(siteContentRevisionsTable).where(inArray(siteContentRevisionsTable.id, revisionIds))
     : [];
   const actorIds = Array.from(new Set(audits.map(({ actorClerkUserId }) => actorClerkUserId)));

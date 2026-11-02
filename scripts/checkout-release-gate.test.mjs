@@ -63,9 +63,10 @@ if [[ "$*" == "run validate:checkout" ]]; then exit "\${GATE_EXIT:-0}"; fi
     await writeFile(log, "");
     assert.equal(run("0").status, 0);
     calls = (await readFile(log, "utf8")).trim().split("\n");
-    assert.equal(calls.length, 4);
+    assert.equal(calls.length, 5);
     assert.ok(calls[2].endsWith(":lib/db/scripts/ensure-shopper-schema.mjs"));
-    assert.ok(calls[3].endsWith(":--filter @workspace/db run push"));
+    assert.ok(calls[3].endsWith(":lib/db/scripts/ensure-catalogue-history-schema.mjs --development"));
+    assert.ok(calls[4].endsWith(":--filter @workspace/db run push"));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

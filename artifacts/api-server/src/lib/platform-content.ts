@@ -2277,8 +2277,15 @@ async function initializePlatformContent() {
 
   if (Object.keys(updates).length > 0) {
     await db.transaction(async (tx) => {
-      await tx.update(siteContentTable).set(updates)
-        .where(eq(siteContentTable.key, "platform"));
+      // Initialization shares the history/media transaction boundary. Defaults
+      // computed before the lock must never overwrite an intervening Staff save.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('soso-platform-content-media'))`);
+      const migrated = await tx.update(siteContentTable).set(updates)
+        .where(and(eq(siteContentTable.key, "platform"),
+          sql`${siteContentTable.draft} = ${JSON.stringify(current.draft)}::jsonb`,
+          sql`${siteContentTable.published} = ${JSON.stringify(current.published)}::jsonb`))
+        .returning({ key: siteContentTable.key });
+      if (!migrated.length) return;
       const actor = "system:platform-content-migration";
       const migratedSnapshots = [
         updates.draft ? { target: "draft", snapshot: updates.draft } : null,

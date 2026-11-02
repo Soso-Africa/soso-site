@@ -63,9 +63,10 @@ export function ProductEditor({
   isReviewingMapping = false,
   reviewMappingError = "",
   onApproveProduct,
+  focusedMode,
 }: {
   product: CatalogProduct;
-  allProducts: CatalogProduct[];
+  allProducts: Pick<CatalogProduct, "slug" | "name">[];
   collections: Pick<PlatformCollection, "slug" | "label" | "category" | "department">[];
   isExpanded: boolean;
   onToggle: () => void;
@@ -88,6 +89,8 @@ export function ProductEditor({
   isReviewingMapping?: boolean;
   reviewMappingError?: string;
   onApproveProduct?: (product: CatalogProduct, publish: boolean) => Promise<SaveResult>;
+  /** Focused draft-only mode: slug is immutable; publication and deletion link to full catalogue tools. */
+  focusedMode?: { onOpenFullTools: () => void };
 }) {
   const [approving, setApproving] = useState(false);
   // Only an analysis produced from exactly the current editor inputs may drive confirmation.
@@ -294,7 +297,10 @@ export function ProductEditor({
                   <input
                     type="text"
                     value={product.slug || ""}
-                    onChange={(e) => onChange({ ...product, slug: e.target.value })}
+                    readOnly={Boolean(focusedMode)}
+                    aria-readonly={focusedMode ? true : undefined}
+                    title={focusedMode ? "The slug cannot be changed in focused editing." : undefined}
+                    onChange={(e) => { if (!focusedMode) onChange({ ...product, slug: e.target.value }); }}
                     className="staff-input text-xs font-mono"
                     data-testid={`input-product-slug-${product.slug}`}
                   />
@@ -1080,7 +1086,12 @@ export function ProductEditor({
             <p className="mt-1 text-xs text-muted-foreground">
               {steps.slice(0, 6).filter((s) => s.state !== "done").map((s) => `${s.label}: ${s.detail}`).join(". ") || "Everything is ready. Use Check and approve above, or the publication controls."}
             </p>
-            <button type="button" disabled={approving || steps[6]?.state !== "next"}
+            {focusedMode ? (
+              <button type="button" onClick={focusedMode.onOpenFullTools} data-testid={`button-open-full-tools-${product.slug}`}
+                className="mt-2 inline-flex min-h-11 items-center border border-primary px-3 text-xs font-semibold text-primary hover:bg-primary/10">
+                Open full catalogue tools to approve, publish or delete
+              </button>
+            ) : <button type="button" disabled={approving || steps[6]?.state !== "next"}
               data-testid={`button-go-publication-${product.slug}`}
               onClick={() => {
                 const target = document.getElementById("platform-publication-controls");
@@ -1089,9 +1100,9 @@ export function ProductEditor({
               }}
               className="mt-2 inline-flex min-h-11 items-center border border-primary px-3 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50">
               Go to publication controls
-            </button>
+            </button>}
           </div>
-          {product.releaseState === "placeholder" && product.fulfilmentState === "unavailable" && !product.commerceProductId && (
+          {!focusedMode && product.releaseState === "placeholder" && product.fulfilmentState === "unavailable" && !product.commerceProductId && (
             <div className="border-t border-border pt-4">
               <button type="button" disabled={publishingProduct || approving} onClick={async () => {
                 const requestedSlug = product.slug;
@@ -1110,14 +1121,14 @@ export function ProductEditor({
               {productPublishMessage && <p role="status" className="mt-2 border border-primary/25 bg-primary/5 p-3 text-xs" data-testid={`product-publish-status-${product.slug}`}>{productPublishMessage}</p>}
             </div>
           )}
-          <div className="border-t border-border pt-4">
+          {!focusedMode && <div className="border-t border-border pt-4">
             <button type="button" disabled={deleting || approving} onClick={onDelete} data-testid={`button-delete-catalogue-product-${product.slug}`}
               className="inline-flex min-h-10 items-center gap-2 border border-destructive/40 px-3 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50">
               <Trash2 size={14} /> {deleting ? "Deleting draft…" : "Delete from draft"}
             </button>
             <p className="mt-2 text-xs text-muted-foreground">This deletes a saved draft product immediately after confirmation. If it was published, it remains live until you publish its removal. JusticeSure inventory and uploaded images are not deleted.</p>
             {deleteError && <p role="alert" className="mt-2 border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{deleteError}</p>}
-          </div>
+          </div>}
         </div>
       )}
     </div>

@@ -11,6 +11,7 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test": "node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs pnpm --dir ../../scripts exec tsx --test ../artifacts/api-server/src/**/*.test.ts",
     "test:payment-contract": "node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs pnpm --dir ../../scripts exec tsx --test ../artifacts/api-server/src/routes/payment.contract.test.ts",
+    "test:product-editor": "node scripts/test-product-editor.mjs",
     "test:shopper-auth": "node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs pnpm --dir ../../scripts exec tsx --test ../artifacts/api-server/src/routes/shopper-auth.test.ts",
     "verify:cloudinary": "pnpm --dir ../../scripts exec tsx ../artifacts/api-server/scripts/verify-cloudinary-storage.ts",
     "verify:privacy-access-packages": "pnpm --dir ../../scripts exec tsx ../artifacts/api-server/scripts/verify-privacy-access-packages.ts",

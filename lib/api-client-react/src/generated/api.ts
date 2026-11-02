@@ -28,6 +28,7 @@ import type {
   CatalogueGoogleFolder,
   CatalogueGoogleFolderSelection,
   CatalogueGoogleStatus,
+  CatalogueHistoryCapacity,
   CatalogueImportDraftInput,
   CatalogueImportDriveFolder,
   CatalogueImportSheet,
@@ -100,6 +101,7 @@ import type {
   ListStaffNewsletterSubscribersParams,
   ListStaffOrdersParams,
   ListStaffPolicyHistory200Item,
+  ListStaffProductIndexParams,
   ListStaffRedirectHistory200Item,
   MailIdentifier,
   MailboxMessageInput,
@@ -192,6 +194,10 @@ import type {
   StaffPrivacyRequest,
   StaffPrivacyRequestInput,
   StaffPrivacyRequestUpdate,
+  StaffProductCommit,
+  StaffProductEdit,
+  StaffProductEditor,
+  StaffProductIndex,
   StaffProfile,
   StaffRedirect,
   StaffRedirectInput,
@@ -2346,6 +2352,83 @@ export function useGetStaffCloudinaryUsage<TData = Awaited<ReturnType<typeof get
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetStaffCloudinaryUsageQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStaffCatalogueHistoryCapacityUrl = () => {
+
+
+
+
+  return `/api/staff/catalogue-history-capacity`
+}
+
+/**
+ * @summary Owner-only retained history allocation, measured at most daily
+ */
+export const getStaffCatalogueHistoryCapacity = async ( options?: Parameters<typeof customFetch>[1]): Promise<CatalogueHistoryCapacity> => {
+
+  return customFetch<CatalogueHistoryCapacity>(getGetStaffCatalogueHistoryCapacityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffCatalogueHistoryCapacityQueryKey = () => {
+    return [
+    `/api/staff/catalogue-history-capacity`
+    ] as const;
+    }
+
+
+export const getGetStaffCatalogueHistoryCapacityQueryOptions = <TData = Awaited<ReturnType<typeof getStaffCatalogueHistoryCapacity>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffCatalogueHistoryCapacity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffCatalogueHistoryCapacityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffCatalogueHistoryCapacity>>> = ({ signal }) => getStaffCatalogueHistoryCapacity({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffCatalogueHistoryCapacity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffCatalogueHistoryCapacityQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffCatalogueHistoryCapacity>>>
+export type GetStaffCatalogueHistoryCapacityQueryError = ErrorType<void>
+
+
+/**
+ * @summary Owner-only retained history allocation, measured at most daily
+ */
+
+export function useGetStaffCatalogueHistoryCapacity<TData = Awaited<ReturnType<typeof getStaffCatalogueHistoryCapacity>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffCatalogueHistoryCapacity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffCatalogueHistoryCapacityQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -9148,6 +9231,221 @@ export const usePublishStaffPlatformContent = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getPublishStaffPlatformContentMutationOptions(options));
+    }
+
+export const getListStaffProductIndexUrl = (params?: ListStaffProductIndexParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/staff/content/platform/product-index?${stringifiedParams}` : `/api/staff/content/platform/product-index`
+}
+
+export const listStaffProductIndex = async (params?: ListStaffProductIndexParams, options?: Parameters<typeof customFetch>[1]): Promise<StaffProductIndex> => {
+
+  return customFetch<StaffProductIndex>(getListStaffProductIndexUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStaffProductIndexQueryKey = (params?: ListStaffProductIndexParams,) => {
+    return [
+    `/api/staff/content/platform/product-index`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListStaffProductIndexQueryOptions = <TData = Awaited<ReturnType<typeof listStaffProductIndex>>, TError = ErrorType<unknown>>(params?: ListStaffProductIndexParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffProductIndex>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStaffProductIndexQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStaffProductIndex>>> = ({ signal }) => listStaffProductIndex(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStaffProductIndex>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListStaffProductIndexQueryResult = NonNullable<Awaited<ReturnType<typeof listStaffProductIndex>>>
+export type ListStaffProductIndexQueryError = ErrorType<unknown>
+
+
+
+export function useListStaffProductIndex<TData = Awaited<ReturnType<typeof listStaffProductIndex>>, TError = ErrorType<unknown>>(
+ params?: ListStaffProductIndexParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listStaffProductIndex>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListStaffProductIndexQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStaffProductEditorUrl = (slug: string,) => {
+
+
+
+
+  return `/api/staff/content/platform/products/${slug}/editor`
+}
+
+export const getStaffProductEditor = async (slug: string, options?: Parameters<typeof customFetch>[1]): Promise<StaffProductEditor> => {
+
+  return customFetch<StaffProductEditor>(getGetStaffProductEditorUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStaffProductEditorQueryKey = (slug: string,) => {
+    return [
+    `/api/staff/content/platform/products/${slug}/editor`
+    ] as const;
+    }
+
+
+export const getGetStaffProductEditorQueryOptions = <TData = Awaited<ReturnType<typeof getStaffProductEditor>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffProductEditor>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStaffProductEditorQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStaffProductEditor>>> = ({ signal }) => getStaffProductEditor(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: slug !== null && slug !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStaffProductEditor>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStaffProductEditorQueryResult = NonNullable<Awaited<ReturnType<typeof getStaffProductEditor>>>
+export type GetStaffProductEditorQueryError = ErrorType<void>
+
+
+
+export function useGetStaffProductEditor<TData = Awaited<ReturnType<typeof getStaffProductEditor>>, TError = ErrorType<void>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStaffProductEditor>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStaffProductEditorQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveStaffProductEditorUrl = (slug: string,) => {
+
+
+
+
+  return `/api/staff/content/platform/products/${slug}/editor`
+}
+
+export const saveStaffProductEditor = async (slug: string,
+    staffProductEdit: StaffProductEdit, options?: Parameters<typeof customFetch>[1]): Promise<StaffProductCommit> => {
+
+  return customFetch<StaffProductCommit>(getSaveStaffProductEditorUrl(slug),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(staffProductEdit)
+  }
+);}
+
+
+
+
+
+export const getSaveStaffProductEditorMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveStaffProductEditor>>, TError,{slug: string;data: BodyType<StaffProductEdit>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveStaffProductEditor>>, TError,{slug: string;data: BodyType<StaffProductEdit>}, TContext> => {
+
+const mutationKey = ['saveStaffProductEditor'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveStaffProductEditor>>, {slug: string;data: BodyType<StaffProductEdit>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  saveStaffProductEditor(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveStaffProductEditorMutationResult = NonNullable<Awaited<ReturnType<typeof saveStaffProductEditor>>>
+    export type SaveStaffProductEditorMutationBody = BodyType<StaffProductEdit>
+    export type SaveStaffProductEditorMutationError = ErrorType<void>
+
+    export const useSaveStaffProductEditor = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveStaffProductEditor>>, TError,{slug: string;data: BodyType<StaffProductEdit>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof saveStaffProductEditor>>,
+        TError,
+        {slug: string;data: BodyType<StaffProductEdit>},
+        TContext
+      > => {
+      return useMutation(getSaveStaffProductEditorMutationOptions(options));
     }
 
 export const getPublishStaffPlatformProductUrl = (slug: string,) => {

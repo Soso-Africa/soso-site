@@ -520,6 +520,61 @@ export interface StaffPlatformContent {
   publishedByClerkUserId?: string | null;
 }
 
+export interface StaffProductSummary {
+  slug: string;
+  name: string;
+}
+
+export interface StaffProductIndex {
+  items: StaffProductSummary[];
+  /** @nullable */
+  nextCursor: string | null;
+}
+
+export type StaffProductCommitProduct = { [key: string]: unknown };
+
+export interface StaffProductCommit {
+  product: StaffProductCommitProduct;
+  draftUpdatedAt: string;
+  /** @nullable */
+  publishedAt: string | null;
+}
+
+/**
+ * @nullable
+ */
+export type StaffProductEditorPublishedProduct = { [key: string]: unknown } | null;
+
+export type StaffProductEditorCollectionsItemDepartment = typeof StaffProductEditorCollectionsItemDepartment[keyof typeof StaffProductEditorCollectionsItemDepartment];
+
+
+export const StaffProductEditorCollectionsItemDepartment = {
+  men: 'men',
+  women: 'women',
+  accessories: 'accessories',
+} as const;
+
+export type StaffProductEditorCollectionsItem = {
+  slug: string;
+  label: string;
+  category: string;
+  department: StaffProductEditorCollectionsItemDepartment;
+};
+
+export type StaffProductEditor = StaffProductCommit & {
+  /** @nullable */
+  publishedProduct: StaffProductEditorPublishedProduct;
+  collections: StaffProductEditorCollectionsItem[];
+  relatedProducts: StaffProductSummary[];
+};
+
+export type StaffProductEditProduct = { [key: string]: unknown };
+
+export interface StaffProductEdit {
+  product: StaffProductEditProduct;
+  expectedDraftUpdatedAt: string;
+}
+
 export interface PlatformContentUpdate {
   content: PlatformContent;
   expectedDraftUpdatedAt: string;
@@ -3153,6 +3208,59 @@ export interface CloudinaryUsageView {
   nextRefreshAt: string;
 }
 
+export interface CatalogueHistoryAllocation {
+  measuredAt: string;
+  /**
+     * @minimum 0
+     * @maximum 9007199254740991
+     */
+  revisionBytes: number;
+  /**
+     * @minimum 0
+     * @maximum 9007199254740991
+     */
+  auditBytes: number;
+}
+
+export type CatalogueHistoryCapacityStatus = typeof CatalogueHistoryCapacityStatus[keyof typeof CatalogueHistoryCapacityStatus];
+
+
+export const CatalogueHistoryCapacityStatus = {
+  available: 'available',
+  stale: 'stale',
+  unavailable: 'unavailable',
+} as const;
+
+export type CatalogueHistoryCapacityLevel = typeof CatalogueHistoryCapacityLevel[keyof typeof CatalogueHistoryCapacityLevel];
+
+
+export const CatalogueHistoryCapacityLevel = {
+  unknown: 'unknown',
+  normal: 'normal',
+  warning: 'warning',
+  urgent: 'urgent',
+  exceeded: 'exceeded',
+} as const;
+
+export interface CatalogueHistoryCapacity {
+  status: CatalogueHistoryCapacityStatus;
+  level: CatalogueHistoryCapacityLevel;
+  budgetBytes: number;
+  warningBytes: number;
+  urgentBytes: number;
+  sample: CatalogueHistoryAllocation | null;
+  previous: CatalogueHistoryAllocation | null;
+  /** @nullable */
+  revisionBytesPerDay: number | null;
+  /** @nullable */
+  auditBytesPerDay: number | null;
+  /** @nullable */
+  daysToBudget: number | null;
+  nextRefreshAt: string;
+  /** @nullable */
+  message: string | null;
+}
+
 export interface ShopperProfileInput {
   /**
      * @minLength 1
@@ -3927,6 +4035,22 @@ export const GetStaffExportReport = {
   campaign_aggregate: 'campaign_aggregate',
   content_seo_aggregate: 'content_seo_aggregate',
 } as const;
+
+export type ListStaffProductIndexParams = {
+/**
+ * @maxLength 160
+ */
+q?: string;
+/**
+ * @maxLength 160
+ */
+after?: string;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
+};
 
 export type ListStaffPolicyHistory200Item = { [key: string]: unknown };
 

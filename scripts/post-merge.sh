@@ -6,4 +6,5 @@ pnpm install --frozen-lockfile
 # files. Fail before schema changes if either consumer or checkout is broken.
 pnpm run validate:checkout
 node lib/db/scripts/ensure-shopper-schema.mjs
+node lib/db/scripts/ensure-catalogue-history-schema.mjs --development
 pnpm --filter @workspace/db run push

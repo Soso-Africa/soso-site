@@ -58,9 +58,15 @@ export async function recoverVerificationImports(
       for (const recorded of manifest.draftRevisions) {
         const [revision] = await tx.select().from(siteContentRevisionsTable).where(eq(siteContentRevisionsTable.id, recorded.id));
         if (!revision) continue; // repeat-safe after a partially finished recovery
+        const restored = await tx.execute<{ snapshot: unknown }>(sql`select soso_history_restore(${revision.id}::uuid) as snapshot`);
+        const dependent = await tx.execute<{ present: boolean }>(sql`
+          select exists(select 1 from ${siteContentRevisionsTable} where base_id = ${revision.id}::uuid) as present`);
+        if (dependent.rows[0]?.present !== false) {
+          throw new Error("Retained revisions depend on this verification base; discard withheld");
+        }
         if (revision.contentHash !== recorded.content_hash || revision.contentKey !== "platform" || revision.event !== "draft_saved"
           || !owners.some((s) => s.clerkUserId === revision.createdByClerkUserId)
-          || !active.some((r) => JSON.stringify(revision.snapshot).includes(r.path))) {
+          || !active.some((r) => JSON.stringify(restored.rows[0]?.snapshot).includes(r.path))) {
           throw new Error("Verification draft history changed; discard withheld");
         }
         await tx.delete(siteContentRevisionsTable).where(eq(siteContentRevisionsTable.id, revision.id));
