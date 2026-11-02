@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { db, siteContentTable, siteContentRevisionsTable, journalPostsTable, journalPostRevisionsTable } from "@workspace/db";
+import { db, siteContentTable, journalPostsTable, journalPostRevisionsTable } from "@workspace/db";
 import { mediaLock, uploads, sessions } from "./catalogue-import-ledger";
 import type { MediaStorage } from "./media-storage-types";
 import { MediaNotFoundError } from "./cloudinary-storage";
@@ -20,8 +20,7 @@ export async function cleanupImportUpload(owner: string, id: string, storage: Me
         select 1 from ${siteContentTable}
           where strpos(coalesce(${siteContentTable.draft}::text, ''), ${row.path}) > 0
              or strpos(coalesce(${siteContentTable.published}::text, ''), ${row.path}) > 0
-        union all select 1 from ${siteContentRevisionsTable}
-          where strpos(${siteContentRevisionsTable.snapshot}::text, ${row.path}) > 0
+        union all select 1 where soso_history_references(${row.path})
         union all select 1 from ${journalPostsTable}
           where strpos(coalesce(${journalPostsTable.coverImageUrl}, ''), ${row.path}) > 0
              or strpos(coalesce(${journalPostsTable.body}, ''), ${row.path}) > 0

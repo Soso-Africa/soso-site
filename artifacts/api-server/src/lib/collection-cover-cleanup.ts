@@ -1,4 +1,4 @@
-import { auditLogsTable, db, siteContentTable, siteContentRevisionsTable, journalPostsTable, journalPostRevisionsTable, catalogueImportUploadsTable, catalogueImportSessionsTable } from "@workspace/db";
+import { auditLogsTable, db, siteContentTable, journalPostsTable, journalPostRevisionsTable, catalogueImportUploadsTable, catalogueImportSessionsTable } from "@workspace/db";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { MediaNotFoundError } from "./cloudinary-storage";
 import { createMediaStorageService } from "./media-storage";
@@ -166,18 +166,20 @@ export async function processPendingCollectionCoverCleanup(
         published: siteContentTable.published,
       }).from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
       let retainedReference = false;
-      if (storage.provider === "r2" || importReceipt) {
+      let historyFailure: string | null = null;
+      {
         const needle = `${MANAGED_UPLOAD_PREFIX}${pending.path}`;
         // Conservative text containment also catches embedded Journal/body URLs
         // and query suffixes. False positives defer; they must never delete.
-        const found = await tx.execute<{ referenced: boolean }>(sql`
+        // Savepoint permits recording the refusal after a corrupt/missing base
+        // raises. Without it PostgreSQL aborts the surrounding transaction.
+        const found = await tx.transaction(async (check) => check.execute<{ referenced: boolean }>(sql`
           select exists(
             select 1 from ${siteContentTable}
               where strpos(coalesce(${siteContentTable.draft}::text, ''), ${needle}) > 0
                  or strpos(coalesce(${siteContentTable.published}::text, ''), ${needle}) > 0
             union all
-            select 1 from ${siteContentRevisionsTable}
-              where strpos(coalesce(${siteContentRevisionsTable.snapshot}::text, ''), ${needle}) > 0
+            select 1 where soso_history_references(${needle})
             union all
             select 1 from ${journalPostsTable}
               where strpos(coalesce(${journalPostsTable.coverImageUrl}, ''), ${needle}) > 0
@@ -189,8 +191,11 @@ export async function processPendingCollectionCoverCleanup(
             select 1 from ${catalogueImportSessionsTable}
               where strpos(coalesce(${catalogueImportSessionsTable.review}::text, ''), ${needle}) > 0
           ) as referenced
-        `);
-        retainedReference = found.rows[0]?.referenced !== false;
+        `)).catch((error: unknown) => {
+          historyFailure = error instanceof Error ? error.message.slice(0, 500) : "Retained history unavailable";
+          return null;
+        });
+        retainedReference = found?.rows[0]?.referenced !== false;
       }
       // Import review metadata is durable content too. Preserve an upload held
       // there regardless of the active storage provider.
@@ -213,7 +218,8 @@ export async function processPendingCollectionCoverCleanup(
           action: "platform_media.cleanup_deferred",
           entityType: "platform_media",
           entityId: pending.path,
-          metadata: { path: pending.path, reason: "still_referenced" },
+          metadata: { path: pending.path, reason: historyFailure ? "history_verification_failed" : "still_referenced",
+            ...(historyFailure ? { error: historyFailure } : {}) },
         });
         return "deferred" as const;
       }

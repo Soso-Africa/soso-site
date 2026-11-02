@@ -1,5 +1,7 @@
 import {
   boolean,
+  check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -9,6 +11,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -596,11 +599,50 @@ export const siteContentRevisionsTable = pgTable(
     event: text("event").notNull(),
     snapshot: jsonb("snapshot").$type<Record<string, unknown> | null>(),
     contentHash: text("content_hash").notNull(),
+    // Original content/audit hashes are never converted to the integrity hash.
+    historyFormat: text("history_format").notNull().default("legacy-full"),
+    hashEncoding: text("hash_encoding").notNull().default("legacy-preserved"),
+    integrityHash: text("integrity_hash"),
+    baseId: uuid("base_id"),
+    baseHash: text("base_hash"),
+    chainDepth: integer("chain_depth").notNull().default(0),
+    productChanges: jsonb("product_changes").$type<Array<{ index: number; slug: string; product: Record<string, unknown> }>>(),
+    mediaReferences: jsonb("media_references").$type<string[]>(),
+    mediaHash: text("media_hash"),
     createdByClerkUserId: text("created_by_clerk_user_id").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("soso_site_content_revisions_key_created_idx").on(table.contentKey, table.createdAt)],
+  (table) => [
+    index("soso_site_content_revisions_key_created_idx").on(table.contentKey, table.createdAt),
+    index("soso_history_base_idx").on(table.baseId).where(sql`${table.baseId} is not null`),
+    unique("soso_history_key_identity").on(table.id, table.contentKey),
+    foreignKey({ name: "soso_history_base", columns: [table.baseId, table.contentKey],
+      foreignColumns: [table.id, table.contentKey] }).onDelete("restrict"),
+    check("soso_history_shape", sql`
+      (${table.historyFormat} = 'legacy-full' AND ${table.baseId} IS NULL AND ${table.chainDepth} = 0
+        AND ${table.integrityHash} IS NULL AND ${table.productChanges} IS NULL AND ${table.mediaReferences} IS NULL AND ${table.mediaHash} IS NULL)
+      OR (${table.historyFormat} IN ('full-v1', 'products-v1')
+        AND ${table.hashEncoding} IN ('platform-canonical-json-v1', 'postgres-jsonb-text')
+        AND ${table.integrityHash} IS NOT NULL AND ${table.mediaHash} IS NOT NULL
+        AND ${table.mediaReferences} IS NOT NULL AND jsonb_typeof(${table.mediaReferences}) = 'array'
+        AND ((${table.historyFormat} = 'full-v1' AND ${table.baseId} IS NULL AND ${table.baseHash} IS NULL
+          AND ${table.chainDepth} = 0 AND ${table.productChanges} IS NULL)
+        OR (${table.historyFormat} = 'products-v1' AND ${table.snapshot} IS NULL AND ${table.baseId} IS NOT NULL
+          AND ${table.baseId} <> ${table.id} AND ${table.baseHash} IS NOT NULL AND ${table.chainDepth} BETWEEN 1 AND 31
+          AND ${table.productChanges} IS NOT NULL AND jsonb_typeof(${table.productChanges}) = 'array')))
+    `),
+  ],
 );
+
+export const catalogueHistoryWriterTable = pgTable("soso_catalogue_history_writer", {
+  singleton: boolean("singleton").primaryKey().default(true),
+  enabled: boolean("enabled").notNull().default(false),
+  qualification: text("qualification"),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  check("soso_catalogue_history_writer_singleton_check", sql`${table.singleton}`),
+  check("soso_catalogue_history_writer_check", sql`NOT ${table.enabled} OR (${table.qualification} IS NOT NULL AND length(${table.qualification}) >= 64)`),
+]);
 
 export const marketingPixelSettingsTable = pgTable(
   "soso_marketing_pixel_settings",

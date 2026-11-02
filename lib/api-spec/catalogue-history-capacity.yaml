@@ -1,0 +1,51 @@
+openapi: 3.1.0
+info:
+  title: CatalogueHistoryCapacity
+  version: 1.0.0
+paths:
+  /staff/catalogue-history-capacity:
+    get:
+      operationId: getStaffCatalogueHistoryCapacity
+      tags: [staff]
+      summary: Owner-only retained history allocation, measured at most daily
+      responses:
+        "200":
+          description: Last successful measurement or explicit unavailable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogueHistoryCapacity"
+        "401": { description: Staff authentication required }
+        "403": { description: Owner access required }
+        "503": { description: Measurement cache unavailable }
+components:
+  schemas:
+    CatalogueHistoryAllocation:
+      type: object
+      required: [measuredAt, revisionBytes, auditBytes]
+      properties:
+        measuredAt: { type: string }
+        revisionBytes: { type: number, minimum: 0, maximum: 9007199254740991 }
+        auditBytes: { type: number, minimum: 0, maximum: 9007199254740991 }
+    CatalogueHistoryCapacity:
+      type: object
+      required: [status, level, budgetBytes, warningBytes, urgentBytes, sample, previous, revisionBytesPerDay, auditBytesPerDay, daysToBudget, nextRefreshAt, message]
+      properties:
+        status: { type: string, enum: [available, stale, unavailable] }
+        level: { type: string, enum: [unknown, normal, warning, urgent, exceeded] }
+        budgetBytes: { type: number }
+        warningBytes: { type: number }
+        urgentBytes: { type: number }
+        sample:
+          oneOf:
+            - $ref: "#/components/schemas/CatalogueHistoryAllocation"
+            - type: "null"
+        previous:
+          oneOf:
+            - $ref: "#/components/schemas/CatalogueHistoryAllocation"
+            - type: "null"
+        revisionBytesPerDay: { type: [number, "null"] }
+        auditBytesPerDay: { type: [number, "null"] }
+        daysToBudget: { type: [number, "null"] }
+        nextRefreshAt: { type: string }
+        message: { type: [string, "null"] }

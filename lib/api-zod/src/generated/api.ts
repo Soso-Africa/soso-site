@@ -536,6 +536,47 @@ export const GetStaffCloudinaryUsageResponse = zod.object({
 })
 
 
+/**
+ * @summary Owner-only retained history allocation, measured at most daily
+ */
+export const getStaffCatalogueHistoryCapacityResponseSampleOneRevisionBytesMin = 0;
+export const getStaffCatalogueHistoryCapacityResponseSampleOneRevisionBytesMax = 9007199254740991;
+
+export const getStaffCatalogueHistoryCapacityResponseSampleOneAuditBytesMin = 0;
+export const getStaffCatalogueHistoryCapacityResponseSampleOneAuditBytesMax = 9007199254740991;
+
+export const getStaffCatalogueHistoryCapacityResponsePreviousOneRevisionBytesMin = 0;
+export const getStaffCatalogueHistoryCapacityResponsePreviousOneRevisionBytesMax = 9007199254740991;
+
+export const getStaffCatalogueHistoryCapacityResponsePreviousOneAuditBytesMin = 0;
+export const getStaffCatalogueHistoryCapacityResponsePreviousOneAuditBytesMax = 9007199254740991;
+
+
+
+export const GetStaffCatalogueHistoryCapacityResponse = zod.object({
+  "status": zod.enum(['available', 'stale', 'unavailable']),
+  "level": zod.enum(['unknown', 'normal', 'warning', 'urgent', 'exceeded']),
+  "budgetBytes": zod.number(),
+  "warningBytes": zod.number(),
+  "urgentBytes": zod.number(),
+  "sample": zod.union([zod.object({
+  "measuredAt": zod.string(),
+  "revisionBytes": zod.number().min(getStaffCatalogueHistoryCapacityResponseSampleOneRevisionBytesMin).max(getStaffCatalogueHistoryCapacityResponseSampleOneRevisionBytesMax),
+  "auditBytes": zod.number().min(getStaffCatalogueHistoryCapacityResponseSampleOneAuditBytesMin).max(getStaffCatalogueHistoryCapacityResponseSampleOneAuditBytesMax)
+}),zod.null()]),
+  "previous": zod.union([zod.object({
+  "measuredAt": zod.string(),
+  "revisionBytes": zod.number().min(getStaffCatalogueHistoryCapacityResponsePreviousOneRevisionBytesMin).max(getStaffCatalogueHistoryCapacityResponsePreviousOneRevisionBytesMax),
+  "auditBytes": zod.number().min(getStaffCatalogueHistoryCapacityResponsePreviousOneAuditBytesMin).max(getStaffCatalogueHistoryCapacityResponsePreviousOneAuditBytesMax)
+}),zod.null()]),
+  "revisionBytesPerDay": zod.number().nullable(),
+  "auditBytesPerDay": zod.number().nullable(),
+  "daysToBudget": zod.number().nullable(),
+  "nextRefreshAt": zod.string(),
+  "message": zod.string().nullable()
+})
+
+
 export const GetShopperProfileResponse = zod.object({
   "customer": zod.object({
   "id": zod.string(),
@@ -3779,6 +3820,81 @@ export const PublishStaffPlatformContentResponse = zod.object({
   "publishedAt": zod.coerce.date().nullish(),
   "updatedByClerkUserId": zod.string().nullish(),
   "publishedByClerkUserId": zod.string().nullish()
+})
+
+
+export const listStaffProductIndexQueryQMax = 160;
+
+export const listStaffProductIndexQueryAfterMax = 160;
+
+export const listStaffProductIndexQueryLimitDefault = 25;
+export const listStaffProductIndexQueryLimitMax = 50;
+
+
+
+export const ListStaffProductIndexQueryParams = zod.object({
+  "q": zod.coerce.string().max(listStaffProductIndexQueryQMax).optional(),
+  "after": zod.coerce.string().max(listStaffProductIndexQueryAfterMax).optional(),
+  "limit": zod.coerce.number().int().min(1).max(listStaffProductIndexQueryLimitMax).default(listStaffProductIndexQueryLimitDefault)
+})
+
+export const ListStaffProductIndexResponse = zod.object({
+  "items": zod.array(zod.object({
+  "slug": zod.string(),
+  "name": zod.string()
+})),
+  "nextCursor": zod.string().nullable()
+})
+
+
+export const getStaffProductEditorPathSlugMax = 160;
+
+
+export const getStaffProductEditorPathSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+export const GetStaffProductEditorParams = zod.object({
+  "slug": zod.coerce.string().max(getStaffProductEditorPathSlugMax).regex(getStaffProductEditorPathSlugRegExp)
+})
+
+export const GetStaffProductEditorResponse = zod.object({
+  "product": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable()
+}).and(zod.object({
+  "publishedProduct": zod.record(zod.string(), zod.unknown()).nullable(),
+  "collections": zod.array(zod.object({
+  "slug": zod.string(),
+  "label": zod.string(),
+  "category": zod.string(),
+  "department": zod.enum(['men', 'women', 'accessories'])
+})),
+  "relatedProducts": zod.array(zod.object({
+  "slug": zod.string(),
+  "name": zod.string()
+}))
+}))
+
+
+export const saveStaffProductEditorPathSlugMax = 160;
+
+
+export const saveStaffProductEditorPathSlugRegExp = new RegExp('^[a-z0-9]+(?:-[a-z0-9]+)*$');
+
+
+export const SaveStaffProductEditorParams = zod.object({
+  "slug": zod.coerce.string().max(saveStaffProductEditorPathSlugMax).regex(saveStaffProductEditorPathSlugRegExp)
+})
+
+export const SaveStaffProductEditorBody = zod.object({
+  "product": zod.record(zod.string(), zod.unknown()),
+  "expectedDraftUpdatedAt": zod.coerce.date()
+})
+
+export const SaveStaffProductEditorResponse = zod.object({
+  "product": zod.record(zod.string(), zod.unknown()),
+  "draftUpdatedAt": zod.coerce.date(),
+  "publishedAt": zod.coerce.date().nullable()
 })
 
 

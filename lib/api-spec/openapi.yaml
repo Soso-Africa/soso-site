@@ -158,6 +158,8 @@ paths:
     $ref: "./shopper.openapi.yaml#/paths/~1shopper~1orders~1{id}"
   /storage/usage:
     $ref: "./cloudinary-usage.yaml#/paths/~1storage~1usage"
+  /staff/catalogue-history-capacity:
+    $ref: "./catalogue-history-capacity.yaml#/paths/~1staff~1catalogue-history-capacity"
   /account/profile:
     $ref: "./shopper-accounts.yaml#/paths/~1account~1profile"
   /account/link:
@@ -1355,6 +1357,50 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/StaffPlatformContent" }
         "409": { description: "Draft was changed by another editor" }
+  /staff/content/platform/product-index:
+    get:
+      operationId: listStaffProductIndex
+      tags: [Staff]
+      parameters:
+        - { name: q, in: query, schema: { type: string, maxLength: 160 } }
+        - { name: after, in: query, schema: { type: string, maxLength: 160 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 25 } }
+      responses:
+        "200":
+          description: Bounded draft product names, without catalogue snapshots
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffProductIndex" }
+  /staff/content/platform/products/{slug}/editor:
+    parameters:
+      - { name: slug, in: path, required: true, schema: { type: string, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$", maxLength: 160 } }
+    get:
+      operationId: getStaffProductEditor
+      tags: [Staff]
+      responses:
+        "200":
+          description: One saved draft product and its published counterpart
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffProductEditor" }
+        "404": { description: Product not in the saved draft }
+    put:
+      operationId: saveStaffProductEditor
+      tags: [Staff]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StaffProductEdit" }
+      responses:
+        "200":
+          description: Only the committed product and current document versions
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StaffProductCommit" }
+        "400": { description: "Invalid product, media, mapping or catalogue references" }
+        "404": { description: Product not in the saved draft }
+        "409": { description: Saved draft changed; local edits must be retained }
   /staff/content/platform/products/{slug}/publish:
     post:
       operationId: publishStaffPlatformProduct
@@ -2236,6 +2282,50 @@ components:
         publishedAt: { type: ["string", "null"], format: date-time }
         updatedByClerkUserId: { type: ["string", "null"] }
         publishedByClerkUserId: { type: ["string", "null"] }
+    StaffProductSummary:
+      type: object
+      required: [slug, name]
+      properties:
+        slug: { type: string }
+        name: { type: string }
+    StaffProductIndex:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/StaffProductSummary" } }
+        nextCursor: { type: ["string", "null"] }
+    StaffProductCommit:
+      type: object
+      required: [product, draftUpdatedAt, publishedAt]
+      properties:
+        product: { type: object, additionalProperties: true }
+        draftUpdatedAt: { type: string, format: date-time }
+        publishedAt: { type: ["string", "null"], format: date-time }
+    StaffProductEditor:
+      allOf:
+        - { $ref: "#/components/schemas/StaffProductCommit" }
+        - type: object
+          required: [publishedProduct, collections, relatedProducts]
+          properties:
+            publishedProduct: { type: ["object", "null"], additionalProperties: true }
+            collections:
+              type: array
+              items:
+                type: object
+                required: [slug, label, category, department]
+                properties:
+                  slug: { type: string }
+                  label: { type: string }
+                  category: { type: string }
+                  department: { type: string, enum: [men, women, accessories] }
+            relatedProducts: { type: array, items: { $ref: "#/components/schemas/StaffProductSummary" } }
+    StaffProductEdit:
+      type: object
+      additionalProperties: false
+      required: [product, expectedDraftUpdatedAt]
+      properties:
+        product: { type: object, additionalProperties: true }
+        expectedDraftUpdatedAt: { type: string, format: date-time }
     PlatformContentUpdate:
       type: object
       additionalProperties: false

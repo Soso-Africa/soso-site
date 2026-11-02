@@ -6,6 +6,7 @@ import { PlatformEditorSite } from "../components/staff/PlatformEditorSite";
 import { committedRowFor } from "../components/staff/platform-row";
 import type { SaveResult } from "../components/staff/product/product-state";
 import { PlatformEditorCatalogue } from "../components/staff/PlatformEditorCatalogue";
+import { FocusedProductWorkspace } from "../components/staff/FocusedProductWorkspace";
 import { assertSpreadsheetDoesNotOverwriteEditor, reconcileSavedProducts } from "../components/staff/import/editor-merge";
 import { runGuidedReview } from "../components/staff/product/guided-review";
 import { stable } from "../components/staff/product/product-state";
@@ -21,6 +22,8 @@ import {
   customFetch,
   exportStaffAccessoryLaunchNotificationSummary,
   getStaffExport,
+  saveStaffProductEditor,
+  type StaffProductCommit,
   useAcknowledgeStaffNotification,
   useCreateStaffJournalPost,
   useCreateStaffPrivacyRequest,
@@ -102,6 +105,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExperimentLog } from "@/components/ExperimentLog";
+import { CatalogueHistoryCapacity } from "@/components/staff/CatalogueHistoryCapacity";
 import type { PlatformContent } from "@/data/platformContent";
 import { Suspense, lazy } from "react";
 
@@ -384,6 +388,7 @@ export default function Staff() {
           <button type="button" disabled={refreshingLists} onClick={() => void refreshLists()} className="border border-primary px-3 py-2 text-xs font-semibold disabled:opacity-50">{refreshingLists ? "Refreshing…" : "Refresh lists & alerts"}</button>
           {refreshNotice && <p role="status" className="w-full text-xs">{refreshNotice}</p>}
         </div>
+        {activeTab === "overview" && profile.role === "owner" && <CatalogueHistoryCapacity ownerId={profile.id} />}
         {isEditorial && staleCatalogueQuery.isError && <p role="status" className="mt-4 text-sm text-muted-foreground">Catalogue alerts could not refresh. Saving and publishing still check current mappings.</p>}
         {staleCatalogueProducts.length > 0 && (
           <aside role="alert" className="mt-6 border border-amber-300 bg-amber-50 p-4 text-amber-950">
@@ -705,7 +710,55 @@ const platformSections: { id: PlatformSection; label: string }[] = [
   { id: "pages", label: "Pages & SEO" },
 ];
 
+/** Apply a compact product commit to the saved row: only that product and the draft timestamp change. */
+function applyProductCommit(row: PlatformContentRow | null, commit: StaffProductCommit): PlatformContentRow | null {
+  if (!row?.draft) return row;
+  const product = commit.product as unknown as PlatformContent["products"][number];
+  const exists = row.draft.products.some((item) => item.slug === product.slug);
+  return {
+    ...row,
+    draft: { ...row.draft, products: exists ? row.draft.products.map((item) => item.slug === product.slug ? product : item) : [...row.draft.products, product] },
+    draftUpdatedAt: commit.draftUpdatedAt,
+    // publishedAt is kept: the compact commit carries no refreshed published snapshot, so advancing it
+    // could make stale publication state look current. Publish actions re-check on the server anyway.
+  };
+}
+
 function PlatformContentManagementSection() {
+  const requestedSection = new URLSearchParams(window.location.search).get("platformSection");
+  const initialProductSlug = new URLSearchParams(window.location.search).get("product");
+  const [mode, setMode] = useState<"focused" | "full">(requestedSection && requestedSection !== "catalogue" ? "full" : "focused");
+  const [fullMounted, setFullMounted] = useState(mode === "full");
+  const [focusedDirty, setFocusedDirty] = useState<string[]>([]);
+  const openFull = () => { setFullMounted(true); setMode("full"); };
+  return <>
+    <div className="mt-6 flex flex-wrap items-center gap-2" role="tablist" aria-label="Catalogue editing mode">
+      <button type="button" role="tab" aria-selected={mode === "focused"} onClick={() => setMode("focused")} data-testid="platform-mode-focused"
+        className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${mode === "focused" ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
+        Product editing{focusedDirty.length ? ` (${focusedDirty.length} unsaved)` : ""}
+      </button>
+      <button type="button" role="tab" aria-selected={mode === "full"} onClick={openFull} data-testid="platform-mode-full"
+        className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${mode === "full" ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
+        Full catalogue tools
+      </button>
+      <p className="text-xs text-muted-foreground">Switching keeps unsaved work in both views.</p>
+    </div>
+    <div hidden={mode !== "focused"}>
+      <FocusedProductWorkspace
+        initialProductSlug={initialProductSlug}
+        onOpenFullTools={openFull}
+        onDirtyChange={setFocusedDirty}
+        onUploadMedia={(file) => uploadStaffMedia(file)}
+      />
+    </div>
+    {fullMounted && <div hidden={mode !== "full"}>
+      {focusedDirty.length > 0 && <p role="status" className="mt-4 border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">Product editing has unsaved changes ({focusedDirty.join(", ")}). They are kept; save them there. The full tools show the saved draft and may not include those edits.</p>}
+      <FullPlatformContentManagementSection />
+    </div>}
+  </>;
+}
+
+function FullPlatformContentManagementSection() {
   const requestedSection = new URLSearchParams(window.location.search).get("platformSection");
   const initialSection: PlatformSection = platformSections.some(({ id }) => id === requestedSection)
     ? requestedSection as PlatformSection
@@ -805,11 +858,18 @@ function PlatformContentManagementSection() {
       const product = parsedDocument().products.find((item) => item.slug === slug);
       if (!product) return { ok: false, message: "Product not found in the editor." };
       setSaving(true);
-      const next = await customFetch<PlatformContentRow>(`/api/staff/content/platform/products/${encodeURIComponent(slug)}/draft`, {
-        method: "PUT", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ product, expectedDraftUpdatedAt: row.draftUpdatedAt }), responseType: "json",
-      });
-      setRow(next);
+      if (row.draft?.products.some((item) => item.slug === slug)) {
+        // Existing saved product: compact editor transport. Only the saved item and timestamp are reconciled;
+        // every local edit (including this product's typing during the request) stays in the editor.
+        const commit = await saveStaffProductEditor(slug, { product: product as unknown as Record<string, unknown>, expectedDraftUpdatedAt: row.draftUpdatedAt });
+        setRow((prev) => applyProductCommit(prev, commit));
+      } else {
+        const next = await customFetch<PlatformContentRow>(`/api/staff/content/platform/products/${encodeURIComponent(slug)}/draft`, {
+          method: "PUT", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ product, expectedDraftUpdatedAt: row.draftUpdatedAt }), responseType: "json",
+        });
+        setRow(next);
+      }
       try { await refreshRevisions(); } catch { /* A history outage does not undo the save. */ }
       const message = `${product.name} changes saved to the unpublished draft only. Other unsaved edits remain in the editor; the storefront was not updated.`;
       setStatus(message);
@@ -1056,7 +1116,7 @@ function PlatformContentManagementSection() {
         });
         setRow(next);
       } else {
-        type Change = { method: "PATCH" | "PUT" | "DELETE"; path: string; value?: unknown; catalogue?: {
+        type Change = { method: "PATCH" | "PUT" | "DELETE"; path: string; value?: unknown; editorSlug?: string; catalogue?: {
           collections: PlatformContent["collections"];
           upserts: Array<{ slug: string; product: PlatformContent["products"][number] }>;
           deletions: string[];
@@ -1090,12 +1150,21 @@ function PlatformContentManagementSection() {
         if (coupled && deletions.length) changes.push(catalogueChange);
         if (!coupled) {
           for (const { slug, product } of upserts.filter(({ slug }) => oldProducts.has(slug)))
-            changes.push({ method: "PUT", path: productPath(slug), value: product });
+            changes.push({ method: "PUT", path: productPath(slug), value: product, editorSlug: slug });
           for (const slug of deletions)
             changes.push({ method: "DELETE", path: productPath(slug) });
         }
         let expected = row.draftUpdatedAt;
         for (const change of changes) {
+          if (change.editorSlug) {
+            const commit = await saveStaffProductEditor(change.editorSlug, {
+              product: change.value as Record<string, unknown>, expectedDraftUpdatedAt: expected,
+            });
+            setRow((prev) => applyProductCommit(prev, commit));
+            expected = commit.draftUpdatedAt;
+            savedCount++;
+            continue;
+          }
           const next = await customFetch<PlatformContentRow>(change.path, {
             method: change.method, headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -1111,6 +1180,12 @@ function PlatformContentManagementSection() {
           savedCount++;
         }
         if (!changes.length) { setStatus("No changes to save."); return; }
+        if (changes.every((change) => change.editorSlug)) {
+          // Existing-product-only saves: no full reload, so typing during the save is never overwritten.
+          try { await refreshRevisions(); } catch { /* history refresh is best-effort */ }
+          setStatus(`${changes.length} product${changes.length === 1 ? "" : "s"} saved to the draft. It is not public until published.`);
+          return;
+        }
       }
       await load();
       setStatus("Draft saved. It is not public until published.");
