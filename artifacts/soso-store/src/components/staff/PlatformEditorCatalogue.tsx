@@ -113,6 +113,8 @@ export function PlatformEditorCatalogue({
   });
   const [commerceProducts, setCommerceProducts] = useState<CommerceCatalogProduct[]>([]);
   const [commerceStatus, setCommerceStatus] = useState<"loading" | "ready" | "unavailable">("loading");
+  const [commerceError, setCommerceError] = useState("");
+  const commerceRequestRef = useRef<AbortController | null>(null);
   const [deletingProductSlug, setDeletingProductSlug] = useState<string | null>(null);
   const [mappingPreview, setMappingPreview] = useState<MappingPreview | null>(null);
   const [mappingPreviewGeneration, setMappingPreviewGeneration] = useState(0);
@@ -184,22 +186,31 @@ export function PlatformEditorCatalogue({
     });
   }, [data.products, initialProductSlug]);
 
-  useEffect(() => {
+  const refreshCommerceCatalogue = useCallback(async () => {
+    commerceRequestRef.current?.abort();
     const controller = new AbortController();
-    void fetch("/api/staff/commerce/catalogue", { credentials: "include", signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Commerce catalogue unavailable");
-        const payload = await response.json() as { products?: CommerceCatalogProduct[] };
-        if (!Array.isArray(payload.products)) throw new Error("Invalid Commerce catalogue");
-        setCommerceProducts(payload.products);
-        setCommerceStatus("ready");
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setCommerceStatus("unavailable");
-      });
-    return () => controller.abort();
+    commerceRequestRef.current = controller;
+    setCommerceStatus("loading");
+    setCommerceError("");
+    try {
+      const response = await fetch("/api/staff/commerce/catalogue", { credentials: "include", signal: controller.signal });
+      if (!response.ok) throw new Error("JusticeSure products could not be loaded. Refresh to try again.");
+      const payload = await response.json() as { products?: CommerceCatalogProduct[] };
+      if (!Array.isArray(payload.products)) throw new Error("JusticeSure returned an invalid product list. Refresh to try again.");
+      if (controller.signal.aborted) return;
+      setCommerceProducts(payload.products);
+      setCommerceStatus("ready");
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setCommerceStatus("unavailable");
+      setCommerceError(error instanceof Error ? error.message : "JusticeSure products could not be loaded.");
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshCommerceCatalogue();
+    return () => commerceRequestRef.current?.abort();
+  }, [refreshCommerceCatalogue]);
 
   const mappingSummary = useMemo(() => {
     const mapped = data.products.filter((product) => product.commerceProductId);
@@ -505,6 +516,10 @@ export function PlatformEditorCatalogue({
             </div>
             
             <div className="flex flex-wrap items-center justify-end gap-2">
+              <button type="button" disabled={commerceStatus === "loading"} onClick={() => void refreshCommerceCatalogue()} className="border border-primary px-3 py-2 text-[10px] font-semibold uppercase tracking-wider disabled:opacity-50">
+                {commerceStatus === "loading" ? "Loading JusticeSure products…" : "Refresh JusticeSure products"}
+              </button>
+              {commerceError && <p role="alert" className="w-full text-xs text-destructive">{commerceError} Your unsaved edits are unchanged.</p>}
               <button
                 type="button"
                 onClick={addProduct}
@@ -629,6 +644,7 @@ export function PlatformEditorCatalogue({
               onUploadMedia={onUploadMedia}
               commerceProducts={commerceProducts}
               commerceStatus={commerceStatus}
+              onRefreshCommerce={() => void refreshCommerceCatalogue()}
               mappingSuggestion={suggestion}
               isWebhookStale={webhookStaleSlugs.includes(product.slug)}
               savedProduct={savedProducts.find((item) => item.slug === product.slug)}
