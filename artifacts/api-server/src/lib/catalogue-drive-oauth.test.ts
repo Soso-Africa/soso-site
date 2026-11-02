@@ -20,6 +20,14 @@ process.env.GOOGLE_DRIVE_CLIENT_SECRET = "synthetic-drive-client-secret";
 process.env.GOOGLE_DRIVE_REDIRECT_URI = `https://staff.example.test${DRIVE_CALLBACK_PATH}`;
 process.env.SESSION_SECRET = "synthetic-drive-encryption-key-never-used-in-production";
 process.env.VERCEL = "1";
+test("unconfigured hosted scans explain owner setup before any session or folder lookup", async () => {
+  delete process.env.GOOGLE_DRIVE_CLIENT_ID;
+  try {
+    await assert.rejects(importDriveRead({} as Request, "folder_identifier123"), /Direct Drive is not configured on this host/);
+  } finally {
+    process.env.GOOGLE_DRIVE_CLIENT_ID = "synthetic-drive-client";
+  }
+});
 const origin = "https://staff.example.test";
 const folderId = "folder_identifier123", fileId = "photo_identifier1234";
 const token = "synthetic-google-access-token";
