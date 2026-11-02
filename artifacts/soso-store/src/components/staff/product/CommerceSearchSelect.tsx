@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "../../ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "../../ui/popover";
@@ -17,6 +17,7 @@ export function CommerceSearchSelect({
   disabled = false,
   placeholder,
   testId,
+  optionsStatus = "ready",
 }: {
   label: string;
   value: string;
@@ -25,11 +26,15 @@ export function CommerceSearchSelect({
   disabled?: boolean;
   placeholder: string;
   testId?: string;
+  optionsStatus?: "loading" | "ready" | "unavailable";
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const selected = options.find((option) => option.id === value);
+  const displayLabel = optionsStatus !== "ready"
+    ? placeholder
+    : selected?.label ?? (value ? `Previously selected item unavailable · ${value}` : placeholder);
 
   return (
     <div className="flex flex-col gap-1">
@@ -38,14 +43,14 @@ export function CommerceSearchSelect({
         <PopoverTrigger asChild>
           <button
             type="button"
-            disabled={disabled}
-            aria-label={`${label}: ${selected?.label ?? (value ? "Previously selected item unavailable" : placeholder)}. Type to search.`}
+            disabled={disabled || optionsStatus !== "ready"}
+            aria-label={`${label}: ${displayLabel}${disabled || optionsStatus !== "ready" ? "" : ". Type to search."}`}
             aria-haspopup="listbox"
             aria-expanded={open}
             data-testid={testId}
             className="staff-input flex min-h-10 w-full items-center justify-between gap-2 text-left text-xs disabled:opacity-50"
           >
-            <span className="truncate">{selected?.label ?? (value ? `Previously selected item unavailable · ${value}` : placeholder)}</span>
+            <span className="truncate">{displayLabel}</span>
             <ChevronsUpDown size={14} className="shrink-0 opacity-60" />
           </button>
         </PopoverTrigger>
@@ -78,7 +83,7 @@ export function CommerceSearchSelect({
           </Command>
         </PopoverContent>
       </Popover>
-      {value && !selected && <span role="alert" className="text-[10px] text-amber-700">The previously selected ID is not in the current JusticeSure catalogue. Choose a current item.</span>}
+      {optionsStatus === "ready" && value && !selected && <span role="alert" className="text-[10px] text-amber-700">The previously selected ID is not in the current JusticeSure catalogue. Choose a current item.</span>}
     </div>
   );
 }

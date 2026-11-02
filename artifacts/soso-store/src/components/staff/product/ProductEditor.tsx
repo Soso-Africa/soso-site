@@ -53,6 +53,7 @@ export function ProductEditor({
   onUploadMedia,
   commerceProducts,
   commerceStatus,
+  onRefreshCommerce,
   mappingSuggestion: reviewedSuggestion,
   mappingPreviewMeta,
   isWebhookStale = false,
@@ -77,6 +78,7 @@ export function ProductEditor({
   onUploadMedia: (file: File) => Promise<string>;
   commerceProducts: CommerceCatalogProduct[];
   commerceStatus: "loading" | "ready" | "unavailable";
+  onRefreshCommerce?: () => void;
   mappingSuggestion?: MappingSuggestion;
   mappingPreviewMeta?: Pick<MappingPreview, "snapshotHash" | "fetchedAt">;
   isWebhookStale?: boolean;
@@ -920,6 +922,7 @@ export function ProductEditor({
                     label="JusticeSure Product"
                     value={product.commerceProductId ?? ""}
                     options={commerceProductOptions}
+                    optionsStatus={commerceStatus}
                     disabled={commerceStatus !== "ready"}
                     placeholder={commerceStatus === "loading" ? "Loading JusticeSure products…" : commerceStatus === "unavailable" ? "JusticeSure catalogue unavailable" : "Search JusticeSure products"}
                     testId={`input-product-commerce-id-${product.slug}`}
@@ -936,6 +939,13 @@ export function ProductEditor({
                       });
                     }}
                   />
+                  {onRefreshCommerce && (
+                    <button type="button" disabled={commerceStatus === "loading"} onClick={onRefreshCommerce} className="mt-2 border border-border px-3 py-2 text-xs disabled:opacity-50">
+                      {commerceStatus === "loading" ? "Loading JusticeSure products…" : "Refresh JusticeSure products"}
+                    </button>
+                  )}
+                  {commerceStatus === "unavailable" && <p role="alert" className="mt-2 text-xs text-destructive">The JusticeSure product list could not be loaded, so selection is temporarily disabled. Refresh JusticeSure products to retry without losing your edits.</p>}
+                  {commerceStatus === "ready" && commerceProducts.length === 0 && <p role="status" className="mt-2 text-xs text-amber-700">JusticeSure returned no products. Create the product in the connected JusticeSure catalogue, then refresh this list.</p>}
 
                   {mappedCommerceProduct && (
                     <div className="grid gap-2 border border-border bg-muted/20 p-3 text-[10px] sm:grid-cols-3">
