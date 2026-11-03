@@ -1,4 +1,19 @@
 import type { PlatformContent } from "../../../data/platformContent";
+import { stable } from "./product-state";
+
+/**
+ * Deletion deliberately discards the selected product, not other editor work.
+ * Compare semantically: PostgreSQL/JSON serialization can reorder object keys.
+ */
+export function hasOtherDraftEditsForDeletion(
+  editor: PlatformContent, saved: PlatformContent, slug: string,
+): boolean {
+  const withoutSelected = (document: PlatformContent) => ({
+    ...document,
+    products: document.products.filter((product) => product.slug !== slug),
+  });
+  return stable(withoutSelected(editor)) !== stable(withoutSelected(saved));
+}
 
 /** Find references outside the product itself before removing it from a draft. */
 export function productDeletionReferences(content: PlatformContent, slug: string): string[] {
