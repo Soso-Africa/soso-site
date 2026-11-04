@@ -111,6 +111,7 @@ try {
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/staff");
   await page.getByRole("button", { name: "Platform content" }).click();
+  await page.getByTestId("platform-mode-full").click();
   await page.getByTestId("platform-section-catalogue").click();
 
   const referencedSlug = savedRow.draft.homepage.featured.productSlugs[0];
@@ -121,6 +122,23 @@ try {
   });
   await page.getByTestId(`button-delete-catalogue-product-${referencedSlug}`).click();
   assert.ok(await page.getByTestId(`catalogue-product-${referencedSlug}`).count());
+
+  // An unfinished edit to the selected item must not require a save first.
+  // Use a non-featured fixture so the later public-removal checks stay intact.
+  const editedDeleteProduct = savedRow.draft.products.find((p) =>
+    p.slug !== referencedSlug && p.slug !== publicRemovalFixture.slug
+    && !savedRow.draft.homepage.featured.productSlugs.includes(p.slug));
+  assert.ok(editedDeleteProduct);
+  await page.getByTestId(`catalogue-product-header-${editedDeleteProduct.slug}`).click();
+  const editedDeleteCard = page.getByTestId(`catalogue-product-${editedDeleteProduct.slug}`);
+  await editedDeleteCard.getByTestId(`input-product-name-${editedDeleteProduct.slug}`).fill("Unsaved item to delete");
+  page.once("dialog", (dialog) => {
+    assert.match(dialog.message(), /Unsaved changes to this product will also be discarded/);
+    dialog.accept();
+  });
+  await page.getByTestId(`button-delete-catalogue-product-${editedDeleteProduct.slug}`).click();
+  await page.getByTestId(`catalogue-product-${editedDeleteProduct.slug}`).waitFor({ state: "detached" });
+  assert.ok(deletedSavedSlugs.includes(editedDeleteProduct.slug));
 
   await page.getByTestId("button-add-catalogue-product").click();
   const added = page.locator('[data-testid^="catalogue-product-new-product-"]').first();

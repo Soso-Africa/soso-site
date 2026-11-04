@@ -10,7 +10,7 @@ import { FocusedProductWorkspace } from "../components/staff/FocusedProductWorks
 import { assertSpreadsheetDoesNotOverwriteEditor, reconcileSavedProducts } from "../components/staff/import/editor-merge";
 import { runGuidedReview } from "../components/staff/product/guided-review";
 import { stable } from "../components/staff/product/product-state";
-import { productDeletionReferences } from "../components/staff/product/catalogue-delete";
+import { hasOtherDraftEditsForDeletion, productDeletionReferences } from "../components/staff/product/catalogue-delete";
 import { platformActionError } from "../components/staff/platform-action-error";
 import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
 import { CommerceActivationPanel } from "../components/staff/CommerceActivationPanel";
@@ -993,11 +993,12 @@ function FullPlatformContentManagementSection() {
       if (!isSaved && references.length) {
         return `Remove references to ${product.name} before discarding the unsaved product: ${references.slice(0, 5).join(", ")}.`;
       }
-      if (isSaved && JSON.stringify(document) !== JSON.stringify(row?.draft)) {
-        return "Save or discard other unsaved edits before deleting this product. Deletion must not discard your work.";
+      if (isSaved && row?.draft && hasOtherDraftEditsForDeletion(document, row.draft, slug)) {
+        return "There are unsaved changes to other products or catalogue sections. Save or discard those changes first, then retry Delete from draft. You do not need to save changes to the product being deleted.";
       }
       if (isSaved && !row?.draftUpdatedAt) return "Reload the saved draft before deleting this product.";
-      if (!window.confirm(`${isSaved ? "Delete" : "Discard unsaved"} ${product.name} from the draft now?${references.length ? ` ${references.length} draft reference${references.length === 1 ? "" : "s"} will also be removed or redirected to Shop.` : ""}${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
+      const hasSelectedEdits = isSaved && stable(product) !== stable(row?.draft?.products.find((item) => item.slug === slug));
+      if (!window.confirm(`${isSaved ? "Delete" : "Discard unsaved"} ${product.name} from the draft now?${hasSelectedEdits ? " Unsaved changes to this product will also be discarded." : ""}${references.length ? ` ${references.length} draft reference${references.length === 1 ? "" : "s"} will also be removed or redirected to Shop.` : ""}${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
       if (isSaved) {
         setSaving(true);
         try {
