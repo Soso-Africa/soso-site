@@ -112,7 +112,7 @@ router.post(
       parsed.data.name === ".."
     ) {
       res.status(400).json({
-        error: "Choose a JPEG, PNG, WebP, or GIF image up to 12 MB, or an MP4 or WebM video up to 8 MB, with a safe filename",
+        error: "Choose a JPEG, PNG, WebP, or GIF image up to 12 MiB, or an MP4 or WebM video up to 24 MiB, with a safe filename",
       });
       return;
     }

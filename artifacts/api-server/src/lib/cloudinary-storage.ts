@@ -4,6 +4,7 @@ import {
   imageDimensions,
   isAnimatedImage,
   MAX_HERO_POSTER_BYTES,
+  MAX_HERO_VIDEO_BYTES,
   mediaMimeTypeForPath,
 } from "./media-files";
 
@@ -106,7 +107,7 @@ export function cloudinaryUploadPolicyForContentType(contentType: string): Cloud
       resourceType: "video",
       preset: "soso-governed-video-v1",
       allowedFormats: ["mp4", "webm"],
-      maxFileSize: 8 * 1024 * 1024,
+      maxFileSize: MAX_HERO_VIDEO_BYTES,
     };
   }
   throw new Error("Unsupported media content type");

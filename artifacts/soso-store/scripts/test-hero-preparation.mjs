@@ -23,7 +23,7 @@ test("offline preparation preserves footage, reports savings and cannot overwrit
     const outputDirectory = path.join(directory, "new-export");
     const report = await prepareHero(source, outputDirectory);
     assert.ok(report.after.bytes < report.before.bytes);
-    assert.ok(report.after.bytes <= 8 * 1024 * 1024);
+    assert.ok(report.after.bytes <= 24 * 1024 * 1024);
     assert.equal(report.before.width, report.after.width);
     assert.equal(report.before.height, report.after.height);
     assert.equal(report.before.frames, report.after.frames);

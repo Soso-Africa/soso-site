@@ -97,7 +97,7 @@ export function HeroVideoPreparation({ target, currentPath, onUploadMedia, onAdo
     <p className="mt-2 text-xs text-muted-foreground">
       Run separately for desktop and mobile. The output folder must be new. Lower CRF (18–23) improves quality; higher CRF (25–28) reduces size.
       Retain your original. Select that original, hero-prepared.mp4 and hero-preparation.json below.
-      Local source comparison is limited to 256 MiB; prepared uploads must be smaller and at most 8 MiB.
+      Local source comparison is limited to 256 MiB; prepared uploads must be smaller and at most 24 MiB. Higher clarity uses more visitor data.
       The report verifies file identity, not visual quality or approval.
     </p>
     <fieldset disabled={busy} className="mt-3 space-y-3">

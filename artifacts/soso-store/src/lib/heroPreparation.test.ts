@@ -19,6 +19,19 @@ export function preparationFixture() {
   return { source, candidate, report, reportFile };
 }
 
+test("the approved clarity budget accepts a larger prepared file but stays bounded", () => {
+  const { report } = preparationFixture();
+  assert.equal(MAX_PREPARED_HERO_BYTES, 24 * 1024 * 1024);
+  const larger = {
+    ...report, before: { ...report.before, bytes: 32 * 1024 * 1024 },
+    after: { ...report.after, bytes: 12 * 1024 * 1024 },
+  };
+  assert.equal(validatePreparationReport(larger).after.bytes, 12 * 1024 * 1024);
+  assert.throws(() => validatePreparationReport({
+    ...larger, after: { ...larger.after, bytes: MAX_PREPARED_HERO_BYTES + 1 },
+  }));
+});
+
 test("preparation verifies exact source/export hashes, bytes, MIME and extension", async () => {
   const { source, candidate, report, reportFile } = preparationFixture();
   assert.deepEqual(await verifyPreparedHero(source, candidate, reportFile), report);

@@ -7,7 +7,7 @@ import { mkdir, stat, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const MAX_VIDEO_BYTES = 8 * 1024 * 1024;
+export const MAX_VIDEO_BYTES = 24 * 1024 * 1024;
 
 function run(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
@@ -86,7 +86,7 @@ export async function prepareHero(source, destination, crf = 24) {
       throw new Error("Export did not preserve dimensions, duration, frames, audio streams or colour metadata.");
     }
     if (after.bytes >= before.bytes || after.bytes > MAX_VIDEO_BYTES) {
-      throw new Error("Export is not smaller or exceeds 8 MiB. Try a higher CRF (up to 28) and review quality; never trim or crop approved footage to fit.");
+      throw new Error("Export is not smaller or exceeds 24 MiB. Try a higher CRF (up to 28) and review quality; never trim or crop approved footage to fit.");
     }
     const report = {
       version: 1, tool: "soso-offline-hero", crf, before, after,

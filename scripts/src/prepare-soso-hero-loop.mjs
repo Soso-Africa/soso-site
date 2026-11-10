@@ -8,7 +8,12 @@ import path from "node:path";
 const run = promisify(execFile);
 const input = process.argv[2];
 if (!input) throw new Error("Supply the original SOSO 4K video.");
-const directory = path.resolve("generated-artifacts/soso-hero-loop");
+const sharpMobile = process.argv.includes("--sharp-mobile");
+const clarityFirst = process.argv.includes("--clarity-first");
+if (sharpMobile && clarityFirst) throw new Error("Choose one preparation profile.");
+const maxVideoBytes = (clarityFirst ? 24 : 8) * 1024 * 1024;
+const directory = path.resolve(clarityFirst ? "generated-artifacts/soso-hero-clarity"
+  : sharpMobile ? "generated-artifacts/soso-hero-sharp-mobile" : "generated-artifacts/soso-hero-loop");
 await mkdir(directory, { recursive: true });
 const probe = async (file) => JSON.parse((await run("ffprobe", [
   "-v", "error", "-show_streams", "-show_format", "-of", "json", file,
@@ -26,15 +31,24 @@ const blendFrames = 18;
 const transition = blendFrames / 30;
 const offset = (sourceFrames - 2 * blendFrames) / 30;
 const targets = [
-  { name: "desktop", width: 1920, height: 1080, filter: "scale=1920:1080:flags=lanczos", crf: "22", rate: "2200k", buffer: "4400k" },
-  { name: "mobile", width: 720, height: 540, filter: "crop=2880:2160:480:0,scale=720:540:flags=lanczos", crf: "23", rate: "950k", buffer: "1900k" },
+  clarityFirst
+    ? { name: "desktop", width: 2560, height: 1440, filter: "scale=2560:1440:flags=lanczos", crf: "16", rate: "7000k", buffer: "14000k", level: "5.0" }
+    : { name: "desktop", width: 1920, height: 1080, filter: "scale=1920:1080:flags=lanczos", crf: "22", rate: "2200k", buffer: "4400k", level: "4.1" },
+  clarityFirst
+    ? { name: "mobile", width: 1440, height: 1080, filter: "crop=2880:2160:480:0,scale=1440:1080:flags=lanczos", crf: "16", rate: "3500k", buffer: "7000k", level: "4.1" }
+    : sharpMobile
+      ? { name: "mobile", width: 1440, height: 1080, filter: "crop=2880:2160:480:0,scale=1440:1080:flags=lanczos", crf: "18", rate: "2100k", buffer: "4200k", level: "4.1" }
+      : { name: "mobile", width: 720, height: 540, filter: "crop=2880:2160:480:0,scale=720:540:flags=lanczos", crf: "23", rate: "950k", buffer: "1900k", level: "4.1" },
 ];
 const reuseDesktop = process.argv.includes("--reuse-desktop");
+if (clarityFirst && reuseDesktop) throw new Error("Clarity-first must rebuild both exports from the master.");
+if (sharpMobile && !reuseDesktop) throw new Error("--sharp-mobile requires --reuse-desktop; desktop output must stay unchanged.");
+const desktopDirectory = sharpMobile ? path.resolve("generated-artifacts/soso-hero-loop") : directory;
 if (reuseDesktop) {
-  const previous = JSON.parse(await readFile(path.join(directory, "preparation-report.json"), "utf8"));
+  const previous = JSON.parse(await readFile(path.join(desktopDirectory, "preparation-report.json"), "utf8"));
   const desktop = previous.exports.find((item) => item.target === "desktop");
   if (previous.source.sha256 !== await hash(input)
-    || desktop?.sha256 !== await hash(path.join(directory, "soso-hero-desktop-loop.mp4"))) {
+    || desktop?.sha256 !== await hash(path.join(desktopDirectory, "soso-hero-desktop-loop.mp4"))) {
     throw new Error("Desktop reuse requires matching source and previously verified export hashes.");
   }
 }
@@ -43,7 +57,7 @@ const filters = [reuseDesktop
   : "[0:v]fps=30,trim=end_frame=811,split=2[ds][ms]"];
 const encode = [];
 for (const target of targets) {
-  target.file = path.join(directory, `soso-hero-${target.name}-loop.mp4`);
+  target.file = path.join(target.name === "desktop" && reuseDesktop ? desktopDirectory : directory, `soso-hero-${target.name}-loop.mp4`);
   if (reuseDesktop && target.name === "desktop") continue;
   const prefix = target.name;
   const sourceLabel = prefix === "desktop" ? "ds" : "ms";
@@ -56,7 +70,7 @@ for (const target of targets) {
   encode.push(
     "-map", `[${prefix}]`, "-an", "-c:v", "libx264", "-preset", "slow", "-threads", "2",
     "-crf", target.crf, "-maxrate", target.rate, "-bufsize", target.buffer,
-    "-pix_fmt", "yuv420p", "-profile:v", "high", "-level:v", "4.1",
+    "-pix_fmt", "yuv420p", "-profile:v", "high", "-level:v", target.level,
     "-g", "60", "-keyint_min", "30", "-color_primaries", "bt709",
     "-color_trc", "bt709", "-colorspace", "bt709", "-map_metadata", "-1",
     "-map_chapters", "-1", "-movflags", "+faststart", target.file,
@@ -66,7 +80,7 @@ console.log("Preparing both cyclic crossfades from the original master, not reco
 await run("ffmpeg", [
   "-hide_banner", "-loglevel", "warning", "-y", "-threads", "2", "-i", input,
   "-filter_complex_threads", "2", "-filter_complex", filters.join(";"), ...encode,
-], { maxBuffer: 8 * 1024 * 1024 });
+], { maxBuffer: 8 * 1024 * 1024, timeout: 600_000 });
 const exports = [];
 for (const target of targets) {
   const metadata = await probe(target.file);
@@ -81,14 +95,14 @@ for (const target of targets) {
     offset += length;
   }
   const fastStart = atoms.find((atom) => atom.type === "moov")?.offset < atoms.find((atom) => atom.type === "mdat")?.offset;
-  if (size >= 8 * 1024 * 1024 || !fastStart || metadata.streams.length !== 1
+  if (size >= maxVideoBytes || !fastStart || metadata.streams.length !== 1
     || stream.width !== target.width || stream.height !== target.height
     || Number(stream.nb_frames) !== sourceFrames - blendFrames) throw new Error("Loop export failed bounds or frame count.");
   await run("ffmpeg", ["-hide_banner", "-v", "error", "-xerror", "-threads", "2", "-i", target.file, "-f", "null", "-"]);
   await run("ffmpeg", [
     "-hide_banner", "-loglevel", "error", "-y", "-threads", "2", "-i", target.file,
     "-frames:v", "1", "-c:v", "libwebp", "-quality", "85", "-update", "1",
-    path.join(directory, `soso-hero-${target.name}-poster.webp`),
+    path.join(target.name === "desktop" && reuseDesktop ? desktopDirectory : directory, `soso-hero-${target.name}-poster.webp`),
   ]);
   exports.push({
     target: target.name, file: path.basename(target.file), bytes: size,
@@ -99,6 +113,8 @@ for (const target of targets) {
   });
 }
 const report = {
+  profile: clarityFirst ? "clarity-first" : sharpMobile ? "sharp-mobile" : "legacy",
+  maxVideoBytes,
   source: { file: path.basename(input), sha256: await hash(input), bytes: Number(source.format.size) },
   loop: {
     technique: "Cyclic 18-frame dissolve: start at source frame 18; end by blending source tail into frames 0–17.",

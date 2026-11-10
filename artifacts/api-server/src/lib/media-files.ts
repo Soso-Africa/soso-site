@@ -2,7 +2,8 @@ export const IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp
 export const VIDEO_MEDIA_TYPES = new Set(["video/mp4", "video/webm"]);
 export const MAX_UPLOADED_IMAGE_BYTES = 12 * 1024 * 1024;
 export const MAX_HERO_POSTER_BYTES = 512 * 1024;
-export const MAX_HERO_VIDEO_BYTES = 8 * 1024 * 1024;
+// Owner-approved clarity-first budget; keep upload and publication checks aligned.
+export const MAX_HERO_VIDEO_BYTES = 24 * 1024 * 1024;
 
 export function imageDimensions(
   bytes: Uint8Array,
