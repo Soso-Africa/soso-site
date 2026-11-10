@@ -88,7 +88,8 @@ export class R2StorageService implements MediaStorage {
     return this.io.inspect(this.config.privateBucket, r2MediaKey(this.config, path, "public"));
   }
   readUploadedImageBytes(path: string, maxBytes: number): Promise<Buffer> {
-    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_UPLOADED_IMAGE_BYTES) {
+    const limit = /\.(?:mp4|webm)$/i.test(path) ? MAX_HERO_VIDEO_BYTES : MAX_UPLOADED_IMAGE_BYTES;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > limit) {
       throw new Error("A bounded image-validation size is required");
     }
     return this.io.read(this.config.privateBucket, r2MediaKey(this.config, path, "uploads"), maxBytes);

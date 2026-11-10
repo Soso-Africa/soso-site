@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import test from "node:test";
 import { S3Client } from "@aws-sdk/client-s3";
 import { MediaNotFoundError } from "./cloudinary-storage";
+import { MAX_HERO_VIDEO_BYTES } from "./media-files";
 import { createMediaStorageService } from "./media-storage";
 import { normalizeR2MediaPath, r2MediaKey, type R2MediaConfig } from "./r2-media-config";
 import { R2MediaIO } from "./r2-media-io";
@@ -108,7 +109,8 @@ test("signed direct uploads cannot overwrite and bind the declared MIME and byte
     assert.match(url.searchParams.get("X-Amz-SignedHeaders")!, /x-amz-meta-soso-upload-owner/);
     assert.equal(url.searchParams.has("x-amz-meta-soso-upload-owner"), false);
     assert.ok(signed.finalizeToken);
-    await assert.rejects(storage.createMediaUpload("large.mp4", "video/mp4", { size: 9 * 1024 * 1024, ownerId: "staff-one" }));
+    await storage.createMediaUpload("clarity.mp4", "video/mp4", { size: MAX_HERO_VIDEO_BYTES, ownerId: "staff-one" });
+    await assert.rejects(storage.createMediaUpload("large.mp4", "video/mp4", { size: MAX_HERO_VIDEO_BYTES + 1, ownerId: "staff-one" }));
     await assert.rejects(storage.createMediaUpload("image.svg", "image/svg+xml", { size: 10, ownerId: "staff-one" }));
   } finally {
     storage.io.client.destroy();

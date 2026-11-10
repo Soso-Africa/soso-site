@@ -47,7 +47,7 @@ export default function Home() {
       <div className={heroPresentation.media} data-testid="homepage-hero-frame">
         <HomeHeroMedia hero={homepage.hero} />
       </div>
-      <div className="pointer-events-none absolute inset-0 z-0">
+      <div className={`pointer-events-none absolute inset-0 z-0${homepage.hero.mediaMode === "video" ? " hidden" : ""}`} data-testid="hero-image-decoration" aria-hidden="true">
         <div className="absolute inset-0 bg-black/15" />
         <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-white/40 to-transparent opacity-80" />
         <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-t from-black/40 to-transparent" />

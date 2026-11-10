@@ -63,6 +63,9 @@ test("hero starts only in a visible viewport, pauses in background, retains its 
       root.findByType("button").props.onClick();
       root.findByType("video").props.onPause();
     });
+    await act(async () => root.findByType("video").props.onLoadedData());
+    assert.match(root.findByType("video").props.className, /(?:^|\s)opacity-100(?:\s|$)/, "Both viewport videos preserve original contrast");
+    assert.doesNotMatch(root.findByType("video").props.className, /opacity-85/);
     const pausedPlays = plays;
     await act(async () => {
       documentMock.visibilityState = "hidden";
