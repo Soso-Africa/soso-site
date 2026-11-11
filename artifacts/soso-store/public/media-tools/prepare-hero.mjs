@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 
 export const MAX_VIDEO_BYTES = 24 * 1024 * 1024;
 
-function run(command, args) {
+export function run(command, args) {
   const result = spawnSync(command, args, { encoding: "utf8", maxBuffer: 8 * 1024 * 1024 });
   if (result.error || result.status !== 0) {
     throw new Error(`${command} failed. Install Node.js 20+ and FFmpeg locally. ${result.error?.message ?? result.stderr}`);
@@ -17,7 +17,7 @@ function run(command, args) {
   return result.stdout;
 }
 
-function probe(file) {
+export function probe(file) {
   const data = JSON.parse(run("ffprobe", [
     "-v", "error", "-count_frames", "-show_streams", "-show_format", "-of", "json", file,
   ]));
@@ -50,7 +50,7 @@ function probe(file) {
   };
 }
 
-async function fingerprint(file, metadata) {
+export async function fingerprint(file, metadata) {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return { name: path.basename(file), bytes: (await stat(file)).size, sha256: hash.digest("hex"), ...metadata };

@@ -59,13 +59,12 @@ test("hero starts only in a visible viewport, pauses in background, retains its 
     assert.equal(root.findByType("video").props.preload, "none");
     await act(async () => viewportCallback([{ isIntersecting: true }]));
     await act(async () => root.findByType("video").props.onPlaying());
+    assert.match(root.findByType("video").props.className, /(?:^|\s)opacity-100(?:\s|$)/, "Mobile playback keeps original contrast instead of dimming fine garment details");
+    assert.doesNotMatch(root.findByType("video").props.className, /(?:md:)?opacity-85/, "Desktop also preserves original garment contrast");
     await act(async () => {
       root.findByType("button").props.onClick();
       root.findByType("video").props.onPause();
     });
-    await act(async () => root.findByType("video").props.onLoadedData());
-    assert.match(root.findByType("video").props.className, /(?:^|\s)opacity-100(?:\s|$)/, "Both viewport videos preserve original contrast");
-    assert.doesNotMatch(root.findByType("video").props.className, /opacity-85/);
     const pausedPlays = plays;
     await act(async () => {
       documentMock.visibilityState = "hidden";
@@ -80,6 +79,10 @@ test("hero starts only in a visible viewport, pauses in background, retains its 
       renderer!.update(<HomeHeroMedia hero={{ ...hero, mobileVideoLayout: "comparison" }} />);
     });
     assert.match(root.findByType("video").props.className, /object-contain md:object-cover/, "Phone comparison never crops either figure; desktop retains its full-height presentation");
+    await act(async () => root.findByType("video").props.onError());
+    assert.equal(root.findAllByType("video").length, 0, "A media error never downloads another encoding or substitute footage");
+    assert.equal(root.findAllByType("img").length, 0);
+    assert.equal(root.findByProps({ "data-testid": "home-hero-media" }).props["data-playback-state"], "media-error");
   } finally {
     if (renderer) await act(async () => renderer!.unmount());
     for (const [key, descriptor] of Object.entries(original)) {

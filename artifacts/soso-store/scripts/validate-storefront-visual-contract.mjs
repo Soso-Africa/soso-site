@@ -8,6 +8,8 @@ import { chromium } from "@playwright/test";
 import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
 import { assertMenuCollections, menuFixture } from "./assert-menu-collections.mjs";
+import { assertHeroComparison } from "./assert-hero-comparison.mjs";
+import { assertPhoneMenuRotation } from "./assert-phone-menu-rotation.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const baselineDir = resolve(root, "visual/baselines");
@@ -17,6 +19,8 @@ const updateBaselines = process.env.UPDATE_VISUAL_BASELINES === "1";
 const port = 41739;
 const origin = `http://127.0.0.1:${port}`;
 const allowedDiffRatio = 0.002;
+const heroComparisonOnly = process.argv.includes("--hero-comparison-only");
+const phoneMenuOnly = process.argv.includes("--phone-menu-only");
 
 const platform = JSON.parse(await readFile(resolve(fixtureDir, "platform.json"), "utf8"));
 const privacy = JSON.parse(await readFile(resolve(fixtureDir, "privacy.json"), "utf8"));
@@ -353,6 +357,7 @@ async function compareScreenshot(actualPath, baselinePath, diffPath, label) {
 
 let browser;
 let completed = false;
+let heroComparison;
 try {
   await waitForServer();
   browser = await chromium.launch({
@@ -360,7 +365,10 @@ try {
     executablePath: await serverlessChromium.executablePath(),
     headless: true,
   });
-  for (const [viewportName, viewport] of Object.entries(viewports)) {
+  if (!heroComparisonOnly) await assertPhoneMenuRotation({
+    browser, origin, platform, outputDir, installDeterministicRoutes, preparePage, surface: surfaces[0],
+  });
+  for (const [viewportName, viewport] of heroComparisonOnly || phoneMenuOnly ? [] : Object.entries(viewports)) {
     const context = await browser.newContext({
       viewport,
       colorScheme: "light",
@@ -405,6 +413,10 @@ try {
       }
     }
   }
+  heroComparison = phoneMenuOnly ? { cases: 0, rotations: 0, motionChanges: 0, baselines: 0 } : await assertHeroComparison({
+    browser, origin, platform, fixtureDir, outputDir, installDeterministicRoutes,
+    compareScreenshot, baselineDir, contrast, parseRgb,
+  });
   completed = true;
 } finally {
   await browser?.close();
@@ -415,5 +427,5 @@ try {
 }
 
 process.stdout.write(
-  `${updateBaselines ? "Updated" : "Passed"} ${surfaces.length * Object.keys(viewports).length} rendered storefront visual baselines with semantic contrast and banned-control guards.\n`,
+  `${updateBaselines ? "Updated" : "Passed"} ${heroComparisonOnly || phoneMenuOnly ? 0 : surfaces.length * Object.keys(viewports).length} standard visual baselines and ${heroComparison.cases} comparison-hero cases (including ${heroComparison.rotations} same-page rotation cases and ${heroComparison.motionChanges} live motion preference changes; ${heroComparison.baselines} additional baselines).${heroComparisonOnly ? "" : " Passed same-page phone menu rotation."}\n`,
 );

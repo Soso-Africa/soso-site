@@ -1,5 +1,7 @@
 import { GetObjectCommand, HeadObjectCommand, type HeadObjectCommandOutput, type S3Client } from "@aws-sdk/client-s3";
 import { Readable } from "node:stream";
+import { createHash } from "node:crypto";
+import { webmVideoCodec } from "./webm-codec";
 import { MediaNotFoundError } from "./cloudinary-storage";
 import { detectMediaContentType, isAnimatedImage, MAX_UPLOADED_IMAGE_BYTES } from "./media-files";
 import { orientedImageDimensions } from "./r2-image-geometry";
@@ -68,6 +70,10 @@ export class R2MediaIO {
       contentType, declaredContentType: head.ContentType?.split(";", 1)[0]?.trim(),
       size: bytes.length,
       animated: contentType.startsWith("image/") && isAnimatedImage(bytes, contentType),
+      ...(contentType.startsWith("video/") ? {
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        videoCodec: contentType === "video/webm" ? webmVideoCodec(bytes) : undefined,
+      } : {}),
       ...(orientedImageDimensions(bytes, contentType) ?? {}),
     };
     if (head.ETag && /^"[^"\r\n]+"$/.test(head.ETag)) {

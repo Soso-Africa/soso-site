@@ -107,6 +107,8 @@ export function Navbar() {
   useEffect(() => {
     if (!mobileMenuOpen) return;
 
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const menu = mobileMenuRef.current;
     const focusableSelector = 'a[href], button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
     const focusable = () => Array.from(menu?.querySelectorAll<HTMLElement>(focusableSelector) ?? []);
@@ -136,6 +138,7 @@ export function Navbar() {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
+      document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
       previousFocusRef.current?.focus();
     };
@@ -378,7 +381,7 @@ export function Navbar() {
           </div>
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-8 flex flex-col gap-8">
             <CurrencySelector />
             {/* Mega Menu Groups (Accordions) */}
             {hasMegaMenu && (

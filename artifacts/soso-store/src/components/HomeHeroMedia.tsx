@@ -39,7 +39,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
   const selected = useMemo(() => selectHeroMedia(
     hero,
     environment,
-    (mimeType) => document.createElement("video").canPlayType(mimeType) !== "",
+    (mimeType) => document.createElement("video").canPlayType(mimeType),
   ), [environment, hero]);
   const shouldPlay = selected.motionAllowed && inViewport && documentVisible && !failed && !manuallyPaused.current;
 
@@ -117,7 +117,7 @@ export function HomeHeroMedia({ hero }: { hero: Hero }) {
     }
   };
 
-  return <div ref={containerRef} className="absolute inset-0 bg-neutral-800" data-testid="home-hero-media">
+  return <div ref={containerRef} className="absolute inset-0 bg-neutral-800" data-testid="home-hero-media" data-playback-state={failed ? "media-error" : isPlaying ? "playing" : selected.motionAllowed ? "paused" : "motion-unavailable"}>
     {selected.posterUrl && <picture className="block h-full w-full">
       <source media="(max-width: 767px)" srcSet={responsiveProductPhoto(hero.mobileImageUrl, "100vw").srcSet ?? hero.mobileImageUrl} sizes="100vw" />
       <img

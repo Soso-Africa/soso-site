@@ -40,6 +40,8 @@ export type CloudinaryMediaInspection = {
   bytes?: Buffer;
   width?: number;
   height?: number;
+  sha256?: string;
+  videoCodec?: string;
 };
 
 export class MediaNotFoundError extends Error {

@@ -10,7 +10,7 @@ import { FocusedProductWorkspace } from "../components/staff/FocusedProductWorks
 import { assertSpreadsheetDoesNotOverwriteEditor, reconcileSavedProducts } from "../components/staff/import/editor-merge";
 import { runGuidedReview } from "../components/staff/product/guided-review";
 import { stable } from "../components/staff/product/product-state";
-import { hasOtherDraftEditsForDeletion, productDeletionReferences } from "../components/staff/product/catalogue-delete";
+import { reconcileDraftProductDeletion, productDeletionReferences } from "../components/staff/product/catalogue-delete";
 import { platformActionError } from "../components/staff/platform-action-error";
 import { CatalogueBusinessApproval } from "../components/staff/CatalogueBusinessApproval";
 import { CommerceActivationPanel } from "../components/staff/CommerceActivationPanel";
@@ -770,13 +770,22 @@ function FullPlatformContentManagementSection() {
   const sectionRef = useRef<PlatformSection>(initialSection);
   const [json, setJson] = useState("{}");
   const [status, setStatus] = useState("Loading platform content…");
-  const [saving, setSaving] = useState(false);
+  const [requestSaving, setSaving] = useState(false);
+  const [deletionRecovery, setDeletionRecovery] = useState<{
+    before: PlatformContent; committed: PlatformContent; slug: string;
+  } | null>(null);
+  const saving = requestSaving || deletionRecovery !== null;
   const [revisions, setRevisions] = useState<PlatformRevision[]>([]);
   const [uploadedObjectPath, setUploadedObjectPath] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [structuredEditorValid, setStructuredEditorValid] = useState(true);
   const editorSnapshot = useRef({ content, section, json });
   editorSnapshot.current = { content, section, json };
+  const updateEditorJson = (value: string) => {
+    // An input callback and a request completion can run before React renders.
+    editorSnapshot.current = { ...editorSnapshot.current, json: value };
+    setJson(value);
+  };
   const mediaInputRef = useRef<HTMLInputElement>(null);
   const jsonEditorRef = useRef<HTMLTextAreaElement>(null);
 
@@ -810,6 +819,7 @@ function FullPlatformContentManagementSection() {
   useEffect(() => { void load(); }, [load]);
 
   const selectSection = (next: PlatformSection) => {
+    if (deletionRecovery) { setStatus("Fix the current JSON to finish applying the saved deletion before changing sections. Your text is kept."); return; }
     setStructuredEditorValid(true);
     if (!content) {
       if (section !== "complete") { setStatus("Create the complete document before editing individual sections."); return; }
@@ -832,8 +842,22 @@ function FullPlatformContentManagementSection() {
     }
   };
   const parsedDocument = () => {
+    if (deletionRecovery) throw new Error("Fix the current JSON to finish applying the saved deletion first.");
     return applyPlatformSection(content, section, JSON.parse(json) as unknown);
   };
+  useEffect(() => {
+    if (!deletionRecovery) return;
+    try {
+      const latest = applyPlatformSection(content, section, JSON.parse(json) as unknown);
+      const merged = reconcileDraftProductDeletion(deletionRecovery.before, deletionRecovery.committed, latest, deletionRecovery.slug);
+      const updatedJson = JSON.stringify(sectionValue(merged, section), null, 2);
+      setContent(merged);
+      setJson(updatedJson);
+      editorSnapshot.current = { content: merged, section, json: updatedJson };
+      setDeletionRecovery(null);
+      setStatus("Saved deletion applied. Other unsaved edits are kept; published content is unchanged.");
+    } catch { /* Keep incomplete JSON verbatim until Staff repair it. Writes stay blocked. */ }
+  }, [deletionRecovery, content, section, json]);
   const refreshRevisions = async () => {
     setRevisions(await customFetch<PlatformRevision[]>("/api/staff/content/platform/revisions", { responseType: "json" }));
   };
@@ -987,18 +1011,18 @@ function FullPlatformContentManagementSection() {
       const product = document.products.find((item) => item.slug === slug);
       if (!product) return "Product not found in the current draft.";
       if (document.products.length === 1) return "The catalogue must keep at least one product. Add a replacement before deleting this one.";
-      const references = productDeletionReferences(document, slug);
+      const references = [...new Set([
+        ...productDeletionReferences(document, slug),
+        ...(row?.draft ? productDeletionReferences(row.draft, slug) : []),
+      ])];
       const wasPublished = row?.published?.products.some((item) => item.slug === slug);
       const isSaved = row?.draft?.products.some((item) => item.slug === slug);
       if (!isSaved && references.length) {
         return `Remove references to ${product.name} before discarding the unsaved product: ${references.slice(0, 5).join(", ")}.`;
       }
-      if (isSaved && row?.draft && hasOtherDraftEditsForDeletion(document, row.draft, slug)) {
-        return "There are unsaved changes to other products or catalogue sections. Save or discard those changes first, then retry Delete from draft. You do not need to save changes to the product being deleted.";
-      }
       if (isSaved && !row?.draftUpdatedAt) return "Reload the saved draft before deleting this product.";
       const hasSelectedEdits = isSaved && stable(product) !== stable(row?.draft?.products.find((item) => item.slug === slug));
-      if (!window.confirm(`${isSaved ? "Delete" : "Discard unsaved"} ${product.name} from the draft now?${hasSelectedEdits ? " Unsaved changes to this product will also be discarded." : ""}${references.length ? ` ${references.length} draft reference${references.length === 1 ? "" : "s"} will also be removed or redirected to Shop.` : ""}${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
+      if (!window.confirm(`${isSaved ? "Delete" : "Discard unsaved"} ${product.name} from the draft now?${hasSelectedEdits ? " Unsaved changes to this product will also be discarded." : ""}${references.length ? ` References in the saved draft and editor will be removed, replaced or redirected to Shop (${references.slice(0, 5).join(", ")}${references.length > 5 ? ", …" : ""}).` : ""} Any references to this product added while deletion is pending will also be repaired. Other unsaved edits will stay in the editor.${wasPublished ? " It remains public until you publish its removal." : ""} JusticeSure inventory and uploaded images are not deleted.`)) return undefined;
       if (isSaved) {
         setSaving(true);
         try {
@@ -1008,11 +1032,23 @@ function FullPlatformContentManagementSection() {
           });
           if (!next.draft) return "Product deletion returned no saved draft. Reload the catalogue to check its state.";
           setRow(next);
-          setContent(next.draft);
-          setJson(JSON.stringify(sectionValue(next.draft, "catalogue"), null, 2));
+          const latest = editorSnapshot.current;
+          try {
+            const editor = applyPlatformSection(latest.content, latest.section, JSON.parse(latest.json) as unknown);
+            const merged = reconcileDraftProductDeletion(row!.draft!, next.draft, editor, slug);
+            const updatedJson = JSON.stringify(sectionValue(merged, latest.section), null, 2);
+            setContent(merged);
+            setJson(updatedJson);
+            editorSnapshot.current = { content: merged, section: latest.section, json: updatedJson };
+          } catch {
+            setDeletionRecovery({ before: row!.draft!, committed: next.draft, slug });
+            setStatus(`${product.name} was deleted from the saved draft. Your incomplete JSON is kept. Fix it to apply the deletion locally before saving; published content is unchanged.`);
+            void refreshRevisions().catch(() => undefined);
+            return null;
+          }
           try { await refreshRevisions(); }
           catch { setStatus(`${product.name} deleted from the saved draft, but revision history could not refresh.`); return null; }
-          setStatus(`${product.name} deleted from the saved draft.${wasPublished ? " It remains on the live storefront until you publish its removal." : ""}`);
+          setStatus(`${product.name} deleted from the saved draft. Other unsaved edits remain in the editor.${wasPublished ? " It remains on the live storefront until you publish its removal." : ""}`);
           return null;
         } catch (error) {
           return platformActionError(error, "Product could not be deleted from the saved draft.");
@@ -1245,7 +1281,7 @@ function FullPlatformContentManagementSection() {
     const start = editor?.selectionStart ?? json.length;
     const end = editor?.selectionEnd ?? start;
     const escapedPath = JSON.stringify(uploadedObjectPath).slice(1, -1);
-    setJson(`${json.slice(0, start)}${escapedPath}${json.slice(end)}`);
+    updateEditorJson(`${json.slice(0, start)}${escapedPath}${json.slice(end)}`);
     requestAnimationFrame(() => {
       editor?.focus();
       editor?.setSelectionRange(start + escapedPath.length, start + escapedPath.length);
@@ -1269,7 +1305,7 @@ function FullPlatformContentManagementSection() {
           products={content?.products ?? []}
           publishedCollections={row?.published?.collections ?? []}
           allowedTargets={allowedTargets}
-          onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+          onChange={(updated) => updateEditorJson(JSON.stringify(updated, null, 2))}
           onValidityChange={setStructuredEditorValid}
         />;
       } else if (section === "homepage") {
@@ -1283,7 +1319,7 @@ function FullPlatformContentManagementSection() {
           products={row?.published?.products ?? []}
           collections={row?.published?.collections ?? []}
           allowedTargets={allowedTargets}
-          onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+          onChange={(updated) => updateEditorJson(JSON.stringify(updated, null, 2))}
           onUploadMedia={async (file) => {
             const path = await uploadStaffMedia(file);
             setStatus("Homepage media uploaded. Save the draft, review it, then publish.");
@@ -1293,7 +1329,7 @@ function FullPlatformContentManagementSection() {
       } else if (section === "catalogue") {
         structuredEditor = <PlatformEditorCatalogue
           data={parsed as Pick<PlatformContent, "products" | "collections" | "sizeGuide" | "productCopy" | "supportCopy" | "interfaceCopy">}
-          onChange={(updated) => setJson(JSON.stringify(updated, null, 2))}
+          onChange={(updated) => updateEditorJson(JSON.stringify(updated, null, 2))}
           initialProductSlug={initialProductSlug}
           onDeleteProduct={deleteCatalogueProduct}
           onSaveProduct={saveProduct}
@@ -1316,7 +1352,7 @@ function FullPlatformContentManagementSection() {
           }}
         />;
       } else if (section === "pages") {
-        structuredEditor = <PlatformEditorPages data={parsed as PlatformContent["pages"]} onChange={(updated) => setJson(JSON.stringify(updated, null, 2))} />;
+        structuredEditor = <PlatformEditorPages data={parsed as PlatformContent["pages"]} onChange={(updated) => updateEditorJson(JSON.stringify(updated, null, 2))} />;
       }
     } catch {
       // JSON is invalid, don't render structured editor
@@ -1331,7 +1367,7 @@ function FullPlatformContentManagementSection() {
       <div><a href="/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-primary underline underline-offset-4"><Eye size={14} /> Open storefront preview</a></div>
     </div>
     <div className="border border-border bg-card p-5">
-      <fieldset disabled={saving} className="contents">
+      <fieldset disabled={requestSaving} className="contents">
       <div className="flex flex-wrap gap-2">{platformSections.map((item) => <button key={item.id} data-testid={`platform-section-${item.id}`} type="button" onClick={() => selectSection(item.id)} className={`min-h-10 border px-4 text-xs font-semibold uppercase tracking-wider ${section === item.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>{item.label}</button>)}</div>
       {section === "site" && <div className="mt-5 border border-primary/25 bg-primary/5 p-4 text-sm">
         <p className="font-semibold text-primary">Site navigation and search checks</p>
@@ -1414,14 +1450,14 @@ function FullPlatformContentManagementSection() {
           <div className="p-4 bg-background border-t border-border">
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Raw section JSON (synced with structured controls)
-              <textarea data-testid="advanced-json-textarea" ref={jsonEditorRef} value={json} onChange={(event) => setJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
+              <textarea data-testid="advanced-json-textarea" ref={jsonEditorRef} value={json} onChange={(event) => updateEditorJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
             </label>
           </div>
         </details>
       ) : (
         <label className="mt-5 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Validated section JSON
-          <textarea data-testid="advanced-json-textarea" ref={jsonEditorRef} value={json} onChange={(event) => setJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
+          <textarea data-testid="advanced-json-textarea" ref={jsonEditorRef} value={json} onChange={(event) => updateEditorJson(event.target.value)} rows={28} spellCheck={false} className="staff-input mt-2 resize-y font-mono text-xs normal-case tracking-normal" />
         </label>
       )}
 

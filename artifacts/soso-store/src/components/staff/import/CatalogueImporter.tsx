@@ -6,6 +6,7 @@ import {
 import {
   customFetch, getCatalogueImportDriveFolder, getStaffProfile, scanCatalogueImportSheet,
   type CatalogueImportRow, type CatalogueImportSheet,
+  type CatalogueGoogleStatus,
 } from "@workspace/api-client-react";
 import type { CatalogProduct, ProductDepartment } from "../../../data/platformContent";
 import {
@@ -17,6 +18,7 @@ import { StaleTaskError, createSerialQueue } from "./drive-queue";
 import { fileToBase64, createImportStore, sha256Hex } from "./import-store";
 import { DriveConnection } from "./DriveConnection";
 import { CatalogueImportGuide } from "./CatalogueImportGuide";
+import { driveScanBlocker } from "./drive-readiness";
 
 type Filter = "all" | "selected" | "ready" | "missing" | "ambiguous" | "conflicting" | "saved";
 type Session = { sheet: CatalogueImportSheet; groups: Record<number, GroupReview>; selected: number[] };
@@ -82,6 +84,9 @@ export function CatalogueImporter({
   const [sheetError, setSheetError] = useState("");
   const [restored, setRestored] = useState(false);
   const [scanning, setScanning] = useState<{ done: number; total: number } | null>(null);
+  const [driveStatus, setDriveStatus] = useState<CatalogueGoogleStatus | null>(null);
+  const driveStatusRef = useRef(driveStatus);
+  driveStatusRef.current = driveStatus;
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [thumbErrors, setThumbErrors] = useState<Record<string, string>>({});
   const [localDirs, setLocalDirs] = useState<LocalDir[]>([]);
@@ -231,6 +236,7 @@ export function CatalogueImporter({
   const scanOne = useCallback(async (n: number) => {
     const row = rowByNumber.get(n);
     if (!row?.driveFolderId) return;
+    if (driveScanBlocker(driveStatusRef.current, [row.driveFolderId])) return;
     patchGroup(n, (g) => ({ ...g, scan: { status: "scanning" } }), true);
     try {
       const folder = await getCatalogueImportDriveFolder(row.driveFolderId);
@@ -247,6 +253,7 @@ export function CatalogueImporter({
 
   const scanSelected = async () => {
     const targets = selected.filter((n) => rowByNumber.get(n)?.driveFolderId);
+    if (driveScanBlocker(driveStatusRef.current, targets.map((n) => rowByNumber.get(n)!.driveFolderId!))) return;
     setScanning({ done: 0, total: targets.length });
     for (let i = 0; i < targets.length; i++) {
       await scanOne(targets[i]!); // sequential: one folder at a time
@@ -325,18 +332,20 @@ export function CatalogueImporter({
   };
 
   const assignDir = (dir: LocalDir, n: number) => {
+    if (busy || !groupsRef.current[n] || !rowByNumber.has(n)) return;
     const items: PhotoItem[] = dir.files.map((file) => {
       const key = `l:${dir.dir}/${file.name}:${file.size}:${file.lastModified}`;
       localFilesRef.current.set(key, file);
       return { key, name: file.name, source: "local", size: file.size, mimeType: file.type, included: true };
     });
-    if (busy) return;
     patchGroup(n, (g) => {
       const prior = new Map(g.photos.map((p) => [p.key, p]));
       const merged = [...g.photos, ...items.filter((i) => !prior.has(i.key))].map((p) => (prior.has(p.key) ? { ...p, error: undefined } : p));
-      return { ...g, photos: merged };
+      return { ...g, photos: merged, scan: g.scan.status === "failed" ? { status: "idle" } : g.scan };
     });
     setLocalDirs((prev) => prev.filter((d) => d !== dir));
+    setExpanded(n);
+    setFactsMessage(`Added ${items.length} local photos to “${rowByNumber.get(n)!.name}”. Use Show previews to review them, then choose the cover. Google Drive is not needed for these photos.`);
   };
 
   const driveFolderNames = useMemo(() => Object.fromEntries(Object.values(groups).map((g) => [g.rowNumber, g.scan.folderName])), [groups]);
@@ -522,6 +531,7 @@ export function CatalogueImporter({
           </details>}
 
           <DriveConnection
+            onStatusChange={setDriveStatus}
             folders={Array.from(new Map((sheet?.rows ?? []).filter((r) => r.driveFolderId).map((r) => [r.driveFolderId!, { id: r.driveFolderId!, product: r.name }])).values())}
             busy={busy}
             beforeConnect={async () => {
@@ -575,7 +585,7 @@ export function CatalogueImporter({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className={`${label} text-primary`}>2 · Review groups</p>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" className={btn} disabled={busy || selected.length === 0} onClick={() => void scanSelected()} data-testid="button-scan-selected">
+                    <button type="button" className={btn} disabled={busy || selected.length === 0 || Boolean(driveScanBlocker(driveStatus, selected.flatMap((n) => rowByNumber.get(n)?.driveFolderId ? [rowByNumber.get(n)!.driveFolderId!] : [])))} onClick={() => void scanSelected()} data-testid="button-scan-selected">
                       {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
                       {scanning ? `Scanning ${scanning.done}/${scanning.total}` : `Scan Drive for ${selected.length} selected`}
                     </button>
@@ -601,6 +611,7 @@ export function CatalogueImporter({
                       missingLocal={groups[r.rowNumber] ? missingLocalFiles(groups[r.rowNumber]!) : 0}
                       thumbs={thumbs} thumbErrors={thumbErrors} busy={busy} retrying={retrying}
                       collections={collections} selectionLocked={busy || reading} previewsLoading={thumbLoadingGroup === r.rowNumber}
+                      driveBlocker={r.driveFolderId ? driveScanBlocker(driveStatus, [r.driveFolderId]) : null}
                       sharedFolder={Boolean(r.driveFolderId && (fCounts.get(r.driveFolderId) ?? 0) > 1)}
                       onRetryPhoto={(key) => void retryPhoto(r.rowNumber, key)}
                       onToggleSelect={() => toggleSelect(r.rowNumber)}
@@ -647,9 +658,12 @@ export function CatalogueImporter({
                             )}
                             <select className="staff-input !min-h-10 !w-56 !py-1 text-xs" defaultValue="" aria-label={`Assign ${d.dir} to group`} data-testid={`select-assign-${d.dir}`}
                               onChange={(e) => { if (e.target.value) assignDir(d, Number(e.target.value)); }}>
-                              <option value="">Assign to group…</option>
+                              <option value="">Choose the product for these photos…</option>
                               {rows.map((r) => <option key={r.rowNumber} value={r.rowNumber}>Row {r.rowNumber} · {r.name}</option>)}
                             </select>
+                            {expanded !== null && rowByNumber.has(expanded) && <button type="button" className={btn} disabled={busy} onClick={() => assignDir(d, expanded)} data-testid={`button-assign-current-${d.dir}`}>
+                              Assign to “{rowByNumber.get(expanded)!.name}” · row {expanded}
+                            </button>}
                           </span>
                         </li>
                       );
@@ -716,13 +730,14 @@ export function CatalogueImporter({
 }
 
 function GroupRow({
-  row, group, selected, expanded, existing, editorOnly, issues, blockers, missingLocal, thumbs, thumbErrors, busy, retrying, sharedFolder, collections, selectionLocked, previewsLoading,
+  row, group, selected, expanded, existing, editorOnly, issues, blockers, missingLocal, thumbs, thumbErrors, busy, retrying, sharedFolder, collections, selectionLocked, previewsLoading, driveBlocker,
   onToggleSelect, onToggleExpand, onScan, onLoadThumbs, onPatch, onRetryPhoto,
 }: {
   row: CatalogueImportRow; group: GroupReview; selected: boolean; expanded: boolean; existing: boolean; editorOnly: boolean;
   issues: string[]; blockers: string[]; missingLocal: number; thumbs: Record<string, string>; thumbErrors: Record<string, string>;
   onToggleSelect: () => void; onToggleExpand: () => void; onScan: () => void; onLoadThumbs: () => void;
   collections?: CollectionRef[]; selectionLocked: boolean; previewsLoading: boolean;
+  driveBlocker: string | null;
   busy: boolean; retrying: string | null; sharedFolder: boolean; onRetryPhoto: (key: string) => void;
   onPatch: (fn: (g: GroupReview) => GroupReview, keepAccepted?: boolean) => void;
 }) {
@@ -837,7 +852,7 @@ function GroupRow({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {row.driveFolderId && (
-                    <button type="button" className={btn} onClick={onScan} disabled={busy || group.scan.status === "scanning"} data-testid={`button-scan-${row.rowNumber}`}>
+                    <button type="button" className={btn} onClick={onScan} disabled={busy || Boolean(driveBlocker) || group.scan.status === "scanning"} data-testid={`button-scan-${row.rowNumber}`}>
                       <RefreshCw className={`h-3.5 w-3.5 ${group.scan.status === "scanning" ? "animate-spin" : ""}`} />{group.scan.status === "idle" ? "Scan Drive" : "Rescan"}
                     </button>
                   )}
@@ -845,7 +860,8 @@ function GroupRow({
                 </div>
               </div>
               {included.length > MAX_PREVIEWS && <p className="text-[11px] text-muted-foreground" data-testid={`text-preview-limit-${row.rowNumber}`}>Previews show the first {MAX_PREVIEWS} included photos, one download at a time, to respect Drive limits. Reorder to preview others.</p>}
-              {group.scan.status === "failed" && <p role="alert" className="border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{group.scan.error}</p>}
+              {driveBlocker && row.driveFolderId && <p role="status" className="border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">{driveBlocker}</p>}
+              {!driveBlocker && group.scan.status === "failed" && <p role="alert" className="border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{group.scan.error}</p>}
               {sharedFolder && (
                 <label className="flex items-start gap-2 border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={Boolean(group.folderAck)} disabled={busy}

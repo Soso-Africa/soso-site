@@ -1,9 +1,19 @@
+export type HeroWebmAlternative = {
+  sourceUrl: string;
+  webmUrl: string;
+  sourceSha256: string;
+  webmSha256: string;
+  sameFootageApproved: true;
+};
+
 export type HeroMediaConfiguration = {
   mediaMode: "image" | "video";
   imageUrl: string;
   mobileImageUrl: string;
   videoUrl?: string;
   mobileVideoUrl?: string;
+  videoWebmAlternative?: HeroWebmAlternative;
+  mobileVideoWebmAlternative?: HeroWebmAlternative;
   mobileVideoLayout?: "full-height" | "comparison";
 };
 
@@ -40,10 +50,14 @@ export function videoMimeType(path: string): "video/mp4" | "video/webm" | null {
   return null;
 }
 
+// Generic video/mp4 "maybe" does not establish H.264 decoding support.
+export const HERO_H264_TYPE = 'video/mp4; codecs="avc1.42E01E"';
+export const HERO_VP9_TYPE = 'video/webm; codecs="vp9"';
+
 export function selectHeroMedia(
   hero: HeroMediaConfiguration,
   environment: HeroMotionEnvironment,
-  canPlayType: (mimeType: string) => boolean,
+  canPlayType: (mimeType: string) => boolean | CanPlayTypeResult,
 ) {
   // Image-mode artwork is not necessarily a frame from the uploaded video.
   const posterUrl = hero.mediaMode === "image"
@@ -53,10 +67,23 @@ export function selectHeroMedia(
   // These are alternate encodings of the same approved bundled footage, not
   // replacements for merchant uploads. Prefer fast-start H.264 for Safari and
   // lower transfer cost, retaining WebM for browsers without MP4 support.
-  const bundledVideo = configuredVideoUrl?.match(/^(.*\/media\/soso-craft-hero-(?:desktop|mobile))\.webm$/);
-  const videoUrl = bundledVideo && canPlayType("video/mp4")
-    ? `${bundledVideo[1]}-v1.mp4`
-    : configuredVideoUrl;
+  const bundledVideo = configuredVideoUrl?.match(/^(\/media\/soso-craft-hero-(?:desktop|mobile))\.webm$/);
+  const alternative = environment.isMobile ? hero.mobileVideoWebmAlternative : hero.videoWebmAlternative;
+  const approvedWebm = alternative?.sameFootageApproved === true
+    && alternative.sourceUrl === configuredVideoUrl
+    && videoMimeType(configuredVideoUrl ?? "") === "video/mp4"
+    && /^\/api\/storage\/objects\/.+\.webm$/i.test(alternative.webmUrl)
+    ? alternative.webmUrl : undefined;
+  const supported = (type: string) => {
+    const result = canPlayType(type);
+    return result === true || result === "probably";
+  };
+  const mp4 = bundledVideo ? `${bundledVideo[1]}-v1.mp4`
+    : videoMimeType(configuredVideoUrl ?? "") === "video/mp4" ? configuredVideoUrl : undefined;
+  const webm = bundledVideo ? configuredVideoUrl : approvedWebm
+    ?? (videoMimeType(configuredVideoUrl ?? "") === "video/webm" ? configuredVideoUrl : undefined);
+  const videoUrl = mp4 && supported(HERO_H264_TYPE) ? mp4
+    : webm && supported(HERO_VP9_TYPE) ? webm : undefined;
   const mimeType = videoUrl ? videoMimeType(videoUrl) : null;
   const constrainedConnection = environment.effectiveType === "slow-2g"
     || environment.effectiveType === "2g";
@@ -65,8 +92,7 @@ export function selectHeroMedia(
     && !environment.saveData
     && !constrainedConnection
     && Boolean(videoUrl)
-    && Boolean(mimeType)
-    && canPlayType(mimeType!);
+    && Boolean(mimeType);
 
   return {
     posterUrl,

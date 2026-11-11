@@ -11,6 +11,7 @@
     "test": "pnpm --dir ../../scripts exec tsx --tsconfig ../artifacts/soso-store/tsconfig.json --test ../artifacts/soso-store/src/**/*.test.ts ../artifacts/soso-store/src/**/*.test.tsx",
     "test:pwa": "pnpm run build && node scripts/test-pwa.mjs",
     "test:hero-preparation": "node scripts/test-hero-preparation.mjs && pnpm --dir ../../scripts exec tsx --test ../artifacts/soso-store/src/lib/heroPreparation.test.ts ../artifacts/soso-store/src/components/staff/HeroVideoPreparation.test.tsx ../artifacts/soso-store/src/lib/heroMedia.test.ts",
+    "test:hero-webm": "node scripts/test-hero-webm.mjs && pnpm --dir ../../scripts exec tsx --tsconfig ../artifacts/soso-store/tsconfig.json --test ../artifacts/soso-store/src/lib/heroMedia.test.ts ../artifacts/soso-store/src/lib/heroWebmPreparation.test.ts ../artifacts/soso-store/src/components/HomeHeroMedia.test.tsx ../artifacts/soso-store/src/components/staff/HeroWebmAlternative.test.tsx",
     "test:homepage-merchandising": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-homepage-merchandising.mjs",
     "test:product-photo-browser": "node scripts/test-product-photo-browser.mjs",
     "test:accessory-demand-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-accessory-demand-browser.mjs",
@@ -18,6 +19,8 @@
     "test:catalogue-actions-browser": "pnpm --filter @workspace/api-server run build && node ../../lib/db/scripts/run-in-isolated-soso-schema.mjs node scripts/test-catalogue-actions-browser.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:menu-collections": "pnpm --dir ../../scripts exec tsx --test ../artifacts/soso-store/src/lib/menuCollections.test.ts",
+    "test:phone-menu-browser": "pnpm run build && node scripts/validate-storefront-visual-contract.mjs --phone-menu-only",
+    "test:hero-comparison-browser": "pnpm run build && node scripts/validate-storefront-visual-contract.mjs --hero-comparison-only",
     "validate:visual": "pnpm run test:menu-collections && pnpm run build && node scripts/validate-storefront-visual-contract.mjs",
     "validate:typography": "node scripts/validate-typography.mjs",
     "validate:commerce-webhook-route": "node scripts/validate-commerce-webhook-route.mjs",
@@ -72,6 +75,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "^4.4.0",
     "framer-motion": "catalog:",
     "input-otp": "^1.4.2",
     "lucide-react": "catalog:",
@@ -91,8 +95,7 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "wouter": "^3.3.5",
-    "zod": "catalog:",
-    "exceljs": "^4.4.0"
+    "zod": "catalog:"
   },
   "dependencies": {
     "@fontsource/montserrat": "^5.3.0"
