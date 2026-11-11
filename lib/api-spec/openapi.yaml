@@ -2116,7 +2116,8 @@ components:
         size:
           type: number
           minimum: 1
-          maximum: 12582912
+          maximum: 25165824
+          description: Transport ceiling for hero videos. The server retains the separate 12 MiB image limit.
         contentType:
           type: string
           enum: [image/jpeg, image/png, image/webp, image/gif, video/mp4, video/webm]
