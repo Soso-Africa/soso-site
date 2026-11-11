@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { createHash } from "node:crypto";
 import { webmVideoCodec } from "./webm-codec";
 import { MediaNotFoundError } from "./cloudinary-storage";
-import { detectMediaContentType, isAnimatedImage, MAX_UPLOADED_IMAGE_BYTES } from "./media-files";
+import { detectMediaContentType, isAnimatedImage, MAX_HERO_VIDEO_BYTES, MAX_UPLOADED_IMAGE_BYTES, mediaMimeTypeForPath, VIDEO_MEDIA_TYPES } from "./media-files";
 import { orientedImageDimensions } from "./r2-image-geometry";
 import type { MediaInspection } from "./media-storage-types";
 
@@ -64,8 +64,14 @@ export class R2MediaIO {
       return { ...cached.inspection };
     }
     this.inspections.delete(cacheKey);
-    const bytes = await this.read(bucket, key, MAX_UPLOADED_IMAGE_BYTES, head);
+    const expectedType = mediaMimeTypeForPath(key);
+    const declaredType = head.ContentType?.split(";", 1)[0]?.trim();
+    const video = expectedType && VIDEO_MEDIA_TYPES.has(expectedType) && declaredType === expectedType;
+    const bytes = await this.read(bucket, key, video ? MAX_HERO_VIDEO_BYTES : MAX_UPLOADED_IMAGE_BYTES, head);
     const contentType = detectMediaContentType(bytes) ?? "";
+    if (!VIDEO_MEDIA_TYPES.has(contentType) && bytes.length > MAX_UPLOADED_IMAGE_BYTES) {
+      throw new Error("R2 image exceeds the bounded validation read");
+    }
     const inspection: MediaInspection = {
       contentType, declaredContentType: head.ContentType?.split(";", 1)[0]?.trim(),
       size: bytes.length,

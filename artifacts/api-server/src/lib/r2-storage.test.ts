@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import test from "node:test";
 import { S3Client } from "@aws-sdk/client-s3";
@@ -140,6 +141,63 @@ test("inspection verifies complete bytes once, revalidates ETags and never reuse
   missing = false;
   await io.inspect(config.privateBucket, "test.png");
   assert.equal(getCount, 3);
+});
+
+test("large approved hero videos pass the owned finalization and complete inspection path", async () => {
+  const secret = process.env.SESSION_SECRET;
+  process.env.SESSION_SECRET = "synthetic-large-hero-finalization-secret";
+  try {
+    for (const size of [23_624_661, MAX_HERO_VIDEO_BYTES]) {
+      const bytes = Buffer.alloc(size);
+      Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.alloc(12),
+        Buffer.from([0, 0, 0, 8]), Buffer.from("moov")]).copy(bytes);
+      const path = "/api/storage/objects/uploads/clarity.mp4";
+      const metadata = { ContentLength: size, ContentType: "video/mp4", ETag: '"large-hero"',
+        Metadata: { "soso-upload-owner": "staff-one", "soso-upload-size": String(size), "soso-upload-type": "video/mp4" } };
+      let gets = 0;
+      const storage = new R2StorageService(config, fakeClient(async command => {
+        if (command.constructor.name === "HeadObjectCommand") return metadata;
+        assert.equal(command.constructor.name, "GetObjectCommand");
+        assert.equal(command.input.Range, `bytes=0-${size - 1}`);
+        assert.equal(command.input.IfMatch, metadata.ETag);
+        gets++;
+        return { ...metadata, Body: Readable.from([bytes]) };
+      }));
+      const token = createR2UploadTicket(config, { path, ownerId: "staff-one", size, contentType: "video/mp4" });
+      await storage.verifyFinalization(path, token, "staff-one");
+      const inspected = await storage.inspectUploadedMedia("uploads/clarity.mp4");
+      assert.equal(inspected.size, size);
+      assert.equal(inspected.contentType, "video/mp4");
+      assert.equal(inspected.sha256, createHash("sha256").update(bytes).digest("hex"));
+      await storage.finalizeRenditions(path, token, "staff-one");
+      assert.equal(gets, 1);
+    }
+  } finally {
+    if (secret === undefined) delete process.env.SESSION_SECRET; else process.env.SESSION_SECRET = secret;
+  }
+});
+
+test("larger video inspection never increases the image budget or trusts a false video MIME", async () => {
+  for (const [key, mime, size] of [
+    ["uploads/large.mp4", "video/mp4", MAX_HERO_VIDEO_BYTES + 1],
+    ["uploads/large.png", "image/png", 12 * 1024 * 1024 + 1],
+    ["uploads/large.mp4", "image/png", 12 * 1024 * 1024 + 1],
+  ] as const) {
+    let gets = 0;
+    const io = new R2MediaIO(fakeClient(async command => {
+      if (command.constructor.name === "HeadObjectCommand") return { ContentLength: size, ContentType: mime };
+      gets++;
+      throw new Error("No oversized download is permitted");
+    }));
+    await assert.rejects(io.inspect(config.privateBucket, key), /bounded validation read/);
+    assert.equal(gets, 0);
+  }
+  const bytes = Buffer.alloc(12 * 1024 * 1024 + 1);
+  png.copy(bytes);
+  const metadata = { ContentLength: bytes.length, ContentType: "video/mp4", ETag: '"false-video"' };
+  const io = new R2MediaIO(fakeClient(async command => command.constructor.name === "HeadObjectCommand"
+    ? metadata : { ...metadata, Body: Readable.from([bytes]) }));
+  await assert.rejects(io.inspect(config.privateBucket, "uploads/false.mp4"), /image exceeds/);
 });
 
 test("bounded reads reject oversize, truncated and changed objects", async () => {
