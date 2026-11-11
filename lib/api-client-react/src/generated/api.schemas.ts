@@ -308,8 +308,9 @@ export interface UploadUrlRequest {
      */
   name: string;
   /**
+     * Transport ceiling for hero videos. The server retains the separate 12 MiB image limit.
      * @minimum 1
-     * @maximum 12582912
+     * @maximum 25165824
      */
   size: number;
   contentType: UploadUrlRequestContentType;

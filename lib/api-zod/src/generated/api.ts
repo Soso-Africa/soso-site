@@ -4796,7 +4796,7 @@ export const requestUploadUrlBodyNameMax = 160;
 
 
 export const requestUploadUrlBodyNameRegExp = new RegExp('^[A-Za-z0-9][A-Za-z0-9._ -]{0,159}$');
-export const requestUploadUrlBodySizeMax = 12582912;
+export const requestUploadUrlBodySizeMax = 25165824;
 
 
 
@@ -4807,7 +4807,7 @@ export const RequestUploadUrlBody = zod.object({
   "hash": zod.string().regex(requestUploadUrlBodyImportSourceHashRegExp)
 }).optional(),
   "name": zod.string().min(1).max(requestUploadUrlBodyNameMax).regex(requestUploadUrlBodyNameRegExp),
-  "size": zod.number().min(1).max(requestUploadUrlBodySizeMax),
+  "size": zod.number().min(1).max(requestUploadUrlBodySizeMax).describe('Transport ceiling for hero videos. The server retains the separate 12 MiB image limit.'),
   "contentType": zod.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'])
 })
 

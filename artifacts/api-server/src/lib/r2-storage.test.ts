@@ -111,6 +111,7 @@ test("signed direct uploads cannot overwrite and bind the declared MIME and byte
     assert.ok(signed.finalizeToken);
     await storage.createMediaUpload("clarity.mp4", "video/mp4", { size: MAX_HERO_VIDEO_BYTES, ownerId: "staff-one" });
     await assert.rejects(storage.createMediaUpload("large.mp4", "video/mp4", { size: MAX_HERO_VIDEO_BYTES + 1, ownerId: "staff-one" }));
+    await assert.rejects(storage.createMediaUpload("large.png", "image/png", { size: 12 * 1024 * 1024 + 1, ownerId: "staff-one" }));
     await assert.rejects(storage.createMediaUpload("image.svg", "image/svg+xml", { size: 10, ownerId: "staff-one" }));
   } finally {
     storage.io.client.destroy();

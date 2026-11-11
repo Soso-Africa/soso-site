@@ -127,6 +127,13 @@ const videoPath = localPath.refine(
   (value) => /\.(?:mp4|webm)$/i.test(value),
   "Hero video must be a local MP4 or WebM asset",
 );
+const heroWebmAlternative = z.object({
+  sourceUrl: localPath.refine((value) => /^\/api\/storage\/objects\/.+\.mp4$/i.test(value), "Use the governed original MP4 upload"),
+  webmUrl: localPath.refine((value) => /^\/api\/storage\/objects\/.+\.webm$/i.test(value), "Use a governed WebM upload"),
+  sourceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  webmSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  sameFootageApproved: z.literal(true),
+}).strict();
 const homepageHero = z.object({
   eyebrow: copy, title: copy, accent: copy, suffix: copy, description: copy,
   mediaMode: z.enum(["image", "video"]),
@@ -135,6 +142,8 @@ const homepageHero = z.object({
   imageAlt: z.string().min(1).max(300),
   videoUrl: videoPath.optional(),
   mobileVideoUrl: videoPath.optional(),
+  videoWebmAlternative: heroWebmAlternative.optional(),
+  mobileVideoWebmAlternative: heroWebmAlternative.optional(),
   mobileVideoLayout: z.enum(["full-height", "comparison"]).optional(),
   playLabel: copy.min(1),
   pauseLabel: copy.min(1),
@@ -149,6 +158,11 @@ const homepageHero = z.object({
   assurances: z.array(copy).min(1),
 }).strict().superRefine((hero, ctx) => {
   if (hero.mediaMode === "video") {
+    for (const [key, source] of [["videoWebmAlternative", hero.videoUrl], ["mobileVideoWebmAlternative", hero.mobileVideoUrl]] as const) {
+      if (hero[key] && hero[key].sourceUrl !== source) {
+        ctx.addIssue({ code: "custom", message: "WebM approval belongs to a different original; approve this footage again", path: [key] });
+      }
+    }
     if (!hero.videoUrl) {
       ctx.addIssue({ code: "custom", message: "Video heroes require a desktop video", path: ["videoUrl"] });
     }
@@ -157,7 +171,7 @@ const homepageHero = z.object({
     }
     return;
   }
-  if (hero.videoUrl !== undefined || hero.mobileVideoUrl !== undefined) {
+  if (hero.videoUrl !== undefined || hero.mobileVideoUrl !== undefined || hero.videoWebmAlternative !== undefined || hero.mobileVideoWebmAlternative !== undefined) {
     ctx.addIssue({
       code: "custom",
       message: "Image heroes must not include video assets; switch mediaMode to video first",
@@ -1758,6 +1772,8 @@ export function mergePlatformContentDefaults(current: unknown): unknown {
     if (mergedHero?.mediaMode === "image") {
       delete mergedHero.videoUrl;
       delete mergedHero.mobileVideoUrl;
+      delete mergedHero.videoWebmAlternative;
+      delete mergedHero.mobileVideoWebmAlternative;
     }
     if (shouldApplyHomepageMerchandising) {
       const document = merged as {

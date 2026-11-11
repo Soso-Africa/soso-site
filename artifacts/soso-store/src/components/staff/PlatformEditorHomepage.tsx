@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, AlertCircle, ImageUp, Star, Trash2 } from "lucide-r
 import type { CatalogProduct, PlatformContent } from "../../data/platformContent";
 import { productFrames } from "../../lib/homepageProducts";
 import { HeroVideoPreparation } from "./HeroVideoPreparation";
+import { HeroWebmAlternative } from "./HeroWebmAlternative";
 
 type Homepage = PlatformContent["homepage"];
 
@@ -81,7 +82,7 @@ export function PlatformEditorHomepage({
     if (imagePaths.some((path) => !/^\/(?!\/).+\.(?:jpe?g|png|webp|gif)$/i.test(path))) result.push("Homepage images must use local JPEG, PNG, WebP, or GIF paths.");
     if ([data.hero.imageUrl, data.hero.mobileImageUrl].some((path) => !/^\/(?!\/).+\.(?:jpe?g|png|webp)$/i.test(path))) result.push("Hero poster images must be local static JPEG, PNG, or WebP paths.");
     if (data.hero.mediaMode === "video" && (![data.hero.videoUrl, data.hero.mobileVideoUrl].every((path) => /^\/(?!\/).+\.(?:mp4|webm)$/i.test(path ?? "")))) result.push("Video heroes require local MP4 or WebM desktop and mobile paths.");
-    if (data.hero.mediaMode === "image" && (data.hero.videoUrl || data.hero.mobileVideoUrl)) result.push("Image heroes cannot include video paths.");
+    if (data.hero.mediaMode === "image" && (data.hero.videoUrl || data.hero.mobileVideoUrl || data.hero.videoWebmAlternative || data.hero.mobileVideoWebmAlternative)) result.push("Image heroes cannot include video paths.");
     const links = [
       data.newArrival.link.href, data.newArrival.editorial.link.href, data.featured.link.href,
       ...data.categories.items.map((item) => item.href), ...data.occasions.items.map((item) => item.href),
@@ -105,11 +106,11 @@ export function PlatformEditorHomepage({
         {(["eyebrow", "title", "accent", "suffix", "description", "imageUrl", "mobileImageUrl", "imageAlt", "playLabel", "pauseLabel", "stylistCtaLabel"] as const).map((key) => <Field key={key} label={`Hero ${key}`} value={data.hero[key]} onChange={(value) => update("hero", { ...data.hero, [key]: value })} />)}
         <label className={labelClass}>Hero media mode<select className={inputClass} value={data.hero.mediaMode} onChange={(event) => {
           const mediaMode = event.target.value as "image" | "video";
-          update("hero", mediaMode === "image" ? { ...data.hero, mediaMode, videoUrl: undefined, mobileVideoUrl: undefined } : { ...data.hero, mediaMode, videoUrl: data.hero.videoUrl ?? "", mobileVideoUrl: data.hero.mobileVideoUrl ?? "" });
+          update("hero", mediaMode === "image" ? { ...data.hero, mediaMode, videoUrl: undefined, mobileVideoUrl: undefined, videoWebmAlternative: undefined, mobileVideoWebmAlternative: undefined } : { ...data.hero, mediaMode, videoUrl: data.hero.videoUrl ?? "", mobileVideoUrl: data.hero.mobileVideoUrl ?? "" });
         }}><option value="image">Image</option><option value="video">Video</option></select></label>
         {data.hero.mediaMode === "video" && <>
-          <Field label="Hero desktop video path" value={data.hero.videoUrl ?? ""} onChange={(videoUrl) => update("hero", { ...data.hero, videoUrl })} />
-          <Field label="Hero mobile video path" value={data.hero.mobileVideoUrl ?? ""} onChange={(mobileVideoUrl) => update("hero", { ...data.hero, mobileVideoUrl })} />
+          <Field label="Hero desktop video path" value={data.hero.videoUrl ?? ""} onChange={(videoUrl) => update("hero", { ...data.hero, videoUrl, videoWebmAlternative: undefined })} />
+          <Field label="Hero mobile video path" value={data.hero.mobileVideoUrl ?? ""} onChange={(mobileVideoUrl) => update("hero", { ...data.hero, mobileVideoUrl, mobileVideoWebmAlternative: undefined })} />
           <label className={labelClass}>Phone video layout
             <select className={inputClass} value={data.hero.mobileVideoLayout ?? "full-height"} onChange={(event) => update("hero", { ...data.hero, mobileVideoLayout: event.target.value as "full-height" | "comparison" })}>
               <option value="full-height">Full-height portrait crop</option>
@@ -138,8 +139,20 @@ export function PlatformEditorHomepage({
           const current = latest.current;
           // Never let a late upload replace a newer edit or switch image-mode artwork.
           if (current.data.hero.mediaMode !== "video" || (current.data.hero[key] ?? "") !== currentPath) return;
-          current.onChange({ ...current.data, hero: { ...current.data.hero, [key]: path } });
+          current.onChange({ ...current.data, hero: { ...current.data.hero, [key]: path, [target === "desktop" ? "videoWebmAlternative" : "mobileVideoWebmAlternative"]: undefined } });
         }} />;
+      })}
+      {data.hero.mediaMode === "video" && (["desktop", "mobile"] as const).map((target) => {
+        const sourceKey = target === "desktop" ? "videoUrl" : "mobileVideoUrl";
+        const alternativeKey = target === "desktop" ? "videoWebmAlternative" : "mobileVideoWebmAlternative";
+        const sourcePath = data.hero[sourceKey] ?? "";
+        if (!/^\/api\/storage\/objects\/.+\.mp4$/i.test(sourcePath)) return null;
+        return <HeroWebmAlternative key={`webm:${target}:${sourcePath}`} target={target} sourcePath={sourcePath}
+          value={data.hero[alternativeKey]} onUploadMedia={onUploadMedia} onChange={(value) => {
+            const current = latest.current;
+            if (current.data.hero.mediaMode !== "video" || current.data.hero[sourceKey] !== sourcePath) return;
+            current.onChange({ ...current.data, hero: { ...current.data.hero, [alternativeKey]: value } });
+          }} />;
       })}
       <div className="mt-4"><p className={labelClass}>Hero assurances (ordered)</p>{data.hero.assurances.map((assurance, index) => <div key={index} className="mt-2 flex gap-2"><input className="staff-input" value={assurance} onChange={(event) => { const assurances = [...data.hero.assurances]; assurances[index] = event.target.value; update("hero", { ...data.hero, assurances }); }} /><MoveButtons index={index} length={data.hero.assurances.length} move={(from, to) => move(data.hero.assurances, from, to, (assurances) => update("hero", { ...data.hero, assurances }))} /><button type="button" disabled={data.hero.assurances.length <= 1} onClick={() => update("hero", { ...data.hero, assurances: data.hero.assurances.filter((_, itemIndex) => itemIndex !== index) })} className="border border-border px-3 text-xs disabled:opacity-30">Remove</button></div>)}<button type="button" onClick={() => update("hero", { ...data.hero, assurances: [...data.hero.assurances, ""] })} className="mt-2 border border-border px-3 py-2 text-xs">Add assurance</button></div>
     </details>

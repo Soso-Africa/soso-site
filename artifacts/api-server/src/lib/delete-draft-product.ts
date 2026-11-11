@@ -31,6 +31,11 @@ export function deleteDraftProduct(content: PlatformContent, slug: string): Plat
       else group.visible = false;
     }
   }
+  // New arrival is the one required scalar product binding. Other editorial
+  // bindings are optional: unbind them without relabelling their existing art.
+  if (draft.homepage.newArrival?.productSlug === slug) {
+    draft.homepage.newArrival.productSlug = draft.products[0]!.slug;
+  }
   const replaceLinks = (value: unknown): void => {
     if (!value || typeof value !== "object") return;
     if (Array.isArray(value)) {
@@ -40,6 +45,8 @@ export function deleteDraftProduct(content: PlatformContent, slug: string): Plat
     for (const [key, entry] of Object.entries(value)) {
       if (key === "href" && typeof entry === "string" && pointsToProduct(entry, slug)) {
         (value as Record<string, unknown>)[key] = "/shop";
+      } else if (key === "productSlug" && entry === slug) {
+        delete (value as Record<string, unknown>)[key];
       } else {
         replaceLinks(entry);
       }

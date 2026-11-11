@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { heroLayout, heroUsesOverlayHeader, selectHeroMedia, videoMimeType, type HeroMediaConfiguration } from "./heroMedia";
+import { HERO_H264_TYPE, HERO_VP9_TYPE, heroLayout, heroUsesOverlayHeader, selectHeroMedia, videoMimeType, type HeroMediaConfiguration } from "./heroMedia";
 
 const videoHero: HeroMediaConfiguration = {
   mediaMode: "video",
@@ -100,7 +100,7 @@ test("approved bundled hero prefers fast-start MP4 on desktop and mobile", () =>
     mobileVideoUrl: "/media/soso-craft-hero-mobile.webm",
   };
   for (const isMobile of [false, true]) {
-    const selected = selectHeroMedia(bundled, { ...standardEnvironment, isMobile }, (type) => type === "video/mp4");
+    const selected = selectHeroMedia(bundled, { ...standardEnvironment, isMobile }, (type) => type === HERO_H264_TYPE);
     assert.equal(selected.motionAllowed, true);
     assert.equal(selected.videoUrl, `/media/soso-craft-hero-${isMobile ? "mobile" : "desktop"}-v1.mp4`);
     assert.equal(selected.mimeType, "video/mp4");
@@ -110,7 +110,7 @@ test("approved bundled hero prefers fast-start MP4 on desktop and mobile", () =>
 
 test("bundled hero retains WebM when MP4 cannot play and never rewrites merchant footage", () => {
   const bundled = { ...videoHero, videoUrl: "/media/soso-craft-hero-desktop.webm" };
-  const selected = selectHeroMedia(bundled, standardEnvironment, (type) => type === "video/webm");
+  const selected = selectHeroMedia(bundled, standardEnvironment, (type) => type === HERO_VP9_TYPE);
   assert.equal(selected.videoUrl, bundled.videoUrl);
   assert.equal(selected.motionAllowed, true);
   const merchant = { ...videoHero, videoUrl: "/api/storage/objects/uploads/merchant.webm" };
@@ -134,4 +134,31 @@ test("bundled MP4 variants stay small and place playback metadata before video b
     assert.ok(atoms.includes("moov") && atoms.includes("mdat"));
     assert.ok(atoms.indexOf("moov") < atoms.indexOf("mdat"), "Metadata must allow playback before the full download");
   }
+});
+
+test("explicit decoder evidence selects one approved same-footage upload per viewport", () => {
+  const pair = (sourceUrl: string, webmUrl: string) => ({
+    sourceUrl, webmUrl, sourceSha256: "a".repeat(64), webmSha256: "b".repeat(64), sameFootageApproved: true as const,
+  });
+  const hero = {
+    ...videoHero,
+    videoUrl: "/api/storage/objects/uploads/desktop.mp4",
+    mobileVideoUrl: "/api/storage/objects/uploads/phone.mp4",
+    videoWebmAlternative: pair("/api/storage/objects/uploads/desktop.mp4", "/api/storage/objects/uploads/desktop.webm"),
+    mobileVideoWebmAlternative: pair("/api/storage/objects/uploads/phone.mp4", "/api/storage/objects/uploads/phone.webm"),
+  };
+  for (const isMobile of [false, true]) {
+    const env = { ...standardEnvironment, isMobile };
+    const h264 = selectHeroMedia(hero, env, (type) => type === HERO_H264_TYPE ? "probably" : "");
+    assert.equal(h264.videoUrl, isMobile ? hero.mobileVideoUrl : hero.videoUrl);
+    const vp9 = selectHeroMedia(hero, env, (type) => type === HERO_VP9_TYPE ? "probably" : "maybe");
+    assert.equal(vp9.videoUrl, isMobile ? hero.mobileVideoWebmAlternative.webmUrl : hero.videoWebmAlternative.webmUrl);
+    assert.equal(vp9.posterUrl, undefined);
+    assert.equal(selectHeroMedia(hero, env, () => "maybe").videoUrl, undefined, "Ambiguous container/codec claims cannot initiate a download");
+    assert.equal(selectHeroMedia(hero, { ...env, saveData: true }, () => "probably").videoUrl, undefined);
+    assert.equal(selectHeroMedia(hero, { ...env, prefersReducedMotion: true }, () => "probably").videoUrl, undefined);
+  }
+  const changed = { ...hero, videoUrl: "/api/storage/objects/uploads/replacement.mp4" };
+  assert.equal(selectHeroMedia(changed, standardEnvironment, (type) => type === HERO_VP9_TYPE ? "probably" : "").videoUrl, undefined);
+  assert.equal(selectHeroMedia({ ...hero, videoWebmAlternative: undefined }, standardEnvironment, (type) => type === "video/mp4" ? "maybe" : "").videoUrl, undefined);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RequestUploadUrlBody } from "@workspace/api-zod";
-import { imageDimensions, isAnimatedImage } from "../lib/media-files";
+import { imageDimensions, isAnimatedImage, MAX_HERO_VIDEO_BYTES } from "../lib/media-files";
 import {
   cloudinaryDeliveryUrlForPath,
   createCloudinarySignature,
@@ -72,6 +72,14 @@ test("the generated upload contract accepts governed video metadata", () => {
     size: 4_000_000,
     contentType: "video/quicktime",
   }).success, false);
+  for (const size of [23_624_661, MAX_HERO_VIDEO_BYTES]) {
+    assert.equal(RequestUploadUrlBody.safeParse({
+      name: "approved-higher-clarity.mp4", size, contentType: "video/mp4",
+    }).success, true, "The transport validator must accept an approved clarity-first export");
+  }
+  assert.equal(RequestUploadUrlBody.safeParse({
+    name: "oversize.mp4", size: MAX_HERO_VIDEO_BYTES + 1, contentType: "video/mp4",
+  }).success, false);
 });
 
 test("Cloudinary signatures are deterministic and exclude transport-only fields", () => {
@@ -92,7 +100,7 @@ test("Cloudinary upload policies enforce separate formats and byte limits", () =
     resourceType: "video",
     preset: "soso-governed-video-v1",
     allowedFormats: ["mp4", "webm"],
-    maxFileSize: 8 * 1024 * 1024,
+    maxFileSize: MAX_HERO_VIDEO_BYTES,
   });
   assert.throws(() => cloudinaryUploadPolicyForContentType("image/svg+xml"));
 });

@@ -73,7 +73,7 @@ for (const path of sourcePaths) {
   }
   for (const tag of source.match(/<video\b[\s\S]*?>/g) ?? []) {
     assert.match(tag, /\bmuted\b/, `${relative(packageRoot, path)} has video that is not muted.`);
-    if (relative(packageRoot, path) === "src/components/staff/HeroVideoPreparation.tsx") {
+    if (["src/components/staff/HeroVideoPreparation.tsx", "src/components/staff/HeroWebmAlternative.tsx"].includes(relative(packageRoot, path))) {
       // Staff compares genuine source/candidate clips manually. Do not apply
       // the public looping-hero/poster policy to these uncropped review players.
       assert.match(tag, /\bcontrols\b/);
