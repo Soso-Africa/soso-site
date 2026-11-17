@@ -3,6 +3,7 @@ import { auditLogsTable, db, faqItemsTable, siteContentRevisionsTable, siteConte
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { createVersionCheckedInitializer } from "./version-checked-initializer";
+import { needsPlatformUpgrade } from "./platform-upgrade-gate";
 
 const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(160);
 const localPath = z.string().startsWith("/").max(512).refine((value) => !value.startsWith("//"));
@@ -2243,10 +2244,18 @@ export async function reconcileLegacyPublishedFaqItems(
 
 export const ensurePlatformContent = createVersionCheckedInitializer({
   async readVersion() {
-    // Keep large JSON documents inside Postgres for this check. Include the
-    // publication timestamp because withdrawal can change it without the JSON.
+    // Compatibility depends on schema versions, not product descriptions.
+    // Hash only this small generation record, not both complete JSON documents.
+    // Live content approval uses its separate complete published fingerprint.
+    // Keep embedded legacy FAQs in the generation until they are reconciled.
     const [row] = await db.select({
-      version: sql<string>`md5(jsonb_build_array(${siteContentTable.draft}, ${siteContentTable.published}, ${siteContentTable.publishedAt})::text)`,
+      version: sql<string>`md5(jsonb_build_array(
+        ${siteContentTable.draftUpdatedAt}, ${siteContentTable.publishedAt},
+        ${siteContentTable.draft}->'contentVersion',
+        ${siteContentTable.published}->'contentVersion',
+        ${siteContentTable.published} = '{}'::jsonb,
+        ${siteContentTable.published} #> '{pages,faq,items}'
+      )::text)`,
     }).from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
     return row?.version ?? null;
   },
@@ -2254,6 +2263,22 @@ export const ensurePlatformContent = createVersionCheckedInitializer({
 });
 
 async function initializePlatformContent() {
+  // Most serverless starts and ordinary Staff edits do not need migration.
+  // Return four scalars rather than pulling both large catalogues over Neon,
+  // parsing/merging them, hashing them, and reconciling FAQs on every instance.
+  // Empty published content stays withdrawn. Actual consumers still validate
+  // their authoritative snapshots; this gate never grants publication.
+  const [state] = await db.select({
+    draftVersion: sql<string | null>`${siteContentTable.draft}->>'contentVersion'`,
+    publishedVersion: sql<string | null>`${siteContentTable.published}->>'contentVersion'`,
+    publishedEmpty: sql<boolean>`${siteContentTable.published} = '{}'::jsonb`,
+    hasLegacyFaqItems: sql<boolean>`case
+      when jsonb_typeof(${siteContentTable.published} #> '{pages,faq,items}') = 'array'
+      then jsonb_array_length(${siteContentTable.published} #> '{pages,faq,items}') > 0
+      else false end`,
+  }).from(siteContentTable).where(eq(siteContentTable.key, "platform")).limit(1);
+  if (!needsPlatformUpgrade(state, DEFAULT_PLATFORM_CONTENT.contentVersion)) return;
+
   const now = new Date();
   await db.insert(siteContentTable).values({
     key: "platform", draft: DEFAULT_PLATFORM_CONTENT, published: DEFAULT_PLATFORM_CONTENT,

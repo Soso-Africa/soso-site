@@ -102,7 +102,7 @@ export function CatalogueBusinessApproval(props: Props) {
   };
   const publish = async () => {
     if (disabled || !confirmed.length || approvedCount !== confirmed.length) return;
-    if (!window.confirm(`Publish only these ${confirmed.length} confirmed items? ${excluded.length} unconfirmed items and any previously live products not in this list will stay off the website. Unrelated editorial drafts and checkout settings will not be published.`)) return;
+    if (!window.confirm(`Publish only these ${confirmed.length} confirmed items? ${excluded.length} unconfirmed items and any previously live products not in this list will stay off the website. Saved menu featured-product selections are included. Other navigation, editorial drafts and checkout settings will not be published.`)) return;
     setWorking(true);
     setMessage("");
     try {
@@ -174,7 +174,7 @@ export function CatalogueBusinessApproval(props: Props) {
       </ul>
       {readiness && !shownItems.length && <p className="mt-3 text-sm text-muted-foreground">No items match this filter.</p>}
     </details>
-    <p className="mt-3 text-xs text-muted-foreground">Release replaces the public product list with exactly the named confirmed items. Unconfirmed accessories are not automatically approved. Existing availability and payment activation checks remain in force.</p>
+    <p className="mt-3 text-xs text-muted-foreground">Release replaces the public product list with exactly the named confirmed items and includes saved featured-product selections for existing menu groups. Choose these under Site navigation, not the homepage or product Featured setting. Other navigation and editorial drafts stay unpublished. Unconfirmed accessories are not automatically approved. Existing availability and payment activation checks remain in force.</p>
     {message && <p role="status" className="mt-3 border border-primary/25 bg-background p-3 text-sm whitespace-pre-wrap">{message}</p>}
   </section>;
 }
