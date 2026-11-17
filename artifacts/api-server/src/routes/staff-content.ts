@@ -685,11 +685,16 @@ export function preservesLegacySparseFeaturedProvenance(stored: unknown, incomin
 export function buildConfirmedCatalogueCandidate(
   published: PlatformContent,
   selected: PlatformContent["products"],
+  draft?: PlatformContent,
 ): { candidate: PlatformContent; prunedReferences: string[] } {
   const selectedSlugs = new Set(selected.map((product) => product.slug));
   const prunedReferences: string[] = [];
   const megaMenu = published.site.megaMenu.map((group) => {
-    const featuredProductSlugs = group.featuredProductSlugs.filter((slug) => {
+    // Release the explicitly saved product placements, not stale live ones.
+    // Match both identity and department; all other navigation stays published.
+    const savedGroup = draft?.site.megaMenu.find((item) =>
+      item.id === group.id && item.department === group.department);
+    const featuredProductSlugs = (savedGroup ?? group).featuredProductSlugs.filter((slug) => {
       if (selectedSlugs.has(slug)) return true;
       prunedReferences.push(`site.megaMenu[${group.id}].featuredProductSlugs removed omitted product ${slug}`);
       return false;
@@ -735,7 +740,13 @@ router.get("/staff/content/platform", platformRoles, async (_req, res): Promise<
 
 router.get("/staff/content/platform/catalogue/readiness", platformRoles, async (_req, res): Promise<void> => {
   await ensurePlatformContent();
-  const [row] = await db.select().from(siteContentTable)
+  // Readiness validates the saved draft. The live catalogue is not consumed
+  // here; transferring it doubles large-catalogue reads for no benefit.
+  const [row] = await db.select({
+    draft: siteContentTable.draft,
+    draftUpdatedAt: siteContentTable.draftUpdatedAt,
+    publishedAt: siteContentTable.publishedAt,
+  }).from(siteContentTable)
     .where(eq(siteContentTable.key, "platform")).limit(1);
   const parsed = PlatformContentSchema.safeParse(row?.draft);
   if (!row || !parsed.success) {
@@ -1407,7 +1418,7 @@ router.post("/staff/content/platform/catalogue/publish-confirmed", platformRoles
       };
     }
     const selected = confirmed;
-    const { candidate: candidateBase, prunedReferences } = buildConfirmedCatalogueCandidate(published.data, selected);
+    const { candidate: candidateBase, prunedReferences } = buildConfirmedCatalogueCandidate(published.data, selected, draft.data);
     const references = [...new Set(published.data.products
       .filter((product) => !expectedSlugs.includes(product.slug))
       .flatMap((product) => platformProductReferences(candidateBase, product.slug)

@@ -147,6 +147,63 @@ test("homepage publication candidate preserves the published catalogue and unrel
   assert.equal(PlatformContentSchema.safeParse(confirmedOnly.candidate).success, true);
 });
 
+test("confirmed release uses saved menu featured selections without publishing unrelated draft navigation", () => {
+  const published = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const draft = structuredClone(published);
+  const publishedWomen = published.site.megaMenu.find((group) => group.id === "women")!;
+  const draftWomen = draft.site.megaMenu.find((group) => group.id === "women")!;
+  const replacement = draft.products.find((product) =>
+    product.department === "women" && !publishedWomen.featuredProductSlugs.includes(product.slug))!;
+  draftWomen.featuredProductSlugs = [replacement.slug];
+  draftWomen.label = "Unreleased label";
+  draftWomen.visible = false;
+  draftWomen.columns = [{ heading: "Unreleased", links: [{ label: "Shop", href: "/shop" }] }];
+  draft.site.announcement = "Unreleased announcement";
+  draft.homepage.hero.title = "Unreleased campaign";
+  const selected = draft.products.filter((product) =>
+    product.department !== "women" || product.slug === replacement.slug);
+  const before = structuredClone({ published, draft });
+  const { candidate } = buildConfirmedCatalogueCandidate(published, selected, draft);
+  assert.equal(PlatformContentSchema.safeParse(candidate).success, true);
+  assert.deepEqual(candidate.site.megaMenu.find((group) => group.id === "women"), {
+    ...publishedWomen, featuredProductSlugs: [replacement.slug],
+  });
+  assert.equal(candidate.site.announcement, published.site.announcement);
+  assert.deepEqual(candidate.homepage, published.homepage);
+  assert.deepEqual({ published, draft }, before);
+});
+
+test("confirmed release does not invent menu selections or accept excluded and wrong-department cards", () => {
+  const published = structuredClone(DEFAULT_PLATFORM_CONTENT);
+  const draft = structuredClone(published);
+  const women = draft.site.megaMenu.find((group) => group.id === "women")!;
+  women.featuredProductSlugs = [];
+  let candidate = buildConfirmedCatalogueCandidate(published, draft.products, draft).candidate;
+  let checked = PlatformContentSchema.safeParse(candidate);
+  assert.equal(checked.success, false);
+  if (!checked.success) assert.ok(checked.error.issues.some((issue) =>
+    issue.message.includes("Visible Women menu requires at least one featured product image")));
+
+  const excludedSlug = published.site.megaMenu.find((group) => group.id === "women")!.featuredProductSlugs[0]!;
+  women.featuredProductSlugs = [excludedSlug];
+  const selected = draft.products.filter((product) => product.slug !== excludedSlug);
+  candidate = buildConfirmedCatalogueCandidate(published, selected, draft).candidate;
+  assert.deepEqual(candidate.site.megaMenu.find((group) => group.id === "women")!.featuredProductSlugs, []);
+  assert.equal(PlatformContentSchema.safeParse(candidate).success, false);
+
+  women.featuredProductSlugs = [draft.products.find((product) => product.department === "men")!.slug];
+  candidate = buildConfirmedCatalogueCandidate(published, draft.products, draft).candidate;
+  checked = PlatformContentSchema.safeParse(candidate);
+  assert.equal(checked.success, false);
+  if (!checked.success) assert.ok(checked.error.issues.some((issue) =>
+    issue.message.includes("does not belong to women")));
+
+  // A draft group with a different identity or department cannot replace a live group.
+  women.department = "men";
+  candidate = buildConfirmedCatalogueCandidate(published, draft.products, draft).candidate;
+  assert.deepEqual(candidate.site.megaMenu, published.site.megaMenu);
+});
+
 test("catalogue mapping history deduplicates saves and marks later fingerprint changes", () => {
   const first = structuredClone(DEFAULT_PLATFORM_CONTENT);
   const second = structuredClone(DEFAULT_PLATFORM_CONTENT);
